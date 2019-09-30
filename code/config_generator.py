@@ -13,5 +13,5 @@ simulation_parameters = dict(
     nu = nu,
     mu = 0.5,  # (meV), chemical potential of the lattice
     model = H_TB_simple,
-    start_parameters = 'hot'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
+    start_type = 'hot'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
 )

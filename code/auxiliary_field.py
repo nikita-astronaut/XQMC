@@ -3,10 +3,10 @@ import pickle
 import time
 import cupy as cp
 
-def get_initial_field_configuration(start_type, config):
-    if start_type == 'cold':
+def get_initial_field_configuration(config):
+    if config.start_type == 'cold':
         return np.random.randint(0, 1, size = (config.Nt, 4 * config.Ls * config.Ls)) * 2. - 1.0
-    if start_type == 'hot':
+    if config.start_type == 'hot':
         return np.random.randint(0, 2, size = (config.Nt, 4 * config.Ls * config.Ls)) * 2. - 1.0
 
     return pickle.load(open(start_type, 'rb'))
