@@ -29,9 +29,9 @@ def print_generator_log(generator_iteration, h_field, K, config, accept_history,
     if generator_iteration % config.n_print_frequency != 0:
         return
     n_print = np.min([generator_iteration, config.n_smoothing])
-    print("{:d} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format(generator_iteration, np.mean(ratio_history[-n_print:]), np.std(ratio_history[-n_print:]), \
+    print("{:d} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format(generator_iteration, np.mean(ratio_history[-n_print:]), np.std(ratio_history[-n_print:]), \
                                                            np.mean(accept_history[-n_print:]), np.mean(sign_history[-n_print:]), np.std(sign_history[-n_print:]), \
-                                                           cp.asnumpy(observables.total_density(h_field, K, config))))
+                                                           ))#cp.asnumpy(observables.total_density(h_field, K, config))))
     return
 
 if __name__ == "__main__":
