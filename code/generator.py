@@ -14,6 +14,7 @@ import scipy.linalg
 import scipy.sparse as scs
 import time
 import auxiliary_field
+import observables
 from config_generator import simulation_parameters
 
 config = simulation_parameters()
@@ -21,15 +22,16 @@ config = simulation_parameters()
 def print_greetings(config):
     print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
           "lattice = {:d}^2 x {:d}".format(config.start_type, 1.0 / config.dt / config.Nt, config.mu, config.Ls, config.Nt))
-    print("# iteration <log(ratio)> d<log(ratio)> <acceptance> <sign> d<sign>")
+    print("# iteration <log(ratio)> d<log(ratio)> <acceptance> <sign> d<sign> <density>")
     return
 
-def print_generator_log(generator_iteration, config, accept_history, sign_history, ratio_history):
+def print_generator_log(generator_iteration, h_field, K, config, accept_history, sign_history, ratio_history):
     if generator_iteration % config.n_print_frequency != 0:
         return
     n_print = np.min([generator_iteration, config.n_smoothing])
-    print("{:d} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format(generator_iteration, np.mean(ratio_history[-n_print:]), np.std(ratio_history[-n_print:]), \
-                                                           np.mean(accept_history[-n_print:]), np.mean(sign_history[-n_print:]), np.std(sign_history[-n_print:])))
+    print("{:d} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format(generator_iteration, np.mean(ratio_history[-n_print:]), np.std(ratio_history[-n_print:]), \
+                                                           np.mean(accept_history[-n_print:]), np.mean(sign_history[-n_print:]), np.std(sign_history[-n_print:]), \
+                                                           observables.total_density(h_field, K, config)))
     return
 
 if __name__ == "__main__":
@@ -60,4 +62,4 @@ if __name__ == "__main__":
         else:
             accept_history.append(0)
 
-        print_generator_log(generator_iteration, config, accept_history, sign_history, ratio_history)
+        print_generator_log(generator_iteration, current_field, K_operator, config, accept_history, sign_history, ratio_history)
