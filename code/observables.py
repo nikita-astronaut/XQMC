@@ -46,4 +46,4 @@ def staggered_magnetisation(h_configuration, K, config):
     AB = staggered_magnetisation_ij(G_function_up, G_function_down, 0, 1, config)
     BA = staggered_magnetisation_ij(G_function_up, G_function_down, 1, 0, config)
 
-    return (AA + AB - AB - BA) / 4. / (4.0 * config.Ls ** 2)
+    return (AA + AB - AB - BA) / 4. / (4.0 * config.Ls ** 2) ** 2
