@@ -12,7 +12,7 @@ except ImportError:
 import auxiliary_field
 
 def get_B_sublattice_mask(config):
-    return 1.0 * np.array([from_linearized_index(index, 4 * config.Ls ** 2)[1] for index in range(4 * config.Ls ** 2)])
+    return xp.asarray(1.0 * np.array([models.from_linearized_index(index, 4 * config.Ls ** 2)[1] for index in range(4 * config.Ls ** 2)]))
 
 def density_spin(h_configuration, K, spin, config):
     G_function = auxiliary_field.get_green_function(h_configuration, K, spin, config)
