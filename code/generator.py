@@ -29,10 +29,11 @@ def print_generator_log(generator_iteration, h_field, K, config, accept_history,
     if generator_iteration % config.n_print_frequency != 0:
         return
     n_print = np.min([generator_iteration, config.n_smoothing])
-    print("{:d} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f} {:.5f} {:.5f}".format(generator_iteration, np.mean(ratio_history[-n_print:]), np.std(ratio_history[-n_print:]), \
+    n_history = np.min([n_print, len(ratio_history)])
+    print("{:d} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f} {:.5f} {:.5f}".format(generator_iteration, np.mean(ratio_history[-n_history:]), np.std(ratio_history[-n_history:]), \
                                                                          np.mean(accept_history[-n_print:]), np.mean(sign_history[-n_print:]), np.std(sign_history[-n_print:]), \
                                                                          cp.asnumpy(observables.total_density(h_field, K, config)),
-                                                                         cp.asnumpy(observables.staggered_magnetisation(h_field, K, config))))
+                                                                         cp.asnumpy(observables.staggered_magnetisation(h_field, K, config))), flush = True)
     return
 
 if __name__ == "__main__":
@@ -53,9 +54,10 @@ if __name__ == "__main__":
         proposed_det_log, proposed_det_sign = auxiliary_field.get_det(proposed_field, K_operator, config)
 
         ratio = np.min([1, np.exp(proposed_det_log - current_det_log)])
-        ratio_history.append(proposed_det_log - current_det_log)
+        # ratio_history.append(proposed_det_log - current_det_log)
         lamb = np.random.uniform(0, 1)
         if lamb < ratio:
+            ratio_history.append(proposed_det_log - current_det_log)
             current_field = 1.0 * proposed_field  # ensure copy here
             current_det_log = proposed_det_log
             current_det_sign = proposed_det_sign

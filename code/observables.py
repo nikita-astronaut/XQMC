@@ -35,8 +35,11 @@ def staggered_magnetisation(h_configuration, K, config):
 
         disconnected_up = xp.einsum('ij,ji,j,i', G_function_up, G_function_up, i_sublattice_mask, j_sublattice_mask)
         disconnected_down = xp.einsum('ij,ji,j,i', G_function_down, G_function_down, i_sublattice_mask, j_sublattice_mask)
+
+        disconnected_up_down = 2. * xp.einsum('ij,ji,j,i', G_function_up, G_function_down, i_sublattice_mask, j_sublattice_mask)
+        disconnected_down_up = 2. * xp.einsum('ij,ji,j,i', G_function_down, G_function_up, i_sublattice_mask, j_sublattice_mask)
         
-        return i_sublattice_connected * j_sublattice_connected - disconnected_up - disconnected_down
+        return i_sublattice_connected * j_sublattice_connected - disconnected_up - disconnected_down - disconnected_up_down - disconnected_down_up
 
     G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
     G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
@@ -45,5 +48,5 @@ def staggered_magnetisation(h_configuration, K, config):
     BB = staggered_magnetisation_ij(G_function_up, G_function_down, 1, 1, config)
     AB = staggered_magnetisation_ij(G_function_up, G_function_down, 0, 1, config)
     BA = staggered_magnetisation_ij(G_function_up, G_function_down, 1, 0, config)
+    return (AA + BB - AB - BA) / 4. / (4.0 * config.Ls ** 2) ** 2
 
-    return (AA + AB - AB - BA) / 4. / (4.0 * config.Ls ** 2) ** 2
