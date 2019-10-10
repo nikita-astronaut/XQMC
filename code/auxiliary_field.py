@@ -11,7 +11,7 @@ except ImportError:
 
 def inv_illcond(A):
     u, s, v = xp.linalg.svd(A)
-    Ainv = xp.dot(v.transpose(), xp.dot(xp.diag(s**-1),u.transpose()))
+    Ainv = xp.dot(v.transpose(), xp.dot(xp.diag(s**-1), u.transpose()))
     return Ainv
 
 def load_configuration(path):
@@ -28,10 +28,11 @@ def get_initial_field_configuration(config):
 def save_configuration(configuration, path):
     return np.save(path, configuration)
 
-def flip_random_spin(h_configuration, config):
-    time_slice = np.random.randint(0, config.Nt)
-    spatial_index = np.random.randint(0, config.n_orbitals * 2 * config.Ls ** 2)
-    h_configuration[time_slice, spatial_index] *= -1
+def flip_random_spin(h_configuration, config, current_n_flips):
+    for _ in range(current_n_flips):
+        time_slice = np.random.randint(0, config.Nt)
+        spatial_index = np.random.randint(0, config.n_orbitals * 2 * config.Ls ** 2)
+        h_configuration[time_slice, spatial_index] *= -1
     return h_configuration
 
 def fermionic_matrix(h_configuration, K, spin, config):
@@ -62,3 +63,4 @@ def get_det(h_configuration, K, config):
 def get_green_function(h_configuration, K, spin, config):
     # print("K matrix condition number = " + str(np.linalg.cond(xp.asnumpy(fermionic_matrix(h_configuration, K, spin, config)))))
     return inv_illcond(fermionic_matrix(h_configuration, K, spin, config))
+    
