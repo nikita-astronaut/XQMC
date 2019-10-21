@@ -16,6 +16,15 @@ def nearest_neighbor_hexagonal(r1, r2, L):
         return True
     return False
 
+def nearest_neighbor_hexagonal_dir(r1, r2, L):
+    if r1[1] == r2[1] and r1[0] == r2[0]:
+        return 1
+    if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, 1):
+        return 2
+    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1):
+        return 3
+    return -1
+
 def nearest_neighbor_square(r1, r2, L):
     if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, 1):
         return True
