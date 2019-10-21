@@ -12,5 +12,5 @@ class MC_parameters:
         self.MC_length = 10000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.particles_excess = 0
-        self.total_spin = 4
+        self.total_spin = 0
         self.pairing = models_vmc.on_site_and_nn_pairing

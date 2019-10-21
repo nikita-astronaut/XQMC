@@ -12,13 +12,13 @@ except ImportError:
 
 # TODO: make this parallel (multiprocessing / GPU-threads)
 def get_wavefunction(indexes, pairing, config, pfaffian = False):
-	A = np.zeros((len(indexes), len(indexes)))
-	for idx1 in range(A.shape[0]):
-		for idx2 in range(idx1, A.shape[1]):
-			A[idx1, idx2] = pairing.get_pairing_f(idx1, idx2)
-	A = A - A.T
-	if not pfaffian:
-		return xp.linalg.det(A)  # if we are performing MC-sampling, we only need 
+    A = np.zeros((len(indexes), len(indexes)))
+    for n1, idx1 in enumerate(indexes):
+        for n2, idx2 in enumerate(indexes):
+            A[n1, n2] = pairing.get_pairing_f(idx1, idx2)
+    # print(np.sum(np.abs(A + A.T)))
+    if not pfaffian:
+        return xp.linalg.det(A)  # if we are performing MC-sampling, we only need 
 
 
 # counter = 0
