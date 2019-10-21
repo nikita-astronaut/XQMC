@@ -12,11 +12,11 @@ except ImportError:
 import auxiliary_field
 
 def get_B_sublattice_mask(config):
-    return xp.asarray(1.0 * np.array([models.from_linearized_index(index, 2 * config.n_orbitals * config.Ls ** 2, config.n_orbitals)[1] for index in range(2 * config.n_orbitals * config.Ls ** 2)]))
+    return xp.asarray(1.0 * np.array([models.from_linearized_index(index, config.Ls, config.n_orbitals)[1] for index in range(config.n_sublattices * config.n_orbitals * config.Ls ** 2)]))
 
 def density_spin(h_configuration, K, spin, config):
     G_function = auxiliary_field.get_green_function(h_configuration, K, spin, config)
-    return xp.trace(G_function) / (2 * config.n_orbitals * config.Ls ** 2)
+    return xp.trace(G_function) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
 
 def total_density(h_configuration, K, config):
     return (density_spin(h_configuration, K, 1.0, config) + density_spin(h_configuration, K, -1.0, config)) / 2.
@@ -27,14 +27,14 @@ def kinetic_energy(h_configuration, K, K_matrix, config):
     G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
     G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
 
-    K_mean = config.main_hopping * xp.einsum('ij,ji', G_function_up + G_function_down, A) / (2 * config.n_orbitals * config.Ls ** 2)
+    K_mean = config.main_hopping * xp.einsum('ij,ji', G_function_up + G_function_down, A) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
     return K_mean
 
 def double_occupancy(h_configuration, K, config):
     G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
     G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
 
-    return xp.trace(G_function_up * G_function_down) / (2 * config.n_orbitals * config.Ls ** 2)
+    return xp.trace(G_function_up * G_function_down) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
 
 def staggered_magnetisation(h_configuration, K, config):
     def staggered_magnetisation_ij(G_function_up, G_function_down, i_sublattice, j_sublattice, config):
@@ -55,10 +55,9 @@ def staggered_magnetisation(h_configuration, K, config):
         if i_sublattice == j_sublattice:
             contact_term = xp.sum((xp.diag(G_function_up) + xp.diag(G_function_down)) * i_sublattice_mask)
 
-        # connected_up_down = 2. * xp.einsum('ij,ji,j,i', G_function_up, G_function_down, i_sublattice_mask, j_sublattice_mask)
-        # connected_down_up = 2. * xp.einsum('ij,ji,j,i', G_function_down, G_function_up, i_sublattice_mask, j_sublattice_mask)
-        
-        return i_sublattice_disconnected * j_sublattice_disconnected + contact_term - connected_up - connected_down# - connected_up_down - connected_down_up
+        connected_up_down = 2. * xp.einsum('ij,ji,j,i', G_function_up, G_function_down, i_sublattice_mask, j_sublattice_mask)
+        connected_down_up = 2. * xp.einsum('ij,ji,j,i', G_function_down, G_function_up, i_sublattice_mask, j_sublattice_mask)
+        return i_sublattice_disconnected * j_sublattice_disconnected + contact_term - connected_up - connected_down#  - connected_up_down - connected_down_up
 
     G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
     G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
@@ -68,13 +67,13 @@ def staggered_magnetisation(h_configuration, K, config):
     AB = staggered_magnetisation_ij(G_function_up, G_function_down, 0, 1, config)
     BA = staggered_magnetisation_ij(G_function_up, G_function_down, 1, 0, config)
     
-    return (AA + BB - AB - BA) / (2 * config.n_orbitals * config.Ls ** 2) ** 1
+    return (AA + BB - AB - BA) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2) ** 1 / 4.
 
 def SzSz_onsite(h_configuration, K, config):
     G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
     G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
 
-    return (-2.0 * xp.sum((xp.diag(G_function_up) * xp.diag(G_function_down))) + xp.sum(xp.diag(G_function_down)) + xp.sum(xp.diag(G_function_up))) / (2 * config.n_orbitals * config.Ls ** 2)
+    return (-2.0 * xp.sum((xp.diag(G_function_up) * xp.diag(G_function_down))) + xp.sum(xp.diag(G_function_down)) + xp.sum(xp.diag(G_function_up))) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
 
 def get_n_adj(K_matrix, distance):
     A = xp.abs(xp.asarray(K_matrix)) > 1e-6
@@ -88,11 +87,13 @@ def get_n_adj(K_matrix, distance):
 
 def SzSz_n_neighbor(h_configuration, K, K_matrix, config, distance):
     adj = get_n_adj(K_matrix, distance)
-    print(adj.sum())
+
     G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
     G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
+
     return (xp.einsum('i,j,ij', xp.diag(G_function_up) - xp.diag(G_function_down), xp.diag(G_function_up) - xp.diag(G_function_down), adj) - \
             xp.einsum('ij,ji,ij', G_function_up, G_function_up, adj) - xp.einsum('ij,ji,ij', G_function_down, G_function_down, adj)) / xp.sum(adj)
+
 
 
 def double_occupancy_n_neighbor(h_configuration, K, K_matrix, config, distance):

@@ -2,6 +2,8 @@ import numpy as np
 
 xp = np  # by default the code is executed on the CPU
 gpu = False
+cp = np
+
 try:
     import cupy as cp
     xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
@@ -32,7 +34,7 @@ def print_generator_log(generator_iteration, h_field, K_matrix, K, config, accep
     n_print = np.min([generator_iteration, config.n_smoothing])
     n_history = np.min([n_print, len(ratio_history)])
     S_AF_history.append(cp.asnumpy(observables.staggered_magnetisation(h_field, K, config)))
-    print("{:d}, {:d}, {:.3f}, {:.3f} +/- {:.3f}, {:.3f}, {:.3f} +/- {:.3f}, {:.5f}, {:.5f} +/- {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}".format(generator_iteration, current_n_flips, \
+    print("{:d}, {:d}, {:.3f}, {:.3f} +/- {:.3f}, {:.3f}, {:.3f} +/- {:.3f}, {:.5f}, {:.7f} +/- {:.7f}, {:.12f}, {:.12f}, {:.12f}, {:.7f}, {:.7f}, {:.7f}, {:.7f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}, {:.5f}".format(generator_iteration, current_n_flips, \
         n_flipped * 1.0 / config.Ls ** 2 / config.Nt / 2 / config.n_orbitals, \
         np.mean(ratio_history[-n_history:]), np.std(ratio_history[-n_history:]), \
         np.mean(accept_history[generator_iteration-n_print:generator_iteration]), \
@@ -71,7 +73,6 @@ if __name__ == "__main__":
         sign_history.append(current_det_sign)
         proposed_field = auxiliary_field.flip_random_spin(1.0 * current_field, config, current_n_flips)  # 1.0 -- to ensure the copy instead of passing by pointer
         proposed_det_log, proposed_det_sign = auxiliary_field.get_det(proposed_field, K_operator, config)
-
         ratio = np.min([1, np.exp(proposed_det_log - current_det_log)])
         # ratio_history.append(proposed_det_log - current_det_log)
         lamb = np.random.uniform(0, 1)
@@ -83,9 +84,9 @@ if __name__ == "__main__":
             accept_history[generator_iteration] = +current_n_flips
             n_flipped += current_n_flips
 
-        if generator_iteration % 1000 == 0:
-            if accept_history[generator_iteration-1000:generator_iteration].mean() > 0.35:
-                current_n_flips += 1
-            if accept_history[generator_iteration-1000:generator_iteration].mean() < 0.25 and current_n_flips > 1:
-                current_n_flips -= 1
+        #if generator_iteration % 1000 == 0:
+        #    if accept_history[generator_iteration-1000:generator_iteration].mean() > 0.35:
+        #        current_n_flips += 1
+        #    if accept_history[generator_iteration-1000:generator_iteration].mean() < 0.25 and current_n_flips > 1:
+        #        current_n_flips -= 1
         print_generator_log(generator_iteration, current_field, K_matrix, K_operator, config, accept_history, sign_history, ratio_history, current_n_flips, n_flipped)

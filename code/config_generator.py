@@ -1,7 +1,7 @@
 import models
 import numpy as np
 dt_in_inv_t1 = 0.2
-U_in_t1 = 0.
+U_in_t1 = 2.0
 nu = np.arccosh(np.exp(U_in_t1 * dt_in_inv_t1 / 2.))
 main_hopping = 1.0
 
@@ -14,8 +14,9 @@ class simulation_parameters:
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
         self.nu = nu
         self.mu = -0.  # (meV), chemical potential of the lattice
-        self.model = models.H_TB_Sorella
+        self.model = models.H_TB_Sorella_hexagonal
         self.n_orbitals = 1
+        self.n_sublattices = 2
         self.start_type = 'hot'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
         self.n_generator = 1000000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 1000  # every n-th configuration will be stored during generation

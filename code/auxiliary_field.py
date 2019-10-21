@@ -19,9 +19,9 @@ def load_configuration(path):
 
 def get_initial_field_configuration(config):
     if config.start_type == 'cold':
-        return np.random.randint(0, 1, size = (config.Nt, config.n_orbitals * 2 * config.Ls ** 2)) * 2. - 1.0
+        return np.random.randint(0, 1, size = (config.Nt, config.n_orbitals * config.n_sublattices * config.Ls ** 2)) * 2. - 1.0
     if config.start_type == 'hot':
-        return np.random.randint(0, 2, size = (config.Nt, config.n_orbitals * 2 * config.Ls ** 2)) * 2. - 1.0
+        return np.random.randint(0, 2, size = (config.Nt, config.n_orbitals * config.n_sublattices * config.Ls ** 2)) * 2. - 1.0
 
     return load_configuration(start_type)
 
@@ -31,17 +31,24 @@ def save_configuration(configuration, path):
 def flip_random_spin(h_configuration, config, current_n_flips):
     for _ in range(current_n_flips):
         time_slice = np.random.randint(0, config.Nt)
-        spatial_index = np.random.randint(0, config.n_orbitals * 2 * config.Ls ** 2)
+        spatial_index = np.random.randint(0, config.n_orbitals * config.n_sublattices * config.Ls ** 2)
         h_configuration[time_slice, spatial_index] *= -1
     return h_configuration
 
 def fermionic_matrix(h_configuration, K, spin, config):
-    M = xp.diag(xp.ones(config.n_orbitals * 2 * config.Ls ** 2))
+    M = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
+    current_V = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
     for slice_idx in range(config.Nt):
         V = xp.diag(xp.exp(spin * config.nu * h_configuration[slice_idx, ...]))
-        M = M.dot(K)
-        M = M.dot(V)
-    return xp.diag(xp.ones(config.n_orbitals * 2 * config.Ls ** 2)) + M
+        M = V.dot(M)
+        M = K.dot(M)
+        # u, s, v = xp.linalg.svd(M)
+
+        # current_V = v.dot(current_V)
+        # M = u.dot(xp.diag(s))
+    # M = M.dot(current_V)
+
+    return xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2)) + M
 
 def get_det(h_configuration, K, config):
     t = time.time()
