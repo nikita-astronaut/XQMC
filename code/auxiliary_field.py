@@ -35,20 +35,31 @@ def flip_random_spin(h_configuration, config, current_n_flips):
         h_configuration[time_slice, spatial_index] *= -1
     return h_configuration
 
-def fermionic_matrix(h_configuration, K, spin, config):
+def B_l(h_configuration, spin, l, K, config):
+    V = xp.diag(xp.exp(spin * config.nu * h_configuration[l, ...]))
+    return V.dot(K)
+
+
+def fermionic_matrix(h_configuration, K, spin, config, time = 0, return_Bl = False):
     M = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
     current_V = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
-    for slice_idx in range(config.Nt):
-        V = xp.diag(xp.exp(spin * config.nu * h_configuration[slice_idx, ...]))
-        M = V.dot(M)
-        M = K.dot(M)
-        # u, s, v = xp.linalg.svd(M)
 
-        # current_V = v.dot(current_V)
-        # M = u.dot(xp.diag(s))
-    # M = M.dot(current_V)
+    slices = list(range(time + 1, config.Nt)) + list(range(0, time))
+    if not return_Bl:
+        slices = list(range(time + 1, config.Nt)) + list(range(0, time + 1))
 
-    return xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2)) + M
+    for nr, slice_idx in enumerate(slices):
+        B = B_l(h_configuration, spin, slice_idx, K, config)
+        M = B.dot(M)
+        if nr % 15 == 14:
+            u, s, v = xp.linalg.svd(M)
+            current_V = v.dot(current_V)
+            M = u.dot(xp.diag(s))
+    M = M.dot(current_V)
+
+    if not return_Bl:
+        return xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2)) + M
+    return M, B_l(h_configuration, spin, time, K, config)
 
 def get_det(h_configuration, K, config):
     t = time.time()
@@ -65,6 +76,11 @@ def get_det(h_configuration, K, config):
     # log_factor = -config.nu * s
     # print('eh/symmetry breaking log = ', log_det_down + np.log(sign_det_down) - log_factor - log_det_up - np.log(sign_det_up))
 
+    return np.real(log_det_up + log_det_down), sign_det_up * sign_det_down
+
+def get_det_partial_matrices(M_up_partial, B_up_l, M_down_partial, B_down_l, identity):
+    sign_det_up, log_det_up = xp.linalg.slogdet(identity + B_up_l.dot(M_up_partial))
+    sign_det_down, log_det_down = xp.linalg.slogdet(identity + B_down_l.dot(M_down_partial))
     return np.real(log_det_up + log_det_down), sign_det_up * sign_det_down
 
 def get_green_function(h_configuration, K, spin, config):
