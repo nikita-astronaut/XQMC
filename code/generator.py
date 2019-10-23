@@ -62,6 +62,7 @@ def update_G_seq(proposed_conf, spin, G, sp_index, config):
     update_matrix_inv[sp_index, sp_index] = 1. / det_update_matrix
 
     result = deepcopy(G)
+    update_matrix_inv[sp_index, sp_index] = 1. / det_update_matrix - 1.
     result += xp.einsum('i,k->ik', G[:, sp_index], update_matrix_inv[sp_index, :])
 
     return result
