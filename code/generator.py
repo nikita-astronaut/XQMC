@@ -53,19 +53,13 @@ def get_det_ratio(proposed_conf, spin, G, sp_index, config):
 
 def update_G_seq(proposed_conf, spin, G, sp_index, config):
     Delta = np.exp(2 * spin * proposed_conf * config.nu) - 1.
-    update_matrix = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
-    update_matrix_inv = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
+    update_matrix = Delta * (xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2)) - G)[sp_index, :]
+    update_matrix[sp_index] += 1.
+    det_update_matrix = update_matrix[sp_index]
+    update_matrix_inv = -update_matrix / det_update_matrix
+    update_matrix_inv[sp_index] = 1. / det_update_matrix - 1.
 
-    update_matrix[sp_index, :] += Delta * (xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2)) - G)[sp_index, :]
-    det_update_matrix = update_matrix[sp_index, sp_index]
-    update_matrix_inv[sp_index, :] = -update_matrix[sp_index, :] / det_update_matrix
-    update_matrix_inv[sp_index, sp_index] = 1. / det_update_matrix
-
-    result = deepcopy(G)
-    update_matrix_inv[sp_index, sp_index] = 1. / det_update_matrix - 1.
-    result += xp.einsum('i,k->ik', G[:, sp_index], update_matrix_inv[sp_index, :])
-
-    return result
+    return G + xp.einsum('i,k->ik', G[:, sp_index], update_matrix_inv)
 
 
 def perform_sweep(configuration, config, K_operator):
@@ -110,13 +104,13 @@ def perform_sweep(configuration, config, K_operator):
             else:
                 configuration[time_slice, sp_index] *= -1  # roll back
 
-        M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
-        M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
+        # M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
+        # M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
 
-        G_up = auxiliary_field.inv_illcond(M_up)
-        G_down = auxiliary_field.inv_illcond(M_down)
+        # G_up = auxiliary_field.inv_illcond(M_up)
+        # G_down = auxiliary_field.inv_illcond(M_down)
 
-        print('final discrepancy after sweep = ', np.sum(np.abs(G_up - G_up_seq)) / np.sum(np.abs(G_up)), np.sum(np.abs(G_down - G_down_seq)) / np.sum(np.abs(G_down)))
+        # print('final discrepancy after sweep = ', np.sum(np.abs(G_up - G_up_seq)) / np.sum(np.abs(G_up)), np.sum(np.abs(G_down - G_down_seq)) / np.sum(np.abs(G_down)))
         
 
         print('on-slice sweep took ' + str(time.time() - t))
