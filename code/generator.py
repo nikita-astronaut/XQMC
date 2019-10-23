@@ -52,23 +52,26 @@ def get_det_ratio(proposed_conf, spin, G, sp_index, config):
     return 1. + Delta * (1. - G[sp_index, sp_index])
 
 def update_G_seq(proposed_conf, spin, G, sp_index, config):
-    identity = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
     Delta = np.exp(2 * spin * proposed_conf * config.nu) - 1.
-    update_matrix = identity
-    update_matrix[sp_index, :] += Delta * (identity - G)[sp_index, :]
-    det_update_matrix = update_matrix[sp_index, sp_index]
-    update_matrix[sp_index, :] = -update_matrix[sp_index, :] / det_update_matrix
-    update_matrix[sp_index, sp_index] = 1. / det_update_matrix
+    update_matrix = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
+    update_matrix_inv = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
 
-    return G.dot(update_matrix)
+    update_matrix[sp_index, :] += Delta * (xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2)) - G)[sp_index, :]
+    det_update_matrix = update_matrix[sp_index, sp_index]
+    update_matrix_inv[sp_index, :] = -update_matrix[sp_index, :] / det_update_matrix
+    update_matrix_inv[sp_index, sp_index] = 1. / det_update_matrix
+
+    result = deepcopy(G)
+    result += xp.einsum('i,k->ik', G[:, sp_index], update_matrix_inv[sp_index, :])
+
+    return result
 
 
 def perform_sweep(configuration, config, K_operator):
-    identity = xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2))
     for time_slice in range(config.Nt):
         t = time.time()
-        M_up_partial, B_time_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice, return_Bl = True)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
-        M_down_partial, B_time_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice, return_Bl = True)
+        # M_up_partial, B_time_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice, return_Bl = True)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
+        # M_down_partial, B_time_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice, return_Bl = True)
 
         M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
         M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
@@ -78,41 +81,42 @@ def perform_sweep(configuration, config, K_operator):
 
         print('construction of M matrixes took ' + str(time.time() - t))
         t = time.time()
-        current_det_log, current_det_sign = auxiliary_field.get_det_partial_matrices(M_up_partial, B_time_up, M_down_partial, B_time_down, identity)
+        current_det_log, current_det_sign = auxiliary_field.get_det(M_up, M_down)
 
-        for sp_index in range(B_time_up.shape[0]):
-            M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
-            M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
-
-            G_up = auxiliary_field.inv_illcond(M_up)
-            G_down = auxiliary_field.inv_illcond(M_down)
-
-            print('discrepancy = ', np.sum(np.abs(G_up - G_up_seq)) / np.sum(np.abs(G_up)), np.sum(np.abs(G_down - G_down_seq)) / np.sum(np.abs(G_down)))
-
+        for sp_index in range(M_up.shape[0]):
             sign_history.append(current_det_sign)
             configuration[time_slice, sp_index] *= -1
 
-            ratio_improved = get_det_ratio(configuration[time_slice, sp_index], +1, G_up, sp_index, config) * get_det_ratio(configuration[time_slice, sp_index], -1, G_down, sp_index, config)
+            ratio = get_det_ratio(configuration[time_slice, sp_index], +1, G_up_seq, sp_index, config) * get_det_ratio(configuration[time_slice, sp_index], -1, G_down_seq, sp_index, config)
 
-            B_up_new = auxiliary_field.B_l(configuration, +1, time_slice, K_operator, config)
-            B_down_new = auxiliary_field.B_l(configuration, -1, time_slice, K_operator, config)
+            # B_up_new = auxiliary_field.B_l(configuration, +1, time_slice, K_operator, config)
+            # B_down_new = auxiliary_field.B_l(configuration, -1, time_slice, K_operator, config)
             # print('B_matrixes making took ' + str(time.time() - t))
             # t = time.time()
-            new_det_log, sign_new_det = auxiliary_field.get_det_partial_matrices(M_up_partial, B_up_new, M_down_partial, B_down_new, identity)
+            # new_det_log, sign_new_det = auxiliary_field.get_det_partial_matrices(M_up_partial, B_up_new, M_down_partial, B_down_new, identity)
             # print('det computation took ' + str(time.time() - t))
             # t = time.time()
-            ratio = np.min([1, np.exp(new_det_log - current_det_log)])
-            print(np.exp(new_det_log - current_det_log) / ratio_improved - 1.)
+            # ratio = np.min([1, np.exp(new_det_log - current_det_log)])
+            # print(np.exp(new_det_log - current_det_log) / ratio_improved - 1.)
             lamb = np.random.uniform(0, 1)
             if lamb < ratio:
-                ratio_history.append(new_det_log - current_det_log)
-                current_det_log = new_det_log
-                current_det_sign = sign_new_det
+                current_det_log += np.log(np.abs(ratio))
+                ratio_history.append(np.log(np.abs(ratio)))
+                current_det_sign *= np.sign(ratio)
                 accept_history.append(+current_n_flips)
-                G_up_seq = update_G_seq(configuration[time_slice, sp_index], +1, G_up, sp_index, config)
-                G_down_seq = update_G_seq(configuration[time_slice, sp_index], -1, G_down, sp_index, config)
+                G_up_seq = update_G_seq(configuration[time_slice, sp_index], +1, G_up_seq, sp_index, config)
+                G_down_seq = update_G_seq(configuration[time_slice, sp_index], -1, G_down_seq, sp_index, config)
             else:
                 configuration[time_slice, sp_index] *= -1  # roll back
+
+        M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
+        M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
+
+        G_up = auxiliary_field.inv_illcond(M_up)
+        G_down = auxiliary_field.inv_illcond(M_down)
+
+        print('final discrepancy after sweep = ', np.sum(np.abs(G_up - G_up_seq)) / np.sum(np.abs(G_up)), np.sum(np.abs(G_down - G_down_seq)) / np.sum(np.abs(G_down)))
+        
 
         print('on-slice sweep took ' + str(time.time() - t))
         t = time.time()

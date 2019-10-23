@@ -61,20 +61,9 @@ def fermionic_matrix(h_configuration, K, spin, config, time = 0, return_Bl = Fal
         return xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2)) + M
     return M, B_l(h_configuration, spin, time, K, config)
 
-def get_det(h_configuration, K, config):
-    t = time.time()
-    M_up = fermionic_matrix(h_configuration, K, +1.0, config)
-    M_down = fermionic_matrix(h_configuration, K, -1.0, config)
-
-    # print('construction of M matrixes took ' + str(time.time() - t))
-    t = time.time()
-
+def get_det(M_up, M_down):
     sign_det_up, log_det_up = xp.linalg.slogdet(M_up)
     sign_det_down, log_det_down = xp.linalg.slogdet(M_down)
-    # print('diagonalization of M matrixes took ' + str(time.time() - t))
-    # s = xp.sum(h_configuration)
-    # log_factor = -config.nu * s
-    # print('eh/symmetry breaking log = ', log_det_down + np.log(sign_det_down) - log_factor - log_det_up - np.log(sign_det_up))
 
     return np.real(log_det_up + log_det_down), sign_det_up * sign_det_down
 
