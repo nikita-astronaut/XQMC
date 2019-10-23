@@ -70,11 +70,12 @@ def perform_sweep(configuration, config, K_operator):
 
         M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
         M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
-
+        print('construction of M matrixes took ' + str(time.time() - t))
+        t = time.time()
         G_up_seq = auxiliary_field.inv_illcond(M_up)
         G_down_seq = auxiliary_field.inv_illcond(M_down)
 
-        print('construction of M matrixes took ' + str(time.time() - t))
+        print('inversion took ' + str(time.time() - t))
         t = time.time()
         current_det_log, current_det_sign = auxiliary_field.get_det(M_up, M_down)
 
