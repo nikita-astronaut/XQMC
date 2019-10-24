@@ -1,5 +1,6 @@
 import numpy as np
 import models
+
 xp = np  # by default the code is executed on the CPU
 gpu = False
 try:

@@ -47,43 +47,29 @@ def print_generator_log(n_sweep, h_field, K_matrix, K, config):
     return
 
 
-def get_det_ratio(proposed_conf, spin, G, sp_index, config):
-    Delta = np.exp(2 * spin * proposed_conf * config.nu) - 1.
-    return 1. + Delta * (1. - G[sp_index, sp_index])
+def perform_sweep(phi_field):
+    phi_field.refresh_all_decompositions()
+    phi_field.refresh_G_functions()
 
-def update_G_seq(proposed_conf, spin, G, sp_index, config):
-    Delta = np.exp(2 * spin * proposed_conf * config.nu) - 1.
-    update_matrix = Delta * (xp.diag(xp.ones(config.n_orbitals * config.n_sublattices * config.Ls ** 2)) - G)[sp_index, :]
-    update_matrix[sp_index] += 1.
-    det_update_matrix = update_matrix[sp_index]
-    update_matrix_inv = -update_matrix / det_update_matrix
-    update_matrix_inv[sp_index] = 1. / det_update_matrix - 1.
-
-    return G + xp.einsum('i,k->ik', G[:, sp_index], update_matrix_inv)
-
-
-def perform_sweep(configuration, config, K_operator):
-    for time_slice in range(config.Nt):
+    for time_slice in range(phi_field.config.Nt):
         t = time.time()
         # M_up_partial, B_time_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice, return_Bl = True)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
         # M_down_partial, B_time_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice, return_Bl = True)
-
-        M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
-        M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
-        print('construction of M matrixes took ' + str(time.time() - t))
+        if time_slice % phi_field.config.s_refresh == phi_field.config.Nt % phi_field.config.s_refresh:  # every s-th configuration we refresh the Green function
+            phi_field.append_new_decomposition(tmin, tmax)
+            phi_field.refresh_G_functions()
+            current_det_log, current_det_sign = phi_field.get_log_det()
+        else:  # wrapping up 
+            print('simple wrap-up')
+            phi_field.wrap_up(time_slice)
+        print('going to next time slice took ' + str(time.time() - t))
         t = time.time()
-        G_up_seq = auxiliary_field.inv_illcond(M_up)
-        G_down_seq = auxiliary_field.inv_illcond(M_down)
 
-        print('inversion took ' + str(time.time() - t))
-        t = time.time()
-        current_det_log, current_det_sign = auxiliary_field.get_det(M_up, M_down)
-
-        for sp_index in range(M_up.shape[0]):
+        for sp_index in range(phi_field.config.total_dof // 2):
             sign_history.append(current_det_sign)
-            configuration[time_slice, sp_index] *= -1
+            phi_field.configuration[time_slice, sp_index] *= -1
 
-            ratio = get_det_ratio(configuration[time_slice, sp_index], +1, G_up_seq, sp_index, config) * get_det_ratio(configuration[time_slice, sp_index], -1, G_down_seq, sp_index, config)
+            ratio = phi_field.get_det_ratio(+1, sp_index, time_slice) * phi_field.get_det_ratio(-1, sp_index, time_slice)
 
             # B_up_new = auxiliary_field.B_l(configuration, +1, time_slice, K_operator, config)
             # B_down_new = auxiliary_field.B_l(configuration, -1, time_slice, K_operator, config)
@@ -100,23 +86,27 @@ def perform_sweep(configuration, config, K_operator):
                 ratio_history.append(np.log(np.abs(ratio)))
                 current_det_sign *= np.sign(ratio)
                 accept_history.append(+current_n_flips)
-                G_up_seq = update_G_seq(configuration[time_slice, sp_index], +1, G_up_seq, sp_index, config)
-                G_down_seq = update_G_seq(configuration[time_slice, sp_index], -1, G_down_seq, sp_index, config)
+                phi_field.update_G_seq(+1, sp_index, time_slice)
+                phi_field.update_G_seq(-1, sp_index, time_slice)
+
+
+                G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+                G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+                print('discrepancy after one flip step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
             else:
-                configuration[time_slice, sp_index] *= -1  # roll back
+                phi_field.configuration[time_slice, sp_index] *= -1  # roll back
 
         # M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
         # M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
 
-        # G_up = auxiliary_field.inv_illcond(M_up)
-        # G_down = auxiliary_field.inv_illcond(M_down)
+        G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+        G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
 
-        # print('final discrepancy after sweep = ', np.sum(np.abs(G_up - G_up_seq)) / np.sum(np.abs(G_up)), np.sum(np.abs(G_down - G_down_seq)) / np.sum(np.abs(G_down)))
-        
+        print('final discrepancy after sweep = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
 
         print('on-slice sweep took ' + str(time.time() - t))
         t = time.time()
-    return configuration
+    return phi_field
 
 
 if __name__ == "__main__":
@@ -126,10 +116,11 @@ if __name__ == "__main__":
     n_flipped = 0
     K_matrix = config.model(config.Ls, config.mu)
     K_operator = xp.asarray(scipy.linalg.expm(config.dt * K_matrix))
+    K_operator_inverse = xp.asarray(scipy.linalg.expm(-config.dt * K_matrix))
 
-    current_field = xp.asarray(auxiliary_field.get_initial_field_configuration(config))
+    phi_field = auxiliary_field.auxiliary_field(config, K_operator, K_operator_inverse)
 
     for n_sweep in range(config.n_sweeps):
-        current_field = perform_sweep(current_field, config, K_operator)
+        current_field = perform_sweep(phi_field)
 
         print_generator_log(n_sweep, current_field, K_matrix, K_operator, config)
