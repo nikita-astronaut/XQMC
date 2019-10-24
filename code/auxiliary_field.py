@@ -27,6 +27,12 @@ class auxiliary_field:
         self.refresh_G_functions()
         self.current_time_slice = 0
 
+        self.refresh_checkpoints = []
+        t = self.config.Nt % self.config.s_refresh
+        while t < self.config.Nt:
+            self.refresh_checkpoints.append(t)
+            t += self.config.s_refresh
+        self.refresh_checkpoints = np.array(self.refresh_checkpoints)
         return
 
     def refresh_G_functions(self):
