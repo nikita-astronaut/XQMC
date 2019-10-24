@@ -15,20 +15,20 @@ import auxiliary_field
 def get_B_sublattice_mask(config):
     return xp.asarray(1.0 * np.array([models.from_linearized_index(index, config.Ls, config.n_orbitals)[1] for index in range(config.n_sublattices * config.n_orbitals * config.Ls ** 2)]))
 
-def density_spin(h_configuration, K, spin, config):
-    G_function = auxiliary_field.get_green_function(h_configuration, K, spin, config)
-    return xp.trace(G_function) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
+def density_spin(phi_field, spin):
+    G_function = phi_field.get_current_G_function(spin)
+    return xp.trace(G_function) / (phi_field.config.total_dof // 2)
 
-def total_density(h_configuration, K, config):
-    return (density_spin(h_configuration, K, 1.0, config) + density_spin(h_configuration, K, -1.0, config)) / 2.
+def total_density(phi_field):
+    return (density_spin(phi_field, +1) + density_spin(phi_field, -1)) / 2.
 
 # this is currently only valid for the Sorella simplest model
-def kinetic_energy(h_configuration, K, K_matrix, config):
+def kinetic_energy(phi_field, K_matrix):
     A = np.abs(K_matrix) > 1e-6
-    G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
-    G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
+    G_function_up = phi_field.get_current_G_function(+1.0)
+    G_function_down = phi_field.get_current_G_function(-1.0)
 
-    K_mean = config.main_hopping * xp.einsum('ij,ji', G_function_up + G_function_down, A) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
+    K_mean = phi_field.config.main_hopping * xp.einsum('ij,ji', G_function_up + G_function_down, A) / (phi_field.config.total_dof // 2)
     return K_mean
 
 def double_occupancy(h_configuration, K, config):
@@ -70,11 +70,11 @@ def staggered_magnetisation(h_configuration, K, config):
     
     return (AA + BB - AB - BA) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2) ** 1 / 4.
 
-def SzSz_onsite(h_configuration, K, config):
-    G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
-    G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
+def SzSz_onsite(phi_field):
+    G_function_up = phi_field.get_current_G_function(+1)
+    G_function_down = phi_field.get_current_G_function(-1)
 
-    return (-2.0 * xp.sum((xp.diag(G_function_up) * xp.diag(G_function_down))) + xp.sum(xp.diag(G_function_down)) + xp.sum(xp.diag(G_function_up))) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
+    return (-2.0 * xp.sum((xp.diag(G_function_up) * xp.diag(G_function_down))) + xp.sum(xp.diag(G_function_down)) + xp.sum(xp.diag(G_function_up))) / (phi_field.config.total_dof // 2)
 
 def get_n_adj(K_matrix, distance):
     A = xp.abs(xp.asarray(K_matrix)) > 1e-6

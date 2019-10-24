@@ -7,13 +7,13 @@ main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self):
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = 30  # the number of time slices for the Suzuki-Trotter procedure
+        self.Ls = 24  # spatial size, the lattice will be of size Ls x Ls
+        self.Nt = 10  # the number of time slices for the Suzuki-Trotter procedure
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
         self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
         self.nu = nu
-        self.mu = 1.  # (meV), chemical potential of the lattice
+        self.mu = 0.  # (meV), chemical potential of the lattice
         self.model = models.H_TB_Sorella_hexagonal
         self.n_orbitals = 1
         self.n_sublattices = 2
@@ -24,4 +24,4 @@ class simulation_parameters:
         self.n_print_frequency = 2  # write to log every n_print_frequency spin flips
         self.n_smoothing = 10000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        self.s_refresh = 5
+        self.s_refresh = 4

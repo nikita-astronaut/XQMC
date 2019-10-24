@@ -71,8 +71,8 @@ class auxiliary_field:
         lhs_change_up = self._get_partial_SVD_decomposition_range(+1, tmin, tmax)
         lhs_change_down = self._get_partial_SVD_decomposition_range(-1, tmin, tmax)
 
-        self.current_lhs_SVD_up = self._unwrap_svd(lhs_change_up).dot(self._unwrap_svd(self.current_lhs_SVD_up))
-        self.current_lhs_SVD_down = self._unwrap_svd(lhs_change_down).dot(self._unwrap_svd(self.current_lhs_SVD_down))
+        self.current_lhs_SVD_up = xp.linalg.svd(self._unwrap_svd(lhs_change_up).dot(self._unwrap_svd(self.current_lhs_SVD_up)))
+        self.current_lhs_SVD_down = xp.linalg.svd(self._unwrap_svd(lhs_change_down).dot(self._unwrap_svd(self.current_lhs_SVD_down)))
 
         del self.partial_SVD_decompositions_up[-1]
         del self.partial_SVD_decompositions_down[-1]

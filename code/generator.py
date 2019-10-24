@@ -30,7 +30,7 @@ def print_greetings(config):
     print("# iteration current_flips N_swipes <log(ratio)> d<log(ratio)> <acceptance> <sign> d<sign> <density> <S_AF> <K> <Sz(0)Sz(0)> <Sz(0)Sz(1)> <Sz(0)Sz(2)> <Sz(0)Sz(3)> <Sz(0)Sz(4)> <Sz(0)Sz(5)> <n_up(0) n_down(0)> <n_up(0) n_down(1)> <n_up(0) n_down(2)> <n_up(0) n_down(3)> <n_up(0) n_down(4)>")
     return
 
-def print_generator_log(n_sweep, h_field, K_matrix, K, config):
+def print_generator_log(n_sweep, phi_field, K_matrix):
     global accept_history, sign_history, ratio_history
     if n_sweep % config.n_print_frequency != 0:
         return
@@ -41,9 +41,9 @@ def print_generator_log(n_sweep, h_field, K_matrix, K, config):
         np.mean(ratio_history[-n_history:]), np.std(ratio_history[-n_history:]), \
         np.mean(accept_history[n_sweep-n_print:n_sweep]), \
         np.mean(sign_history[-n_print:]), np.std(sign_history[-n_print:]), \
-        cp.asnumpy(observables.total_density(h_field, K, config)), \
-        cp.asnumpy(observables.kinetic_energy(h_field, K, K_matrix, config)), \
-        cp.asnumpy(observables.SzSz_onsite(h_field, K, config))), flush = True)
+        (observables.total_density(phi_field)), \
+        (observables.kinetic_energy(phi_field, K_matrix)), \
+        (observables.SzSz_onsite(phi_field))), flush = True)
     return
 
 
@@ -59,11 +59,11 @@ def perform_sweep(phi_field):
         # M_down_partial, B_time_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice, return_Bl = True)
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
-            print('recomputation', phi_field.refresh_checkpoints[index - 1], time_slice)
+            # print('recomputation', phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
             current_det_log, current_det_sign = phi_field.get_log_det()
-        print('simple wrap-up')
+        # print('simple wrap-up')
         phi_field.wrap_up(time_slice)
         t = time.time()
 
@@ -83,30 +83,33 @@ def perform_sweep(phi_field):
             # ratio = np.min([1, np.exp(new_det_log - current_det_log)])
             # print(np.exp(new_det_log - current_det_log) / ratio_improved - 1.)
             lamb = np.random.uniform(0, 1)
-            if lamb < ratio:
+
+            if lamb < np.min([1, np.abs(ratio)]):
                 current_det_log += np.log(np.abs(ratio))
+                print(current_det_log)
                 ratio_history.append(np.log(np.abs(ratio)))
+                # print(np.mean(ratio_history))
                 current_det_sign *= np.sign(ratio)
                 accept_history.append(+current_n_flips)
                 phi_field.update_G_seq(+1, sp_index, time_slice)
                 phi_field.update_G_seq(-1, sp_index, time_slice)
 
 
-                G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
-                G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
-                print('discrepancy after one flip step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
+                # G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+                # G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+                # print('discrepancy after one flip step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
             else:
                 phi_field.configuration[time_slice, sp_index] *= -1  # roll back
 
         # M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
         # M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
 
-        G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
-        G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+        # G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+        # G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
 
-        print('final discrepancy after sweep = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
+        # print('final discrepancy after sweep = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
 
-        print('on-slice sweep took ' + str(time.time() - t))
+        # print('on-slice sweep took ' + str(time.time() - t))
         t = time.time()
     return phi_field
 
@@ -123,6 +126,7 @@ if __name__ == "__main__":
     phi_field = auxiliary_field.auxiliary_field(config, K_operator, K_operator_inverse)
 
     for n_sweep in range(config.n_sweeps):
+        t = time.time()
         current_field = perform_sweep(phi_field)
-
-        print_generator_log(n_sweep, current_field, K_matrix, K_operator, config)
+        print('sweep took ' + str(time.time() - t))
+        print_generator_log(n_sweep, current_field, K_matrix)
