@@ -27,12 +27,15 @@ class auxiliary_field:
         self.refresh_G_functions()
         self.current_time_slice = 0
 
-        self.refresh_checkpoints = []
+        self.refresh_checkpoints = [0]
         t = self.config.Nt % self.config.s_refresh
+        if t == 0:
+            self.refresh_checkpoints = []
         while t < self.config.Nt:
             self.refresh_checkpoints.append(t)
             t += self.config.s_refresh
         self.refresh_checkpoints = np.array(self.refresh_checkpoints)
+        print('=checkpoints = ', self.refresh_checkpoints)
         return
 
     def refresh_G_functions(self):
@@ -73,14 +76,14 @@ class auxiliary_field:
 
         del self.partial_SVD_decompositions_up[-1]
         del self.partial_SVD_decompositions_down[-1]
-        self.current_time_slice = t_max
+        self.current_time_slice = tmax
         return
 
     def _get_partial_SVD_decompositions(self, spin):
         M = xp.diag(xp.ones(self.config.total_dof // 2))
         current_U = xp.diag(xp.ones(self.config.total_dof // 2))
 
-        slices = list(range(1, self.config.Nt)) + [0]
+        slices = list(range(0, self.config.Nt))
         for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
@@ -98,8 +101,8 @@ class auxiliary_field:
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
         M = xp.diag(xp.ones(self.config.total_dof // 2))
         
-        for time_slice in range(tmin + 1, tmax + 1):
-            M = M.dot(self.B_l(spin, time_slice, inverse = False))
+        for time_slice in range(tmin, tmax):
+            M = self.B_l(spin, time_slice, inverse = False).dot(M)
         return xp.linalg.svd(M)
 
 

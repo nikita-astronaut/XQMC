@@ -52,19 +52,19 @@ def perform_sweep(phi_field):
     phi_field.refresh_G_functions()
 
     for time_slice in range(phi_field.config.Nt):
+        if time_slice == 0:
+            current_det_log, current_det_sign = phi_field.get_log_det()
         t = time.time()
         # M_up_partial, B_time_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice, return_Bl = True)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
         # M_down_partial, B_time_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice, return_Bl = True)
-        if len(np.where(phi_field.refresh_checkpoints == time_slice)[0]) == 1:  # every s-th configuration we refresh the Green function
-            print('recomputation')
+        if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
+            print('recomputation', phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
             current_det_log, current_det_sign = phi_field.get_log_det()
-        else:  # wrapping up 
-            print('simple wrap-up')
-            phi_field.wrap_up(time_slice)
-        print('going to next time slice took ' + str(time.time() - t))
+        print('simple wrap-up')
+        phi_field.wrap_up(time_slice)
         t = time.time()
 
         for sp_index in range(phi_field.config.total_dof // 2):

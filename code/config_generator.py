@@ -24,4 +24,4 @@ class simulation_parameters:
         self.n_print_frequency = 2  # write to log every n_print_frequency spin flips
         self.n_smoothing = 10000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        self.s_refresh = 15
+        self.s_refresh = 5
