@@ -35,7 +35,7 @@ class auxiliary_field:
             self.refresh_checkpoints.append(t)
             t += self.config.s_refresh
         self.refresh_checkpoints = np.array(self.refresh_checkpoints)
-        print('=checkpoints = ', self.refresh_checkpoints)
+        print('checkpoints = ', self.refresh_checkpoints)
         return
 
     def refresh_G_functions(self):
@@ -88,6 +88,7 @@ class auxiliary_field:
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
+                print('write dec at nr = ', nr, ' index = ', slice_idx)
                 u, s, v = xp.linalg.svd(M)
                 current_U = current_U.dot(u)
                 if spin == +1:
