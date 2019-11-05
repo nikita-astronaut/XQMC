@@ -83,7 +83,7 @@ def H_TB_simple(L, mu):
                     K[first, second] = -np.imag(t2)
 
     K = K + K.conj().T
-    K = K + np.diag(mu * np.ones(2 * n_orbitals * L * L))
+    K = K - np.diag(mu * np.ones(2 * n_orbitals * L * L))
     return K
 
 def H_TB_Sorella_hexagonal(L, mu):
@@ -102,7 +102,7 @@ def H_TB_Sorella_hexagonal(L, mu):
                 K[first, second] = t1
 
     K = K + K.conj().T
-    K = K + np.diag(mu * np.ones(2 * n_orbitals * L * L))
+    K = K - np.diag(mu * np.ones(2 * n_orbitals * L * L))
     return K
 
 def H_TB_Sorella_square(L, mu):
@@ -122,5 +122,5 @@ def H_TB_Sorella_square(L, mu):
                 K[first, second] = t1
 
     K = K + K.conj().T
-    K = K + np.diag(mu * np.ones(n_sublattices * n_orbitals * L * L))
+    K = K - np.diag(mu * np.ones(n_sublattices * n_orbitals * L * L))
     return K

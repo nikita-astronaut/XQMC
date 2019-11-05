@@ -10,7 +10,274 @@ except ImportError:
     pass
 
 
-class auxiliary_field:
+class auxiliary_field_intraorbital:
+    def __init__(self, config, K, K_inverse):
+        self.la = xp
+        self.config = config
+        self.configuration = self._get_initial_field_configuration()
+        self.K = K
+        self.K_inverse = K_inverse
+        self.partial_SVD_decompositions_up = []
+        self.partial_SVD_decompositions_down = []
+        self.current_lhs_SVD_up = []
+        self.current_lhs_SVD_down = []
+
+        self.refresh_all_decompositions()
+        self.current_G_function_up = []
+        self.current_G_function_down = []
+        self.refresh_G_functions()
+        self.current_time_slice = 0
+        self.log_det_up = 0
+        self.sign_det_up = 0
+        self.log_det_down = 0
+        self.sign_det_down = 0
+        
+
+        self.refresh_checkpoints = [0]
+        t = self.config.Nt % self.config.s_refresh
+        if t == 0:
+            self.refresh_checkpoints = []
+        while t < self.config.Nt:
+            self.refresh_checkpoints.append(t)
+            t += self.config.s_refresh
+        self.refresh_checkpoints = np.array(self.refresh_checkpoints)
+        return
+
+    def refresh_G_functions(self):
+        self.current_G_function_up, self.log_det_up, self.sign_det_up = self.get_current_G_function(+1, return_logdet = True)
+        self.current_G_function_down, self.log_det_down, self.sign_det_down = self.get_current_G_function(-1, return_logdet = True)
+        return
+    
+    def get_current_G_function(self, spin, return_logdet = False):
+        if spin == +1:
+            svd_rhs = self.partial_SVD_decompositions_up[-1]
+            svd_lhs = self.current_lhs_SVD_up
+        else:
+            svd_rhs = self.partial_SVD_decompositions_down[-1]
+            svd_lhs = self.current_lhs_SVD_down
+        u1, s1, v1 = svd_lhs
+        #print(svd_lhs)
+        u2, s2, v2 = svd_rhs
+        m = v1.dot(u2)
+        middle_mat = (u1.T).dot(v2.T) + xp.diag(s1).dot(m).dot(xp.diag(s2))
+        um, sm, vm = xp.linalg.svd(middle_mat)
+
+        left = (vm.dot(v2)).T
+        right = (u1.dot(um)).T
+        # print(xp.sum(xp.abs(xp.linalg.inv(left) - left.T)))
+        # print(xp.sum(xp.abs(xp.linalg.inv(right) - right.T)))
+        if return_logdet:
+            return left.dot((xp.diag(sm ** -1)).dot(right)), \
+                   xp.sum(xp.log(sm ** -1)), \
+                   xp.sign(xp.linalg.det(left) * xp.linalg.det(right))
+        return left.dot(xp.diag(sm ** -1)).dot(right)
+
+    def refresh_all_decompositions(self):
+        self.partial_SVD_decompositions_up = []
+        self.partial_SVD_decompositions_down = []
+        self._get_partial_SVD_decompositions(spin = +1)
+        self._get_partial_SVD_decompositions(spin = -1)
+
+        self.current_lhs_SVD_up = list(xp.linalg.svd(xp.diag(xp.ones(self.config.total_dof // 2))))
+        self.current_lhs_SVD_down = list(xp.linalg.svd(xp.diag(xp.ones(self.config.total_dof // 2))));
+        return
+
+    def _product_svds(self, svd1, svd2):
+        u1, s1, v1 = svd1
+        u2, s2, v2 = svd2
+        m = v1.dot(u2)
+        middle_mat = xp.diag(s1).dot(m).dot(xp.diag(s2))
+        um, sm, vm = xp.linalg.svd(middle_mat)
+        return u1.dot(um), sm, vm.dot(v2)
+
+    def append_new_decomposition(self, tmin, tmax):
+        assert tmax - tmin == self.config.Nt % self.config.s_refresh or tmax - tmin == self.config.s_refresh
+        lhs_change_up = self._get_partial_SVD_decomposition_range(+1, tmin, tmax)
+        lhs_change_down = self._get_partial_SVD_decomposition_range(-1, tmin, tmax)
+
+        self.current_lhs_SVD_up = self._product_svds(lhs_change_up, self.current_lhs_SVD_up)
+        self.current_lhs_SVD_down = self._product_svds(lhs_change_down, self.current_lhs_SVD_down)
+
+        del self.partial_SVD_decompositions_up[-1]
+        del self.partial_SVD_decompositions_down[-1]
+        self.current_time_slice = tmax
+        return
+    
+    def _get_partial_SVD_decompositions(self, spin):
+        M = xp.diag(xp.ones(self.config.total_dof // 2))
+        current_U = xp.diag(xp.ones(self.config.total_dof // 2))
+
+        slices = list(range(0, self.config.Nt))
+        for nr, slice_idx in enumerate(reversed(slices)):
+            B = self.B_l(spin, slice_idx)
+            M = M.dot(B)
+            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
+                # print('write dec at nr = ', nr, ' index = ', slice_idx)
+                u, s, v = xp.linalg.svd(M)
+                # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-13))
+                # print(xp.max(xp.abs(xp.diag(xp.ones(self.config.total_dof // 2)) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
+                current_U = current_U.dot(u)
+                if spin == +1:
+                    self.partial_SVD_decompositions_up.append((current_U, s, v))
+                else:
+                    self.partial_SVD_decompositions_down.append((current_U, s, v))
+                M = xp.diag(s).dot(v)
+        return
+    '''
+
+    def _get_partial_SVD_decompositions(self, spin):
+        current_V = xp.diag(xp.ones(self.config.total_dof // 2))
+        current_D = xp.diag(xp.ones(self.config.total_dof // 2))
+        current_U = xp.diag(xp.ones(self.config.total_dof // 2))
+        current_store = xp.diag(xp.ones(self.config.total_dof // 2))
+        slices = list(range(0, self.config.Nt))
+        for nr, slice_idx in enumerate((slices)):
+            B = self.B_l(spin, slice_idx)
+            current_store = current_store.dot(B)
+            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
+                # print('write dec at nr = ', nr, ' index = ', slice_idx)
+                M = (current_store.dot(current_U)).dot(current_D)
+                current_store = xp.diag(xp.ones(self.config.total_dof // 2))
+                u, s, v = xp.linalg.svd(M)
+                current_U = u
+                current_D = xp.diag(s)
+                print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-10))
+                # print(xp.max(xp.abs(xp.diag(xp.ones(self.config.total_dof // 2)) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
+                current_V = v.dot(current_V)
+                if spin == +1:
+                    self.partial_SVD_decompositions_up.append((current_U, xp.diag(current_D), current_V))
+                else:
+                    self.partial_SVD_decompositions_down.append((current_U, xp.diag(current_D), current_V))
+        return
+    '''
+    def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
+        M = xp.diag(xp.ones(self.config.total_dof // 2))
+        
+        for time_slice in range(tmin, tmax):
+            M = self.B_l(spin, time_slice, inverse = False).dot(M)
+        return xp.linalg.svd(M)
+
+    def _load_configuration(self, path):
+        return np.load(start_type)
+
+    def _get_initial_field_configuration(self):
+        if self.config.start_type == 'cold':
+            return xp.asarray(np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
+        if self.config.start_type == 'hot':
+            return xp.asarray(np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
+        return xp.asarray(self._load_configuration(start_type))
+
+    def save_configuration(self, path):
+        return np.save(path, self.configuration)
+
+    def B_l(self, spin, l, inverse = False):
+        if not inverse:
+            V = self.la.diag(self.la.exp(spin * self.config.nu_V * self.configuration[l, ...]))
+            return V.dot(self.K)
+    
+        V = self.la.diag(self.la.exp(-spin * self.config.nu_V * self.configuration[l, ...]))
+        return self.K_inverse.dot(V)
+
+    def get_delta(self, spin, time_slice, sp_index):
+        return self.la.exp(-2 * spin * self.configuration[time_slice, sp_index] * self.config.nu_V) - 1.
+
+    def get_det_ratio(self, spin, sp_index, time_slice, *args):
+        Delta = self.get_delta(spin, time_slice, sp_index)
+        if spin == +1:
+            G = self.current_G_function_up
+        else:
+            G = self.current_G_function_down
+        return 1. + Delta * (1. - G[sp_index, sp_index])
+
+    def update_G_seq(self, spin, sp_index, time_slice, *args):
+        Delta = self.get_delta(spin, time_slice, sp_index)
+
+        if spin == +1:
+            G = self.current_G_function_up
+        else:
+            G = self.current_G_function_down
+        update_matrix = Delta * (self.la.diag(self.la.ones(self.config.total_dof // 2)) - G)[sp_index, :]
+        update_matrix[sp_index] += 1.
+        det_update_matrix = update_matrix[sp_index]
+        update_matrix_inv = -update_matrix / det_update_matrix
+        update_matrix_inv[sp_index] = 1. / det_update_matrix - 1.
+        G = G + self.la.einsum('i,k->ik', G[:, sp_index], update_matrix_inv)
+
+        if spin == +1:
+            self.current_G_function_up = G
+        else:
+            self.current_G_function_down = G
+        
+        return
+
+    def update_field(self, sp_index, time_slice, *args):
+        self.configuration[time_slice, sp_index] *= -1
+        return
+
+    def copy_to_CPU(self):
+        self.current_G_function_up = cp.asnumpy(self.current_G_function_up)
+        self.current_G_function_down = cp.asnumpy(self.current_G_function_down)
+        self.configuration = cp.asnumpy(self.configuration)
+        self.K = cp.asnumpy(self.K)
+        self.K_inverse = cp.asnumpy(self.K_inverse)
+        self.la = np
+        return self
+
+    def copy_to_GPU(self):
+        self.current_G_function_up = cp.array(self.current_G_function_up)
+        self.current_G_function_down = cp.array(self.current_G_function_down)
+        self.configuration = cp.array(self.configuration)
+        self.K = cp.array(self.K)
+        self.K_inverse = cp.array(self.K_inverse)
+        self.la = cp
+        return self
+
+
+    def wrap_up(self, time_slice, gpu = False):
+        B_wrap_up = self.B_l(+1, time_slice, inverse = False)
+        B_wrap_up_inverse = self.B_l(+1, time_slice, inverse = True)
+        B_wrap_down = self.B_l(-1, time_slice, inverse = False)
+        B_wrap_down_inverse = self.B_l(-1, time_slice, inverse = True)
+
+        self.current_G_function_up = B_wrap_up.dot(self.current_G_function_up.dot(B_wrap_up_inverse))
+        self.current_G_function_down = B_wrap_down.dot(self.current_G_function_down.dot(B_wrap_down_inverse))
+
+        return
+
+    ####### DEBUG ######
+    def get_G_no_optimisation(self, spin, time_slice):
+        M = xp.diag(xp.ones(self.config.total_dof // 2))
+        current_U = xp.diag(xp.ones(self.config.total_dof // 2))
+        slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
+        for nr, slice_idx in enumerate(reversed(slices)):
+            B = self.B_l(spin, slice_idx)
+            M = M.dot(B)
+            u, s, v = xp.linalg.svd(M)
+            current_U = current_U.dot(u)
+            M = xp.diag(s).dot(v)
+        m = current_U.T.dot(v.T) + xp.diag(s)
+        um, sm, vm = xp.linalg.svd(m)
+        return ((vm.dot(v)).T).dot(xp.diag(sm ** -1)).dot((current_U.dot(um)).T), xp.sum(xp.log(sm ** -1))
+
+    def get_assymetry_factor(self):
+        log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
+        log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
+        s_factor_log = self.config.nu_V * xp.sum(self.configuration)
+        return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
+
+
+
+
+
+
+
+
+
+
+
+
+
+class auxiliary_field_interorbital:
     def __init__(self, config, K, K_inverse):
         self.config = config
         self.configuration = self._get_initial_field_configuration()
@@ -26,6 +293,11 @@ class auxiliary_field:
         self.current_G_function_down = []
         self.refresh_G_functions()
         self.current_time_slice = 0
+        self.log_det_up = 0
+        self.sign_det_up = 0
+        self.log_det_down = 0
+        self.sign_det_down = 0
+        self.la = xp
 
         self.refresh_checkpoints = [0]
         t = self.config.Nt % self.config.s_refresh
@@ -35,23 +307,37 @@ class auxiliary_field:
             self.refresh_checkpoints.append(t)
             t += self.config.s_refresh
         self.refresh_checkpoints = np.array(self.refresh_checkpoints)
-        print('checkpoints = ', self.refresh_checkpoints)
+        # print(self.refresh_checkpoints)
         return
 
     def refresh_G_functions(self):
-        self.current_G_function_up = self.get_current_G_function(+1)
-        self.current_G_function_down = self.get_current_G_function(-1)
+        self.current_G_function_up, self.log_det_up, self.sign_det_up = self.get_current_G_function(+1, return_logdet = True)
+        self.current_G_function_down, self.log_det_down, self.sign_det_down = self.get_current_G_function(-1, return_logdet = True)
         return
-
-    def get_current_G_function(self, spin):
+    
+    def get_current_G_function(self, spin, return_logdet = False):
         if spin == +1:
             svd_rhs = self.partial_SVD_decompositions_up[-1]
             svd_lhs = self.current_lhs_SVD_up
         else:
             svd_rhs = self.partial_SVD_decompositions_down[-1]
             svd_lhs = self.current_lhs_SVD_down
-        return self.inv_illcond(xp.diag(xp.ones(self.config.total_dof // 2)) + self._unwrap_svd(svd_lhs).dot(self._unwrap_svd(svd_rhs)))
+        u1, s1, v1 = svd_lhs
+        #print(svd_lhs)
+        u2, s2, v2 = svd_rhs
+        m = v1.dot(u2)
+        middle_mat = (u1.T).dot(v2.T) + xp.diag(s1).dot(m).dot(xp.diag(s2))
+        um, sm, vm = xp.linalg.svd(middle_mat)
 
+        left = (vm.dot(v2)).T
+        right = (u1.dot(um)).T
+        # print(xp.sum(xp.abs(xp.linalg.inv(left) - left.T)))
+        # print(xp.sum(xp.abs(xp.linalg.inv(right) - right.T)))
+        if return_logdet:
+            return left.dot((xp.diag(sm ** -1)).dot(right)), \
+                   xp.sum(xp.log(sm ** -1)), \
+                   xp.sign(xp.linalg.det(left) * xp.linalg.det(right))
+        return left.dot(xp.diag(sm ** -1)).dot(right)
 
     def refresh_all_decompositions(self):
         self.partial_SVD_decompositions_up = []
@@ -59,26 +345,31 @@ class auxiliary_field:
         self._get_partial_SVD_decompositions(spin = +1)
         self._get_partial_SVD_decompositions(spin = -1)
 
-        self.current_lhs_SVD_up = [xp.diag(xp.ones(self.config.total_dof // 2)), xp.ones(self.config.total_dof // 2), xp.diag(xp.ones(self.config.total_dof // 2))]
-        self.current_lhs_SVD_down = [xp.diag(xp.ones(self.config.total_dof // 2)), xp.ones(self.config.total_dof // 2), xp.diag(xp.ones(self.config.total_dof // 2))]
+        self.current_lhs_SVD_up = list(xp.linalg.svd(xp.diag(xp.ones(self.config.total_dof // 2))))
+        self.current_lhs_SVD_down = list(xp.linalg.svd(xp.diag(xp.ones(self.config.total_dof // 2))));
         return
 
-    def _unwrap_svd(self, svd):
-        return svd[0].dot(xp.diag(svd[1]).dot(svd[2]))
+    def _product_svds(self, svd1, svd2):
+        u1, s1, v1 = svd1
+        u2, s2, v2 = svd2
+        m = v1.dot(u2)
+        middle_mat = xp.diag(s1).dot(m).dot(xp.diag(s2))
+        um, sm, vm = xp.linalg.svd(middle_mat)
+        return u1.dot(um), sm, vm.dot(v2)
 
     def append_new_decomposition(self, tmin, tmax):
         assert tmax - tmin == self.config.Nt % self.config.s_refresh or tmax - tmin == self.config.s_refresh
         lhs_change_up = self._get_partial_SVD_decomposition_range(+1, tmin, tmax)
         lhs_change_down = self._get_partial_SVD_decomposition_range(-1, tmin, tmax)
 
-        self.current_lhs_SVD_up = xp.linalg.svd(self._unwrap_svd(lhs_change_up).dot(self._unwrap_svd(self.current_lhs_SVD_up)))
-        self.current_lhs_SVD_down = xp.linalg.svd(self._unwrap_svd(lhs_change_down).dot(self._unwrap_svd(self.current_lhs_SVD_down)))
+        self.current_lhs_SVD_up = self._product_svds(lhs_change_up, self.current_lhs_SVD_up)
+        self.current_lhs_SVD_down = self._product_svds(lhs_change_down, self.current_lhs_SVD_down)
 
         del self.partial_SVD_decompositions_up[-1]
         del self.partial_SVD_decompositions_down[-1]
         self.current_time_slice = tmax
         return
-
+    
     def _get_partial_SVD_decompositions(self, spin):
         M = xp.diag(xp.ones(self.config.total_dof // 2))
         current_U = xp.diag(xp.ones(self.config.total_dof // 2))
@@ -88,7 +379,6 @@ class auxiliary_field:
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                print('write dec at nr = ', nr, ' index = ', slice_idx)
                 u, s, v = xp.linalg.svd(M)
                 current_U = current_U.dot(u)
                 if spin == +1:
@@ -97,7 +387,10 @@ class auxiliary_field:
                     self.partial_SVD_decompositions_down.append((current_U, s, v))
                 M = xp.diag(s).dot(v)
         return
-
+    
+    def _V_from_configuration(self, configuration, sign):
+        return scipy.linalg.expm(sign * self.config.dt * np.array([[self.config.nu_V * configuration[0, 0], self.config.nu_U * configuration[0, 1]],
+                                                                   [self.config.nu_U * configuration[1, 0], self.config.nu_V * configuration[1, 1]]]))
 
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
         M = xp.diag(xp.ones(self.config.total_dof // 2))
@@ -106,70 +399,143 @@ class auxiliary_field:
             M = self.B_l(spin, time_slice, inverse = False).dot(M)
         return xp.linalg.svd(M)
 
-
-    def inv_illcond(self, A):
-        u, s, v = xp.linalg.svd(A)
-        Ainv = xp.dot(v.transpose(), xp.dot(xp.diag(s**-1), u.transpose()))
-        return Ainv
-
     def _load_configuration(self, path):
         return np.load(start_type)
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
-            return xp.asarray(np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
+            self.configuration = np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2 // 2, 2, 2)) * 2. - 1.0
         if self.config.start_type == 'hot':
-            return xp.asarray(np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
+            self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 2, 2)) * 2. - 1.0
 
-        return xp.asarray(self._load_configuration(start_type))
+        self.V = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        self.Vinv = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+
+        for time_slice in range(self.config.Nt):
+            for sp_index in range(self.config.total_dof // 2 // 2):
+                sx = sp_index * 2
+                sy = sp_index * 2 + 1
+                self.V[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0)
+                self.Vinv[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0)
+
+        self.V = xp.asarray(self.V)
+        self.Vinv = xp.asarray(self.Vinv)
+        return
+
+    def update_field(self, sp_index, time_slice, o1, o2):
+        self.configuration[time_slice, sp_index, o1, o2] *= -1
+        sx = sp_index * 2
+        sy = sp_index * 2 + 1
+        self.V[time_slice, sx : sy + 1, sx : sy + 1] = self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0))
+        self.Vinv[time_slice, sx : sy + 1, sx : sy + 1] = self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0))
+        return
 
     def save_configuration(self, path):
         return np.save(path, self.configuration)
 
-    def flip_random_spin(self):
-        time_slice = np.random.randint(0, self.config.Nt)
-        spatial_index = np.random.randint(0, self.config.total_dof // 2)
-        self.configuration[time_slice, spatial_index] *= -1
-        return
-
     def B_l(self, spin, l, inverse = False):
         if not inverse:
-            V = xp.diag(xp.exp(spin * self.config.nu * self.configuration[l, ...]))
-            return V.dot(self.K)
-    
-        V = xp.diag(xp.exp(-spin * self.config.nu * self.configuration[l, ...]))
-        return self.K_inverse.dot(V)
+            if spin > 0:
+                return self.V[l, ...].dot(self.K)
+            return self.Vinv[l, ...].dot(self.K)
 
-    def get_det_ratio(self, spin, sp_index, time_slice):
-        Delta = np.exp(2 * spin * self.configuration[time_slice, sp_index] * self.config.nu) - 1.
+        if spin > 0:
+            return self.K_inverse.dot(self.Vinv[l, ...])
+        return self.K_inverse.dot(self.V[l, ...])
+
+    def get_delta(self, spin, sp_index, time_slice, o1, o2):  # sign change proposal is made at (time_slice, sp_index, o1, o2)
+        local_configuration = self.configuration[time_slice, sp_index, ...]
+        local_configuration_proposed = deepcopy(self.configuration[time_slice, sp_index, ...])
+        local_configuration_proposed[o1, o2] *= -1
+
+        local_V = self._V_from_configuration(local_configuration, -spin)  # already stored in self.V or self.Vinv
+        local_V_proposed = self._V_from_configuration(local_configuration_proposed, spin)
+        return local_V_proposed.dot(local_V) - self.la.diag(self.la.ones(2))
+
+    def get_det_ratio(self, spin, sp_index, time_slice, o1, o2):
+        Delta = self.get_delta(spin, sp_index, time_slice, o1, o2)
+
+        sx = sp_index * 2
+        sy = sp_index * 2 + 1
+
         if spin == +1:
+            self.Delta_up = deepcopy(Delta)
             G = self.current_G_function_up
         else:
+            self.Delta_down = deepcopy(Delta)
             G = self.current_G_function_down
-        return 1. + Delta * (1. - G[sp_index, sp_index])
 
-    def update_G_seq(self, spin, sp_index, time_slice):
-        Delta = np.exp(2 * spin * self.configuration[time_slice, sp_index] * self.config.nu) - 1.
+        return self.la.linalg.det(self.la.diag(self.la.ones(2)) + Delta.dot((self.la.diag(self.la.ones(2)) - G[sx : sy + 1, sx : sy + 1])))
+
+    def update_G_seq(self, spin, sp_index, time_slice, o1, o2):
         if spin == +1:
+            Delta = self.Delta_up
             G = self.current_G_function_up
         else:
+            Delta = self.Delta_down
             G = self.current_G_function_down
 
-        update_matrix = Delta * (xp.diag(xp.ones(self.config.total_dof // 2)) - G)[sp_index, :]
-        update_matrix[sp_index] += 1.
-        det_update_matrix = update_matrix[sp_index]
-        update_matrix_inv = -update_matrix / det_update_matrix
-        update_matrix_inv[sp_index] = 1. / det_update_matrix - 1.
-        G = G + xp.einsum('i,k->ik', G[:, sp_index], update_matrix_inv)
+        sx = sp_index * 2
+        sy = sp_index * 2 + 1
 
+        # t = time.time()
+        update_matrix = self.la.zeros((2, self.config.total_dof // 2))  # keep only two nontrivial rows here
+        update_matrix[:, sx:sy + 1] = self.la.diag(np.ones(2)) + Delta
+        update_matrix -= self.la.einsum('ij,jk->ik', Delta, G[sx:sy + 1, :])
+        det = self.la.linalg.det(update_matrix[:, sx : sy + 1])
+        # print('update matrix created in ', time.time() - t)
+        # t = time.time()
+
+        inverse_update_matrix = self.la.zeros((2, self.config.total_dof // 2))  # keep only two nontrivial rows here
+
+        inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sy] - update_matrix[1, :] * update_matrix[0, sy]) / det  # my vectorized det :))
+        inverse_update_matrix[1, :] = (update_matrix[0, :] * update_matrix[1, sx] - update_matrix[1, :] * update_matrix[0, sx]) / det
+        # print('inverse update matrix filled in ', time.time() - t)
+        # t = time.time()
+
+        inverse_update_matrix[0, sx] = update_matrix[1, sy] / det - 1
+        inverse_update_matrix[1, sx] = -update_matrix[1, sx] / det
+        inverse_update_matrix[0, sy] = -update_matrix[0, sy] / det
+        inverse_update_matrix[1, sy] = update_matrix[0, sx] / det - 1
+
+
+        ### DEBUG ###
+        # update_matrix_full = xp.diag(xp.ones(self.config.total_dof // 2))
+        # update_matrix_full[sx: sy + 1, :] = xp.asarray(update_matrix)
+        # inverse_update_matrix_full = xp.diag(xp.ones(self.config.total_dof // 2))
+        # nverse_update_matrix_full[sx: sy + 1, :] = xp.asarray(inverse_update_matrix)
+        # print(np.sum(np.abs(update_matrix_full.dot(inverse_update_matrix_full) - xp.diag(xp.ones(self.config.total_dof // 2)))))
+        # print(xp.where(xp.abs(inverse_update_matrix_full - xp.linalg.inv(update_matrix_full)) > 1e-9))
+        G = G + self.la.einsum('ij,jk->ik', G[:, sx : sy + 1], inverse_update_matrix)
+
+
+        # print('G added in ', time.time() - t)
+        # t = time.time()
         if spin == +1:
             self.current_G_function_up = G
         else:
             self.current_G_function_down = G
-        
+
         return
 
-    def wrap_up(self, time_slice):
+    def copy_to_CPU(self):
+        self.current_G_function_up = cp.asnumpy(self.current_G_function_up)
+        self.current_G_function_down = cp.asnumpy(self.current_G_function_down)
+        self.K = cp.asnumpy(self.K)
+        self.K_inverse = cp.asnumpy(self.K_inverse)
+        self.la = np
+        return self
+
+    def copy_to_GPU(self):
+        self.current_G_function_up = cp.array(self.current_G_function_up)
+        self.current_G_function_down = cp.array(self.current_G_function_down)
+        self.K = cp.array(self.K)
+        self.K_inverse = cp.array(self.K_inverse)
+        self.la = cp
+        return self
+
+
+    def wrap_up(self, time_slice, gpu = False):
         B_wrap_up = self.B_l(+1, time_slice, inverse = False)
         B_wrap_up_inverse = self.B_l(+1, time_slice, inverse = True)
         B_wrap_down = self.B_l(-1, time_slice, inverse = False)
@@ -180,24 +546,23 @@ class auxiliary_field:
 
         return
 
-    def get_log_det(self):
-        sign_det_up, log_det_up = xp.linalg.slogdet(self.current_G_function_up)
-        sign_det_down, log_det_down = xp.linalg.slogdet(self.current_G_function_down)
-
-        return -np.real(log_det_up + log_det_down), sign_det_up * sign_det_down
-
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice):
         M = xp.diag(xp.ones(self.config.total_dof // 2))
-
+        current_U = xp.diag(xp.ones(self.config.total_dof // 2))
         slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
         for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
-        return self.inv_illcond(xp.diag(xp.ones(self.config.total_dof // 2)) + M)
+            u, s, v = xp.linalg.svd(M)
+            current_U = current_U.dot(u)
+            M = xp.diag(s).dot(v)
+        m = current_U.T.dot(v.T) + xp.diag(s)
+        um, sm, vm = xp.linalg.svd(m)
+        return ((vm.dot(v)).T).dot(xp.diag(sm ** -1)).dot((current_U.dot(um)).T), xp.sum(xp.log(sm ** -1))
 
-
-def get_det_partial_matrices(M_up_partial, B_up_l, M_down_partial, B_down_l, identity):
-    sign_det_up, log_det_up = xp.linalg.slogdet(identity + B_up_l.dot(M_up_partial))
-    sign_det_down, log_det_down = xp.linalg.slogdet(identity + B_down_l.dot(M_down_partial))
-    return np.real(log_det_up + log_det_down), sign_det_up * sign_det_down
+    def get_assymetry_factor(self):
+        log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
+        log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
+        s_factor_log = self.config.nu * xp.sum(self.configuration)
+        return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
