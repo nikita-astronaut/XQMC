@@ -60,7 +60,7 @@ def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 
 
 def H_TB_simple(L, mu):
     n_orbitals = 2
-    t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
+    t1, t2 = 0.331 / 0.331, 0 * (-0.010 + 1.0j * 0.097) / 0.331
 
     K = np.zeros((2 * n_orbitals * L * L, 2 * n_orbitals * L * L))
     for first in range(2 * n_orbitals * L * L):

@@ -2,11 +2,11 @@ import models
 import numpy as np
 import auxiliary_field
 dt_in_inv_t1 = 0.1
-U_in_t1 = 0
-V_in_t1 = 0
-nu_V = np.arccosh(np.exp(U_in_t1 * dt_in_inv_t1 / 2.))
+U_in_t1 = 6
+V_in_t1 = 6
+nu_V = np.arccosh(np.exp(V_in_t1 * dt_in_inv_t1 / 2.))
 nu_U = np.arccosh(np.exp(U_in_t1 * dt_in_inv_t1 / 2.))
-
+print(nu_V, nu_U)
 main_hopping = 1.0
 
 class simulation_parameters:
@@ -31,4 +31,4 @@ class simulation_parameters:
         self.n_print_frequency = 20  # write to log every n_print_frequency spin flips
         self.n_smoothing = 1000000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        self.s_refresh = 3
+        self.s_refresh = 10

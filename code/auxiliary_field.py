@@ -177,14 +177,14 @@ class auxiliary_field_intraorbital:
 
     def B_l(self, spin, l, inverse = False):
         if not inverse:
-            V = self.la.diag(self.la.exp(spin * self.config.nu_V * self.configuration[l, ...]))
+            V = self.la.diag(self.la.exp(spin * self.config.nu_U * self.configuration[l, ...]))
             return V.dot(self.K)
     
-        V = self.la.diag(self.la.exp(-spin * self.config.nu_V * self.configuration[l, ...]))
+        V = self.la.diag(self.la.exp(-spin * self.config.nu_U * self.configuration[l, ...]))
         return self.K_inverse.dot(V)
 
     def get_delta(self, spin, time_slice, sp_index):
-        return self.la.exp(-2 * spin * self.configuration[time_slice, sp_index] * self.config.nu_V) - 1.
+        return self.la.exp(-2 * spin * self.configuration[time_slice, sp_index] * self.config.nu_U) - 1.
 
     def get_det_ratio(self, spin, sp_index, time_slice, *args):
         Delta = self.get_delta(spin, time_slice, sp_index)
@@ -225,6 +225,7 @@ class auxiliary_field_intraorbital:
         self.K = cp.asnumpy(self.K)
         self.K_inverse = cp.asnumpy(self.K_inverse)
         self.la = np
+        self.configuration = cp.asnumpy(self.configuration)
         return self
 
     def copy_to_GPU(self):
@@ -233,6 +234,7 @@ class auxiliary_field_intraorbital:
         self.K = cp.array(self.K)
         self.K_inverse = cp.array(self.K_inverse)
         self.la = cp
+        self.configuration = cp.asarray(self.configuration)
         return self
 
 
@@ -249,28 +251,28 @@ class auxiliary_field_intraorbital:
 
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice):
-        M = np.eye(self.config.total_dof // 2)
-        current_U = np.eye(self.config.total_dof // 2)
+        M = self.la.eye(self.config.total_dof // 2)
+        current_U = self.la.eye(self.config.total_dof // 2)
         slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
         for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
-            u, s, v = np.linalg.svd(M)
+            u, s, v = self.la.linalg.svd(M)
             current_U = current_U.dot(u)
-            M = np.diag(s).dot(v)
-        m = current_U.T.dot(v.T) + np.diag(s)
-        um, sm, vm = np.linalg.svd(m)
-        return ((vm.dot(v)).T).dot(np.diag(sm ** -1)).dot((current_U.dot(um)).T), np.sum(np.log(sm ** -1))
+            M = self.la.diag(s).dot(v)
+        m = current_U.T.dot(v.T) + self.la.diag(s)
+        um, sm, vm = self.la.linalg.svd(m)
+        return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1))
 
     def get_assymetry_factor(self):
         log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
         log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
-        s_factor_log = self.config.nu_V * xp.sum(self.configuration)
+        s_factor_log = self.config.nu_U * xp.sum(self.configuration)
         return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
 
 class auxiliary_field_interorbital(auxiliary_field_intraorbital):
     def __init__(self, config, K, K_inverse):
-        self.matrix_exponents = [None] * 2 ** (config.n_orbitals ** 2)
+        self.matrix_exponents = np.zeros(shape = (2 ** (config.n_orbitals ** 2), config.n_orbitals, config.n_orbitals))
         self._precompute_matrix_exponents(config)
         super().__init__(config, K, K_inverse)
         return
@@ -279,9 +281,9 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
     def _precompute_matrix_exponents(self, config):
         for a in range(2 ** (config.n_orbitals ** 2)):
             spin = (2.0 * np.unpackbits(np.array(a, dtype = np.uint8))[-4:] - 1.).reshape(2, 2)
-            exp = scipy.linalg.expm(config.dt * np.array([[config.nu_V * spin[0, 0], config.nu_U * spin[0, 1]],
-                                                          [config.nu_U * spin[1, 0], config.nu_V * spin[1, 1]]]))
-            self.matrix_exponents[a] = exp
+            exp = scipy.linalg.expm(np.array([[config.nu_U * spin[0, 0], config.nu_V * spin[0, 1]],
+                                              [config.nu_V * spin[1, 0], config.nu_U * spin[1, 1]]]))
+            self.matrix_exponents[a, ...] = exp
         return
 
     def _V_from_configuration(self, configuration, sign):
@@ -290,8 +292,8 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         # print('preparation took ', time.time() - t)
         # print(spin)
         return self.matrix_exponents[spin]
-        #return scipy.linalg.expm(sign * self.config.dt * np.array([[self.config.nu_V * configuration[0, 0], self.config.nu_U * configuration[0, 1]],
-        #                                                           [self.config.nu_U * configuration[1, 0], self.config.nu_V * configuration[1, 1]]]))
+        # return scipy.linalg.expm(sign * self.config.dt * np.array([[self.config.nu_V * configuration[0, 0], self.config.nu_U * configuration[0, 1]],
+        #                                                            [self.config.nu_U * configuration[1, 0], self.config.nu_V * configuration[1, 1]]]))
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
@@ -349,13 +351,12 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         sy = sp_index * 2 + 1
 
         if spin == +1:
-            self.Delta_up = Delta
+            self.Delta_up = self.la.asarray(Delta)
             G = self.current_G_function_up
         else:
-            self.Delta_down = Delta
+            self.Delta_down = self.la.asarray(Delta)
             G = self.current_G_function_down
-        self.la.linalg.det(self.la.eye(2) + Delta.dot(self.la.eye(2) - G[sx : sy + 1, sx : sy + 1]))
-        return self.la.linalg.det(self.la.eye(2) + Delta.dot(self.la.eye(2) - G[sx : sy + 1, sx : sy + 1]))
+        return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - cp.asnumpy(G[sx : sy + 1, sx : sy + 1])))
 
     def update_G_seq(self, spin, sp_index, time_slice, o1, o2):
         if spin == +1:
@@ -395,10 +396,13 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         super().copy_to_CPU()
         self.V = cp.asnumpy(self.V)
         self.Vinv = cp.asnumpy(self.Vinv)
+        # self.matrix_exponents = cp.asnumpy(self.matrix_exponents)
         return
 
     def copy_to_GPU(self):
         super().copy_to_GPU()
         self.V = cp.asarray(self.V)
         self.Vinv = cp.asarray(self.Vinv)
+        # self.matrix_exponents = cp.asarray(self.matrix_exponents)
+        self.configuration = cp.asnumpy(self.configuration)  # amendment to Super
         return

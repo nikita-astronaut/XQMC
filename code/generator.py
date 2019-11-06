@@ -61,8 +61,8 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
 
 
     for time_slice in range(phi_field.config.Nt):
-        S_AF_history.append(cp.asnumpy(observables.staggered_magnetisation(phi_field)))
-        SzSz_history.append(cp.asnumpy(observables.SzSz_n_neighbor(phi_field, K_matrix, 1)))
+        # S_AF_history.append(cp.asnumpy(observables.staggered_magnetisation(phi_field)))
+        # SzSz_history.append(cp.asnumpy(observables.SzSz_n_neighbor(phi_field, K_matrix, 1)))
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             # print('refreshed')
@@ -87,26 +87,29 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
             # print('refreshed')
             # print('assymetry = ', phi_field.get_assymetry_factor(), time_slice)
         # print('simple wrap-up')
-        
+        # t = time.time()
         phi_field.wrap_up(time_slice)
-        # G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[0]
-        # G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[0]
-        # print('discrepancy BEFORE step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), \
-        #                                      np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
-        #t = time.time()
+        # print('wrap-up took ' + str(time.time() - t))
+        #phi_field.copy_to_GPU()
+        #G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+        #G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+        #print('discrepancy BEFORE step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), \
+        #                                     np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
+        #print(current_det_log + det_log_up_check + det_log_down_check)
+        # t = time.time()
 
         for sp_index in range(phi_field.config.total_dof // 2 * orbits):
             site_idx = sp_index // orbits ** 2
             o1 = sp_index % orbits
             o2 = (sp_index // orbits) % orbits
 
-            t = time.time()
+            # t = time.time()
 
             sign_history.append(current_det_sign)
-            #t = time.time()
+            # t = time.time()
             ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o1, o2) * \
                     phi_field.get_det_ratio(-1, site_idx, time_slice, o1, o2)
-            #print('ratio of G took ' + str(time.time() - t))
+            # print('ratio of G took ' + str(time.time() - t))
             # B_up_new = auxiliary_field.B_l(configuration, +1, time_slice, K_operator, config)
             # B_down_new = auxiliary_field.B_l(configuration, -1, time_slice, K_operator, config)
             # print('B_matrixes making took ' + str(time.time() - t))
@@ -122,36 +125,34 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
                 current_det_log += np.log(np.abs(ratio))
                 # print(current_det_log)
                 ratio_history.append(np.log(np.abs(ratio)))
+                # print(np.log(np.abs(ratio)))
                 # print(np.mean(ratio_history))
                 current_det_sign *= np.sign(ratio)
                 accept_history.append(+1)
-                #t = time.time()
+                # t = time.time()
                 phi_field.update_G_seq(+1, site_idx, time_slice, o1, o2)
                 phi_field.update_G_seq(-1, site_idx, time_slice, o1, o2)
-                #print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
-                #t = time.time()
+                # print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
+                # t = time.time()
                 phi_field.update_field(site_idx, time_slice, o1, o2)
-                #print('update V took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
+                # print('update V took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
                 #print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
                 # print(current_det_sign)
 
-                # G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[0]
-                # G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[0]
-                # print('discrepancy after one flip step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
+                # G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+                # G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+
+                # print('final discrepancy after sweep = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
+                # print(current_det_log + det_log_up_check + det_log_down_check)
             else:
                 accept_history.append(0)
                 ratio_history.append(0)
-            #print('one slip on slice took ' + str(time.time() - t))
-            t = time.time()
+            # print('one slip on slice took ' + str(time.time() - t))
+            # t = time.time()
             densities.append((observables.total_density(phi_field)).item())
             # print('density ' + str(time.time() - t))
         # M_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
         # M_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice)        
-
-        # G_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[0]
-        # G_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[0]
-
-        # print('final discrepancy after sweep = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
 
         # print('on-slice sweep took ' + str(time.time() - t))
         #t = time.time()
@@ -167,6 +168,7 @@ if __name__ == "__main__":
     K_operator = xp.asarray(scipy.linalg.expm(config.dt * K_matrix))
     K_operator_inverse = xp.asarray(scipy.linalg.expm(-config.dt * K_matrix))
     phi_field = config.field(config, K_operator, K_operator_inverse)
+    phi_field.copy_to_GPU()
     for n_sweep in range(config.n_sweeps):
         t = time.time()
         accept_history = []
