@@ -18,7 +18,7 @@ def get_wavefunction(indexes, pairing, config, pfaffian = False):
             A[n1, n2] = pairing.get_pairing_f(idx1, idx2)
     # print(np.sum(np.abs(A + A.T)))
     if not pfaffian:
-        return xp.linalg.det(A)  # if we are performing MC-sampling, we only need 
+        return xp.linalg.det(A)  # if we are performing MC-sampling, we only need the WF
 
 
 # counter = 0
