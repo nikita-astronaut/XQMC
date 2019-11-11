@@ -14,33 +14,51 @@ class HubbardHamiltonian(object):
 			This function only returns the states connected with the base_state via hoppings
 			The other energy contributions are diagonal and accounted separately
 		'''
+		base_state_up, base_state_down = base_state
 		states, matrix_elements = [], []
+
 		for edge in self.edges_quadratic:  # TODO: this can be paralellized with joblib
+
 			i, j, Hij = edge
-			if base_state[j] == 1 and base_state[i] == 0:
-				new_state = deepcopy(base_state)
+			if base_state_up[j] == 1 and base_state_up[i] == 0:
+				new_state = deepcopy(base_state_up)
 				new_state[j] = 0
 				new_state[i] = 1
-				states.append((new_state, Hij))
+				states.append((new_state, base_state_down))
 				matrix_elements.append(Hij)
+
+			if base_state_down[j] == 1 and base_state_down[i] == 0:
+				new_state = deepcopy(base_state_down)
+				new_state[j] = 0
+				new_state[i] = 1
+				states.append((base_state_up, new_state))
+				matrix_elements.append(Hij)
+
 		return states, matrix_elements
 
-	def get_energy_basestate(self, machine, base_state):
+	def __call__(self, machine, base_state):
+		'''
+			performs the summation 
+			E_loc(i) = \\sum_{j ~ i} H_{ij} \\psi_j / \\psi_i,
+			where j ~ i are the all indixes having non-zero matrix element with H_{ij}
+		'''
 		states, matrix_elements = self._get_matrix_elements(base_state)
 		base_wf = machine.get_wf([base_state])
 		adj_wfs = machine.get_wf(states)
 
 		energy = 0.0
-		energy += self.config.mu * np.sum(base_state) * np.abs(base_wf) ** 2
+		energy += self.config.mu * np.sum(base_state[0] + base_state[1])
 
-		for edge in self.edges_quadric:
-			energy += edge[2] * np.abs(base_wf) ** 2 * base_state[edge[0]] * base_state[edge[1]]
+		for edge in self.edges_quadric:  # TODO: this can be parallized
+			energy += edge[2] * \
+			          (base_state[0][edge[0]] + base_state[1][edge[0]] - 1) * \
+			          (base_state[0][edge[1]] + base_state[1][edge[1]] - 1)
 		for adj_wf, Hij in zip(adj_wfs, matrix_elements):
-			energy += Hij * base_wf * np.conj(adj_wf)
+			energy += Hij * adj_wf / base_wf
+
 		return energy
 
-	def get_energy_derivative(self, machine, base_state):
-		
+
 
 
 class hamiltonian_4bands(HubbardHamiltonian)

@@ -11,14 +11,24 @@ except ImportError:
     pass
 
 # TODO: make this parallel (multiprocessing / GPU-threads)
-def get_wavefunction(indexes, pairing, config, pfaffian = False):
-    A = np.zeros((len(indexes), len(indexes)))
-    for n1, idx1 in enumerate(indexes):
-        for n2, idx2 in enumerate(indexes):
-            A[n1, n2] = pairing.get_pairing_f(idx1, idx2)
-    # print(np.sum(np.abs(A + A.T)))
-    if not pfaffian:
-        return xp.linalg.det(A)  # if we are performing MC-sampling, we only need the WF
+
+class singlet_wavefunction(Object):
+    def __init__(self, config):
+        self.config = config
+
+    def get_O(self, base_state):
+        '''
+            O_i = \\partial{\\psi_i} / \\psi_i
+        '''
+
+    def get_wavefunction(indexes, pairing, config, pfaffian = False):
+        A = np.zeros((len(indexes), len(indexes)))
+        for n1, idx1 in enumerate(indexes):
+            for n2, idx2 in enumerate(indexes):
+                A[n1, n2] = pairing.get_pairing_f(idx1, idx2)
+        # print(np.sum(np.abs(A + A.T)))
+        if not pfaffian:
+            return xp.linalg.det(A)  # if we are performing MC-sampling, we only need the WF
 
 
 # counter = 0
