@@ -24,3 +24,17 @@ class wavefunction(Object):
     def _construct_U_matrix(self):
         K = self.config.model(self.config.L, self.config.mu)
         Delta = self.config.pairing(self.config.L)  # the magnitude of the pairing is not yet included here
+
+        T = np.zeros((2 * K.shape[0], 2 * K.shape[1]))
+        T[0:K.shape[0], 0:K.shape[1]] = K
+        T[K.shape[0]:2 * K.shape[0], K.shape[1]:2 * K.shape[1]] = -K
+        T[0:K.shape[0], K.shape[1]:2 * K.shape[1]] = self.var_params[0] * Delta
+        T[K.shape[0]:2 * K.shape[0], 0:K.shape[1]] = self.var_params[0] * Delta.conj().T
+
+        self.E, self.U = np.linalg.eig(T)
+        assert(np.allclose(np.diag(energies), U.conj().T.dot(A).dot(U)))  # U^{\dag} T U = E
+
+        lowest_energy_states = np.argpartition(self.E, self.config.N_electrons)  # select lowest-energy orbitals
+        U = U[:, lowest_energy_states]  # select only occupied orbitals
+
+
