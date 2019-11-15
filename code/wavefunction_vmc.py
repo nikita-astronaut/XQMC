@@ -16,6 +16,7 @@ class wavefunction(Object):
         self.config = config
         self.var_params = self._init_var_params()
         self.U_matrix = self._construct_U_matrix()
+        self.x = self._generate_configuration()
 
     def get_O(self, base_state):
         '''
@@ -36,5 +37,7 @@ class wavefunction(Object):
 
         lowest_energy_states = np.argpartition(self.E, self.config.N_electrons)  # select lowest-energy orbitals
         U = U[:, lowest_energy_states]  # select only occupied orbitals
+        return U 
 
-
+    def _generate_configuration(self):
+        
