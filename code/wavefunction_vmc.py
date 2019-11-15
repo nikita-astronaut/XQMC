@@ -40,4 +40,6 @@ class wavefunction(Object):
         return U 
 
     def _generate_configuration(self):
-        
+        conf = np.zeros(self.config.total_dof)
+        conf[np.random.choice(np.arange(self.config.total_dof), size = total_dof // 2, replace = False)] = 1
+        return conf
