@@ -258,6 +258,7 @@ class auxiliary_field_intraorbital:
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             u, s, v = self.la.linalg.svd(M)
+            # print(np.sum(np.abs(u.dot(np.diag(s)).dot(v) - M)) / np.sum(np.abs(M)), 'discrepancy of SVD')
             current_U = current_U.dot(u)
             M = self.la.diag(s).dot(v)
         m = current_U.T.dot(v.T) + self.la.diag(s)
@@ -267,7 +268,7 @@ class auxiliary_field_intraorbital:
     def get_assymetry_factor(self):
         log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
         log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
-        s_factor_log = self.config.nu_U * xp.sum(self.configuration)
+        s_factor_log = self.config.nu_U * xp.sum(self.configuration[..., 0:2])  # in case of xy-yx pairings
         return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
 
 class auxiliary_field_interorbital(auxiliary_field_intraorbital):
@@ -286,7 +287,7 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
     #     return
 
     def _V_from_configuration(self, s, sign, spin):
-        if spin == 1.0:
+        if spin > 0:
             V = self.config.nu_U * sign * np.array([s[0], s[1]]) + self.config.nu_V * sign * np.array([s[2] + s[3], -s[2] - s[4]])
         else:
             V = self.config.nu_U * sign * np.array([-s[0], -s[1]]) + self.config.nu_V * sign * np.array([s[4] + s[5], -s[3] - s[5]])
@@ -356,8 +357,8 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         local_configuration_proposed = deepcopy(self.configuration[time_slice, sp_index, :])
         local_configuration_proposed[o_index] *= -1
 
-        local_V = self._V_from_configuration(local_configuration, 1.0, spin)  # already stored in self.V or self.Vinv
-        local_V_proposed = self._V_from_configuration(local_configuration_proposed, -1.0, spin)
+        local_V = self._V_from_configuration(local_configuration, -1.0, spin)  # already stored in self.V or self.Vinv
+        local_V_proposed = self._V_from_configuration(local_configuration_proposed, 1.0, spin)
         return local_V_proposed.dot(local_V) - np.eye(2)
 
     def get_det_ratio(self, spin, sp_index, time_slice, o_index):
