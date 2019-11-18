@@ -16,7 +16,7 @@ class wavefunction(Object):
         self.config = config
         self.var_params = self._init_var_params()
         self.U_matrix = self._construct_U_matrix()
-        self.x = self._generate_configuration()
+        self.conf, self.e_positions, self.positions_in_string = self._generate_configuration()
 
     def get_O(self, base_state):
         '''
@@ -40,6 +40,12 @@ class wavefunction(Object):
         return U 
 
     def _generate_configuration(self):
-        conf = np.zeros(self.config.total_dof)
-        conf[np.random.choice(np.arange(self.config.total_dof), size = total_dof // 2, replace = False)] = 1
-        return conf
+        conf = np.zeros(self.config.total_dof)  # 2 * n_sites
+        e_positions = np.random.choice(np.arange(self.config.total_dof), size = self.config.N_electrons, replace = False)
+        conf[e_positions] = 1
+        positions_in_string = np.zeros(self.config.total_dof) - 1
+        positions_in_string[e_positions] = np.arange(len(e_positions)) + 1  # the initial state is
+                                                                            # d^{\dag}_{e_positions[0]} d^{\dag}_{e_positions[1]} ...|0>
+
+        return conf, e_positions, positions_in_string
+

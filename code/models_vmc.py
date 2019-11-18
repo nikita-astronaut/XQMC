@@ -15,8 +15,10 @@ class on_site_and_nn_pairing:
 
         orbit1, sublattice1, x1, y1 = models.from_linearized_index(index1, self.config.Ls, self.config.n_orbitals)
         orbit2, sublattice2, x2, y2 = models.from_linearized_index(index2, self.config.Ls, self.config.n_orbitals)
-        mat_index1 = orbit1 * 2 + spin1
-        mat_index2 = orbit2 * 2 + spin2
+        space1 = x1 * self.config.Ls + y1
+        space2 = x2 * self.config.Ls + y2
+
+
         
         r1 = np.array([x1, y1])
         r2 = np.array([x2, y2])
