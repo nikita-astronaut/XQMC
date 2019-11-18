@@ -51,14 +51,16 @@ def print_generator_log(n_sweep, phi_field, K_matrix):
 
 def perform_sweep(phi_field, K_matrix, orbits, switch):
     global accept_history, densities, S_AF_history, SzSz_history
-    if switch:
-        phi_field.copy_to_GPU()
+    #if switch:
+    #    phi_field.copy_to_GPU()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
-    if switch:
-        phi_field.copy_to_CPU()
-    # print('assymetry = ', phi_field.get_assymetry_factor())
-
+    #if switch:
+    #    phi_field.copy_to_CPU()
+    G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, -1)
+    G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, -1)
+    print('discrepancy BEFORE even loop = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), \
+                                        np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
 
     for time_slice in range(phi_field.config.Nt):
         # S_AF_history.append(cp.asnumpy(observables.staggered_magnetisation(phi_field)))
@@ -66,7 +68,7 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             # print('refreshed')
-            # print('assymetry = ', phi_field.get_assymetry_factor(), time_slice)
+            print('assymetry = ', phi_field.get_assymetry_factor(), time_slice)
         #t = time.time()
         # M_up_partial, B_time_up = auxiliary_field.fermionic_matrix(configuration, K_operator, +1.0, config, time = time_slice, return_Bl = True)  # returns the product B_{l - 1} B_{l - 2}... B_0 B_{n - 1} ... B_{l + 1} and B_l
         # M_down_partial, B_time_down = auxiliary_field.fermionic_matrix(configuration, K_operator, -1.0, config, time = time_slice, return_Bl = True)
@@ -91,24 +93,23 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
         phi_field.wrap_up(time_slice)
         # print('wrap-up took ' + str(time.time() - t))
         #phi_field.copy_to_GPU()
-        #G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
-        #G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
-        #print('discrepancy BEFORE step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), \
-        #                                     np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
-        #print(current_det_log + det_log_up_check + det_log_down_check)
+        G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+        G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+        print('discrepancy BEFORE step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), \
+                                             np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
+        print(current_det_log + det_log_up_check + det_log_down_check)
         # t = time.time()
 
-        for sp_index in range(phi_field.config.total_dof // 2 * orbits):
-            site_idx = sp_index // orbits ** 2
-            o1 = sp_index % orbits
-            o2 = (sp_index // orbits) % orbits
+        for sp_index in range(phi_field.config.total_dof // 4 * 6):
+            site_idx = sp_index // 6
+            o_index = sp_index % 6
 
             # t = time.time()
 
             sign_history.append(current_det_sign)
             # t = time.time()
-            ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o1, o2) * \
-                    phi_field.get_det_ratio(-1, site_idx, time_slice, o1, o2)
+            ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o_index) * \
+                    phi_field.get_det_ratio(-1, site_idx, time_slice, o_index)
             # print('ratio of G took ' + str(time.time() - t))
             # B_up_new = auxiliary_field.B_l(configuration, +1, time_slice, K_operator, config)
             # B_down_new = auxiliary_field.B_l(configuration, -1, time_slice, K_operator, config)
@@ -130,20 +131,23 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
                 current_det_sign *= np.sign(ratio)
                 accept_history.append(+1)
                 # t = time.time()
-                phi_field.update_G_seq(+1, site_idx, time_slice, o1, o2)
-                phi_field.update_G_seq(-1, site_idx, time_slice, o1, o2)
+                phi_field.update_G_seq(+1, site_idx, time_slice, o_index)
+                phi_field.update_G_seq(-1, site_idx, time_slice, o_index)
                 # print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
                 # t = time.time()
-                phi_field.update_field(site_idx, time_slice, o1, o2)
+                phi_field.update_field(site_idx, time_slice, o_index)
                 # print('update V took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
                 #print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
                 # print(current_det_sign)
 
-                # G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
-                # G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+                G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+                G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
 
-                # print('final discrepancy after sweep = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
-                # print(current_det_log + det_log_up_check + det_log_down_check)
+                print('final discrepancy after step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / 
+                                                         np.sum(np.abs(G_up_check)), 
+                                                         np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / 
+                                                         np.sum(np.abs(G_down_check)))
+                print(current_det_log + det_log_up_check + det_log_down_check)
             else:
                 accept_history.append(0)
                 ratio_history.append(0)
