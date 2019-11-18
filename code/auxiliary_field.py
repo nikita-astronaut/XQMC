@@ -272,33 +272,34 @@ class auxiliary_field_intraorbital:
 
 class auxiliary_field_interorbital(auxiliary_field_intraorbital):
     def __init__(self, config, K, K_inverse):
-        self.matrix_exponents = np.zeros(shape = (2 ** (config.n_orbitals ** 2), config.n_orbitals, config.n_orbitals))
-        self._precompute_matrix_exponents(config)
+        # self.matrix_exponents = np.zeros(shape = (2 ** (config.n_orbitals ** 2), config.n_orbitals, config.n_orbitals))
+        # self._precompute_matrix_exponents(config)
         super().__init__(config, K, K_inverse)
         return
 
-    def _precompute_matrix_exponents(self, config):
-        for a in range(2 ** (config.n_orbitals ** 2)):
-            spin = (2.0 * np.unpackbits(np.array(a, dtype = np.uint8))[-4:] - 1.).reshape(2, 2)
-            exp = scipy.linalg.expm(np.array([[config.nu_U * spin[0, 0] + config.nu_V * spin[0, 1], 0],
-                                              [0, config.nu_U * spin[1, 1] + config.nu_V * spin[1, 0]]]))
-            self.matrix_exponents[a, ...] = exp
-        return
+    # def _precompute_matrix_exponents(self, config):
+    #     for a in range(2 ** (config.n_orbitals ** 2)):
+    #         spin = (2.0 * np.unpackbits(np.array(a, dtype = np.uint8))[-4:] - 1.).reshape(2, 2)
+    #         exp = scipy.linalg.expm(np.array([[config.nu_U * spin[0, 0] + config.nu_V * spin[0, 1], 0],
+    #                                           [0, config.nu_U * spin[1, 1] + config.nu_V * spin[1, 0]]]))
+    #         self.matrix_exponents[a, ...] = exp
+    #     return
 
-    def _V_from_configuration(self, configuration, sign):
-        # t = time.time()
-        spin = np.packbits(np.array(np.concatenate([np.array([0, 0, 0, 0]), ((configuration * sign + 1) / 2).flatten()]), dtype = np.uint8))[0]
-        # print('preparation took ', time.time() - t)
-        # print(spin)
-        return self.matrix_exponents[spin]
+    def _V_from_configuration(self, s, sign, spin):
+        if spin == 1.0:
+            V = self.config.nu_U * sign * np.array([s[0], s[1]]) + self.config.nu_V * sign * np.array([s[2] + s[3], -s[2] - s[4]])
+        else:
+            V = self.config.nu_U * sign * np.array([-s[0], -s[1]]) + self.config.nu_V * sign * np.array([s[4] + s[5], -s[3] - s[5]])
+        return np.diag(np.exp(V))
+
         #return scipy.linalg.expm(sign * np.array([[self.config.nu_U * configuration[0, 0] + self.config.nu_V * configuration[0, 1], 0],
         #                                          [0, self.config.nu_U * configuration[1, 1] + self.config.nu_V * configuration[1, 0]]]))
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
-            self.configuration = np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2 // 2, 2, 2)) * 2. - 1.0
+            self.configuration = np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2 // 2, 6)) * 2. - 1.0
         if self.config.start_type == 'hot':
-            self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 2, 2)) * 2. - 1.0
+            self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 6)) * 2. - 1.0
 
         self.V_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
         self.Vinv_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
@@ -310,14 +311,14 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
                 sx = sp_index * 2
                 sy = sp_index * 2 + 1
                 self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
-                    self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0)
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, :], +1.0, +1.0)
                 self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = \
-                    self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0)
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, :], -1.0, +1.0)
 
                 self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
-                    self._V_from_configuration(self.configuration[time_slice, sp_index, ...].T, -1.0)
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, :], +1.0, -1)
                 self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
-                    self._V_from_configuration(self.configuration[time_slice, sp_index, ...].T, +1.0)
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, :], -1.0, -1)
 
         self.V_up = xp.asarray(self.V_up)
         self.Vinv_up = xp.asarray(self.Vinv_up)
@@ -325,19 +326,19 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         self.Vinv_down = xp.asarray(self.Vinv_down)
         return
 
-    def update_field(self, sp_index, time_slice, o1, o2):
-        self.configuration[time_slice, sp_index, o1, o2] *= -1
+    def update_field(self, sp_index, time_slice, o_index):
+        self.configuration[time_slice, sp_index, o_index] *= -1
         sx = sp_index * 2
         sy = sp_index * 2 + 1
         self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
-            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0))
+            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0, +1.0))
         self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = \
-            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0))
+            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0, +1.0))
 
         self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
-            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...].T, -1.0))
+            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0, -1.0))
         self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
-            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...].T, +1.0))
+            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0, -1.0))
         return
 
     def B_l(self, spin, l, inverse = False):
@@ -350,20 +351,17 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
             return self.K_inverse.dot(self.Vinv_up[l, ...])
         return self.K_inverse.dot(self.Vinv_down[l, ...])
 
-    def get_delta(self, spin, sp_index, time_slice, o1, o2):  # sign change proposal is made at (time_slice, sp_index, o1, o2)
-        local_configuration = self.configuration[time_slice, sp_index, ...]
-        local_configuration_proposed = deepcopy(self.configuration[time_slice, sp_index, ...])
-        local_configuration_proposed[o1, o2] *= -1
-        if spin > 0:
-            local_V = self._V_from_configuration(local_configuration, -spin)  # already stored in self.V or self.Vinv
-            local_V_proposed = self._V_from_configuration(local_configuration_proposed, spin)
-        else:
-            local_V = self._V_from_configuration(local_configuration.T, -spin)  # already stored in self.V or self.Vinv
-            local_V_proposed = self._V_from_configuration(local_configuration_proposed.T, spin)
+    def get_delta(self, spin, sp_index, time_slice, o_index):  # sign change proposal is made at (time_slice, sp_index, o_index)
+        local_configuration = self.configuration[time_slice, sp_index, :]
+        local_configuration_proposed = deepcopy(self.configuration[time_slice, sp_index, :])
+        local_configuration_proposed[o_index] *= -1
+
+        local_V = self._V_from_configuration(local_configuration, 1.0, spin)  # already stored in self.V or self.Vinv
+        local_V_proposed = self._V_from_configuration(local_configuration_proposed, -1.0, spin)
         return local_V_proposed.dot(local_V) - np.eye(2)
 
-    def get_det_ratio(self, spin, sp_index, time_slice, o1, o2):
-        Delta = self.get_delta(spin, sp_index, time_slice, o1, o2)
+    def get_det_ratio(self, spin, sp_index, time_slice, o_index):
+        Delta = self.get_delta(spin, sp_index, time_slice, o_index)
         sx = sp_index * 2
         sy = sp_index * 2 + 1
 
@@ -375,7 +373,7 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
             G = self.current_G_function_down
         return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - cp.asnumpy(G[sx : sy + 1, sx : sy + 1])))
 
-    def update_G_seq(self, spin, sp_index, time_slice, o1, o2):
+    def update_G_seq(self, spin, sp_index, time_slice, o_index):
         if spin == +1:
             Delta = self.Delta_up
             G = self.current_G_function_up

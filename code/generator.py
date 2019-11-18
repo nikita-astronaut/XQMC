@@ -98,17 +98,16 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
         #print(current_det_log + det_log_up_check + det_log_down_check)
         # t = time.time()
 
-        for sp_index in range(phi_field.config.total_dof // 2 * orbits):
-            site_idx = sp_index // orbits ** 2
-            o1 = sp_index % orbits
-            o2 = (sp_index // orbits) % orbits
+        for sp_index in range(phi_field.config.total_dof // 4 * 6):
+            site_idx = sp_index // 6
+            o_index = sp_index % 6
 
             # t = time.time()
 
             sign_history.append(current_det_sign)
             # t = time.time()
-            ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o1, o2) * \
-                    phi_field.get_det_ratio(-1, site_idx, time_slice, o1, o2)
+            ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o_index) * \
+                    phi_field.get_det_ratio(-1, site_idx, time_slice, o_index)
             # print('ratio of G took ' + str(time.time() - t))
             # B_up_new = auxiliary_field.B_l(configuration, +1, time_slice, K_operator, config)
             # B_down_new = auxiliary_field.B_l(configuration, -1, time_slice, K_operator, config)
@@ -130,11 +129,11 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
                 current_det_sign *= np.sign(ratio)
                 accept_history.append(+1)
                 # t = time.time()
-                phi_field.update_G_seq(+1, site_idx, time_slice, o1, o2)
-                phi_field.update_G_seq(-1, site_idx, time_slice, o1, o2)
+                phi_field.update_G_seq(+1, site_idx, time_slice, o_index)
+                phi_field.update_G_seq(-1, site_idx, time_slice, o_index)
                 # print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
                 # t = time.time()
-                phi_field.update_field(site_idx, time_slice, o1, o2)
+                phi_field.update_field(site_idx, time_slice, o_index)
                 # print('update V took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
                 #print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
                 # print(current_det_sign)
