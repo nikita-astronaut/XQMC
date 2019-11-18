@@ -106,52 +106,49 @@ class auxiliary_field_intraorbital:
         return
     
     def _get_partial_SVD_decompositions(self, spin):
-        M = xp.eye(self.config.total_dof // 2)
-        current_U = xp.eye(self.config.total_dof // 2)
+        M = self.la.eye(self.config.total_dof // 2)
+        current_U = self.la.eye(self.config.total_dof // 2)
 
         slices = list(range(0, self.config.Nt))
         for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                u, s, v = xp.linalg.svd(M)
+                u, s, v = self.la.linalg.svd(M)
                 # print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
-                # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-13))
+                # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-11))
                 # print(xp.max(xp.abs(xp.eye(self.config.total_dof // 2) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
                 current_U = current_U.dot(u)
                 if spin == +1:
                     self.partial_SVD_decompositions_up.append((current_U, s, v))
                 else:
                     self.partial_SVD_decompositions_down.append((current_U, s, v))
-                M = xp.diag(s).dot(v)
+                M = self.la.diag(s).dot(v)
         return
-    '''
 
-    def _get_partial_SVD_decompositions(self, spin):
-        current_V = xp.diag(xp.ones(self.config.total_dof // 2))
-        current_D = xp.diag(xp.ones(self.config.total_dof // 2))
-        current_U = xp.diag(xp.ones(self.config.total_dof // 2))
-        current_store = xp.diag(xp.ones(self.config.total_dof // 2))
-        slices = list(range(0, self.config.Nt))
-        for nr, slice_idx in enumerate((slices)):
+
+    ####### DEBUG ######
+    def get_G_no_optimisation(self, spin, time_slice):
+        M = self.la.eye(self.config.total_dof // 2)
+        current_U = self.la.eye(self.config.total_dof // 2)
+        slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
+        for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
-            current_store = current_store.dot(B)
-            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                # print('write dec at nr = ', nr, ' index = ', slice_idx)
-                M = (current_store.dot(current_U)).dot(current_D)
-                current_store = xp.diag(xp.ones(self.config.total_dof // 2))
-                u, s, v = xp.linalg.svd(M)
-                current_U = u
-                current_D = xp.diag(s)
-                print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-10))
-                # print(xp.max(xp.abs(xp.diag(xp.ones(self.config.total_dof // 2)) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
-                current_V = v.dot(current_V)
-                if spin == +1:
-                    self.partial_SVD_decompositions_up.append((current_U, xp.diag(current_D), current_V))
-                else:
-                    self.partial_SVD_decompositions_down.append((current_U, xp.diag(current_D), current_V))
-        return
-    '''
+            M = M.dot(B)
+            u, s, v = self.la.linalg.svd(M)
+            print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
+            current_U = current_U.dot(u)
+            M = self.la.diag(s).dot(v)
+        m = current_U.T.dot(v.T) + self.la.diag(s)
+        um, sm, vm = self.la.linalg.svd(m)
+        return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1))
+
+    def get_assymetry_factor(self):
+        log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
+        log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
+        s_factor_log = self.config.nu_U * xp.sum(self.configuration[..., 0:2])  # in case of xy-yx pairings
+        return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
+
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
         M = xp.eye(self.config.total_dof // 2)
         
@@ -249,27 +246,6 @@ class auxiliary_field_intraorbital:
 
         return
 
-    ####### DEBUG ######
-    def get_G_no_optimisation(self, spin, time_slice):
-        M = self.la.eye(self.config.total_dof // 2)
-        current_U = self.la.eye(self.config.total_dof // 2)
-        slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
-        for nr, slice_idx in enumerate(reversed(slices)):
-            B = self.B_l(spin, slice_idx)
-            M = M.dot(B)
-            u, s, v = self.la.linalg.svd(M)
-            # print(np.sum(np.abs(u.dot(np.diag(s)).dot(v) - M)) / np.sum(np.abs(M)), 'discrepancy of SVD')
-            current_U = current_U.dot(u)
-            M = self.la.diag(s).dot(v)
-        m = current_U.T.dot(v.T) + self.la.diag(s)
-        um, sm, vm = self.la.linalg.svd(m)
-        return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1))
-
-    def get_assymetry_factor(self):
-        log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
-        log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
-        s_factor_log = self.config.nu_U * xp.sum(self.configuration[..., 0:2])  # in case of xy-yx pairings
-        return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
 
 class auxiliary_field_interorbital(auxiliary_field_intraorbital):
     def __init__(self, config, K, K_inverse):

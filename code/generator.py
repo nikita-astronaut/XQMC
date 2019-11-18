@@ -51,12 +51,12 @@ def print_generator_log(n_sweep, phi_field, K_matrix):
 
 def perform_sweep(phi_field, K_matrix, orbits, switch):
     global accept_history, densities, S_AF_history, SzSz_history
-    if switch:
-        phi_field.copy_to_GPU()
+    #if switch:
+    #    phi_field.copy_to_GPU()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
-    if switch:
-        phi_field.copy_to_CPU()
+    #if switch:
+    #    phi_field.copy_to_CPU()
     G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, -1)
     G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, -1)
     print('discrepancy BEFORE even loop = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), \
