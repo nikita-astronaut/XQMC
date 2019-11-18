@@ -11,26 +11,35 @@ except ImportError:
     pass
 
 # TODO: make this parallel (multiprocessing / GPU-threads)
-def get_wavefunction(indexes, pairing, config, pfaffian = False):
-    A = np.zeros((len(indexes), len(indexes)))
-    for n1, idx1 in enumerate(indexes):
-        for n2, idx2 in enumerate(indexes):
-            A[n1, n2] = pairing.get_pairing_f(idx1, idx2)
-    # print(np.sum(np.abs(A + A.T)))
-    if not pfaffian:
-        return xp.linalg.det(A)  # if we are performing MC-sampling, we only need 
+class wavefunction(Object):
+    def __init__(self, config):
+        self.config = config
+        self.var_params = self._init_var_params()
+        self.U_matrix = self._construct_U_matrix()
+        self.x = self._generate_configuration()
 
+    def get_O(self, base_state):
+        '''
+            O_i = \\partial{\\psi_i} / \\psi_i
+        '''
+    def _construct_U_matrix(self):
+        K = self.config.model(self.config.L, self.config.mu)
+        Delta = self.config.pairing(self.config.L)  # the magnitude of the pairing is not yet included here
 
-# counter = 0
-# deltas = []
-# config = config()
-# pairing = models_vmc.on_site_and_nn_pairing(config)
-#for index1 in range(config.n_orbitals * config.n_sublattices * config.Ls ** 2 * 2):
-#    for index2 in range(config.n_orbitals * config.n_sublattices * config.Ls ** 2 * 2):
-#        delta = pairing.get_pairing_f(index1, index2)
-#        if delta != 0.0:
-#            counter += 1
-#            deltas.append(delta)
+        T = np.zeros((2 * K.shape[0], 2 * K.shape[1]))
+        T[0:K.shape[0], 0:K.shape[1]] = K
+        T[K.shape[0]:2 * K.shape[0], K.shape[1]:2 * K.shape[1]] = -K
+        T[0:K.shape[0], K.shape[1]:2 * K.shape[1]] = self.var_params[0] * Delta
+        T[K.shape[0]:2 * K.shape[0], 0:K.shape[1]] = self.var_params[0] * Delta.conj().T
 
-#  A = get_wavefunction(np.random.choice(config.total_dof, config.total_dof // 2, replace = False), pairing, config)
-#print(A)
+        self.E, self.U = np.linalg.eig(T)
+        assert(np.allclose(np.diag(energies), U.conj().T.dot(A).dot(U)))  # U^{\dag} T U = E
+
+        lowest_energy_states = np.argpartition(self.E, self.config.N_electrons)  # select lowest-energy orbitals
+        U = U[:, lowest_energy_states]  # select only occupied orbitals
+        return U 
+
+    def _generate_configuration(self):
+        conf = np.zeros(self.config.total_dof)
+        conf[np.random.choice(np.arange(self.config.total_dof), size = total_dof // 2, replace = False)] = 1
+        return conf

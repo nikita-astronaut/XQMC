@@ -114,10 +114,10 @@ class auxiliary_field_intraorbital:
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                # print('write dec at nr = ', nr, ' index = ', slice_idx)
                 u, s, v = xp.linalg.svd(M)
+                # print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
                 # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-13))
-                # print(xp.max(xp.abs(xp.diag(xp.ones(self.config.total_dof // 2)) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
+                # print(xp.max(xp.abs(xp.eye(self.config.total_dof // 2) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
                 current_U = current_U.dot(u)
                 if spin == +1:
                     self.partial_SVD_decompositions_up.append((current_U, s, v))
@@ -277,12 +277,11 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         super().__init__(config, K, K_inverse)
         return
 
-    
     def _precompute_matrix_exponents(self, config):
         for a in range(2 ** (config.n_orbitals ** 2)):
             spin = (2.0 * np.unpackbits(np.array(a, dtype = np.uint8))[-4:] - 1.).reshape(2, 2)
-            exp = scipy.linalg.expm(np.array([[config.nu_U * spin[0, 0], config.nu_V * spin[0, 1]],
-                                              [config.nu_V * spin[1, 0], config.nu_U * spin[1, 1]]]))
+            exp = scipy.linalg.expm(np.array([[config.nu_U * spin[0, 0] + config.nu_V * spin[0, 1], 0],
+                                              [0, config.nu_U * spin[1, 1] + config.nu_V * spin[1, 0]]]))
             self.matrix_exponents[a, ...] = exp
         return
 
@@ -292,8 +291,8 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         # print('preparation took ', time.time() - t)
         # print(spin)
         return self.matrix_exponents[spin]
-        # return scipy.linalg.expm(sign * self.config.dt * np.array([[self.config.nu_V * configuration[0, 0], self.config.nu_U * configuration[0, 1]],
-        #                                                            [self.config.nu_U * configuration[1, 0], self.config.nu_V * configuration[1, 1]]]))
+        #return scipy.linalg.expm(sign * np.array([[self.config.nu_U * configuration[0, 0] + self.config.nu_V * configuration[0, 1], 0],
+        #                                          [0, self.config.nu_U * configuration[1, 1] + self.config.nu_V * configuration[1, 0]]]))
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
@@ -301,48 +300,66 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         if self.config.start_type == 'hot':
             self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 2, 2)) * 2. - 1.0
 
-        self.V = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-        self.Vinv = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        self.V_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        self.Vinv_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        self.V_down = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        self.Vinv_down = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
 
         for time_slice in range(self.config.Nt):
             for sp_index in range(self.config.total_dof // 2 // 2):
                 sx = sp_index * 2
                 sy = sp_index * 2 + 1
-                self.V[time_slice, sx : sy + 1, sx : sy + 1] = \
+                self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
                     self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0)
-                self.Vinv[time_slice, sx : sy + 1, sx : sy + 1] = \
+                self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = \
                     self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0)
 
-        self.V = xp.asarray(self.V)
-        self.Vinv = xp.asarray(self.Vinv)
+                self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, ...].T, -1.0)
+                self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, ...].T, +1.0)
+
+        self.V_up = xp.asarray(self.V_up)
+        self.Vinv_up = xp.asarray(self.Vinv_up)
+        self.V_down = xp.asarray(self.V_down)
+        self.Vinv_down = xp.asarray(self.Vinv_down)
         return
 
     def update_field(self, sp_index, time_slice, o1, o2):
         self.configuration[time_slice, sp_index, o1, o2] *= -1
         sx = sp_index * 2
         sy = sp_index * 2 + 1
-        self.V[time_slice, sx : sy + 1, sx : sy + 1] = \
+        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
             self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0))
-        self.Vinv[time_slice, sx : sy + 1, sx : sy + 1] = \
+        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = \
             self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0))
+
+        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...].T, -1.0))
+        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...].T, +1.0))
         return
 
     def B_l(self, spin, l, inverse = False):
         if not inverse:
             if spin > 0:
-                return self.V[l, ...].dot(self.K)
-            return self.Vinv[l, ...].dot(self.K)
+                return self.V_up[l, ...].dot(self.K)
+            return self.V_down[l, ...].dot(self.K)
 
         if spin > 0:
-            return self.K_inverse.dot(self.Vinv[l, ...])
-        return self.K_inverse.dot(self.V[l, ...])
+            return self.K_inverse.dot(self.Vinv_up[l, ...])
+        return self.K_inverse.dot(self.Vinv_down[l, ...])
 
     def get_delta(self, spin, sp_index, time_slice, o1, o2):  # sign change proposal is made at (time_slice, sp_index, o1, o2)
         local_configuration = self.configuration[time_slice, sp_index, ...]
         local_configuration_proposed = deepcopy(self.configuration[time_slice, sp_index, ...])
         local_configuration_proposed[o1, o2] *= -1
-        local_V = self._V_from_configuration(local_configuration, -spin)  # already stored in self.V or self.Vinv
-        local_V_proposed = self._V_from_configuration(local_configuration_proposed, spin)
+        if spin > 0:
+            local_V = self._V_from_configuration(local_configuration, -spin)  # already stored in self.V or self.Vinv
+            local_V_proposed = self._V_from_configuration(local_configuration_proposed, spin)
+        else:
+            local_V = self._V_from_configuration(local_configuration.T, -spin)  # already stored in self.V or self.Vinv
+            local_V_proposed = self._V_from_configuration(local_configuration_proposed.T, spin)
         return local_V_proposed.dot(local_V) - np.eye(2)
 
     def get_det_ratio(self, spin, sp_index, time_slice, o1, o2):
@@ -394,15 +411,19 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
 
     def copy_to_CPU(self):
         super().copy_to_CPU()
-        self.V = cp.asnumpy(self.V)
-        self.Vinv = cp.asnumpy(self.Vinv)
+        self.V_up = cp.asnumpy(self.V_up)
+        self.Vinv_up = cp.asnumpy(self.Vinv_up)
+        self.V_down = cp.asnumpy(self.V_down)
+        self.Vinv_down = cp.asnumpy(self.Vinv_down)
         # self.matrix_exponents = cp.asnumpy(self.matrix_exponents)
         return
 
     def copy_to_GPU(self):
         super().copy_to_GPU()
-        self.V = cp.asarray(self.V)
-        self.Vinv = cp.asarray(self.Vinv)
+        self.V_up = cp.asarray(self.V_up)
+        self.Vinv_up = cp.asarray(self.Vinv_up)
+        self.V_down = cp.asarray(self.V_down)
+        self.Vinv_down = cp.asarray(self.Vinv_down)
         # self.matrix_exponents = cp.asarray(self.matrix_exponents)
         self.configuration = cp.asnumpy(self.configuration)  # amendment to Super
         return
