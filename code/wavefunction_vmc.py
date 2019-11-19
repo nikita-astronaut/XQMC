@@ -17,6 +17,8 @@ class wavefunction(Object):
         self.var_params = self._init_var_params()
         self.U_matrix = self._construct_U_matrix()
         self.conf, self.e_positions, self.positions_in_string = self._generate_configuration()
+        self.U_tilde_matrix = self._construct_U_tilde_matrix()
+        self.W_GF = self._construct_W_GF()
 
     def get_O(self, base_state):
         '''
@@ -40,7 +42,17 @@ class wavefunction(Object):
         return U 
 
     def _construct_U_tilde_matrix(self):
-        
+        occupied_sites_string = positions_in_string[positions_in_string > -0.5]
+        occupied_sites = np.where(positions_in_string > -0.5)[0]
+        # occupied_sites[i] is located in the string at the position occupied_sites_string[i]
+        U_tilde = np.zeros((self.config.N_electrons, self.config.N_electrons))
+
+        U_tilde[occupied_sites_string, :] = U[occupied_sites, :]
+        return U_tilde 
+
+    def _construct_W_GF(self):
+        U_tilde_inv = np.linalg.inv(self.U_tilde_matrix)
+        return self.U_matrix.dot(U_tilde_inv)
 
     def _generate_configuration(self):
         conf = np.zeros(self.config.total_dof)  # 2 * n_sites
