@@ -39,6 +39,9 @@ class wavefunction(Object):
         U = U[:, lowest_energy_states]  # select only occupied orbitals
         return U 
 
+    def _construct_U_tilde_matrix(self):
+        
+
     def _generate_configuration(self):
         conf = np.zeros(self.config.total_dof)  # 2 * n_sites
         e_positions = np.random.choice(np.arange(self.config.total_dof), size = self.config.N_electrons, replace = False)

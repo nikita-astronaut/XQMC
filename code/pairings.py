@@ -70,14 +70,13 @@ def combine_product_terms(config, terms):
 def construct_on_site_pairings(config):
     onsite = construct_onsite_delta(config)
     on_site_pairings = []
-    on_site_pairings.append([[Ipauli, Ipauli, onsite, 1]])  # A1
-    on_site_pairings.append([[Zpauli, iYpauli, onsite, 1]])  # A1
-    on_site_pairings.append([[Ipauli, iYpauli, onsite, 1]])  # A2
-    on_site_pairings.append([[Zpauli, Ipauli, onsite, 1]])  # A2
+    on_site_pairings.append([[Ipauli, Ipauli, onsite, 1, False]])  # A1
+    on_site_pairings.append([[Zpauli, iYpauli, onsite, 1, False]])  # A1
+    on_site_pairings.append([[Ipauli, iYpauli, onsite, 1, False]])  # A2
+    on_site_pairings.append([[Zpauli, Ipauli, onsite, 1, False]])  # A2
 
-    alpha, beta = 0.5, 0.5  # TODO: check the relative pairing "magnitude"
-    on_site_pairings.append([[Ipauli, Xpauli, onsite, alpha], [Ipauli, Zpauli, onsite, beta]])  # E
-    on_site_pairings.append([[Zpauli, Xpauli, onsite, alpha], [Zpauli, Zpauli, onsite, beta]])  # E
+    on_site_pairings.append([[Ipauli, Xpauli, onsite, 1.0, True], [Ipauli, Zpauli, onsite, 1.0, True]])  # E
+    on_site_pairings.append([[Zpauli, Xpauli, onsite, 1.0, True], [Zpauli, Zpauli, onsite, 1.0, True]])  # E
 
     return on_site_pairings
 
@@ -94,26 +93,27 @@ def construct_NN_pairings(config):
     v3 = construct_vi(config, 3)
     NN_pairings = []
 
-    NN_pairings.append([[Xpauli, Ipauli, v1, 1]])  # A1 (A1 x A1 x A1)
-    NN_pairings.append([[iYpauli, iYpauli, v1, 1]])  # A1 (A2 x A2 x A1) 
+    NN_pairings.append([[Xpauli, Ipauli, v1, 1, False]])  # A1 (A1 x A1 x A1)
+    NN_pairings.append([[iYpauli, iYpauli, v1, 1, False]])  # A1 (A2 x A2 x A1) 
 
-    NN_pairings.append([[Xpauli, iYpauli, v1, 1]])  # A2 (A2 x A1 x A1)
-    NN_pairings.append([[iYpauli, Ipauli, v1, 1]])  # A2 (A1 x A2 x A1)
+    NN_pairings.append([[Xpauli, iYpauli, v1, 1, False]])  # A2 (A2 x A1 x A1)
+    NN_pairings.append([[iYpauli, Ipauli, v1, 1, False]])  # A2 (A1 x A2 x A1)
 
-    alpha, beta = 0.5, 0.5  # TODO: check the relative pairing "magnitude"
-    NN_pairings.append([[Xpauli, Xpauli, v1, alpha], [Xpauli, Zpauli, v1, beta]])  # E (A1 x E x A1)
-    NN_pairings.append([[iYpauli, Xpauli, v1, alpha], [iYpauli, Zpauli, v1, beta]])  # E (A2 x E x A1)
+    NN_pairings.append([[Xpauli, Xpauli, v1, 1.0, True], [Xpauli, Zpauli, v1, 1.0, True]])  # E (A1 x E x A1)
+    NN_pairings.append([[iYpauli, Xpauli, v1, 1.0, True], [iYpauli, Zpauli, v1, 1.0, True]])  # E (A2 x E x A1)
 
-    NN_pairings.append([[Xpauli, Ipauli, v2, alpha], [Xpauli, Ipauli, v3, beta]])  # E (A1 x A1 x E)
-    NN_pairings.append([[iYpauli, Ipauli, v2, alpha], [iYpauli, Ipauli, v3, beta]])  # E (A2 x A1 x E)
-    NN_pairings.append([[Xpauli, iYpauli, v2, alpha], [Xpauli, iYpauli, v3, beta]])  # E (A1 x A2 x E)
-    NN_pairings.append([[iYpauli, iYpauli, v2, alpha], [iYpauli, iYpauli, v3, beta]])  # E (A2 x A2 x E)
+    NN_pairings.append([[Xpauli, Ipauli, v2, 1.0, True], [Xpauli, Ipauli, v3, 1.0, True]])  # E (A1 x A1 x E)
+    NN_pairings.append([[iYpauli, Ipauli, v2, 1.0, True], [iYpauli, Ipauli, v3, 1.0, True]])  # E (A2 x A1 x E)
+    NN_pairings.append([[Xpauli, iYpauli, v2, 1.0, True], [Xpauli, iYpauli, v3, 1.0, True]])  # E (A1 x A2 x E)
+    NN_pairings.append([[iYpauli, iYpauli, v2, 1.0, True], [iYpauli, iYpauli, v3, 1.0, True]])  # E (A2 x A2 x E)
 
-    NN_pairings.append([[Xpauli, sigma_1, v2, 1.0], [Xpauli, sigma_2, v3, 1.0]])  # A1 (A1 x E x E)
-    NN_pairings.append([[iYpauli, sigma_1, v2, 1.0], [iYpauli, sigma_2, v3, -1.0]])  # A1 (A2 x E x E)
+    NN_pairings.append([[Xpauli, sigma_1, v2, 1.0, False], [Xpauli, sigma_2, v3, 1.0, False]])  # A1 (A1 x E x E)
+    NN_pairings.append([[iYpauli, sigma_1, v2, 1.0, False], [iYpauli, sigma_2, v3, -1.0, False]])  # A1 (A2 x E x E)
 
-    NN_pairings.append([[Xpauli, sigma_1, v2, 1.0], [Xpauli, sigma_2, v3, -1.0]])  # A2 (A1 x E x E)
-    NN_pairings.append([[iYpauli, sigma_1, v2, 1.0], [iYpauli, sigma_2, v3, 1.0]])  # A2 (A2 x E x E)
+    NN_pairings.append([[Xpauli, sigma_1, v2, 1.0, False], [Xpauli, sigma_2, v3, -1.0, False]])  # A2 (A1 x E x E)
+    NN_pairings.append([[iYpauli, sigma_1, v2, 1.0, False], [iYpauli, sigma_2, v3, 1.0, False]])  # A2 (A2 x E x E)
 
-    NN_pairings.append([[Xpauli, sigma_1, v3, alpha], [Xpauli, sigma_2, v2, beta]])  # E (A1 x E x E)
-    NN_pairings.append([[iYpauli, sigma_1, v3, alpha], [iYpauli, sigma_2, v2, beta]])  # E (A2 x E x E)
+    NN_pairings.append([[Xpauli, sigma_1, v3, 1.0, True], [Xpauli, sigma_2, v2, 1.0, True]])  # E (A1 x E x E)
+    NN_pairings.append([[iYpauli, sigma_1, v3, 1.0, True], [iYpauli, sigma_2, v2, 1.0, True]])  # E (A2 x E x E)
+
+    return NN_pairings
