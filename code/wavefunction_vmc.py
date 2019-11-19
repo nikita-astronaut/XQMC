@@ -16,7 +16,7 @@ class wavefunction_singlet(Object):
         self.config = config
         self.var_params = self._init_var_params()
         self.U_matrix = self._construct_U_matrix()
-        self.conf, self.e_positions, self.positions_in_string = self._generate_configuration()
+        self.conf, self.occupied_sites, self.empty_sites, self.positions_in_string = self._generate_configuration()
         self.U_tilde_matrix = self._construct_U_tilde_matrix()
         self.W_GF = self._construct_W_GF()
 
@@ -56,11 +56,34 @@ class wavefunction_singlet(Object):
 
     def _generate_configuration(self):
         conf = np.zeros(self.config.total_dof)  # 2 * n_sites
-        e_positions = np.random.choice(np.arange(self.config.total_dof), size = self.config.N_electrons, replace = False)
-        conf[e_positions] = 1
+        occupied_sites = np.random.choice(np.arange(self.config.total_dof), size = self.config.N_electrons, replace = False)
+        empty_sites = np.arange(self.config.total_dof)
+        empty_sites[occupied_sites] = -1
+        empty_sites = empty_sites[empty_sites > 0.5]
+
+        conf[occupied_sites] = 1
         positions_in_string = np.zeros(self.config.total_dof) - 1
-        positions_in_string[e_positions] = np.arange(len(e_positions)) + 1  # the initial state is
-                                                                            # d^{\dag}_{e_positions[0]} d^{\dag}_{e_positions[1]} ...|0>
+        positions_in_string[occupied_sites] = np.arange(len(occupied_sites))  # the initial state is
+                                                                              # d^{\dag}_{e_positions[0]} d^{\dag}_{e_positions[1]} ...|0>
 
-        return conf, e_positions, positions_in_string
+        return conf, occupied_sites, empty_sites, positions_in_string
 
+    def perform_MC_step(self):
+        moved_site = np.random.choice(self.e_positions, 1)[0]
+        empty_site = np.random.choice(self.empty_sites, 1)[0]
+
+        det_ratio = self.W_GF[empty_site, moved_site]
+
+        if det_ratio ** 2 < np.random.uniform(0, 1):
+            return False, 1
+
+        self.positions_in_string[empty_site] = self.positions_in_string[moved_site]
+        self.positions_in_string[moved_site] = -1
+        self.occupied_sites[self.occupied_sites == moved_site] = empty_site
+        self.empty_sites[self.empty_sites == empty_site] == moved_site
+
+        delta = np.zeros(W.shape[1])
+        delta[moved_site] = 1
+        self.W_GF -= np.einsum('i,k->ik', W_GF[:, moved_site], W[empty_site, :] - delta) / W_GF[empty_site, moved_site]
+
+        return True, det_ratio ** 2
