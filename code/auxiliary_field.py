@@ -136,7 +136,7 @@ class auxiliary_field_intraorbital:
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             u, s, v = self.la.linalg.svd(M)
-            print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
+            # print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
             current_U = current_U.dot(u)
             M = self.la.diag(s).dot(v)
         m = current_U.T.dot(v.T) + self.la.diag(s)

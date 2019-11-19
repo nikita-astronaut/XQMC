@@ -11,7 +11,7 @@ except ImportError:
     pass
 
 # TODO: make this parallel (multiprocessing / GPU-threads)
-class wavefunction(Object):
+class wavefunction_singlet(Object):
     def __init__(self, config):
         self.config = config
         self.var_params = self._init_var_params()
