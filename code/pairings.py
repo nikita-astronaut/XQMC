@@ -79,7 +79,6 @@ def get_total_pairing(config, pairings, var_params):
 
     return Delta
 
-
 def construct_on_site_pairings(config):
     onsite = construct_onsite_delta(config)
     on_site_pairings = []
@@ -104,7 +103,7 @@ def construct_NN_pairings(config):
     v1 = construct_vi(1)
     v2 = construct_vi(2)
     v3 = construct_vi(3)
-    print(np.unique(v1), np.unique(v2), np.unique(v3))
+    # print(np.unique(v1), np.unique(v2), np.unique(v3))
     NN_pairings = []
 
     NN_pairings.append([(Xpauli, Ipauli, v1, 1), 1.0])  # A1 (A1 x A1 x A1) 0
@@ -134,7 +133,7 @@ def construct_NN_pairings(config):
 
 def check_parity(config, pairing):
     gap = combine_product_terms(config, pairing)
-    print(np.unique(gap))
+    # print(np.unique(gap))
     if np.allclose(gap + gap.T, 0):
         return 'triplet'
     elif np.allclose(gap - gap.T, 0):
@@ -144,5 +143,5 @@ def check_parity(config, pairing):
 on_site_pairings = construct_on_site_pairings(config)
 NN_pairings = construct_NN_pairings(config)
 
-for pairing in NN_pairings:
-    print(check_parity(config, pairing))
+# for pairing in NN_pairings:
+#     print(check_parity(config, pairing))
