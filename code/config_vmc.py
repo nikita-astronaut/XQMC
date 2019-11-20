@@ -4,7 +4,7 @@ import models_vmc
 
 class MC_parameters:
     def __init__(self):
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = 12  # spatial size, the lattice will be of size Ls x Ls
         self.U = 0.  # the force of on-site Coulomb repulsion in the units of t1
         self.model = models.H_TB_simple
         self.n_orbitals = 2
