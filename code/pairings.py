@@ -70,7 +70,7 @@ def combine_product_terms(config, pairing):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     for sigma_ll, sigma_oo, delta_ii, C in pairing[:-1]:
         Delta += C * expand_tensor_product(config, sigma_ll, sigma_oo, delta_ii)  # C -- the coefficient corresponding for the right D_3 transformation properties (irrep)
-    return Delta * pairing[-1]  # the overal coefficient of this irrep (the parameter of optimisation)
+    return Delta * pairing[-1]  # the overal coefficient of this irrep (can be 1 or i)
 
 def get_total_pairing(config, pairings, var_params):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
@@ -79,22 +79,38 @@ def get_total_pairing(config, pairings, var_params):
 
     return Delta
 
-def construct_on_site_pairings(config):
+def get_total_pairing_upwrapped(config, pairings_unwrapped, var_params):
+    Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
+    for gap, vp in zip(pairings_unwrapped, var_params):
+        Delta += vp * gap
+
+    return Delta
+
+def construct_on_site_pairings(config, real = True):
+    if real:
+        factor = 1.0
+    else:
+        factor = 1.0j
+
     onsite = construct_onsite_delta(config)
     on_site_pairings = []
-    on_site_pairings.append([(Ipauli, Ipauli, onsite, 1), 1.0])  # A1 0
-    on_site_pairings.append([(Zpauli, iYpauli, onsite, 1), 1.0])  # A1 1
-    on_site_pairings.append([(Ipauli, iYpauli, onsite, 1), 1.0])  # A2 2
-    on_site_pairings.append([(Zpauli, Ipauli, onsite, 1), 1.0])  # A2 3
+    on_site_pairings.append([(Ipauli, Ipauli, onsite, 1), factor])  # A1 0
+    on_site_pairings.append([(Zpauli, iYpauli, onsite, 1), factor])  # A1 1
+    on_site_pairings.append([(Ipauli, iYpauli, onsite, 1), factor])  # A2 2
+    on_site_pairings.append([(Zpauli, Ipauli, onsite, 1), factor])  # A2 3
 
-    on_site_pairings.append([(Ipauli, Xpauli, onsite, 1.0), 1.0]); on_site_pairings.append([(Ipauli, Zpauli, onsite, 1.0), 1.0])  # E 4-5
-    on_site_pairings.append([(Zpauli, Xpauli, onsite, 1.0), 1.0]); on_site_pairings.append([(Zpauli, Zpauli, onsite, 1.0), 1.0])  # E 6-7
+    on_site_pairings.append([(Ipauli, Xpauli, onsite, 1.0), factor]); on_site_pairings.append([(Ipauli, Zpauli, onsite, 1.0), factor])  # E 4-5
+    on_site_pairings.append([(Zpauli, Xpauli, onsite, 1.0), factor]); on_site_pairings.append([(Zpauli, Zpauli, onsite, 1.0), factor])  # E 6-7
 
     return on_site_pairings
 
 
 
-def construct_NN_pairings(config):
+def construct_NN_pairings(config, real = True):
+    if real:
+        factor = 1.0
+    else:
+        factor = 1.0j
     global delta1, delta2, delta3
     delta1 = construct_NN_delta(config, 1)
     delta2 = construct_NN_delta(config, 2)  
@@ -106,28 +122,28 @@ def construct_NN_pairings(config):
     # print(np.unique(v1), np.unique(v2), np.unique(v3))
     NN_pairings = []
 
-    NN_pairings.append([(Xpauli, Ipauli, v1, 1), 1.0])  # A1 (A1 x A1 x A1) 0
-    NN_pairings.append([(iYpauli, iYpauli, v1, 1), 1.0])  # A1 (A2 x A2 x A1) 1 
+    NN_pairings.append([(Xpauli, Ipauli, v1, 1), factor])  # A1 (A1 x A1 x A1) 0
+    NN_pairings.append([(iYpauli, iYpauli, v1, 1), factor])  # A1 (A2 x A2 x A1) 1 
 
-    NN_pairings.append([(Xpauli, iYpauli, v1, 1), 1.0])  # A2 (A2 x A1 x A1) 2
-    NN_pairings.append([(iYpauli, Ipauli, v1, 1), 1.0])  # A2 (A1 x A2 x A1) 3
+    NN_pairings.append([(Xpauli, iYpauli, v1, 1), factor])  # A2 (A2 x A1 x A1) 2
+    NN_pairings.append([(iYpauli, Ipauli, v1, 1), factor])  # A2 (A1 x A2 x A1) 3
 
-    NN_pairings.append([(Xpauli, Xpauli, v1, 1.0), 1.0]); NN_pairings.append([(Xpauli, Zpauli, v1, 1.0), 1.0])  # E (A1 x E x A1) 4-5
-    NN_pairings.append([(iYpauli, Xpauli, v1, 1.0), 1.0]); NN_pairings.append([(iYpauli, Zpauli, v1, 1.0), 1.0])  # E (A2 x E x A1) 6-7
+    NN_pairings.append([(Xpauli, Xpauli, v1, 1.0), factor]); NN_pairings.append([(Xpauli, Zpauli, v1, 1.0), factor])  # E (A1 x E x A1) 4-5
+    NN_pairings.append([(iYpauli, Xpauli, v1, 1.0), factor]); NN_pairings.append([(iYpauli, Zpauli, v1, 1.0), factor])  # E (A2 x E x A1) 6-7
 
-    NN_pairings.append([(Xpauli, Ipauli, v2, 1.0), 1.0]); NN_pairings.append([(Xpauli, Ipauli, v3, 1.0), 1.0])  # E (A1 x A1 x E) 8-9
-    NN_pairings.append([(iYpauli, Ipauli, v2, 1.0), 1.0]); NN_pairings.append([(iYpauli, Ipauli, v3, 1.0), 1.0])  # E (A2 x A1 x E) 10-11
-    NN_pairings.append([(Xpauli, iYpauli, v2, 1.0), 1.0]); NN_pairings.append([(Xpauli, iYpauli, v3, 1.0), 1.0])  # E (A1 x A2 x E) 12-13
-    NN_pairings.append([(iYpauli, iYpauli, v2, 1.0), 1.0]); NN_pairings.append([(iYpauli, iYpauli, v3, 1.0), 1.0])  # E (A2 x A2 x E) 14-15
+    NN_pairings.append([(Xpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, Ipauli, v3, 1.0), factor])  # E (A1 x A1 x E) 8-9
+    NN_pairings.append([(iYpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, Ipauli, v3, 1.0), factor])  # E (A2 x A1 x E) 10-11
+    NN_pairings.append([(Xpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, iYpauli, v3, 1.0), factor])  # E (A1 x A2 x E) 12-13
+    NN_pairings.append([(iYpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, iYpauli, v3, 1.0), factor])  # E (A2 x A2 x E) 14-15
 
-    NN_pairings.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), 1.0])  # A1 (A1 x E x E) 16
-    NN_pairings.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), 1.0])  # A1 (A2 x E x E) 17
+    NN_pairings.append([(Xpauli, sigma_1, v2, factor), (Xpauli, sigma_2, v3, 1.0), factor])  # A1 (A1 x E x E) 16
+    NN_pairings.append([(iYpauli, sigma_1, v2, factor), (iYpauli, sigma_2, v3, -1.0), factor])  # A1 (A2 x E x E) 17
 
-    NN_pairings.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), 1.0])  # A2 (A1 x E x E) 18
-    NN_pairings.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), 1.0])  # A2 (A2 x E x E) 19
+    NN_pairings.append([(Xpauli, sigma_1, v2, factor), (Xpauli, sigma_2, v3, -1.0), factor])  # A2 (A1 x E x E) 18
+    NN_pairings.append([(iYpauli, sigma_1, v2, factor), (iYpauli, sigma_2, v3, 1.0), factor])  # A2 (A2 x E x E) 19
 
-    NN_pairings.append([(Xpauli, sigma_1, v3, 1.0), 1.0]); NN_pairings.append([(Xpauli, sigma_2, v2, 1.0), 1.0])  # E (A1 x E x E) 20-21
-    NN_pairings.append([(iYpauli, sigma_1, v3, 1.0), 1.0]); NN_pairings.append([(iYpauli, sigma_2, v2, 1.0), 1.0])  # E (A2 x E x E) 22-23
+    NN_pairings.append([(Xpauli, sigma_1, v3, 1.0), factor]); NN_pairings.append([(Xpauli, sigma_2, v2, 1.0), factor])  # E (A1 x E x E) 20-21
+    NN_pairings.append([(iYpauli, sigma_1, v3, 1.0), factor]); NN_pairings.append([(iYpauli, sigma_2, v2, 1.0), factor])  # E (A2 x E x E) 22-23
 
     return NN_pairings
 
