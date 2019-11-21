@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from config_generator import simulation_parameters as config
+from config_vmc import MC_parameters as config
 import models_vmc
 import pairings
 from copy import deepcopy
@@ -21,7 +21,7 @@ class wavefunction_singlet():
         self.var_params = var_params  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
         self.U_matrix = self._construct_U_matrix()
         while True:
-            self.occupied_sites, self.empty_sites = self._generate_configuration()
+            self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration()
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
             if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.N_electrons:
                 break
@@ -31,6 +31,9 @@ class wavefunction_singlet():
         self.W_k_derivatives = [self._get_W_k_derivative(gap) for gap in self.pairings_list_unwrapped]
 
         return
+
+    def get_det_ratio(self, i, j):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
+        return self.W_GF[j, self.place_in_string[i]]
 
     def get_O_pairing(self, pairing_index):
         W_k = self.W_k_derivatives[pairing_index]
@@ -53,16 +56,20 @@ class wavefunction_singlet():
                     Vdash_rescaled[alpha, beta] = Vdash[alpha, beta] / (self.E[alpha] - self.E[beta])
         return self.U_full.dot(Vdash_rescaled).dot(self.U_full.conj().T)  # (6.99) step
 
-    def get_O(self, base_state):
+    def get_O(self):  # derivative over all variational parameters
         '''
             O_i = \\partial{\\psi(x)}/ \\partial(w) / \\psi(x)
         '''
+
+        ### pairings part ###
+        O_pairing = [self.get_O_pairing(pairing_index) for pairing_index in range(len(self.pairings_list_unwrapped))]
+        O = O_pairing + []
+        return np.array(O)
 
     def _construct_U_matrix(self):
         self.K = self.config.model(self.config.Ls, self.config.mu)
         # print(np.sum(self.K))
         Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params)
-
         T = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j
         T[:self.K.shape[0], :self.K.shape[1]] = self.K
         T[self.K.shape[0]:, self.K.shape[1]:] = -self.K
@@ -104,14 +111,19 @@ class wavefunction_singlet():
         return self.U_matrix.dot(U_tilde_inv)
 
     def _generate_configuration(self):
-        # occupied_sites = np.random.choice(np.arange(self.config.total_dof), size = self.config.N_electrons, replace = False)  ## FIXME: DEBUG!!!
-        occupied_sites = np.arange(0, self.config.N_electrons)   # REMOVE THIS!
+        occupied_sites = np.random.choice(np.arange(self.config.total_dof), size = self.config.N_electrons, replace = False)  ## FIXME: DEBUG!!!
+        place_in_string = (np.zeros(self.config.total_dof) - 1).astype(np.int64)
+        place_in_string[occupied_sites] = np.arange(len(occupied_sites))
+        self.state = np.zeros(self.config.total_dof, dtype=np.int64)
+        self.state[occupied_sites] = 1
+
+        # occupied_sites = np.arange(0, self.config.N_electrons)   # REMOVE THIS!
         # electrons are placed in occupied_states as they are in the string d_{R_1} d_{R_2} ... |0>
         empty_sites = np.arange(self.config.total_dof)
         empty_sites[occupied_sites] = -1
         empty_sites = empty_sites[empty_sites > -0.5]
 
-        return occupied_sites, empty_sites
+        return occupied_sites, empty_sites, place_in_string
 
     def perform_MC_step(self):
         moved_site_idx = np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
@@ -127,7 +139,11 @@ class wavefunction_singlet():
         # print(self.current_det)
         self.occupied_sites[moved_site_idx] = empty_site
         self.empty_sites[empty_site_idx] = moved_site
+        self.place_in_string[moved_site] = -1
+        self.place_in_string[empty_site] = moved_site_idx
 
+        self.state[moved_site] = 1
+        self.state[empty_site] = 1
         ### DEBUG ###
         # U_tilde_new = self._construct_U_tilde_matrix()
         # det_ratio_naive = np.linalg.det(U_tilde_new) ** 2 / np.linalg.det(self.U_tilde_matrix) ** 2
