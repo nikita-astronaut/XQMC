@@ -20,7 +20,11 @@ def generate_MC_chain(wf):
     return
 
 config_vmc = config_vmc()
-pairings_list = [pairings.on_site_pairings[0]]
-wf = wavefunction_singlet(config_vmc, pairings_list)
+pairings_list = [pairings.on_site_pairings[5]]
+for dt in np.logspace(-5, -8, 100):
+    wf_1 = wavefunction_singlet(config_vmc, pairings_list, [1.0 - dt])
+    wf_2 = wavefunction_singlet(config_vmc, pairings_list, [1.0 + dt])
+    print((wf_2.current_det - wf_1.current_det) / dt / (wf_1.current_det + wf_2.current_det) - wf_1.get_O_pairing(0))  # log derivative calculated explicitly
+    # print(wf_1.get_O_pairing(0))  # log devirative calculated from O_k formula
 
-generate_MC_chain(wf)
+# generate_MC_chain(wf)
