@@ -13,7 +13,7 @@ except ImportError:
     pass
 
 
-class wavefunction_singlet():
+class wavefunction_singlet(object):
     def __init__(self, config, pairings_list, var_params):
         self.config = config
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self.config, gap) for gap in pairings_list]
@@ -29,7 +29,7 @@ class wavefunction_singlet():
         self.current_det = np.linalg.det(self.U_tilde_matrix)
 
         self.W_k_derivatives = [self._get_W_k_derivative(gap) for gap in self.pairings_list_unwrapped]
-
+        self.state_dict = {}
         return
 
     def get_det_ratio(self, i, j):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
@@ -39,16 +39,13 @@ class wavefunction_singlet():
         W_k = self.W_k_derivatives[pairing_index]
         W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j  # TODO: this can be done ONCE for all gaps
         W_GF_complete[:, self.occupied_sites] = self.W_GF
-
         return -np.trace(W_k.dot(W_GF_complete))  # (6.98) from S.Sorella book
 
     def _get_W_k_derivative(self, gap):  # obtaining (6.99) from S. Sorella book
         V = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j  # (6.91) in S. Sorella book
         V[:self.K.shape[0], self.K.shape[1]:] = gap
         V[self.K.shape[0]:, :self.K.shape[1]] = gap.conj().T
-
         Vdash = (self.U_full.conj().T).dot(V).dot(self.U_full)  # (6.94) in S. Sorella book
-
         Vdash_rescaled = np.zeros(shape = Vdash.shape) * 1.0j  # (6.94) from S. Sorella book
         for alpha in range(Vdash.shape[0]):
             for beta in range(Vdash.shape[1]):
@@ -61,9 +58,15 @@ class wavefunction_singlet():
             O_i = \\partial{\\psi(x)}/ \\partial(w) / \\psi(x)
         '''
 
+        if tuple(self.state) in self.state_dict:
+            print('hit!')
+            return self.state_dict[tuple(self.state)]
+
         ### pairings part ###
         O_pairing = [self.get_O_pairing(pairing_index) for pairing_index in range(len(self.pairings_list_unwrapped))]
         O = O_pairing + []
+        self.state_dict[tuple(self.state)] = np.array(O)
+
         return np.array(O)
 
     def _construct_U_matrix(self):
@@ -81,7 +84,7 @@ class wavefunction_singlet():
         self.U_full = deepcopy(U)
         self.E = E
         lowest_energy_states = np.argpartition(E, self.config.N_electrons)[:self.config.N_electrons]  # select lowest-energy orbitals
-        # print(lowest_energy_states)
+        print('energy of filled states =', np.sum(self.E[lowest_energy_states]))
         rest_energies = E[np.setdiff1d(np.arange(len(self.E)), lowest_energy_states)]
 
         U = U[:, lowest_energy_states]  # select only occupied orbitals
@@ -112,6 +115,7 @@ class wavefunction_singlet():
 
     def _generate_configuration(self):
         occupied_sites = np.random.choice(np.arange(self.config.total_dof), size = self.config.N_electrons, replace = False)  ## FIXME: DEBUG!!!
+        # occupied_sites = np.arange(self.config.N_electrons) * 2 + 1
         place_in_string = (np.zeros(self.config.total_dof) - 1).astype(np.int64)
         place_in_string[occupied_sites] = np.arange(len(occupied_sites))
         self.state = np.zeros(self.config.total_dof, dtype=np.int64)
@@ -142,7 +146,7 @@ class wavefunction_singlet():
         self.place_in_string[moved_site] = -1
         self.place_in_string[empty_site] = moved_site_idx
 
-        self.state[moved_site] = 1
+        self.state[moved_site] = 0
         self.state[empty_site] = 1
         ### DEBUG ###
         # U_tilde_new = self._construct_U_tilde_matrix()

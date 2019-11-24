@@ -86,7 +86,6 @@ def get_total_pairing(config, pairings, var_params):
 
     return Delta
 
-<<<<<<< HEAD
 def get_total_pairing_upwrapped(config, pairings_unwrapped, var_params):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     for gap, vp in zip(pairings_unwrapped, var_params):

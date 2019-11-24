@@ -5,6 +5,7 @@ class HubbardHamiltonian(object):
     def __init__(self, config):
         self.config = config
         self.edges_quadratic, self.edges_quadric = self._get_edges()
+        self._states_dict = {}
 
     def _get_edges(self):
         raise NotImplementedError()
@@ -15,6 +16,9 @@ class HubbardHamiltonian(object):
             E_loc(i) = \\sum_{j ~ i} H_{ij} \\psi_j / \\psi_i,
             where j ~ i are the all indixes having non-zero matrix element with i H_{ij}
         '''
+        if tuple(wavefunction.state) in self._states_dict:
+            return self._states_dict[tuple(wavefunction.state)]
+
         E_loc = 0.0 + 0.0j
         base_state = wavefunction.state
         particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
@@ -30,8 +34,11 @@ class HubbardHamiltonian(object):
         # this sum runs in the real indices space (not 2--extended as above)
         for i, j, Vij in self.edges_quadric:  # TODO: this can be parallized
             E_loc += Vij * (particles[i] - holes[i]) * (particles[j] - holes[j])
-
+        self._states_dict[tuple(wavefunction.state)] = E_loc
         return E_loc
+
+    def reset(self):
+        self._states_dict = {}
 
 class hamiltonian_4bands(HubbardHamiltonian):
     def __init__(self, config):
@@ -57,5 +64,24 @@ class hamiltonian_4bands(HubbardHamiltonian):
 
                 if x1 == x2 and y1 == y2 and sublattice1 == sublattice2 and orbit1 != orbit2:
                     edges_quadric.append((i, j, self.config.V))
+
+        return edges_quadratic, edges_quadric
+
+class hamiltonian_2bands(HubbardHamiltonian):
+    def __init__(self, config):
+        super().__init__(config)
+
+    def _get_edges(self):
+        edges_quadratic = []  # for t_{ij} c^{\dag}_i c_j interactions
+        K_matrix = models.H_TB_Sorella_hexagonal(self.config.Ls, self.config.mu)
+        for i in range(K_matrix.shape[0]):
+            for j in range(K_matrix.shape[1]):
+                if K_matrix[i, j] != 0.0 and i != j:  # only for hoppings, \mu is accounted separately
+                    edges_quadratic.append((i, j, K_matrix[i, j]))  # particles pairing
+                    edges_quadratic.append((i + K_matrix.shape[0], j + K_matrix.shape[1], -K_matrix[i, j]))  # holes pairing
+
+        edges_quadric = []  # for V_{ij} n_i n_j density--density interactions
+        for i in range(K_matrix.shape[0]):  # only on--site for now
+            edges_quadric.append((i, i, self.config.U))
 
         return edges_quadratic, edges_quadric
