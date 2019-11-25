@@ -129,6 +129,14 @@ class wavefunction_singlet(object):
 
         return occupied_sites, empty_sites, place_in_string
 
+
+    # Jackstrow factors is the vector v_k, v[0] -- on--site, v[1] -- tree neighbors, v[2] -- more distant sites et cetera (point symmetry group)
+    # however, if we introduce the symmetric and invariant v, is that correct with respect to \Delta?
+    # anyway: supposing one has \exp (-\sum_{ij} n_i n_j) = \exp(-n^T A n)
+    # n'_i = n_i + \delta_{i, es} - \delta_{i, ms}
+    # -n'_i A_ij n_j + n_i A_ij n_j = -A_{es, j} n_j - n_i A_{i es} + A_{ms, j} n_j + 
+    #                                  n_i A_{i, ms} - A_{es, es} - A_{ms ms} + A_{es ms} + A_{ms es} = 
+    #                                 2 (-A_{es,j} + A_{ms,j}) n_j - 2 A_{0,0} + 2 A_{es ms}
     def perform_MC_step(self):
         moved_site_idx = np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
         moved_site = self.occupied_sites[moved_site_idx]
