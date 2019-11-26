@@ -52,7 +52,7 @@ class wavefunction_singlet(object):
         W_k = self.W_k_derivatives[pairing_index]
         W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j  # TODO: this can be done ONCE for all gaps
         W_GF_complete[:, self.occupied_sites] = self.W_GF
-        return -np.trace(W_k.dot(W_GF_complete))  # (6.98) from S.Sorella book
+        return -np.einsum('ij,ji', W_k, W_GF_complete)  # (6.98) from S.Sorella book
 
     def get_O_Jastrow(self, jastrow_index):
         return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index], self.occupancy)

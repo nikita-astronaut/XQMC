@@ -7,7 +7,7 @@ import optimisers
 class MC_parameters:
     def __init__(self):
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.U = 3.  # the force of on-site Coulomb repulsion in the units of t1
+        self.U = 6.  # the force of on-site Coulomb repulsion in the units of t1
         self.V = 0.  # the force of on-site Coulomb repulsion in the units of t1
         self.model = models.H_TB_Sorella_hexagonal
         self.n_orbitals = 1
