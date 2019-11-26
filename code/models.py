@@ -66,9 +66,11 @@ def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
 def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 2):
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
-def H_TB_simple(L, mu):
+def H_TB_simple(L, mu, only_NN = False):
     n_orbitals = 2
-    t1, t2 = 0.331 / 0.331, 0 * (-0.010 + 1.0j * 0.097) / 0.331
+    t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
+    if only_NN:
+        t2 = 0.0 + 0.0j
 
     K = np.zeros((2 * n_orbitals * L * L, 2 * n_orbitals * L * L))
     for first in range(2 * n_orbitals * L * L):
@@ -112,6 +114,20 @@ def H_TB_Sorella_hexagonal(L, mu):
     K = K + K.conj().T
     K = K - np.diag(mu * np.ones(2 * n_orbitals * L * L))
     return K
+
+def get_adjacency_list_hexagonal(config):  # A -- matrix diagonal in orbital space
+    K_matrix = config.model(config.Ls, 0.0, only_NN = True)  # only nearest-neighbors
+    A = xp.abs(xp.asarray(K_matrix)) > 1e-6
+
+    adjacency_list = []
+    adj = xp.diag(xp.ones(len(xp.diag(A))))
+    seen_elements = adj * 0
+    while np.sum(adj) > 0:
+        adjacency_list.append(adj)
+        seen_elements += adj
+        adj = adj.dot(A)
+        adj = xp.logical_and(seen_elements == 0, adj > 0) * 1.
+    return adjacency_list
 
 def H_TB_Sorella_square(L, mu):
     t1 = 1.

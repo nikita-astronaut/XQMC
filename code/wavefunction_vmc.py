@@ -14,11 +14,11 @@ except ImportError:
 
 
 class wavefunction_singlet(object):
-    def __init__(self, config, pairings_list, var_params):
+    def __init__(self, config, pairings_list, var_params_gap, var_params_Jastrow):
         self.config = config
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self.config, gap) for gap in pairings_list]
-        # self.var_params = self._init_var_params()
-        self.var_params = var_params  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
+        self.var_params_gap = var_params_gap  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
+        self.var_params_Jastrow = var_params_Jastrow
         self.U_matrix = self._construct_U_matrix()
         while True:
             self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration()
