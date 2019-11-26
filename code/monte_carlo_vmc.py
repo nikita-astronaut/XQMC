@@ -14,12 +14,12 @@ except ImportError:
     pass
 
 def generate_MC_chain(hamiltinian, wavefunction):
-    for MC_step in range(config_vmc.MC_thermalisation):
+    for MC_step in tqdm(range(config_vmc.MC_thermalisation)):
         wavefunction.perform_MC_step()
 
     energies = []
     Os = []
-    for MC_step in range(config_vmc.MC_chain):
+    for MC_step in tqdm(range(config_vmc.MC_chain)):
         if MC_step % config_vmc.correlation == 0:
             energies.append(hamiltinian(wavefunction))
             Os.append(wavefunction.get_O())
@@ -35,26 +35,28 @@ def generate_MC_chain(hamiltinian, wavefunction):
     print('E_average =', np.mean(energies), '+/-', np.std(energies) / np.sqrt(len(energies)))
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean[np.newaxis, :]), (Os - Os_mean[np.newaxis, :])) / len(Os_mean)).real
     print('|forces| =', np.sqrt(np.sum(forces ** 2)))
-    if True:#np.linalg.det(S_cov) == 0:
+    if True: # np.linalg.det(S_cov) == 0:
         return forces
     return np.linalg.inv(S_cov).dot(forces)
 
 config_vmc = config_vmc()
 pairings_list = [pairings.on_site_pairings[0]]
-parameters = np.array([0.5])
+gap_parameters = np.array([0.5])
 
+jastrow_parameters = np.array([0.1, 0.1])
 
 H = config_vmc.hamiltonian(config_vmc)
 opt = config_vmc.optimiser(config_vmc.opt_parameters)
 while True:
     # np.random.seed(0)
-    wf = wavefunction_singlet(config_vmc, pairings_list, parameters)
+    wf = wavefunction_singlet(config_vmc, pairings_list, gap_parameters, jastrow_parameters)
     forces = generate_MC_chain(H, wf)
-    print(parameters)
+    print(gap_parameters, jastrow_parameters)
     step = opt.get_step(forces)
     print(forces, step)
     H.reset()
-    parameters += step
+    gap_parameters += step[0:1]
+    jastrow_parameters += step[1:]
 
 for dt in np.logspace(-7, -8, 100):
     np.random.seed(10)

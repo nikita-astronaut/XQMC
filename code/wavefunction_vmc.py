@@ -3,6 +3,7 @@ import time
 from config_vmc import MC_parameters as config
 import models_vmc
 import pairings
+import models
 from copy import deepcopy
 
 xp = np
@@ -19,6 +20,10 @@ class wavefunction_singlet(object):
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self.config, gap) for gap in pairings_list]
         self.var_params_gap = var_params_gap  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
         self.var_params_Jastrow = var_params_Jastrow
+        self.Jastrow_A = models.get_adjacency_list(self.config, len(var_params_Jastrow))
+
+        self.Jastrow = np.sum(np.array([A * factor for A, factor in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
+
         self.U_matrix = self._construct_U_matrix()
         while True:
             self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration()
@@ -27,19 +32,32 @@ class wavefunction_singlet(object):
                 break
         self.W_GF = self._construct_W_GF()
         self.current_det = np.linalg.det(self.U_tilde_matrix)
+        self.current_Jastrow = self.get_cur_Jastrow_factor()
 
         self.W_k_derivatives = [self._get_W_k_derivative(gap) for gap in self.pairings_list_unwrapped]
-        self.state_dict = {}
+        self._state_dict = {}
         return
 
     def get_det_ratio(self, i, j):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
         return self.W_GF[j, self.place_in_string[i]]
+
+    def get_Jastrow_ratio(self, alpha, beta, delta_alpha, delta_beta):
+        return np.exp(-0.5 * delta_alpha * np.sum((self.Jastrow[alpha, :] + self.Jastrow[:, alpha]) * self.occupancy) - 
+                      0.5 * delta_beta * np.sum((self.Jastrow[beta, :] + self.Jastrow[:, beta]) * self.occupancy) - 
+                      0.5 * (delta_alpha ** 2 * self.Jastrow[alpha, alpha] + delta_beta ** 2 * self.Jastrow[beta, beta] + 
+                             delta_alpha * delta_beta * (self.Jastrow[alpha, beta] + self.Jastrow[beta, alpha])))
+
+    def get_cur_Jastrow_factor(self):
+        return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy))
 
     def get_O_pairing(self, pairing_index):
         W_k = self.W_k_derivatives[pairing_index]
         W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j  # TODO: this can be done ONCE for all gaps
         W_GF_complete[:, self.occupied_sites] = self.W_GF
         return -np.trace(W_k.dot(W_GF_complete))  # (6.98) from S.Sorella book
+
+    def get_O_Jastrow(self, jastrow_index):
+        return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index], self.occupancy)
 
     def _get_W_k_derivative(self, gap):  # obtaining (6.99) from S. Sorella book
         V = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j  # (6.91) in S. Sorella book
@@ -58,21 +76,21 @@ class wavefunction_singlet(object):
             O_i = \\partial{\\psi(x)}/ \\partial(w) / \\psi(x)
         '''
 
-        if tuple(self.state) in self.state_dict:
-            print('hit!')
-            return self.state_dict[tuple(self.state)]
+        if tuple(self.state) in self._state_dict:
+            return self._state_dict[tuple(self.state)]
 
         ### pairings part ###
         O_pairing = [self.get_O_pairing(pairing_index) for pairing_index in range(len(self.pairings_list_unwrapped))]
-        O = O_pairing + []
-        self.state_dict[tuple(self.state)] = np.array(O)
+        O_Jastrow = [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
+        O = O_pairing + O_Jastrow + []
+        self._state_dict[tuple(self.state)] = np.array(O)
 
         return np.array(O)
 
     def _construct_U_matrix(self):
         self.K = self.config.model(self.config.Ls, self.config.mu)
         # print(np.sum(self.K))
-        Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params)
+        Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         T = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j
         T[:self.K.shape[0], :self.K.shape[1]] = self.K
         T[self.K.shape[0]:, self.K.shape[1]:] = -self.K
@@ -120,7 +138,7 @@ class wavefunction_singlet(object):
         place_in_string[occupied_sites] = np.arange(len(occupied_sites))
         self.state = np.zeros(self.config.total_dof, dtype=np.int64)
         self.state[occupied_sites] = 1
-
+        self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
         # occupied_sites = np.arange(0, self.config.N_electrons)   # REMOVE THIS!
         # electrons are placed in occupied_states as they are in the string d_{R_1} d_{R_2} ... |0>
         empty_sites = np.arange(self.config.total_dof)
@@ -129,14 +147,6 @@ class wavefunction_singlet(object):
 
         return occupied_sites, empty_sites, place_in_string
 
-
-    # Jackstrow factors is the vector v_k, v[0] -- on--site, v[1] -- tree neighbors, v[2] -- more distant sites et cetera (point symmetry group)
-    # however, if we introduce the symmetric and invariant v, is that correct with respect to \Delta?
-    # anyway: supposing one has \exp (-\sum_{ij} n_i n_j) = \exp(-n^T A n)
-    # n'_i = n_i + \delta_{i, es} - \delta_{i, ms}
-    # -n'_i A_ij n_j + n_i A_ij n_j = -A_{es, j} n_j - n_i A_{i es} + A_{ms, j} n_j + 
-    #                                  n_i A_{i, ms} - A_{es, es} - A_{ms ms} + A_{es ms} + A_{ms es} = 
-    #                                 2 (-A_{es,j} + A_{ms,j}) n_j - 2 A_{0,0} + 2 A_{es ms}
     def perform_MC_step(self):
         moved_site_idx = np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
         moved_site = self.occupied_sites[moved_site_idx]
@@ -145,10 +155,16 @@ class wavefunction_singlet(object):
 
         det_ratio = self.W_GF[empty_site, moved_site_idx] ** 2
 
-        if det_ratio < np.random.uniform(0, 1):
+        delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
+        delta_beta = +1 if empty_site < len(self.state) // 2 else -1
+
+        Jastrow_ratio = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
+
+        if det_ratio * (Jastrow_ratio ** 2) < np.random.uniform(0, 1):
             return False, 1
+
         self.current_det *= det_ratio
-        # print(self.current_det)
+        self.current_Jastrow *= Jastrow_ratio
         self.occupied_sites[moved_site_idx] = empty_site
         self.empty_sites[empty_site_idx] = moved_site
         self.place_in_string[moved_site] = -1
@@ -156,6 +172,7 @@ class wavefunction_singlet(object):
 
         self.state[moved_site] = 0
         self.state[empty_site] = 1
+        self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
         ### DEBUG ###
         # U_tilde_new = self._construct_U_tilde_matrix()
         # det_ratio_naive = np.linalg.det(U_tilde_new) ** 2 / np.linalg.det(self.U_tilde_matrix) ** 2

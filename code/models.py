@@ -115,19 +115,30 @@ def H_TB_Sorella_hexagonal(L, mu):
     K = K - np.diag(mu * np.ones(2 * n_orbitals * L * L))
     return K
 
-def get_adjacency_list_hexagonal(config):  # A -- matrix diagonal in orbital space
-    K_matrix = config.model(config.Ls, 0.0, only_NN = True)  # only nearest-neighbors
-    A = xp.abs(xp.asarray(K_matrix)) > 1e-6
+def interorbital_mod(A, n_orbitals):
+    res = []
+    if n_orbitals == 1:
+        return [A]
+    return [np.kron(A, np.array([[1, 0], [0, 1]])), np.kron(A, np.array([[0, 1], [1, 0]]))]  # now only symmetric
+
+def get_adjacency_list(config, max_len):
+    if config.n_sublattices == 2:
+        K_matrix = H_TB_Sorella_hexagonal(config.Ls, 0.0)  # only nearest-neighbors
+    else:
+        K_matrix = H_TB_Sorella_square(config.Ls, 0.0)  # only nearest-neighbors
+
+    A = np.abs(np.asarray(K_matrix)) > 1e-6
 
     adjacency_list = []
-    adj = xp.diag(xp.ones(len(xp.diag(A))))
+    adj = np.diag(np.ones(len(np.diag(A))))
     seen_elements = adj * 0
-    while np.sum(adj) > 0:
-        adjacency_list.append(adj)
+    while len(adjacency_list) < max_len:
+        adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals)
         seen_elements += adj
         adj = adj.dot(A)
-        adj = xp.logical_and(seen_elements == 0, adj > 0) * 1.
+        adj = np.logical_and(seen_elements == 0, adj > 0) * 1.
     return adjacency_list
+
 
 def H_TB_Sorella_square(L, mu):
     t1 = 1.
