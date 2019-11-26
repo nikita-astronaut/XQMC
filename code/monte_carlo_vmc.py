@@ -43,12 +43,14 @@ config_vmc = config_vmc()
 pairings_list = [pairings.on_site_pairings[0]]
 gap_parameters = np.array([0.5])
 
-jastrow_parameters = np.array([0.1, 0.1])
+jastrow_parameters = np.array([0.1])
 
 H = config_vmc.hamiltonian(config_vmc)
 opt = config_vmc.optimiser(config_vmc.opt_parameters)
+
 while True:
     # np.random.seed(0)
+    print(config_vmc.n_orbitals)
     wf = wavefunction_singlet(config_vmc, pairings_list, gap_parameters, jastrow_parameters)
     forces = generate_MC_chain(H, wf)
     print(gap_parameters, jastrow_parameters)
@@ -59,12 +61,12 @@ while True:
     jastrow_parameters += step[1:]
 
 for dt in np.logspace(-7, -8, 100):
-    np.random.seed(10)
-    wf_1 = wavefunction_singlet(config_vmc, pairings_list, [1.0 - dt])
-    np.random.seed(10)
-    wf_2 = wavefunction_singlet(config_vmc, pairings_list, [1.0 + dt])
-    print((wf_2.current_det - wf_1.current_det) / dt / (wf_1.current_det + wf_2.current_det), wf_1.get_O_pairing(0),
-          (-wf_2.current_det - wf_1.current_det) / dt / (wf_1.current_det - wf_2.current_det), wf_1.get_O_pairing(0))  # log derivative calculated explicitly
+    np.random.seed(13)
+    wf_1 = wavefunction_singlet(config_vmc, pairings_list, [1.0], [1.0])
+    np.random.seed(13)
+    wf_2 = wavefunction_singlet(config_vmc, pairings_list, [1.0 + dt], [1.0 + dt])
+    print((wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) * 2., wf_1.get_O()[0] + wf_1.get_O()[1],
+          (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl))  # log derivative calculated explicitly
     # print(wf_1.get_O_pairing(0))  # log devirative calculated from O_k formula
 
 # generate_MC_chain(wf)

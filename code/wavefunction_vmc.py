@@ -21,7 +21,6 @@ class wavefunction_singlet(object):
         self.var_params_gap = var_params_gap  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
         self.var_params_Jastrow = var_params_Jastrow
         self.Jastrow_A = models.get_adjacency_list(self.config, len(var_params_Jastrow))
-
         self.Jastrow = np.sum(np.array([A * factor for A, factor in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
 
         self.U_matrix = self._construct_U_matrix()
@@ -31,8 +30,7 @@ class wavefunction_singlet(object):
             if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.N_electrons:
                 break
         self.W_GF = self._construct_W_GF()
-        self.current_det = np.linalg.det(self.U_tilde_matrix)
-        self.current_Jastrow = self.get_cur_Jastrow_factor()
+        self.current_ampl = np.linalg.det(self.U_tilde_matrix) * self.get_cur_Jastrow_factor()
 
         self.W_k_derivatives = [self._get_W_k_derivative(gap) for gap in self.pairings_list_unwrapped]
         self._state_dict = {}
@@ -153,18 +151,17 @@ class wavefunction_singlet(object):
         empty_site_idx = np.random.choice(np.arange(len(self.empty_sites)), 1)[0]
         empty_site = self.empty_sites[empty_site_idx]
 
-        det_ratio = self.W_GF[empty_site, moved_site_idx] ** 2
+        det_ratio = self.W_GF[empty_site, moved_site_idx]
 
         delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
         delta_beta = +1 if empty_site < len(self.state) // 2 else -1
 
         Jastrow_ratio = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
 
-        if det_ratio * (Jastrow_ratio ** 2) < np.random.uniform(0, 1):
+        if det_ratio ** 2 * (Jastrow_ratio ** 2) < np.random.uniform(0, 1):
             return False, 1
 
-        self.current_det *= det_ratio
-        self.current_Jastrow *= Jastrow_ratio
+        self.current_ampl *= det_ratio * Jastrow_ratio
         self.occupied_sites[moved_site_idx] = empty_site
         self.empty_sites[empty_site_idx] = moved_site
         self.place_in_string[moved_site] = -1
