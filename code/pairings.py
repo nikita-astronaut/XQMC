@@ -161,8 +161,8 @@ def check_parity(config, pairing):
         return 'singlet'
     return 'WTF is this shit?!'
 
-on_site_pairings = construct_on_site_pairings(config)
-NN_pairings = construct_NN_pairings(config)
+on_site_pairings_2orb_hex = construct_on_site_pairings(config)
+NN_pairings_2orb_hex = construct_NN_pairings(config)
 
 # for pairing in NN_pairings:
 #     print(check_parity(config, pairing))
