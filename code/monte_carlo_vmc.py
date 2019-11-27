@@ -42,8 +42,8 @@ def generate_MC_chain(hamiltinian, wavefunction):
 config_vmc = config_vmc()
 pairings_list = [pairings.on_site_pairings[0]]
 gap_parameters = np.array([0.5])
-
 jastrow_parameters = np.array([0.1])
+mu_parameter = 0.0  # chemical potential (mu)
 
 H = config_vmc.hamiltonian(config_vmc)
 opt = config_vmc.optimiser(config_vmc.opt_parameters)
@@ -51,14 +51,15 @@ opt = config_vmc.optimiser(config_vmc.opt_parameters)
 while True:
     # np.random.seed(0)
     print(config_vmc.n_orbitals)
-    wf = wavefunction_singlet(config_vmc, pairings_list, gap_parameters, jastrow_parameters)
+    wf = wavefunction_singlet(config_vmc, pairings_list, mu_parameter, gap_parameters, jastrow_parameters)
     forces = generate_MC_chain(H, wf)
-    print(gap_parameters, jastrow_parameters)
+    print(mu_parameter, gap_parameters, jastrow_parameters)
     step = opt.get_step(forces)
     print(forces, step)
     H.reset()
-    gap_parameters += step[0:1]
-    jastrow_parameters += step[1:]
+    mu_parameter += step[0]
+    gap_parameters += step[1:2]
+    jastrow_parameters += step[2:]
 
 for dt in np.logspace(-7, -8, 100):
     np.random.seed(13)

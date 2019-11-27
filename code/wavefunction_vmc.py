@@ -15,11 +15,12 @@ except ImportError:
 
 
 class wavefunction_singlet(object):
-    def __init__(self, config, pairings_list, var_params_gap, var_params_Jastrow):
+    def __init__(self, config, pairings_list, var_mu, var_params_gap, var_params_Jastrow):
         self.config = config
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self.config, gap) for gap in pairings_list]
         self.var_params_gap = var_params_gap  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
         self.var_params_Jastrow = var_params_Jastrow
+        self.var_mu = var_mu
         self.Jastrow_A = models.get_adjacency_list(self.config, len(var_params_Jastrow))
         self.Jastrow = np.sum(np.array([A * factor for A, factor in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
 
@@ -32,7 +33,9 @@ class wavefunction_singlet(object):
         self.W_GF = self._construct_W_GF()
         self.current_ampl = np.linalg.det(self.U_tilde_matrix) * self.get_cur_Jastrow_factor()
 
-        self.W_k_derivatives = [self._get_W_k_derivative(gap) for gap in self.pairings_list_unwrapped]
+        self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
+        self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
+
         self._state_dict = {}
         return
 
@@ -48,19 +51,23 @@ class wavefunction_singlet(object):
     def get_cur_Jastrow_factor(self):
         return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy))
 
-    def get_O_pairing(self, pairing_index):
-        W_k = self.W_k_derivatives[pairing_index]
-        W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j  # TODO: this can be done ONCE for all gaps
-        W_GF_complete[:, self.occupied_sites] = self.W_GF
-        return -np.einsum('ij,ji', W_k, W_GF_complete)  # (6.98) from S.Sorella book
+    def get_O_pairing(self, W_k):
+        return -np.einsum('ij,ji', W_k, self.W_GF_complete)  # (6.98) from S.Sorella book
 
     def get_O_Jastrow(self, jastrow_index):
         return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index], self.occupancy)
 
-    def _get_W_k_derivative(self, gap):  # obtaining (6.99) from S. Sorella book
+    def _construct_gap_V(self, gap):
         V = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j  # (6.91) in S. Sorella book
         V[:self.K.shape[0], self.K.shape[1]:] = gap
         V[self.K.shape[0]:, :self.K.shape[1]] = gap.conj().T
+        return V
+
+    def _construct_mu_V(self):
+        V = np.diag([1.0] * self.K.shape[0] + [-1.0] * self.K.shape[0]) * 1.0j
+        return V
+
+    def _get_derivative(self, V):  # obtaining (6.99) from S. Sorella book
         Vdash = (self.U_full.conj().T).dot(V).dot(self.U_full)  # (6.94) in S. Sorella book
         Vdash_rescaled = np.zeros(shape = Vdash.shape) * 1.0j  # (6.94) from S. Sorella book
         for alpha in range(Vdash.shape[0]):
@@ -69,24 +76,27 @@ class wavefunction_singlet(object):
                     Vdash_rescaled[alpha, beta] = Vdash[alpha, beta] / (self.E[alpha] - self.E[beta])
         return self.U_full.dot(Vdash_rescaled).dot(self.U_full.conj().T)  # (6.99) step
 
+
     def get_O(self):  # derivative over all variational parameters
         '''
             O_i = \\partial{\\psi(x)}/ \\partial(w) / \\psi(x)
         '''
-
         if tuple(self.state) in self._state_dict:
             return self._state_dict[tuple(self.state)]
 
+        self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j  # TODO: this can be done ONCE for all gaps
+        self.W_GF_complete[:, self.occupied_sites] = self.W_GF
         ### pairings part ###
-        O_pairing = [self.get_O_pairing(pairing_index) for pairing_index in range(len(self.pairings_list_unwrapped))]
+        O_mu = [self.get_O_pairing(self.W_mu_derivative)]
+        O_pairing = [self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
         O_Jastrow = [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
-        O = O_pairing + O_Jastrow + []
+        O = O_mu + O_pairing + O_Jastrow
         self._state_dict[tuple(self.state)] = np.array(O)
 
         return np.array(O)
 
     def _construct_U_matrix(self):
-        self.K = self.config.model(self.config.Ls, self.config.mu)
+        self.K = self.config.model(self.config.Ls, self.var_mu)
         # print(np.sum(self.K))
         Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         T = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j
