@@ -7,6 +7,14 @@ def diff_modulo(x, y, L, d):
     else:
         return (x - y + L) % L == L + d
 
+def nearest_neighbor(r1, r2, L, geometry, return_direction):
+    if geometry == 'square':
+        return nearest_neighbor_square(r1, r2, L, return_direction)
+    if geometry == 'hexagonal':
+        return nearest_neighbor_hexagonal(r1, r2, L, return_direction)
+    print('Geometry', geometry, 'is not supported')
+    exit(-1)
+
 def nearest_neighbor_hexagonal(r1, r2, L, return_direction = False):
     if r1[1] == r2[1] and r1[0] == r2[0]:
         if return_direction:
@@ -20,6 +28,29 @@ def nearest_neighbor_hexagonal(r1, r2, L, return_direction = False):
         if return_direction:
             return True, 3
         return True
+
+    if return_direction:
+        return False, 0
+    return False
+
+def nearest_neighbor_square(r1, r2, L, return_direction = False):
+    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1):
+        if return_direction:
+            return True, 1
+        return True
+    if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, 1):
+        if return_direction:
+            return True, 2
+        return True
+    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, -1):
+        if return_direction:
+            return True, 3
+        return True
+    if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, -1):
+        if return_direction:
+            return True, 4
+        return True
+
     if return_direction:
         return False, 0
     return False
@@ -156,6 +187,6 @@ def H_TB_Sorella_square(L, mu):
             if nearest_neighbor_square(r1, r2, L):
                 K[first, second] = t1
 
-    K = K + K.conj().T
+    # K = K + K.conj().T # already counted
     K = K - np.diag(mu * np.ones(n_sublattices * n_orbitals * L * L))
     return K

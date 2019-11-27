@@ -12,14 +12,15 @@ Zpauli = np.array([[1, 0], [0, -1]])
 sigma_1 = Zpauli + 1.0j * Xpauli
 sigma_2 = Zpauli - 1.0j * Xpauli
 
-delta1, delta2, delta3 = None, None, None
+delta_hex = []
+delta_square = []
 
-
+identity = np.array([1])
 
 def construct_onsite_delta(config):
     return np.eye(config.Ls ** 2)
 
-def construct_NN_delta(config, direction):
+def construct_NN_delta(config, direction, geometry):
     delta = np.zeros((config.Ls ** 2, config.Ls ** 2))
 
     for first in range(delta.shape[0]):
@@ -29,21 +30,21 @@ def construct_NN_delta(config, direction):
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
 
-            if direction == models.nearest_neighbor_hexagonal(r1, r2, config.Ls, return_direction = True)[1]:
+            if direction == models.nearest_neighbor(r1, r2, config.Ls, geometry, return_direction = True)[1]:
                 delta[first, second] = 1
     ret = delta + delta.T
     ret[np.where(ret != 0)] = 1
     return ret
 
-def construct_vi(vi):
-    global delta1, delta2, delta3
+def construct_vi_hex(vi):
+    global delta_hex
     phase_factor = 1.0 + 0.0j
     if vi == 2:
         phase_factor = np.exp(2.0 * np.pi / 3. * 1.0j)
     if vi == 3:
         phase_factor = np.exp(-2.0 * np.pi / 3. * 1.0j)
 
-    return delta1 * (1.0 + 0.0j) + delta2 * phase_factor + delta3 * phase_factor ** 2
+    return delta_hex[0] * (1.0 + 0.0j) + delta_hex[1] * phase_factor + delta_hex[2] * phase_factor ** 2
 
 def get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
@@ -61,8 +62,8 @@ def expand_tensor_product(config, sigma_l1j2, sigma_o1o2, delta_ij):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     for first in range(Delta.shape[0]):
         for second in range(Delta.shape[1]):
-            orbit1, sublattice1, x1, y1 = models.from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals)
-            orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals)
+            orbit1, sublattice1, x1, y1 = models.from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
             space1 = x1 * config.Ls + y1
             space2 = x2 * config.Ls + y2
             r1 = np.array([x1, y1])
@@ -93,7 +94,7 @@ def get_total_pairing_upwrapped(config, pairings_unwrapped, var_params):
 
     return Delta
 
-def construct_on_site_pairings(config, real = True):
+def construct_on_site_pairings_2orb_hex(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
@@ -112,11 +113,12 @@ def construct_on_site_pairings(config, real = True):
 
 
 
-def construct_NN_pairings(config, real = True):
+def construct_NN_pairings_2orb_hex(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
-    global delta1, delta2, delta3
+    global delta_hex
+    delta_tex = [construct_NN_delta(config, direction) for direction in range(1, 4)]
     delta1 = construct_NN_delta(config, 1)
     delta2 = construct_NN_delta(config, 2)  
     delta3 = construct_NN_delta(config, 3)
@@ -161,8 +163,11 @@ def check_parity(config, pairing):
         return 'singlet'
     return 'WTF is this shit?!'
 
-on_site_pairings_2orb_hex = construct_on_site_pairings(config)
-NN_pairings_2orb_hex = construct_NN_pairings(config)
+on_site_pairings_2orb_hex = construct_on_site_pairings_2orb_hex(config)
+NN_pairings_2orb_hex = construct_NN_pairings_2orb_hex(config)
+
+on_site_pairings_1orb_hex = construct_on_site_pairings_1orb_hex(config)
+NN_pairings_1orb_hex = construct_NN_pairings_1orb_hex(config)
 
 # for pairing in NN_pairings:
 #     print(check_parity(config, pairing))
