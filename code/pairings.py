@@ -53,7 +53,7 @@ def get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params):
 
     return Delta
 
-def expand_tensor_product(config, sigma_l1j2, sigma_o1o2, delta_ij):
+def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
     '''
         returns the matrix of the dimention L x L (L -- total number of sites including orbit),
         sigma_ll \\otimes sigma_oo \\otimes delta_ii
@@ -69,7 +69,7 @@ def expand_tensor_product(config, sigma_l1j2, sigma_o1o2, delta_ij):
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
 
-            Delta[first, second] = sigma_l1j2[sublattice1, sublattice2] * \
+            Delta[first, second] = sigma_l1l2[sublattice1, sublattice2] * \
                                    sigma_o1o2[orbit1, orbit2] * \
                                    delta_ij[space1, space2]
     return Delta
@@ -94,6 +94,8 @@ def get_total_pairing_upwrapped(config, pairings_unwrapped, var_params):
 
     return Delta
 
+
+
 def construct_on_site_pairings_2orb_hex(config, real = True):
     factor = 1.0
     if not real:
@@ -110,7 +112,6 @@ def construct_on_site_pairings_2orb_hex(config, real = True):
     on_site_pairings.append([(Zpauli, Xpauli, onsite, 1.0), factor]); on_site_pairings.append([(Zpauli, Zpauli, onsite, 1.0), factor])  # E 6-7
 
     return on_site_pairings
-
 
 
 def construct_NN_pairings_2orb_hex(config, real = True):
@@ -138,6 +139,52 @@ def construct_NN_pairings_2orb_hex(config, real = True):
     NN_pairings.append([(Xpauli, Xpauli, v1, 1.0), factor]); NN_pairings.append([(Xpauli, Zpauli, v1, 1.0), factor])  # E (A1 x E x A1) 4-5
     NN_pairings.append([(iYpauli, Xpauli, v1, 1.0), factor]); NN_pairings.append([(iYpauli, Zpauli, v1, 1.0), factor])  # E (A2 x E x A1) 6-7
 
+    NN_pairings.append([(Xpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, Ipauli, v3, 1.0), factor])  # E (A1 x A1 x E) 8-9
+    NN_pairings.append([(iYpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, Ipauli, v3, 1.0), factor])  # E (A2 x A1 x E) 10-11
+    NN_pairings.append([(Xpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, iYpauli, v3, 1.0), factor])  # E (A1 x A2 x E) 12-13
+    NN_pairings.append([(iYpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, iYpauli, v3, 1.0), factor])  # E (A2 x A2 x E) 14-15
+
+    NN_pairings.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor])  # A1 (A1 x E x E) 16
+    NN_pairings.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor])  # A1 (A2 x E x E) 17
+
+    NN_pairings.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor])  # A2 (A1 x E x E) 18
+    NN_pairings.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor])  # A2 (A2 x E x E) 19
+
+    NN_pairings.append([(Xpauli, sigma_1, v3, 1.0), factor]); NN_pairings.append([(Xpauli, sigma_2, v2, 1.0), factor])  # E (A1 x E x E) 20-21
+    NN_pairings.append([(iYpauli, sigma_1, v3, 1.0), factor]); NN_pairings.append([(iYpauli, sigma_2, v2, 1.0), factor])  # E (A2 x E x E) 22-23
+
+    return NN_pairings
+
+
+def construct_on_site_pairings_1orb_hex(config, real = True):
+    factor = 1.0
+    if not real:
+        factor = 1.0j
+
+    onsite = construct_onsite_delta(config)
+    on_site_pairings = []
+    on_site_pairings.append([(Ipauli, identity, onsite, 1), factor])  # A1 0
+    on_site_pairings.append([(Zpauli, identity, onsite, 1), factor])  # A2 1
+
+    return on_site_pairings
+
+
+def construct_NN_pairings_1orb_hex(config, real = True):
+    factor = 1.0
+    if not real:
+        factor = 1.0j
+    global delta_hex
+    delta_tex = [construct_NN_delta(config, direction) for direction in range(1, 4)]
+
+    v1 = construct_vi(1)
+    v2 = construct_vi(2)
+    v3 = construct_vi(3)
+    # print(np.unique(v1), np.unique(v2), np.unique(v3))
+    NN_pairings = []
+
+    NN_pairings.append([(Xpauli, identity, v1, 1), factor])  # A1 (A1 x A1 x A1) 0
+    NN_pairings.append([(iYpauli, identity, v1, 1), factor])  # A2 (A1 x A2 x A1) 1
+    # TODODOOOOOOOOOOOOOo
     NN_pairings.append([(Xpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, Ipauli, v3, 1.0), factor])  # E (A1 x A1 x E) 8-9
     NN_pairings.append([(iYpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, Ipauli, v3, 1.0), factor])  # E (A2 x A1 x E) 10-11
     NN_pairings.append([(Xpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, iYpauli, v3, 1.0), factor])  # E (A1 x A2 x E) 12-13
