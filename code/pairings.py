@@ -29,7 +29,7 @@ def construct_NN_delta(config, direction, geometry):
             x2, y2 = second // config.Ls, second % config.Ls
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
-
+            # TODO: check models.nearest_neighbor
             if direction == models.nearest_neighbor(r1, r2, config.Ls, geometry, return_direction = True)[1]:
                 delta[first, second] = 1
     ret = delta + delta.T
@@ -37,6 +37,14 @@ def construct_NN_delta(config, direction, geometry):
     return ret
 
 def construct_vi_hex(vi):
+    '''
+        v[1] = delta1 + delta2 + delta3
+        v[2] = delta1 + omega delta2 + omega^* delta3
+        v[3] = delta1 + omega^* delta2 + omega delta3
+
+        v[1] furnishes the A1--representation in the NN-space,
+        v[2]uv[3] furnish the E--representation
+    '''
     global delta_hex
     phase_factor = 1.0 + 0.0j
     if vi == 2:
@@ -45,6 +53,28 @@ def construct_vi_hex(vi):
         phase_factor = np.exp(-2.0 * np.pi / 3. * 1.0j)
 
     return delta_hex[0] * (1.0 + 0.0j) + delta_hex[1] * phase_factor + delta_hex[2] * phase_factor ** 2
+
+def construct_vi_square(vi):
+    '''
+        v[1] = delta1 + delta2 + delta3 + delta4
+        v[2] = delta1 + omega delta2 + omega^2 delta3 + omega^3 delta4
+        v[3] = delta1 + omega^* delta2 + omega^*2 delta3 + omega^*3 delta4
+        v[4] = delta1 - delta2 + delta3 - delta4
+        v[1] furnishes the A1--representation in the NN-space,
+        v[4] furnishes the B1--representation in the NN-space,
+        v[2]uv[3] furnish the E--representation
+    '''
+    global delta_square
+    phase_factor = 1.0 + 0.0j
+    if vi == 2:
+        phase_factor = np.exp(2.0 * np.pi / 4. * 1.0j)
+    if vi == 3:
+        phase_factor = np.exp(-2.0 * np.pi / 4. * 1.0j)
+    if vi == 4:
+        phase_factor = -1.0 + 0.0j
+
+    return delta_square[0] * (1.0 + 0.0j) + delta_square[1] * phase_factor + 
+           delta_square[2] * phase_factor ** 2 + delta_square[3] * phase_factor ** 3
 
 def get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
@@ -115,26 +145,34 @@ def construct_on_site_pairings_2orb_hex(config, real = True):
 
 
 def construct_NN_pairings_2orb_hex(config, real = True):
+    '''
+    each element of the result is the tensor--decomposed gap in the sublattice x orbitals x neighbors space
+    the 2D--irreps go in pairs written in the single line -- one MUST include them both into the total gap
+
+    the "real" parameter only multiplies the gap by i or not. This is because the magnitude can be complex,
+    but the SR method only works with real parameters -- so in order to emulate complex magnitude, one should
+    add the gap twice -- with real = True and real = False
+    '''
     factor = 1.0
     if not real:
         factor = 1.0j
     global delta_hex
-    delta_tex = [construct_NN_delta(config, direction) for direction in range(1, 4)]
+    delta_tex = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
     delta1 = construct_NN_delta(config, 1)
     delta2 = construct_NN_delta(config, 2)  
     delta3 = construct_NN_delta(config, 3)
 
-    v1 = construct_vi(1)
-    v2 = construct_vi(2)
-    v3 = construct_vi(3)
+    v1 = construct_vi_hex(1)
+    v2 = construct_vi_hex(2)
+    v3 = construct_vi_hex(3)
     # print(np.unique(v1), np.unique(v2), np.unique(v3))
     NN_pairings = []
 
-    NN_pairings.append([(Xpauli, Ipauli, v1, 1), factor])  # A1 (A1 x A1 x A1) 0
-    NN_pairings.append([(iYpauli, iYpauli, v1, 1), factor])  # A1 (A2 x A2 x A1) 1 
+    NN_pairings.append([(Xpauli, Ipauli, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
+    NN_pairings.append([(iYpauli, iYpauli, v1, 1.0), factor])  # A1 (A2 x A2 x A1) 1 
 
-    NN_pairings.append([(Xpauli, iYpauli, v1, 1), factor])  # A2 (A2 x A1 x A1) 2
-    NN_pairings.append([(iYpauli, Ipauli, v1, 1), factor])  # A2 (A1 x A2 x A1) 3
+    NN_pairings.append([(Xpauli, iYpauli, v1, 1.0), factor])  # A2 (A2 x A1 x A1) 2
+    NN_pairings.append([(iYpauli, Ipauli, v1, 1.0), factor])  # A2 (A1 x A2 x A1) 3
 
     NN_pairings.append([(Xpauli, Xpauli, v1, 1.0), factor]); NN_pairings.append([(Xpauli, Zpauli, v1, 1.0), factor])  # E (A1 x E x A1) 4-5
     NN_pairings.append([(iYpauli, Xpauli, v1, 1.0), factor]); NN_pairings.append([(iYpauli, Zpauli, v1, 1.0), factor])  # E (A2 x E x A1) 6-7
@@ -174,32 +212,55 @@ def construct_NN_pairings_1orb_hex(config, real = True):
     if not real:
         factor = 1.0j
     global delta_hex
-    delta_tex = [construct_NN_delta(config, direction) for direction in range(1, 4)]
+    delta_tex = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
 
-    v1 = construct_vi(1)
-    v2 = construct_vi(2)
-    v3 = construct_vi(3)
-    # print(np.unique(v1), np.unique(v2), np.unique(v3))
+    v1 = construct_vi_hex(1)
+    v2 = construct_vi_hex(2)
+    v3 = construct_vi_hex(3)
+
     NN_pairings = []
 
-    NN_pairings.append([(Xpauli, identity, v1, 1), factor])  # A1 (A1 x A1 x A1) 0
-    NN_pairings.append([(iYpauli, identity, v1, 1), factor])  # A2 (A1 x A2 x A1) 1
-    # TODODOOOOOOOOOOOOOo
-    NN_pairings.append([(Xpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, Ipauli, v3, 1.0), factor])  # E (A1 x A1 x E) 8-9
-    NN_pairings.append([(iYpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, Ipauli, v3, 1.0), factor])  # E (A2 x A1 x E) 10-11
-    NN_pairings.append([(Xpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, iYpauli, v3, 1.0), factor])  # E (A1 x A2 x E) 12-13
-    NN_pairings.append([(iYpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, iYpauli, v3, 1.0), factor])  # E (A2 x A2 x E) 14-15
+    NN_pairings.append([(Xpauli, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
+    NN_pairings.append([(iYpauli, identity, v1, 1.0), factor])  # A2 (A1 x A2 x A1) 1
 
-    NN_pairings.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor])  # A1 (A1 x E x E) 16
-    NN_pairings.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor])  # A1 (A2 x E x E) 17
-
-    NN_pairings.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor])  # A2 (A1 x E x E) 18
-    NN_pairings.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor])  # A2 (A2 x E x E) 19
-
-    NN_pairings.append([(Xpauli, sigma_1, v3, 1.0), factor]); NN_pairings.append([(Xpauli, sigma_2, v2, 1.0), factor])  # E (A1 x E x E) 20-21
-    NN_pairings.append([(iYpauli, sigma_1, v3, 1.0), factor]); NN_pairings.append([(iYpauli, sigma_2, v2, 1.0), factor])  # E (A2 x E x E) 22-23
-
+    NN_pairings.append([(Xpauli, identity, v2, 1.0), factor]); NN_pairings.append([(Xpauli, identity, v3, 1.0), factor])  # E (A1 x A1 x E) 2-3
+    NN_pairings.append([(iYpauli, identity, v2, 1.0), factor]); NN_pairings.append([(iYpauli, identity, v3, 1.0), factor])  # E (A2 x A1 x E) 4-5
     return NN_pairings
+
+
+def construct_on_site_pairings_1orb_square(config, real = True):
+    factor = 1.0
+    if not real:
+        factor = 1.0j
+
+    onsite = construct_onsite_delta(config)
+    on_site_pairings = []
+    on_site_pairings.append([(identity, identity, onsite, 1), factor])  # A1 0
+
+    return on_site_pairings
+
+
+def construct_NN_pairings_1orb_square(config, real = True):
+    factor = 1.0
+    if not real:
+        factor = 1.0j
+    global delta_square
+    delta_square = [construct_NN_delta(config, direction, geometry='square') for direction in range(1, 5)]
+
+    v1 = construct_vi_square(1)
+    v2 = construct_vi_square(2)
+    v3 = construct_vi_square(3)
+    v4 = construct_vi_square(4)
+
+    NN_pairings = []
+
+    NN_pairings.append([(identity, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
+    NN_pairings.append([(identity, identity, v4, 1.0), factor])  # B2 (A1 x A1 x A2) 1
+
+    NN_pairings.append([(identity, identity, v2, 1.0), factor]); NN_pairings.append([(identity, identity, v3, 1.0), factor])  # E (A1 x A1 x E) 2-3
+    return NN_pairings
+
+
 
 def check_parity(config, pairing):
     gap = combine_product_terms(config, pairing)
@@ -216,5 +277,10 @@ NN_pairings_2orb_hex = construct_NN_pairings_2orb_hex(config)
 on_site_pairings_1orb_hex = construct_on_site_pairings_1orb_hex(config)
 NN_pairings_1orb_hex = construct_NN_pairings_1orb_hex(config)
 
-# for pairing in NN_pairings:
-#     print(check_parity(config, pairing))
+on_site_pairings_1orb_square = construct_on_site_pairings_1orb_square(config)
+NN_pairings_1orb_square = construct_NN_pairings_1orb_square(config)
+
+for pairing in on_site_pairings_2orb_hex + NN_pairings_2orb_hex + \
+               on_site_pairings_1orb_hex + NN_pairings_1orb_hex + \
+               on_site_pairings_1orb_square + NN_pairings_1orb_square:
+    print(check_parity(config, pairing))
