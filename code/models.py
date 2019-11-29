@@ -99,54 +99,52 @@ def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
 def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 2):
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
-def H_TB_simple(L, mu, only_NN = False):
-    n_orbitals = 2
+def H_TB_simple(config, only_NN = False):
     t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
     if only_NN:
         t2 = 0.0 + 0.0j
 
-    K = np.zeros((2 * n_orbitals * L * L, 2 * n_orbitals * L * L))
-    for first in range(2 * n_orbitals * L * L):
-        for second in range(2 * n_orbitals * L * L):
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), L, n_orbitals)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), L, n_orbitals)
+    K = np.zeros((config.total_dof // 2, config.total_dof // 2))
+    for first in range(config.total_dof // 2):
+        for second in range(config.total_dof // 2):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
 
-            if orbit1 == orbit2 and nearest_neighbor_hexagonal(r1, r2, L) and sublattice1 == 0 and sublattice2 == 1:
+            if orbit1 == orbit2 and nearest_neighbor_hexagonal(r1, r2, config.Ls) and sublattice1 == 0 and sublattice2 == 1:
                 K[first, second] = t1
 
-            if orbit2 == orbit1 and fifth_nearest_neighbor(r1, r2, L) and sublattice2 == sublattice1:
+            if orbit2 == orbit1 and fifth_nearest_neighbor(r1, r2, config.Ls) and sublattice2 == sublattice1:
                 K[first, second] = np.real(t2)
-            if orbit2 != orbit1 and fifth_nearest_neighbor(r1, r2, L) and sublattice2 == sublattice1:
+            if orbit2 != orbit1 and fifth_nearest_neighbor(r1, r2, config.Ls) and sublattice2 == sublattice1:
                 if orbit1 == 0 and orbit2 == 1:
                     K[first, second] = np.imag(t2)
                 else:
                     K[first, second] = -np.imag(t2)
 
     K = K + K.conj().T
-    K = K - np.diag(mu * np.ones(2 * n_orbitals * L * L))
-    return K
+    K = K - config.mu * np.eye(K.shape[0])
+    return apply_twisted_periodic_conditions(config, K)
 
-def H_TB_Sorella_hexagonal(L, mu):
+def H_TB_Sorella_hexagonal(config):
     t1 = 1.
-    n_orbitals = 1
-    K = np.zeros((2 * n_orbitals * L * L, 2 * n_orbitals * L * L))
-    for first in range(2 * n_orbitals * L * L):
-        for second in range(2 * n_orbitals * L * L):
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), L, n_orbitals)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), L, n_orbitals)
+    K = np.zeros((config.total_dof // 2, config.total_dof // 2))
+    for first in range(config.total_dof // 2):
+        for second in range(config.total_dof // 2):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
 
-            if orbit1 == orbit2 and nearest_neighbor_hexagonal(r1, r2, L) and sublattice1 == 0 and sublattice2 == 1:
+            if orbit1 == orbit2 and nearest_neighbor_hexagonal(r1, r2, config.Ls) and sublattice1 == 0 and sublattice2 == 1:
                 K[first, second] = t1
 
     K = K + K.conj().T
-    K = K - np.diag(mu * np.ones(2 * n_orbitals * L * L))
-    return K
+    K = K - config.mu * np.eye(K.shape[0])
+    return apply_twisted_periodic_conditions(config, K)
 
 def interorbital_mod(A, n_orbitals):
     res = []
@@ -156,9 +154,10 @@ def interorbital_mod(A, n_orbitals):
 
 def get_adjacency_list(config, max_len):
     if config.n_sublattices == 2:
-        K_matrix = H_TB_Sorella_hexagonal(config.Ls, 0.0)  # only nearest-neighbors
+        K_matrix = H_TB_Sorella_hexagonal(config)  # only nearest-neighbors
     else:
-        K_matrix = H_TB_Sorella_square(config.Ls, 0.0)  # only nearest-neighbors
+        K_matrix = H_TB_Sorella_square(config)  # only nearest-neighbors
+    K_matrix += config.mu * np.eye(K_matrix.shape[0])  # remove mu!
 
     A = np.abs(np.asarray(K_matrix)) > 1e-6
 
@@ -173,27 +172,39 @@ def get_adjacency_list(config, max_len):
     return adjacency_list
 
 
-def H_TB_Sorella_square(L, mu, BC_twist = False):
+def H_TB_Sorella_square(config):
     t1 = 1.
-    n_orbitals = 1
-    n_sublattices = 1
-    K = np.zeros((n_sublattices * n_orbitals * L * L, n_sublattices * n_orbitals * L * L))
-    for first in range(n_sublattices * n_orbitals * L * L):
-        for second in range(n_sublattices * n_orbitals * L * L):
-            _, _, x1, y1 = from_linearized_index(deepcopy(first), L, n_orbitals, n_sublattices = 1)
-            _, _, x2, y2 = from_linearized_index(deepcopy(second), L, n_orbitals, n_sublattices = 1)
+    K = np.zeros((config.total_dof // 2, config.total_dof // 2))
+    for first in range(config.total_dof // 2):
+        for second in range(config.total_dof // 2):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
 
-            bc_factor = 1.0
-            if BC_twist and r2[1] < r2[1]:
-                bc_factor = -1
-
-            if nearest_neighbor_square(r1, r2, L):
-                K[first, second] = t1# * bc_factor
+            if nearest_neighbor_square(r1, r2, config.Ls):
+                K[first, second] = t1 # * bc_factor
 
     # K = K + K.conj().T # already counted
     print(np.sum(K))
-    K = K - np.diag(mu * np.ones(n_sublattices * n_orbitals * L * L))
+    K = K - config.mu * np.eye(K.shape[0])
+    return apply_twisted_periodic_conditions(config, K)
+
+def apply_twisted_periodic_conditions(config, K):
+    '''
+        if config.BC_twist == True, we demand that if j >= L, c_{j} = -c_{j % L} (only in y--direction)
+    '''
+    if not config.BC_twist:
+        return K
+
+    for first in range(K.shape[0]):
+        for second in range(K.shape[1]):
+            if K[first, second] == 0.0:
+                continue
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
+
+            if np.abs(y1 - y2) > config.Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
+                K[first, second] *= -1
     return K

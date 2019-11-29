@@ -104,7 +104,7 @@ class wavefunction_singlet(object):
         return np.array(O)
 
     def _construct_U_matrix(self):
-        self.K = self.config.model(self.config.Ls, self.var_mu, self.config.BC_twist)
+        self.K = self.config.model(self.config)
         # print(np.sum(self.K))
         Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         T = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j
