@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from config_vmc import MC_parameters as config
+from config_vmc import config
 import models_vmc
 import pairings
 import models
@@ -39,8 +39,16 @@ class wavefunction_singlet(object):
         self._state_dict = {}
         return
 
-    def get_det_ratio(self, i, j):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
-        return self.W_GF[j, self.place_in_string[i]]
+    def get_wf_ratio(self, moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
+        delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
+        delta_beta = +1 if empty_site < len(self.state) // 2 else -1
+
+        Jastrow_ratio = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), \
+                                               empty_site % (len(self.state) // 2), \
+                                               delta_alpha, delta_beta)
+
+        det_ratio = self.W_GF[empty_site, self.place_in_string[moved_site]]
+        return det_ratio * Jastrow_ratio
 
     def get_Jastrow_ratio(self, alpha, beta, delta_alpha, delta_beta):
         return np.exp(-0.5 * delta_alpha * np.sum((self.Jastrow[alpha, :] + self.Jastrow[:, alpha]) * self.occupancy) - 
@@ -96,7 +104,7 @@ class wavefunction_singlet(object):
         return np.array(O)
 
     def _construct_U_matrix(self):
-        self.K = self.config.model(self.config.Ls, self.var_mu)
+        self.K = self.config.model(self.config.Ls, self.var_mu, self.config.BC_twist)
         # print(np.sum(self.K))
         Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         T = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j

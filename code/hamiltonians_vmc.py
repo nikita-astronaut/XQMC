@@ -27,7 +27,7 @@ class HubbardHamiltonian(object):
             if not ((base_state[i] == 1) and base_state[j] == 0):
                 continue
 
-            E_loc += Hij * wavefunction.get_det_ratio(i, j)
+            E_loc += Hij * wavefunction.get_wf_ratio(i, j)
 
         E_loc -= self.config.mu * (np.sum(particles) - np.sum(holes))
 

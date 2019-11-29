@@ -2,7 +2,7 @@ import numpy as np
 import time
 import models_vmc
 from wavefunction_vmc import wavefunction_singlet
-from config_vmc import MC_parameters as config_vmc
+from config_vmc import config as config_vmc
 import pairings
 from tqdm import tqdm
 
@@ -27,26 +27,26 @@ def generate_MC_chain(hamiltinian, wavefunction):
 
         wavefunction.perform_MC_step()
 
-
+    vol = wavefunction.config.total_dof // 2
     energies = np.array(energies)
     Os = np.array(Os)
     Os_mean = np.mean(Os, axis = 0)
     forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies) * Os_mean).real
-    print('E_average =', np.mean(energies), '+/-', np.std(energies) / np.sqrt(len(energies)))
+    print('<E> / t / vol =', np.mean(energies) / vol, '+/-', np.std(energies) / np.sqrt(len(energies)) / vol)
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean[np.newaxis, :]), (Os - Os_mean[np.newaxis, :])) / len(Os_mean)).real
     print('|forces| =', np.sqrt(np.sum(forces ** 2)))
     if True: # np.linalg.det(S_cov) == 0:
         return forces
     return np.linalg.inv(S_cov).dot(forces)
 
-config_vmc = config_vmc()
-pairings_list = [pairings.on_site_pairings[0]]
-gap_parameters = np.array([0.5])
-jastrow_parameters = np.array([0.1])
-mu_parameter = 0.0  # chemical potential (mu)
+pairings_list = config_vmc.pairings_list
+gap_parameters = config_vmc.initial_gap_parameters
+jastrow_parameters = config_vmc.initial_jastrow_parameters
+mu_parameter = config_vmc.mu  # chemical potential (mu)
 
 H = config_vmc.hamiltonian(config_vmc)
 opt = config_vmc.optimiser(config_vmc.opt_parameters)
+
 
 while True:
     # np.random.seed(0)

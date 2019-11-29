@@ -1,8 +1,6 @@
 import numpy as np
 import models
-from config_vmc import MC_parameters as config
 from copy import deepcopy
-config = config()
 
 Ipauli = np.array([[1, 0], [0, 1]])
 Xpauli = np.array([[0, 1], [1, 0]])
@@ -15,7 +13,7 @@ sigma_2 = Zpauli - 1.0j * Xpauli
 delta_hex = []
 delta_square = []
 
-identity = np.array([1])
+identity = np.array([[1]])
 
 def construct_onsite_delta(config):
     return np.eye(config.Ls ** 2)
@@ -73,7 +71,7 @@ def construct_vi_square(vi):
     if vi == 4:
         phase_factor = -1.0 + 0.0j
 
-    return delta_square[0] * (1.0 + 0.0j) + delta_square[1] * phase_factor + 
+    return delta_square[0] * (1.0 + 0.0j) + delta_square[1] * phase_factor + \
            delta_square[2] * phase_factor ** 2 + delta_square[3] * phase_factor ** 3
 
 def get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params):
@@ -157,10 +155,7 @@ def construct_NN_pairings_2orb_hex(config, real = True):
     if not real:
         factor = 1.0j
     global delta_hex
-    delta_tex = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
-    delta1 = construct_NN_delta(config, 1)
-    delta2 = construct_NN_delta(config, 2)  
-    delta3 = construct_NN_delta(config, 3)
+    delta_hex = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
 
     v1 = construct_vi_hex(1)
     v2 = construct_vi_hex(2)
@@ -271,16 +266,34 @@ def check_parity(config, pairing):
         return 'singlet'
     return 'WTF is this shit?!'
 
-on_site_pairings_2orb_hex = construct_on_site_pairings_2orb_hex(config)
-NN_pairings_2orb_hex = construct_NN_pairings_2orb_hex(config)
 
-on_site_pairings_1orb_hex = construct_on_site_pairings_1orb_hex(config)
-NN_pairings_1orb_hex = construct_NN_pairings_1orb_hex(config)
+on_site_pairings_2orb_hex = None
+NN_pairings_2orb_hex = None
 
-on_site_pairings_1orb_square = construct_on_site_pairings_1orb_square(config)
-NN_pairings_1orb_square = construct_NN_pairings_1orb_square(config)
+on_site_pairings_1orb_hex = None
+NN_pairings_1orb_hex = None
 
-for pairing in on_site_pairings_2orb_hex + NN_pairings_2orb_hex + \
+on_site_pairings_1orb_square = None
+NN_pairings_1orb_square = None
+
+def obtain_all_pairings(config):
+    global on_site_pairings_2orb_hex, NN_pairings_2orb_hex, \
+           on_site_pairings_1orb_hex, NN_pairings_1orb_hex, \
+           on_site_pairings_1orb_square, NN_pairings_1orb_square
+    on_site_pairings_2orb_hex = construct_on_site_pairings_2orb_hex(config)
+    NN_pairings_2orb_hex = construct_NN_pairings_2orb_hex(config)
+
+    on_site_pairings_1orb_hex = construct_on_site_pairings_1orb_hex(config)
+    NN_pairings_1orb_hex = construct_NN_pairings_1orb_hex(config)
+
+    on_site_pairings_1orb_square = construct_on_site_pairings_1orb_square(config)
+    NN_pairings_1orb_square = construct_NN_pairings_1orb_square(config)
+
+    for pairing in on_site_pairings_2orb_hex + NN_pairings_2orb_hex + \
                on_site_pairings_1orb_hex + NN_pairings_1orb_hex + \
                on_site_pairings_1orb_square + NN_pairings_1orb_square:
-    print(check_parity(config, pairing))
+        print(check_parity(config, pairing))
+
+    return
+
+

@@ -1,6 +1,8 @@
 import numpy as np
 from copy import deepcopy
 
+abpc = 1.0
+
 def diff_modulo(x, y, L, d):
     if d >= 0:
         return (x - y + L) % L == d  # or (x - y + L) % L == L - d
@@ -63,7 +65,7 @@ def nearest_neighbor_hexagonal_dir(r1, r2, L):
     if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1):
         return 3
     return -1
-
+'''
 def nearest_neighbor_square(r1, r2, L):
     if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, 1):
         return True
@@ -74,7 +76,7 @@ def nearest_neighbor_square(r1, r2, L):
     #if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, -1):
     #    return True
     return False
-
+'''
 def fifth_nearest_neighbor(r1, r2, L):
     if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, -2):
         return True
@@ -171,7 +173,7 @@ def get_adjacency_list(config, max_len):
     return adjacency_list
 
 
-def H_TB_Sorella_square(L, mu):
+def H_TB_Sorella_square(L, mu, BC_twist = False):
     t1 = 1.
     n_orbitals = 1
     n_sublattices = 1
@@ -184,9 +186,14 @@ def H_TB_Sorella_square(L, mu):
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
 
+            bc_factor = 1.0
+            if BC_twist and r2[1] < r2[1]:
+                bc_factor = -1
+
             if nearest_neighbor_square(r1, r2, L):
-                K[first, second] = t1
+                K[first, second] = t1# * bc_factor
 
     # K = K + K.conj().T # already counted
+    print(np.sum(K))
     K = K - np.diag(mu * np.ones(n_sublattices * n_orbitals * L * L))
     return K
