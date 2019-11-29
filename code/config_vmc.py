@@ -8,7 +8,7 @@ import pairings
 class MC_parameters:
     def __init__(self):
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.U = 1.5 # the force of on-site Coulomb repulsion in the units of t1
+        self.U = 4 # the force of on-site Coulomb repulsion in the units of t1
         self.V = 0.  # the force of on-site Coulomb repulsion in the units of t1
         self.model = models.H_TB_Sorella_square
         self.n_orbitals = 1
@@ -23,7 +23,7 @@ class MC_parameters:
         self.N_electrons = self.total_dof // 2
         self.correlation = 10
         self.optimiser = optimisers.AdamOptimiser
-        self.opt_parameters = [0.5, 0.5, 1e-8, 1e-2]
+        self.opt_parameters = [0.5, 0.5, 1e-8, 1e-1]
         self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.initial_gap_parameters = np.array([0.35])
         self.initial_jastrow_parameters = np.array([0.35])

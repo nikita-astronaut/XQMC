@@ -35,7 +35,7 @@ def generate_MC_chain(hamiltinian, wavefunction):
     print('<E> / t / vol =', np.mean(energies) / vol, '+/-', np.std(energies) / np.sqrt(len(energies)) / vol)
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean[np.newaxis, :]), (Os - Os_mean[np.newaxis, :])) / len(Os_mean)).real
     print('|forces| =', np.sqrt(np.sum(forces ** 2)))
-    if True: # np.linalg.det(S_cov) == 0:
+    if np.linalg.det(S_cov) == 0:
         return forces
     return np.linalg.inv(S_cov).dot(forces)
 
