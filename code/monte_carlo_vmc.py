@@ -41,12 +41,12 @@ mu_parameter = config_vmc.mu  # chemical potential (mu)
 H = config_vmc.hamiltonian(config_vmc)
 opt = config_vmc.optimiser(config_vmc.opt_parameters)
 
-
 while True:
     results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc.hamiltonian(config_vmc), config_vmc, pairings_list, \
                                                                    mu_parameter, gap_parameters, jastrow_parameters) for i in range(n_cpus))
     
     energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)
+    print('estimating gradient on ', len(energies), 'samples')
     Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
     vol = config_vmc.total_dof // 2
 
@@ -66,16 +66,14 @@ while True:
     gap_parameters += step[1:2]
     jastrow_parameters += step[2:]
 
-
     
-'''
 for dt in np.logspace(-7, -8, 100):
     np.random.seed(13)
     wf_1 = wavefunction_singlet(config_vmc, pairings_list, [1.0], [1.0], [1.0])
     np.random.seed(13)
-    wf_2 = wavefunction_singlet(config_vmc, pairings_list, [1.0 + dt], [1.0], [1.0])
-    print((wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) * 2., wf_1.get_O()[0],
+    wf_2 = wavefunction_singlet(config_vmc, pairings_list, [1.0], [1.0], [1.0 + dt])
+    print((wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) * 2., wf_1.get_O()[2],
           2 * (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl))  # log derivative calculated explicitly
     # print(wf_1.get_O_pairing(0))  # log devirative calculated from O_k formula
-'''
+
 # generate_MC_chain(wf)
