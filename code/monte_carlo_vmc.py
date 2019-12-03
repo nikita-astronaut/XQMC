@@ -7,6 +7,8 @@ import pairings
 from joblib import Parallel, delayed
 import psutil
 n_cpus = psutil.cpu_count(logical = True) 
+print('performing simulation at', n_cpus, 'threads')
+
 xp = np
 try:
     import cupy as cp
