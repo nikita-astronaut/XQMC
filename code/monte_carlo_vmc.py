@@ -24,14 +24,15 @@ def get_MC_chain_result(hamiltonian, config_vmc, pairings_list, mu_parameter, ga
 
     energies = []
     Os = []
+    acceptance = []
     for MC_step in range(config_vmc.MC_chain):
         if MC_step % config_vmc.correlation == 0:
             energies.append(hamiltonian(wavefunction))
             Os.append(wavefunction.get_O())
 
-        wavefunction.perform_MC_step()
+        acceptance.append(wavefunction.perform_MC_step()[0])
 
-    return energies, Os
+    return energies, Os, acceptance
 
 pairings_list = config_vmc.pairings_list
 gap_parameters = config_vmc.initial_gap_parameters
@@ -46,15 +47,21 @@ while True:
                                                                    mu_parameter, gap_parameters, jastrow_parameters) for i in range(n_cpus))
     
     energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)
-    print('estimating gradient on ', len(energies), 'samples')
     Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
+    acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
+
     vol = config_vmc.total_dof // 2
 
     Os_mean = np.mean(Os, axis = 0)
     forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies) * Os_mean).real
+    
+    print('estimating gradient on ', len(energies), 'samples')
     print('<E> / t / vol =', np.mean(energies) / vol, '+/-', np.std(energies) / np.sqrt(len(energies)) / vol)
-    S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean[np.newaxis, :]), (Os - Os_mean[np.newaxis, :])) / len(Os_mean)).real
+    print('acceptance =', acceptance)
     print('|forces| =', np.sqrt(np.sum(forces ** 2)))
+    
+
+    S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean[np.newaxis, :]), (Os - Os_mean[np.newaxis, :])) / len(Os_mean)).real
     if np.linalg.det(S_cov) != 0:
         forces = np.linalg.inv(S_cov).dot(forces)  # stochastic reconfiguration
 

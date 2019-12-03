@@ -15,7 +15,7 @@ class MC_parameters:
         self.mu = 1.0
         self.hamiltonian = hamiltonians_vmc.hamiltonian_2bands
         self.n_sublattices = 1
-        self.MC_chain = 20000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
+        self.MC_chain = 200000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
         self.MC_thermalisation = 20000
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.N_electrons = 84 # only applied if PN_projection = True
