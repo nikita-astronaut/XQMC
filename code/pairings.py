@@ -288,12 +288,12 @@ def obtain_all_pairings(config):
 
     on_site_pairings_1orb_square = construct_on_site_pairings_1orb_square(config)
     NN_pairings_1orb_square = construct_NN_pairings_1orb_square(config)
-
+    '''
     for pairing in on_site_pairings_2orb_hex + NN_pairings_2orb_hex + \
                on_site_pairings_1orb_hex + NN_pairings_1orb_hex + \
                on_site_pairings_1orb_square + NN_pairings_1orb_square:
         print(check_parity(config, pairing))
-
+    '''
     return
 
 

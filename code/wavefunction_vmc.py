@@ -28,7 +28,7 @@ class wavefunction_singlet(object):
         while True:
             self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration()
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
-            if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.N_electrons:
+            if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
                 break
         self.W_GF = self._construct_W_GF()
         self.current_ampl = np.linalg.det(self.U_tilde_matrix) * self.get_cur_Jastrow_factor()
@@ -46,7 +46,6 @@ class wavefunction_singlet(object):
         Jastrow_ratio = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), \
                                                empty_site % (len(self.state) // 2), \
                                                delta_alpha, delta_beta)
-
         det_ratio = self.W_GF[empty_site, self.place_in_string[moved_site]]
         return det_ratio * Jastrow_ratio
 
@@ -72,7 +71,7 @@ class wavefunction_singlet(object):
         return V
 
     def _construct_mu_V(self):
-        V = np.diag([1.0] * self.K.shape[0] + [-1.0] * self.K.shape[0]) * 1.0j
+        V = -np.diag([1.0] * self.K.shape[0] + [-1.0] * self.K.shape[0]) + 0.0j
         return V
 
     def _get_derivative(self, V):  # obtaining (6.99) from S. Sorella book
@@ -104,7 +103,7 @@ class wavefunction_singlet(object):
         return np.array(O)
 
     def _construct_U_matrix(self):
-        self.K = self.config.model(self.config)
+        self.K = self.config.model(self.config, self.var_mu)
         # print(np.sum(self.K))
         Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         T = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j
@@ -117,8 +116,8 @@ class wavefunction_singlet(object):
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
         self.U_full = deepcopy(U)
         self.E = E
-        lowest_energy_states = np.argpartition(E, self.config.N_electrons)[:self.config.N_electrons]  # select lowest-energy orbitals
-        print('energy of filled states =', np.sum(self.E[lowest_energy_states]))
+        lowest_energy_states = np.argpartition(E, self.config.total_dof // 2)[:self.config.total_dof // 2]  # select lowest-energy orbitals
+        # print('energy of filled states =', np.sum(self.E[lowest_energy_states]))
         rest_energies = E[np.setdiff1d(np.arange(len(self.E)), lowest_energy_states)]
 
         U = U[:, lowest_energy_states]  # select only occupied orbitals
@@ -130,9 +129,9 @@ class wavefunction_singlet(object):
             # for E, c in zip(Es, counts):
             #     print(E, c)
             # print(np.sort(self.E), np.unique(np.around(self.E * 1e+5), return_counts = True))
-            exit(-1)
-        else:
-            print('Closed shell configuration, gap =', rest_energies.min() - self.E_fermi)
+            # exit(-1)
+        #else:
+            #print('Closed shell configuration, gap =', rest_energies.min() - self.E_fermi)
             # Es, counts = np.unique(np.around(self.E * 1e+5), return_counts = True)
             # for E, c in zip(Es, counts):
             #     print(E, c)
@@ -147,9 +146,16 @@ class wavefunction_singlet(object):
         U_tilde_inv = np.linalg.inv(self.U_tilde_matrix)
         return self.U_matrix.dot(U_tilde_inv)
 
+    # n_up = N/2 - k
+    # n_down = N/2 - k
+    # n_up_tilde = N/2 - k
+    # n_down_tilde = N - n_down = N/2 + k
     def _generate_configuration(self):
-        occupied_sites = np.random.choice(np.arange(self.config.total_dof), size = self.config.N_electrons, replace = False)  ## FIXME: DEBUG!!!
-        # occupied_sites = np.arange(self.config.N_electrons) * 2 + 1
+        doping = (self.config.total_dof // 2 - self.config.N_electrons) // 2  # k
+        occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), size = self.config.total_dof // 4 - doping, replace = False)
+        occupied_sites_holes = np.random.choice(np.arange(self.config.total_dof // 2, self.config.total_dof), size = self.config.total_dof // 4 + doping, replace = False)
+        occupied_sites = np.concatenate([occupied_sites_particles, occupied_sites_holes])
+
         place_in_string = (np.zeros(self.config.total_dof) - 1).astype(np.int64)
         place_in_string[occupied_sites] = np.arange(len(occupied_sites))
         self.state = np.zeros(self.config.total_dof, dtype=np.int64)
@@ -164,10 +170,18 @@ class wavefunction_singlet(object):
         return occupied_sites, empty_sites, place_in_string
 
     def perform_MC_step(self):
-        moved_site_idx = np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
-        moved_site = self.occupied_sites[moved_site_idx]
-        empty_site_idx = np.random.choice(np.arange(len(self.empty_sites)), 1)[0]
-        empty_site = self.empty_sites[empty_site_idx]
+        conserving_move = False
+        while not conserving_move:
+            moved_site_idx = np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
+            moved_site = self.occupied_sites[moved_site_idx]
+            empty_site_idx = np.random.choice(np.arange(len(self.empty_sites)), 1)[0]
+            empty_site = self.empty_sites[empty_site_idx]
+            if self.config.PN_projection:
+                if (moved_site > len(self.state) // 2 and empty_site > len(self.state) // 2) or \
+                   (moved_site <= len(self.state) // 2 and empty_site <= len(self.state) // 2):
+                   conserving_move = True
+            else:
+                conserving_move = True
 
         det_ratio = self.W_GF[empty_site, moved_site_idx]
 
@@ -188,6 +202,8 @@ class wavefunction_singlet(object):
         self.state[moved_site] = 0
         self.state[empty_site] = 1
         self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
+        # print(sum(self.occupancy))
+
         ### DEBUG ###
         # U_tilde_new = self._construct_U_tilde_matrix()
         # det_ratio_naive = np.linalg.det(U_tilde_new) ** 2 / np.linalg.det(self.U_tilde_matrix) ** 2

@@ -99,7 +99,7 @@ def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
 def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 2):
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
-def H_TB_simple(config, only_NN = False):
+def H_TB_simple(config, mu, only_NN = False):
     t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
     if only_NN:
         t2 = 0.0 + 0.0j
@@ -125,10 +125,10 @@ def H_TB_simple(config, only_NN = False):
                     K[first, second] = -np.imag(t2)
 
     K = K + K.conj().T
-    K = K - config.mu * np.eye(K.shape[0])
+    K = K - mu * np.eye(K.shape[0])
     return apply_twisted_periodic_conditions(config, K)
 
-def H_TB_Sorella_hexagonal(config):
+def H_TB_Sorella_hexagonal(config, mu):
     t1 = 1.
     K = np.zeros((config.total_dof // 2, config.total_dof // 2))
     for first in range(config.total_dof // 2):
@@ -143,7 +143,7 @@ def H_TB_Sorella_hexagonal(config):
                 K[first, second] = t1
 
     K = K + K.conj().T
-    K = K - config.mu * np.eye(K.shape[0])
+    K = K - mu * np.eye(K.shape[0])
     return apply_twisted_periodic_conditions(config, K)
 
 def interorbital_mod(A, n_orbitals):
@@ -154,10 +154,9 @@ def interorbital_mod(A, n_orbitals):
 
 def get_adjacency_list(config, max_len):
     if config.n_sublattices == 2:
-        K_matrix = H_TB_Sorella_hexagonal(config)  # only nearest-neighbors
+        K_matrix = H_TB_Sorella_hexagonal(config, 0.0)  # only nearest-neighbors
     else:
-        K_matrix = H_TB_Sorella_square(config)  # only nearest-neighbors
-    K_matrix += config.mu * np.eye(K_matrix.shape[0])  # remove mu!
+        K_matrix = H_TB_Sorella_square(config, 0.0)  # only nearest-neighbors
 
     A = np.abs(np.asarray(K_matrix)) > 1e-6
 
@@ -172,7 +171,7 @@ def get_adjacency_list(config, max_len):
     return adjacency_list
 
 
-def H_TB_Sorella_square(config):
+def H_TB_Sorella_square(config, mu):
     t1 = 1.
     K = np.zeros((config.total_dof // 2, config.total_dof // 2))
     for first in range(config.total_dof // 2):
@@ -187,8 +186,7 @@ def H_TB_Sorella_square(config):
                 K[first, second] = t1 # * bc_factor
 
     # K = K + K.conj().T # already counted
-    print(np.sum(K))
-    K = K - config.mu * np.eye(K.shape[0])
+    K = K - mu * np.eye(K.shape[0])
     return apply_twisted_periodic_conditions(config, K)
 
 def apply_twisted_periodic_conditions(config, K):

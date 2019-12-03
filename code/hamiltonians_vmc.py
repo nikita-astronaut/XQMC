@@ -46,7 +46,7 @@ class hamiltonian_4bands(HubbardHamiltonian):
 
     def _get_edges(self):
         edges_quadratic = []  # for t_{ij} c^{\dag}_i c_j interactions
-        K_matrix = self.config.model(self.config)
+        K_matrix = self.config.model(self.config, self.config.mu)
         for i in range(K_matrix.shape[0]):
             for j in range(K_matrix.shape[1]):
                 if K_matrix[i, j] != 0.0 and i != j:  # only for hoppings, \mu is accounted separately
@@ -73,7 +73,7 @@ class hamiltonian_2bands(HubbardHamiltonian):
 
     def _get_edges(self):
         edges_quadratic = []  # for t_{ij} c^{\dag}_i c_j interactions
-        K_matrix = self.config.model(self.config)
+        K_matrix = self.config.model(self.config, self.config.mu)
         for i in range(K_matrix.shape[0]):
             for j in range(K_matrix.shape[1]):
                 if K_matrix[i, j] != 0.0 and i != j:  # only for hoppings, \mu is accounted separately
