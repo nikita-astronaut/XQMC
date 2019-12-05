@@ -1,5 +1,6 @@
 import numpy as np
 import models
+from time import time
 
 class HubbardHamiltonian(object):
     def __init__(self, config):
@@ -26,14 +27,13 @@ class HubbardHamiltonian(object):
         for i, j, Hij in self.edges_quadratic:  # these are non-zero elements of a block-diagonal matrix diag(K, -K)
             if not ((base_state[i] == 1) and base_state[j] == 0):
                 continue
-
             E_loc += Hij * wavefunction.get_wf_ratio(i, j)
 
-        E_loc -= self.config.mu * (np.sum(particles) - np.sum(holes))
+        E_loc -= self.config.mu * (np.sum(particles) - np.sum(holes) + 1)
 
         # this sum runs in the real indices space (not 2--extended as above)
         for i, j, Vij in self.edges_quadric:  # TODO: this can be parallized
-            E_loc += Vij * (particles[i] - holes[i]) * (particles[j] - holes[j])
+            E_loc += Vij * particles[i] * (1. - holes[i]) # * (particles[j] - holes[j])
         self._states_dict[tuple(wavefunction.state)] = E_loc
         return E_loc
 
