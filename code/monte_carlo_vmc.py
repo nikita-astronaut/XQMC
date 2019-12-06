@@ -58,7 +58,7 @@ mu_parameter = config_vmc.initial_mu_parameters  # chemical potential (mu)
 H = config_vmc.hamiltonian(config_vmc)
 opt = config_vmc.optimiser(config_vmc.opt_parameters)
 
-
+n_step = 0
 while True:
     results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc.hamiltonian(config_vmc), config_vmc, pairings_list, \
                                                                    mu_parameter, gap_parameters, jastrow_parameters) for i in range(n_cpus))
@@ -72,29 +72,30 @@ while True:
     Os_mean = np.mean(Os, axis = 0)
     forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies) * Os_mean).real
 
-    print('estimating gradient on ', len(energies), 'samples')
-    print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m')
-    print('\033[92m acceptance =' + str(acceptance) + '\033[0m')
-    print('\033[94m |forces| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m')
+    print('estimating gradient on ', len(energies), 'samples', flush = True)
+    print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
+    print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
+    print('\033[94m |forces| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
 
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean[np.newaxis, :]), (Os - Os_mean[np.newaxis, :])) / Os.shape[0]).real
-    if np.linalg.det(S_cov) != 0:
-        forces = np.linalg.inv(S_cov).dot(forces)  # stochastic reconfiguration
-    print('\033[94m |forces after SR| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m')
-    print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m')
-    step = opt.get_step(forces)
+    S_cov = S_cov + np.diag(np.diag(S_cov)) * np.max([1e+0 * 0.9 ** n_step, 1e-4])
+    forces = np.linalg.inv(S_cov).dot(forces)  # stochastic reconfiguration
+    print('\033[94m |forces after SR| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
+    print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
+    step = 0.1 * forces #opt.get_step(forces)
     # print(forces, step)
 
     mu_parameter += step[0]
     gap_parameters += step[1:2]
     jastrow_parameters += step[2:]
+    n_step += 1
 
-
+'''
 dt = 1e-6
 np.random.seed(11)
-wf_1 = wavefunction_singlet(config_vmc, pairings_list, [0.1 - dt / 2], [0.1], [0.0])
+wf_1 = wavefunction_singlet(config_vmc, pairings_list, [0.1], [0.1], [0.0 - dt / 2])
 np.random.seed(11)
-wf_2 = wavefunction_singlet(config_vmc, pairings_list, [0.1 + dt / 2], [0.1], [0.0])  
+wf_2 = wavefunction_singlet(config_vmc, pairings_list, [0.1], [0.1], [0.0 + dt / 2])  
 print(wf_1.E - wf_2.E)
 while True:
     print(wf_1.get_O()[0], wf_2.get_O()[0])
@@ -103,8 +104,8 @@ while True:
     # print(np.linalg.det((wf_1.U_matrix.conj().T).dot(wf_2.U_matrix)))
     # print(wf_1.occupied_sites - wf_2.occupied_sites)
     # print(np.linalg.slogdet(wf_1.U_tilde_matrix)[1] - np.linalg.slogdet(wf_2.U_tilde_matrix)[1], np.linalg.slogdet(wf_2.U_tilde_matrix)[1])
-    print(2 * (wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0], \
-          2 * (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl) - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0],  - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0])  # log derivative calculated explicitly
+    print(2 * (wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) - 0.5 * wf_1.get_O()[2] - 0.5 * wf_2.get_O()[2], \
+          2 * (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl) - 0.5 * wf_1.get_O()[2] - 0.5 * wf_2.get_O()[2],  - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0])  # log derivative calculated explicitly
     a = np.random.randint(10000)
     np.random.seed(a)
     wf_1.perform_MC_step()
@@ -113,3 +114,4 @@ while True:
     # print(wf_1.get_O_pairing(0))  # log devirative calculated from O_k formula
 
 # generate_MC_chain(wf)
+'''

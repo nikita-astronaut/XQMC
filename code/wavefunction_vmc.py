@@ -161,6 +161,7 @@ class wavefunction_singlet(object):
         self.n_particles = int(np.rint((np.sum(U[:U.shape[0] // 2] * np.conj(U[:U.shape[0] // 2]))).real))
         self.n_holes = int(np.rint(np.sum(U[U.shape[0] // 2:] * np.conj(U[U.shape[0] // 2:])).real))
         # print(self.n_particles, self.n_holes)
+        # print(self.n_particles, self.n_holes)
         self.E_fermi = np.max(self.E[lowest_energy_states])
 
         if E[rest_states].min() - self.E_fermi < 1e-14:
@@ -194,9 +195,11 @@ class wavefunction_singlet(object):
         #doping = (self.n_particles - self.n_holes) // 2 
         doping = (self.config.total_dof // 2 - self.config.N_electrons) // 2  # k
         occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
-                                                    size = self.config.total_dof // 4 + doping, replace = False)
+                                                    size = self.config.total_dof // 4 - doping, replace = False)
+        # print('n)particles = ', self.config.total_dof // 4 - doping)
+        # print('n_holes = ', self.config.total_dof // 4 + doping)
         occupied_sites_holes = np.random.choice(np.arange(self.config.total_dof // 2, self.config.total_dof), 
-                                                size = self.config.total_dof // 4 - doping, replace = False)
+                                                size = self.config.total_dof // 4 + doping, replace = False)
         occupied_sites = np.concatenate([occupied_sites_particles, occupied_sites_holes])
 
         place_in_string = (np.zeros(self.config.total_dof) - 1).astype(np.int64)
