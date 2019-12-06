@@ -23,7 +23,7 @@ class HubbardHamiltonian(object):
         E_loc = 0.0 + 0.0j
         base_state = wavefunction.state
         particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
-
+        
         for i, j, Hij in self.edges_quadratic:  # these are non-zero elements of a block-diagonal matrix diag(K, -K)
             if not ((base_state[i] == 1) and base_state[j] == 0):
                 continue

@@ -25,7 +25,7 @@ class MC_parameters:
         self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.PN_projection = True
         self.initial_mu_parameters = -0.51
-        self.initial_gap_parameters = np.array([0.07])
+        self.initial_gap_parameters = np.array([0.08])
         self.initial_jastrow_parameters = np.array([1.16])
 
 config = MC_parameters()

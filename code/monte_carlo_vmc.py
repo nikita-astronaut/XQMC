@@ -17,19 +17,17 @@ try:
 except ImportError:
     pass
 
-def get_MC_chain_result(hamiltonian, config_vmc, pairings_list, mu_parameter, gap_parameters, jastrow_parameters):
-    t = time()
-    wavefunction = wavefunction_singlet(config_vmc, pairings_list, mu_parameter, gap_parameters, jastrow_parameters)
-    #print(time() - t)
-    t = time()
-    # print('doping =', 2 * wavefunction.n_particles / (config_vmc.total_dof // 2) - 1)
-    # print('n_particles =', wavefunction.n_particles, 'n_holes =', wavefunction.n_holes)
-    t = time()
-    for MC_step in range(config_vmc.MC_thermalisation):
-        wavefunction.perform_MC_step()
-    #print(time() - t)
-    #print('steps =', wavefunction.t_step, 'wfs =', wavefunction.t_wf,)
-    t = time()
+def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
+    hamiltonian = config_vmc.hamiltonian(config_vmc)
+    if final_state == False:
+        wavefunction = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, False, None)
+    else:
+        wavefunction = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, True, final_state)
+
+    if not wavefunction.with_previous_state:
+        for MC_step in range(config_vmc.MC_thermalisation):
+            wavefunction.perform_MC_step()
+
     t_steps = 0.0
     t_energies = 0.0
     t_Os = 0.0
@@ -47,8 +45,8 @@ def get_MC_chain_result(hamiltonian, config_vmc, pairings_list, mu_parameter, ga
         t = time()
         acceptance.append(wavefunction.perform_MC_step()[0])
         t_steps += time() - t
-    #print(t_steps, t_Os, t_energies)
-    return energies, Os, acceptance
+    print(t_steps, t_Os, t_energies)
+    return energies, Os, acceptance, wavefunction.get_state()
 
 pairings_list = config_vmc.pairings_list
 gap_parameters = config_vmc.initial_gap_parameters
@@ -59,13 +57,20 @@ H = config_vmc.hamiltonian(config_vmc)
 opt = config_vmc.optimiser(config_vmc.opt_parameters)
 
 n_step = 0
+final_states = []
+
 while True:
-    results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc.hamiltonian(config_vmc), config_vmc, pairings_list, \
-                                                                   mu_parameter, gap_parameters, jastrow_parameters) for i in range(n_cpus))
-    
+    if n_step == 0:
+        results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc, pairings_list, \
+                                                                       (mu_parameter, gap_parameters, jastrow_parameters)) for i in range(n_cpus))
+    else:
+        results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc, pairings_list, \
+                                                                       (mu_parameter, gap_parameters, jastrow_parameters), \
+                                                                       final_state = final_states[i]) for i in range(n_cpus))
     energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)
     Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
     acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
+    final_states = [x[3] for x in results]
 
     vol = config_vmc.total_dof // 2
 
@@ -86,8 +91,8 @@ while True:
     # print(forces, step)
 
     mu_parameter += step[0]
-    gap_parameters += step[1:2]
-    jastrow_parameters += step[2:]
+    # gap_parameters += step[1:2]
+    jastrow_parameters += step[1:]
     n_step += 1
 
 '''
