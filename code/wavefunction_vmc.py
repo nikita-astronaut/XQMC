@@ -4,6 +4,7 @@ import models_vmc
 import pairings
 import models
 from copy import deepcopy
+from numba import jit, jitclass
 
 xp = np
 try:
@@ -13,7 +14,7 @@ except ImportError:
     pass
 
 
-class wavefunction_singlet(object):
+class wavefunction_singlet():
     def __init__(self, config, pairings_list, var_mu, var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):
         self.config = config
@@ -39,7 +40,6 @@ class wavefunction_singlet(object):
                 self.state = np.zeros(self.config.total_dof, dtype=np.int64)
                 self.state[self.occupied_sites] = 1
                 self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
-                print('with previous state')
             else:
                 self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration()
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
@@ -47,7 +47,6 @@ class wavefunction_singlet(object):
                 break
             else:
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
-                print('not successful')
 
         self.W_GF = self._construct_W_GF()
         self.current_ampl = np.linalg.det(self.U_tilde_matrix) * self.get_cur_Jastrow_factor()
@@ -112,17 +111,14 @@ class wavefunction_singlet(object):
         '''
             O_i = \\partial{\\psi(x)}/ \\partial(w) / \\psi(x)
         '''
-        #if tuple(self.state) in self._state_dict:
-        #    return self._state_dict[tuple(self.state)]
 
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j  # TODO: this can be done ONCE for all gaps
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
-        ### pairings part ###
+
         O_mu = [self.get_O_pairing(self.W_mu_derivative)]
         O_pairing = [self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
         O_Jastrow = [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
         O = O_mu + O_Jastrow
-        #self._state_dict[tuple(self.state)] = np.array(O)
 
         return np.array(O)
 
@@ -135,7 +131,6 @@ class wavefunction_singlet(object):
 
         self.adjacency_list = [np.where(self.big_adjacency_matrix[:, i] > 0)[0] for i in range(self.big_adjacency_matrix.shape[1])]
 
-        # print(np.sum(self.K))
         Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         T = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j
         T[:self.K.shape[0], :self.K.shape[1]] = self.K
@@ -194,19 +189,19 @@ class wavefunction_singlet(object):
         self.MC_step_index += 1
         conserving_move = False
         n_attempts = 0
-        t = time()
+        # t = time()
         
         moved_site_idx = np.random.randint(0, len(self.occupied_sites)) #np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
         moved_site = self.occupied_sites[moved_site_idx]
         empty_site = self.adjacency_list[moved_site][np.random.randint(len(self.adjacency_list[moved_site]))]
 
         tmp = np.where(self.empty_sites == empty_site)[0]
-        self.t_step += time() - t
+        # self.t_step += time() - t
         if len(tmp) == 0:
             return False, 1
         empty_site_idx = tmp[0]
 
-        t = time()
+        # t = time()
         det_ratio = self.W_GF[empty_site, moved_site_idx]
 
         delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
@@ -215,10 +210,10 @@ class wavefunction_singlet(object):
         Jastrow_ratio = self.get_GW_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
         # test = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
 
-        self.t_wf += time() - t
+        # self.t_wf += time() - t
         if det_ratio ** 2 * (Jastrow_ratio ** 2) < self.random_numbers[self.MC_step_index]:
             return False, 1
-        t = time()
+        # t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
         self.occupied_sites[moved_site_idx] = empty_site
         self.empty_sites[empty_site_idx] = moved_site
@@ -239,7 +234,7 @@ class wavefunction_singlet(object):
         delta[moved_site_idx] = 1
         self.W_GF -= np.einsum('i,k->ik', self.W_GF[:, moved_site_idx], self.W_GF[empty_site, :] - delta) / \
                                self.W_GF[empty_site, moved_site_idx]  # TODO this is the most costly operation -- go for GPU
-        self.t_update += time() - t
+        # self.t_update += time() - t
         return True, det_ratio
 
 

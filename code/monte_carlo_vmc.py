@@ -45,7 +45,7 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
         t = time()
         acceptance.append(wavefunction.perform_MC_step()[0])
         t_steps += time() - t
-    print(t_steps, t_Os, t_energies)
+    print(t_steps, t_Os, t_energies, wavefunction.t_update)
     return energies, Os, acceptance, wavefunction.get_state()
 
 pairings_list = config_vmc.pairings_list
