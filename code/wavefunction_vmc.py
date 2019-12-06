@@ -1,10 +1,8 @@
 import numpy as np
 from time import time
-import models_vmc
 import pairings
 import models
 from copy import deepcopy
-from numba import jit, jitclass
 
 xp = np
 try:

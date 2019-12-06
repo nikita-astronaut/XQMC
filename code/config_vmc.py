@@ -1,6 +1,5 @@
 import models
 import numpy as np
-import models_vmc
 import hamiltonians_vmc
 import optimisers
 import pairings
