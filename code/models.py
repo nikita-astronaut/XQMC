@@ -154,9 +154,9 @@ def interorbital_mod(A, n_orbitals):
 
 def get_adjacency_list(config, max_len):
     if config.n_sublattices == 2:
-        K_matrix = H_TB_Sorella_hexagonal(config, 0.0)  # only nearest-neighbors
+        K_matrix = model_hex_1orb(config, 0.0)  # only nearest-neighbors
     else:
-        K_matrix = H_TB_Sorella_square(config, 0.0)  # only nearest-neighbors
+        K_matrix = model_square_1orb(config, 0.0)  # only nearest-neighbors
 
     A = np.abs(np.asarray(K_matrix)) > 1e-6
 
