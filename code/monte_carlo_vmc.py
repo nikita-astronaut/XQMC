@@ -23,29 +23,18 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
         wavefunction = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, False, None)
     else:
         wavefunction = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, True, final_state)
-
     if not wavefunction.with_previous_state:
         for MC_step in range(config_vmc.MC_thermalisation):
             wavefunction.perform_MC_step()
 
-    t_steps = 0.0
-    t_energies = 0.0
-    t_Os = 0.0
     energies = []
     Os = []
     acceptance = []
     for MC_step in range(config_vmc.MC_chain):
         if MC_step % config_vmc.correlation == 0:
-            t = time()
             energies.append(hamiltonian(wavefunction))
-            t_energies += time() - t
-            t = time()
             Os.append(wavefunction.get_O())
-            t_Os += time() - t
-        t = time()
         acceptance.append(wavefunction.perform_MC_step()[0])
-        t_steps += time() - t
-    print(t_steps, t_Os, t_energies, wavefunction.t_update, wavefunction.t_wf, wavefunction.t_step)
     return energies, Os, acceptance, wavefunction.get_state()
 
 pairings_list = config_vmc.pairings_list
