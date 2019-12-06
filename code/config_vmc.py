@@ -10,7 +10,7 @@ class MC_parameters:
         self.Ls = 10  # spatial size, the lattice will be of size Ls x Ls
         self.U = 8 # the force of on-site Coulomb repulsion in the units of t1
         self.V = 0.  # the force of on-site Coulomb repulsion in the units of t1
-        self.model = models.H_TB_Sorella_square
+        self.model = models.model_square_1orb
         self.n_orbitals = 1
         self.mu = 0.0
         self.hamiltonian = hamiltonians_vmc.hamiltonian_2bands

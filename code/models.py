@@ -99,7 +99,7 @@ def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
 def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 2):
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
-def H_TB_simple(config, mu, only_NN = False):
+def model_hex_2orb_Kashino(config, mu, only_NN = False):
     t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
     if only_NN:
         t2 = 0.0 + 0.0j
@@ -128,7 +128,7 @@ def H_TB_simple(config, mu, only_NN = False):
     K = K - mu * np.eye(K.shape[0])
     return apply_twisted_periodic_conditions(config, K)
 
-def H_TB_Sorella_hexagonal(config, mu):
+def model_hex_1orb(config, mu):
     t1 = 1.
     K = np.zeros((config.total_dof // 2, config.total_dof // 2))
     for first in range(config.total_dof // 2):
@@ -171,7 +171,7 @@ def get_adjacency_list(config, max_len):
     return adjacency_list
 
 
-def H_TB_Sorella_square(config, mu):
+def model_square_1orb(config, mu):
     t1 = 1.
     K = np.zeros((config.total_dof // 2, config.total_dof // 2))
     for first in range(config.total_dof // 2):
