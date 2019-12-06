@@ -29,7 +29,6 @@ class wavefunction_singlet():
         self.t_wf = 0
         self.t_step = 0
         self.t_update = 0
-        self.random_numbers = np.random.random(size = int(1e+6))
         self.MC_step_index = 0
 
         while True:
@@ -51,6 +50,10 @@ class wavefunction_singlet():
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
         self._state_dict = {}
+
+        self.random_numbers_acceptance = np.random.random(size = int(1e+6))
+        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+6))
+        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(1e+6))
         return
 
     def get_wf_ratio(self, moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
@@ -179,7 +182,7 @@ class wavefunction_singlet():
         # electrons are placed in occupied_states as they are in the string d_{R_1} d_{R_2} ... |0>
         empty_sites = np.arange(self.config.total_dof)
         empty_sites[occupied_sites] = -1
-        empty_sites = empty_sites[empty_sites > -0.5]
+        empty_sites = set(empty_sites[empty_sites > -0.5])
 
         return occupied_sites, empty_sites, place_in_string
 
@@ -187,19 +190,18 @@ class wavefunction_singlet():
         self.MC_step_index += 1
         conserving_move = False
         n_attempts = 0
-        # t = time()
         
-        moved_site_idx = np.random.randint(0, len(self.occupied_sites)) #np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
+        t = time()
+        moved_site_idx = self.random_numbers_move[self.MC_step_index]# np.random.randint(0, len(self.occupied_sites)) #np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
         moved_site = self.occupied_sites[moved_site_idx]
-        empty_site = self.adjacency_list[moved_site][np.random.randint(len(self.adjacency_list[moved_site]))]
+        empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]# np.random.randint(len(self.adjacency_list[moved_site]))]
+        
 
-        tmp = np.where(self.empty_sites == empty_site)[0]
-        # self.t_step += time() - t
-        if len(tmp) == 0:
+        self.t_step += time() - t
+        if empty_site not in self.empty_sites:
             return False, 1
-        empty_site_idx = tmp[0]
 
-        # t = time()
+        t = time()
         det_ratio = self.W_GF[empty_site, moved_site_idx]
 
         delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
@@ -208,13 +210,15 @@ class wavefunction_singlet():
         Jastrow_ratio = self.get_GW_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
         # test = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
 
-        # self.t_wf += time() - t
-        if det_ratio ** 2 * (Jastrow_ratio ** 2) < self.random_numbers[self.MC_step_index]:
+        self.t_wf += time() - t
+        if det_ratio ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
             return False, 1
-        # t = time()
+        t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
         self.occupied_sites[moved_site_idx] = empty_site
-        self.empty_sites[empty_site_idx] = moved_site
+        self.empty_sites.remove(empty_site)
+        self.empty_sites.add(moved_site)
+
         self.place_in_string[moved_site] = -1
         self.place_in_string[empty_site] = moved_site_idx
 
@@ -230,9 +234,10 @@ class wavefunction_singlet():
 
         delta = np.zeros(self.W_GF.shape[1])
         delta[moved_site_idx] = 1
+        # self.W_GF -= np.outer(self.W_GF[:, moved_site_idx], self.W_GF[empty_site, :] - delta) / self.W_GF[empty_site, moved_site_idx]
         self.W_GF -= np.einsum('i,k->ik', self.W_GF[:, moved_site_idx], self.W_GF[empty_site, :] - delta) / \
                                self.W_GF[empty_site, moved_site_idx]  # TODO this is the most costly operation -- go for GPU
-        # self.t_update += time() - t
+        self.t_update += time() - t
         return True, det_ratio
 
 

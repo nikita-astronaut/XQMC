@@ -23,17 +23,16 @@ class HubbardHamiltonian(object):
         E_loc = 0.0 + 0.0j
         base_state = wavefunction.state
         particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
-        
-        for i, j, Hij in self.edges_quadratic:  # these are non-zero elements of a block-diagonal matrix diag(K, -K)
-            if not ((base_state[i] == 1) and base_state[j] == 0):
-                continue
-            E_loc += Hij * wavefunction.get_wf_ratio(i, j)
+
+        edges_contributing = np.where(np.einsum('i,ij,j->ij', base_state == 1, self.edges_quadratic, base_state == 0) != 0.0)
+        # print(edges_contributing[0])
+        for i, j in zip(edges_contributing[0], edges_contributing[1]):
+            E_loc += self.edges_quadratic[i, j] * wavefunction.get_wf_ratio(i, j)
 
         E_loc -= self.config.mu * (np.sum(particles) - np.sum(holes) + 1)
 
         # this sum runs in the real indices space (not 2--extended as above)
-        for i, j, Vij in self.edges_quadric:  # TODO: this can be parallized
-            E_loc += Vij * particles[i] * (1. - holes[i]) # * (particles[j] - holes[j])
+        E_loc += np.einsum('i,ij,j', particles, self.edges_quadric, 1 - holes)
         self._states_dict[tuple(wavefunction.state)] = E_loc
         return E_loc
 
@@ -46,16 +45,13 @@ class hamiltonian_4bands(HubbardHamiltonian):
 
     def _get_edges(self):
         edges_quadratic = []  # for t_{ij} c^{\dag}_i c_j interactions
-        K_matrix = self.config.model(self.config, self.config.mu)
-        for i in range(K_matrix.shape[0]):
-            for j in range(K_matrix.shape[1]):
-                if K_matrix[i, j] != 0.0 and i != j:  # only for hoppings, \mu is accounted separately
-                    edges_quadratic.append((i, j, K_matrix[i, j]))  # particles pairing
-                    edges_quadratic.append((i + K_matrix.shape[0], j + K_matrix.shape[1], -K_matrix[i, j]))  # holes pairing
+        K_matrix = self.config.model(self.config, 0.0)
+        edges_quadratic = np.zeros((2 * K_matrix.shape[0], 2 * K_matrix.shape[1]))
+        edges_quadratic[:K_matrix.shape[0], :K_matrix.shape[1]] = K_matrix
+        edges_quadratic[K_matrix.shape[0]:, K_matrix.shape[1]:] = -K_matrix
 
-        edges_quadric = []  # for V_{ij} n_i n_j density--density interactions
-        for i in range(K_matrix.shape[0]):  # only on--site for now
-            edges_quadric.append((i, i, self.config.U))
+        # for V_{ij} n_i n_j density--density interactions
+        edges_quadric = np.diag([self.config.U] * K_matrix.shape[0])
 
         for i in range(K_matrix.shape[0]):
             for j in range(K_matrix.shape[1]):
@@ -63,7 +59,7 @@ class hamiltonian_4bands(HubbardHamiltonian):
                 orbit2, sublattice2, x2, y2 = models.from_linearized_index(j, self.config.Ls, self.config.n_orbitals)
 
                 if x1 == x2 and y1 == y2 and sublattice1 == sublattice2 and orbit1 != orbit2:
-                    edges_quadric.append((i, j, self.config.V))
+                    edges_quadric[i, j] = self.config.V
 
         return edges_quadratic, edges_quadric
 
@@ -73,15 +69,12 @@ class hamiltonian_2bands(HubbardHamiltonian):
 
     def _get_edges(self):
         edges_quadratic = []  # for t_{ij} c^{\dag}_i c_j interactions
-        K_matrix = self.config.model(self.config, self.config.mu)
-        for i in range(K_matrix.shape[0]):
-            for j in range(K_matrix.shape[1]):
-                if K_matrix[i, j] != 0.0 and i != j:  # only for hoppings, \mu is accounted separately
-                    edges_quadratic.append((i, j, K_matrix[i, j]))  # particles pairing
-                    edges_quadratic.append((i + K_matrix.shape[0], j + K_matrix.shape[1], -K_matrix[i, j]))  # holes pairing
+        K_matrix = self.config.model(self.config, 0.0)
+        edges_quadratic = np.zeros((2 * K_matrix.shape[0], 2 * K_matrix.shape[1]))
+        edges_quadratic[:K_matrix.shape[0], :K_matrix.shape[1]] = K_matrix
+        edges_quadratic[K_matrix.shape[0]:, K_matrix.shape[1]:] = -K_matrix
 
-        edges_quadric = []  # for V_{ij} n_i n_j density--density interactions
-        for i in range(K_matrix.shape[0]):  # only on--site for now
-            edges_quadric.append((i, i, self.config.U))
+        # for V_{ij} n_i n_j density--density interactions
+        edges_quadric = np.diag([self.config.U] * K_matrix.shape[0])
 
         return edges_quadratic, edges_quadric
