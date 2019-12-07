@@ -3,6 +3,7 @@ from time import time
 import pairings
 import models
 from copy import deepcopy
+from numba import jit
 
 xp = np
 try:
@@ -27,6 +28,8 @@ class wavefunction_singlet():
         self.with_previous_state = with_previous_state
 
         self.MC_step_index = 0
+        self.update = 0.
+        self.wf = 0.
 
         while True:
             if self.with_previous_state:
@@ -42,7 +45,11 @@ class wavefunction_singlet():
             else:
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
 
-        self.W_GF = self._construct_W_GF()
+        self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
+
+        self.a_update_list = []
+        self.b_update_list = []  # for delayed GF updates defined in (5.93 -- 5.97)
+
         self.current_ampl = np.linalg.det(self.U_tilde_matrix) * self.get_cur_Jastrow_factor()
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
@@ -52,23 +59,6 @@ class wavefunction_singlet():
         self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+6))
         self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(1e+6))
         return
-
-    def get_wf_ratio(self, moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
-        delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
-        delta_beta = +1 if empty_site < len(self.state) // 2 else -1
-
-        Jastrow_ratio = self.get_GW_ratio(moved_site % (len(self.state) // 2), \
-                                          empty_site % (len(self.state) // 2), \
-                                          delta_alpha, delta_beta)
-        det_ratio = self.W_GF[empty_site, self.place_in_string[moved_site]]
-        return det_ratio * Jastrow_ratio
-
-    def get_GW_ratio(self, alpha, beta, delta_alpha, delta_beta):
-        factor = self.Jastrow[alpha, alpha]
-        return np.exp(-0.5 * delta_alpha * self.occupancy[alpha] * 2 * factor - 
-                      0.5 * delta_beta * self.occupancy[beta] * 2 * factor - 
-                      0.5 * (delta_alpha ** 2 * self.Jastrow[alpha, alpha] + delta_beta ** 2 * self.Jastrow[beta, beta] + 
-                             delta_alpha * delta_beta * (self.Jastrow[alpha, beta] + self.Jastrow[beta, alpha])))
 
     def get_Jastrow_ratio(self, alpha, beta, delta_alpha, delta_beta):
         return np.exp(-0.5 * delta_alpha * np.sum((self.Jastrow[alpha, :] + self.Jastrow[:, alpha]) * self.occupancy) - 
@@ -188,24 +178,30 @@ class wavefunction_singlet():
         conserving_move = False
         n_attempts = 0
 
-        moved_site_idx = self.random_numbers_move[self.MC_step_index]# np.random.randint(0, len(self.occupied_sites)) #np.random.choice(np.arange(len(self.occupied_sites)), 1)[0]
+        moved_site_idx = self.random_numbers_move[self.MC_step_index]
         moved_site = self.occupied_sites[moved_site_idx]
-        empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]# np.random.randint(len(self.adjacency_list[moved_site]))]
+        empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]
         
         if empty_site not in self.empty_sites:
             return False, 1
 
-        det_ratio = self.W_GF[empty_site, moved_site_idx]
+        t = time()
+        det_ratio = self.W_GF[empty_site, moved_site_idx] + \
+                    np.sum([a[empty_site, 0] * b[moved_site_idx, 0] for a, b in zip(self.a_update_list, self.b_update_list)])
 
         delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
         delta_beta = +1 if empty_site < len(self.state) // 2 else -1
 
-        Jastrow_ratio = self.get_GW_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
+        Jastrow_ratio = get_GW_ratio(self.Jastrow, self.occupancy, moved_site % (len(self.state) // 2), 
+                                     empty_site % (len(self.state) // 2), 
+                                     delta_alpha, delta_beta)
         # test = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
 
-        if det_ratio ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
+        self.wf += time() - t
+        if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
             return False, 1
 
+        t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
         self.occupied_sites[moved_site_idx] = empty_site
         self.empty_sites.remove(empty_site)
@@ -218,20 +214,65 @@ class wavefunction_singlet():
         self.state[empty_site] = 1
         self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
 
-        ### DEBUG ###
-        # U_tilde_new = self._construct_U_tilde_matrix()
-        # det_ratio_naive = np.linalg.det(U_tilde_new) ** 2 / np.linalg.det(self.U_tilde_matrix) ** 2
-        # print(det_ratio, det_ratio_naive, det_ratio / det_ratio_naive - 1, np.linalg.matrix_rank(self.U_tilde_matrix))
-        # self.U_tilde_matrix = U_tilde_new # = self._construct_U_tilde_matrix()
+        a_new = 1. * self.W_GF[:, moved_site_idx]
+        if len(self.a_update_list) > 0:
+            a_new += np.sum(np.array([a[:, 0] * b[moved_site_idx, 0] \
+                            for a, b in zip(self.a_update_list, self.b_update_list)]), axis = 0)  # (5.94)
 
         delta = np.zeros(self.W_GF.shape[1])
         delta[moved_site_idx] = 1
-        # self.W_GF -= np.outer(self.W_GF[:, moved_site_idx], self.W_GF[empty_site, :] - delta) / self.W_GF[empty_site, moved_site_idx]
-        self.W_GF -= np.einsum('i,k->ik', self.W_GF[:, moved_site_idx], self.W_GF[empty_site, :] - delta) / \
-                               self.W_GF[empty_site, moved_site_idx]  # TODO this is the most costly operation -- go for GPU
 
+        b_new = 1. * self.W_GF[empty_site, :]
+        W_Kl = self.W_GF[empty_site, moved_site_idx]
+        if len(self.a_update_list) > 0:
+            b_new += np.sum(np.array([a[empty_site, 0] * b[:, 0] \
+                                      for a, b in zip(self.a_update_list, self.b_update_list)]), axis = 0)  # (5.95)
+            W_Kl += np.sum(np.array([a[empty_site, 0] * b[moved_site_idx, 0] \
+                                     for a, b in zip(self.a_update_list, self.b_update_list)]))  # (5.95)
+        b_new = -(b_new - delta) / W_Kl  # (5.95)
+
+        self.a_update_list.append(a_new[..., np.newaxis])
+        self.b_update_list.append(b_new[..., np.newaxis])
+
+        if len(self.a_update_list) == self.config.n_delayed_updates:
+            self.perform_explicit_GF_update()
+
+        self.update += time() - t 
         return True, det_ratio
 
+    def perform_explicit_GF_update(self):
+        if len(self.a_update_list) == 0:
+            return
+        A = np.concatenate(self.a_update_list, axis = 1)
+        B = np.concatenate(self.b_update_list, axis = 1)
+
+        self.W_GF += A.dot(B.T)  # (5.97)
+        self.a_update_list = []
+        self.b_update_list = []
+
+        return
 
     def get_state(self):
         return self.occupied_sites, self.empty_sites, self.place_in_string
+
+
+
+# had to move it outside of the class to speed-up with numba (jitclass is hard!)
+@jit(nopython=True)
+def get_GW_ratio(Jastrow, occupancy, alpha, beta, delta_alpha, delta_beta):
+    factor = Jastrow[alpha, alpha]
+    return np.exp(-0.5 * delta_alpha * occupancy[alpha] * 2 * factor - \
+                   0.5 * delta_beta * occupancy[beta] * 2 * factor - \
+                   0.5 * (delta_alpha ** 2 * Jastrow[alpha, alpha] + delta_beta ** 2 * Jastrow[beta, beta] + \
+                          delta_alpha * delta_beta * (Jastrow[alpha, beta] + Jastrow[beta, alpha])))
+
+@jit(nopython=True)
+def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
+                 moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
+    delta_alpha = -1 if moved_site < len(state) // 2 else +1
+    delta_beta = +1 if empty_site < len(state) // 2 else -1
+
+    Jastrow_ratio = get_GW_ratio(Jastrow, occupancy, moved_site % (len(state) // 2), \
+                                 empty_site % (len(state) // 2), delta_alpha, delta_beta)
+    det_ratio = W_GF[empty_site, place_in_string[moved_site]]
+    return det_ratio * Jastrow_ratio

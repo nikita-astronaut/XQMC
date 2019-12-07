@@ -1,6 +1,9 @@
 import numpy as np
 import models
 from time import time
+from wavefunction_vmc import get_wf_ratio
+from numba import jit
+from time import time
 
 class HubbardHamiltonian(object):
     def __init__(self, config):
@@ -17,23 +20,25 @@ class HubbardHamiltonian(object):
             E_loc(i) = \\sum_{j ~ i} H_{ij} \\psi_j / \\psi_i,
             where j ~ i are the all indixes having non-zero matrix element with i H_{ij}
         '''
-        if tuple(wavefunction.state) in self._states_dict:
-            return self._states_dict[tuple(wavefunction.state)]
+        # if tuple(wavefunction.state) in self._states_dict:
+        #     return self._states_dict[tuple(wavefunction.state)]
 
         E_loc = 0.0 + 0.0j
         base_state = wavefunction.state
         particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
 
-        edges_contributing = np.where(np.einsum('i,ij,j->ij', base_state == 1, self.edges_quadratic, base_state == 0) != 0.0)
-        # print(edges_contributing[0])
-        for i, j in zip(edges_contributing[0], edges_contributing[1]):
-            E_loc += self.edges_quadratic[i, j] * wavefunction.get_wf_ratio(i, j)
-
+        # t = time()
+        E_loc += get_E_quadratic(base_state, self.edges_quadratic, \
+                 (wavefunction.Jastrow, wavefunction.W_GF, wavefunction.place_in_string, wavefunction.state, wavefunction.occupancy))
+        # print('quadratic: ', time() - t)
+        # t = time()
         E_loc -= self.config.mu * (np.sum(particles) - np.sum(holes) + 1)
-
+        # print('mu: ', time() - t)
+        # t = time()
         # this sum runs in the real indices space (not 2--extended as above)
         E_loc += np.einsum('i,ij,j', particles, self.edges_quadric, 1 - holes)
-        self._states_dict[tuple(wavefunction.state)] = E_loc
+        # print('U: ', time() - t)
+        # self._states_dict[tuple(wavefunction.state)] = E_loc
         return E_loc
 
     def reset(self):
@@ -78,3 +83,23 @@ class hamiltonian_2bands(HubbardHamiltonian):
         edges_quadric = np.diag([self.config.U] * K_matrix.shape[0])
 
         return edges_quadratic, edges_quadric
+
+
+
+@jit(nopython=True)
+def get_E_quadratic(base_state, edges_quadratic, wf_state):
+    E_loc = 0.0 + 0.0j
+    '''
+    mask = np.outer(base_state == 1, base_state == 0)
+
+    edges_contributing = np.where(edges_quadratic * mask != 0.0)
+
+    for i, j in zip(edges_contributing[0], edges_contributing[1]):
+        E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, i, j)
+    '''
+    for i in range(len(base_state)):
+        for j in range(len(base_state)):
+            if not (base_state[i] == 1 and base_state[j] == 0):
+                continue
+            E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, i, j)
+    return E_loc

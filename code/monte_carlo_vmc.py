@@ -57,11 +57,24 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
     energies = []
     Os = []
     acceptance = []
+    t_energies = 0
+    t_steps = 0
+    t_forces = 0
+
     for MC_step in range(config_vmc.MC_chain):
         if MC_step % config_vmc.correlation == 0:
+            wavefunction.perform_explicit_GF_update()
+            t = time()
             energies.append(hamiltonian(wavefunction))
+            t_energies += time() - t
+            t = time()
             Os.append(wavefunction.get_O())
+            t_forces += time() - t
+        t = time()
         acceptance.append(wavefunction.perform_MC_step()[0])
+        t_steps += time() - t
+
+    print(t_energies, t_steps, wavefunction.update, wavefunction.wf, t_forces)
     return energies, Os, acceptance, wavefunction.get_state()
 
 pairings_list = config_vmc.pairings_list
@@ -103,7 +116,7 @@ while True:
     forces = np.linalg.inv(S_cov).dot(forces)  # stochastic reconfiguration
     print('\033[94m |forces after SR| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
     print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
-    step = 0.1 * forces #opt.get_step(forces)
+    step = 0.03 * forces #opt.get_step(forces)
     # print(forces, step)
 
     mu_parameter += step[0]
