@@ -1,8 +1,8 @@
 import numpy as np
 import time
-import models_vmc
+import sys
+import os
 from wavefunction_vmc import wavefunction_singlet
-from config_vmc import config as config_vmc
 import pairings
 from joblib import Parallel, delayed
 import psutil
@@ -16,6 +16,33 @@ try:
     xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
 except ImportError:
     pass
+
+# <<Borrowed>> from Tom
+def import_config(filename: str):
+    import importlib
+
+    module_name, extension = os.path.splitext(os.path.basename(filename))
+    module_dir = os.path.dirname(filename)
+    if extension != ".py":
+        raise ValueError(
+            "Could not import the network from {!r}: not a Python source file.".format(
+                filename
+            )
+        )
+    if not os.path.exists(filename):
+        raise ValueError(
+            "Could not import the network from {!r}: no such file or directory".format(
+                filename
+            )
+        )
+    sys.path.insert(0, module_dir)
+    module = importlib.import_module(module_name)
+    sys.path.pop(0)
+    return module
+
+config_vmc = import_config(sys.argv[1])
+from config_vmc import config as config_vmc
+
 
 def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
     hamiltonian = config_vmc.hamiltonian(config_vmc)
