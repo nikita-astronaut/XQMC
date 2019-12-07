@@ -14,7 +14,7 @@ class MC_parameters:
         self.mu = 0.0
         self.hamiltonian = hamiltonians_vmc.hamiltonian_2bands
         self.n_sublattices = 1
-        self.MC_chain = 60000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
+        self.MC_chain = 180000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
         self.MC_thermalisation = 60000
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.N_electrons = 84 # only applied if PN_projection = True
@@ -26,7 +26,8 @@ class MC_parameters:
         self.initial_mu_parameters = -0.50
         self.initial_gap_parameters = np.array([0.07])
         self.initial_jastrow_parameters = np.array([1.16])
-        self.n_delayed_updates = 20
+        self.n_delayed_updates = 5
+        self.log_name = '/home/astronaut/DQMC_TBG/log.dat'
 
 config = MC_parameters()
 pairings.obtain_all_pairings(config)

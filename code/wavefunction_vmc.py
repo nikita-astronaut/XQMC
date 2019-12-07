@@ -106,7 +106,7 @@ class wavefunction_singlet():
         O_mu = [self.get_O_pairing(self.W_mu_derivative)]
         O_pairing = [self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
         O_Jastrow = [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
-        O = O_mu + O_Jastrow
+        O = O_mu + O_pairing + O_Jastrow
 
         return np.array(O)
 
