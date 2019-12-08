@@ -115,16 +115,19 @@ while True:
     print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
     print('\033[94m |forces_raw| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
 
-    S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean[np.newaxis, :]), (Os - Os_mean[np.newaxis, :])) / Os.shape[0]).real
 
+    Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
 
-    forces_pc = forces / np.sqrt(np.diag(S_cov))  # below (6.52)
-    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.diag(S_cov)), S_cov, 1.0 / np.sqrt(np.diag(S_cov)))  # (6.51, scale-invariant regularization)
+    S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean), (Os - Os_mean)) / Os.shape[0]).real
+
+    forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
+    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
+    # (6.51, scale-invariant regularization)
     S_cov_pc += 1e-3 * np.eye(S_cov_pc.shape[0])  # (6.54)
     S_cov_pc_inv = np.linalg.inv(S_cov_pc)
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
-    step = step_pc / np.sqrt(np.diag(S_cov))
+    step = step_pc / np.sqrt(np.abs(np.diag(S_cov)))
     step = 0.03 * step  # learning-rate
 
     print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
