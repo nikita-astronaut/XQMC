@@ -24,11 +24,12 @@ class MC_parameters:
         self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.PN_projection = True
         self.initial_mu_parameters = -0.50
-        self.initial_gap_parameters = np.array([0.07])
+        self.initial_gap_parameters = np.array([0.02, 0.02, 0.02])
         self.initial_jastrow_parameters = np.array([1.16])
         self.n_delayed_updates = 5
-        self.log_name = '/home/astronaut/DQMC_TBG/log.dat'
+        self.log_name = '/home/astronaut/DQMC_TBG/log_sstarwave.dat'
 
 config = MC_parameters()
 pairings.obtain_all_pairings(config)
-config.pairings_list = [pairings.NN_pairings_1orb_square[1]]
+config.pairings_list = [pairings.NN_pairings_1orb_square_real[1], pairings.on_site_pairings_1orb_square_real[0], pairings.on_site_pairings_1orb_square_imag[0]]
+config.pairings_list_names = ['D-wave_re', 'S-wave_re', 'S-wave_im']

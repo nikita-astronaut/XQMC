@@ -78,6 +78,7 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
     return energies, Os, acceptance, wavefunction.get_state()
 
 pairings_list = config_vmc.pairings_list
+pairings_names = config_vmc.pairings_list_names
 gap_parameters = config_vmc.initial_gap_parameters
 jastrow_parameters = config_vmc.initial_jastrow_parameters
 mu_parameter = config_vmc.initial_mu_parameters  # chemical potential (mu)
@@ -90,7 +91,12 @@ log_file = open(config_vmc.log_name, 'w')
 n_step = 0
 final_states = []
 
-log_file.write("<opt_step> <energy> <denergy> <acceptance> <force> <Delta_sstar_im> <Delta_sstar_re> <Delta_D_im> <Delta_D_re> <Delta_S_im> <Delta_S_re> <Jastrow_g> <mu_BCS>\n")
+log_file.write("<opt_step> <energy> <denergy> <acceptance> <force>")
+for gap_name in pairings_names:
+    log_file.write(" <" + gap_name + ">")
+for i in range(len(jastrow_parameters)):
+    log_file.write(" <jastrow_" + str(i) + ">")
+log_file.write(' <mu_BCS>\n')
 
 while True:
     if n_step == 0:
@@ -120,6 +126,8 @@ while True:
 
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
 
+    # Hess = 2 * np.einsum('n,nk,nl->kl', (energies - energies.mean()), (Os - Os_mean).conj(), (Os - Os_mean)).real / Os.shape[0]
+
     forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
     S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
     # (6.51, scale-invariant regularization)
@@ -137,13 +145,9 @@ while True:
     gap_parameters += step[1:1 + len(gap_parameters)]
     jastrow_parameters += step[1 + len(gap_parameters):]
 
-    # gap_parameters[0] = np.max([1e-3, gap_parameters[0]])  # explicit regularizer (1e-3 is nothing! but below we can encounter instabilities)
-    # gap_parameters[1] = np.max([1e-3, gap_parameters[1]])
-
-    log_file.write("{:3d} {:.7e} {:.7e} {:.3e} {:.3e} {:.5e} {:.5e} {:.5e} {:.5e} \n".format(n_step, np.mean(energies).real / vol,
+    log_file.write(("{:3d} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
                      np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, np.sqrt(np.sum(forces ** 2)),
-                     gap_parameters[0], gap_parameters[1],
-                     jastrow_parameters[0], mu_parameter))
+                     *gap_parameters, *jastrow_parameters, mu_parameter))
     log_file.flush()
     n_step += 1
 
