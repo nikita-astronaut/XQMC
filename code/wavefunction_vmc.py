@@ -44,6 +44,7 @@ class wavefunction_singlet():
                 break
             else:
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
+                print('degenerate')
 
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
 
@@ -125,7 +126,6 @@ class wavefunction_singlet():
         T[self.K.shape[0]:, self.K.shape[1]:] = -self.K
         T[:self.K.shape[0], self.K.shape[1]:] = Delta
         T[self.K.shape[0]:, :self.K.shape[1]] = Delta.conj().T
-
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E

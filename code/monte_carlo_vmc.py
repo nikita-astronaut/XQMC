@@ -64,17 +64,17 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
     for MC_step in range(config_vmc.MC_chain):
         if MC_step % config_vmc.correlation == 0:
             wavefunction.perform_explicit_GF_update()
-            #  = time()
+            t = time()
             energies.append(hamiltonian(wavefunction))
-            # t_energies += time() - t
-            # t = time()
+            t_energies += time() - t
+            t = time()
             Os.append(wavefunction.get_O())
-            # t_forces += time() - t
-        # t = time()
+            t_forces += time() - t
+        t = time()
         acceptance.append(wavefunction.perform_MC_step()[0])
-        # t_steps += time() - t
+        t_steps += time() - t
 
-    # print(t_energies, t_steps, wavefunction.update, wavefunction.wf, t_forces)
+    print(t_energies, t_steps, wavefunction.update, wavefunction.wf, t_forces)
     return energies, Os, acceptance, wavefunction.get_state()
 
 pairings_list = config_vmc.pairings_list
@@ -90,7 +90,7 @@ log_file = open(config_vmc.log_name, 'w')
 n_step = 0
 final_states = []
 
-log_file.write("<opt_step> <energy> <denergy> <acceptance> <force> <Delta> <Jastrow_g> <mu_BCS>\n")
+log_file.write("<opt_step> <energy> <denergy> <acceptance> <force> <Delta_sstar_im> <Delta_sstar_re> <Delta_D_im> <Delta_D_re> <Delta_S_im> <Delta_S_re> <Jastrow_g> <mu_BCS>\n")
 
 while True:
     if n_step == 0:
@@ -108,27 +108,39 @@ while True:
     vol = config_vmc.total_dof // 2
 
     Os_mean = np.mean(Os, axis = 0)
-    forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies) * Os_mean).real
+    forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean).real
 
     print('estimating gradient on ', len(energies), 'samples', flush = True)
     print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
     print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
-    print('\033[94m |forces| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
+    print('\033[94m |forces_raw| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
 
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean[np.newaxis, :]), (Os - Os_mean[np.newaxis, :])) / Os.shape[0]).real
-    S_cov = S_cov + np.diag(np.diag(S_cov)) * np.max([1e+0 * 0.9 ** n_step, 1e-4])
-    forces = np.linalg.inv(S_cov).dot(forces)  # stochastic reconfiguration
-    print('\033[94m |forces after SR| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
-    print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
-    step = 0.03 * forces #opt.get_step(forces)
-    # print(forces, step)
-    mu_parameter += step[0]
-    gap_parameters += step[1:2]
-    jastrow_parameters += step[2:]
 
-    log_file.write("{:3d} {:.7e} {:.7e} {:.3e} {:.3e} {:.5e} {:.5e} {:.5e}\n".format(n_step, np.mean(energies).real / vol,
+
+    forces_pc = forces / np.sqrt(np.diag(S_cov))  # below (6.52)
+    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.diag(S_cov)), S_cov, 1.0 / np.sqrt(np.diag(S_cov)))  # (6.51, scale-invariant regularization)
+    S_cov_pc += 1e-3 * np.eye(S_cov_pc.shape[0])  # (6.54)
+    S_cov_pc_inv = np.linalg.inv(S_cov_pc_inv)
+
+    step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
+    step = step_pc / np.sqrt(np.diag(S_cov))
+    step = 0.03 * step  # learning-rate
+
+    print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
+    print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
+
+    mu_parameter += step[0]
+    gap_parameters += step[1:1 + len(gap_parameters)]
+    jastrow_parameters += step[1 + len(gap_parameters):]
+
+    # gap_parameters[0] = np.max([1e-3, gap_parameters[0]])  # explicit regularizer (1e-3 is nothing! but below we can encounter instabilities)
+    # gap_parameters[1] = np.max([1e-3, gap_parameters[1]])
+
+    log_file.write("{:3d} {:.7e} {:.7e} {:.3e} {:.3e} {:.5e} {:.5e} {:.5e} {:.5e} {:.5e} {:.5e} \n".format(n_step, np.mean(energies).real / vol,
                      np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, np.sqrt(np.sum(forces ** 2)),
-                     gap_parameters[0], jastrow_parameters[0], mu_parameter))
+                     gap_parameters[0], gap_parameters[1], gap_parameters[2], gap_parameters[3],
+                     jastrow_parameters[0], mu_parameter))
     log_file.flush()
     n_step += 1
 

@@ -267,27 +267,49 @@ def check_parity(config, pairing):
     return 'WTF is this shit?!'
 
 
-on_site_pairings_2orb_hex = None
-NN_pairings_2orb_hex = None
+on_site_pairings_2orb_hex_real = None
+NN_pairings_2orb_hex_real = None
 
-on_site_pairings_1orb_hex = None
-NN_pairings_1orb_hex = None
+on_site_pairings_1orb_hex_real = None
+NN_pairings_1orb_hex_real = None
 
-on_site_pairings_1orb_square = None
-NN_pairings_1orb_square = None
+on_site_pairings_1orb_square_real = None
+NN_pairings_1orb_square_real = None
+
+on_site_pairings_2orb_hex_imag = None
+NN_pairings_2orb_hex_imag = None
+
+on_site_pairings_1orb_hex_imag = None
+NN_pairings_1orb_hex_imag = None
+
+on_site_pairings_1orb_square_imag = None
+NN_pairings_1orb_square_imag = None
 
 def obtain_all_pairings(config):
-    global on_site_pairings_2orb_hex, NN_pairings_2orb_hex, \
-           on_site_pairings_1orb_hex, NN_pairings_1orb_hex, \
-           on_site_pairings_1orb_square, NN_pairings_1orb_square
-    on_site_pairings_2orb_hex = construct_on_site_pairings_2orb_hex(config)
-    NN_pairings_2orb_hex = construct_NN_pairings_2orb_hex(config)
+    global on_site_pairings_2orb_hex_imag, NN_pairings_2orb_hex_imag, \
+           on_site_pairings_1orb_hex_imag, NN_pairings_1orb_hex_imag, \
+           on_site_pairings_1orb_square_imag, NN_pairings_1orb_square_imag
+    global on_site_pairings_2orb_hex_real, NN_pairings_2orb_hex_real, \
+           on_site_pairings_1orb_hex_real, NN_pairings_1orb_hex_real, \
+           on_site_pairings_1orb_square_real, NN_pairings_1orb_square_real
 
-    on_site_pairings_1orb_hex = construct_on_site_pairings_1orb_hex(config)
-    NN_pairings_1orb_hex = construct_NN_pairings_1orb_hex(config)
+    on_site_pairings_2orb_hex_real = construct_on_site_pairings_2orb_hex(config)
+    NN_pairings_2orb_hex_real = construct_NN_pairings_2orb_hex(config)
 
-    on_site_pairings_1orb_square = construct_on_site_pairings_1orb_square(config)
-    NN_pairings_1orb_square = construct_NN_pairings_1orb_square(config)
+    on_site_pairings_1orb_hex_real = construct_on_site_pairings_1orb_hex(config)
+    NN_pairings_1orb_hex_real = construct_NN_pairings_1orb_hex(config)
+
+    on_site_pairings_1orb_square_real = construct_on_site_pairings_1orb_square(config)
+    NN_pairings_1orb_square_real = construct_NN_pairings_1orb_square(config)
+
+    on_site_pairings_2orb_hex_imag = construct_on_site_pairings_2orb_hex(config, real = False)
+    NN_pairings_2orb_hex_imag = construct_NN_pairings_2orb_hex(config, real = False)
+
+    on_site_pairings_1orb_hex_imag = construct_on_site_pairings_1orb_hex(config, real = False)
+    NN_pairings_1orb_hex_imag = construct_NN_pairings_1orb_hex(config, real = False)
+
+    on_site_pairings_1orb_square_imag = construct_on_site_pairings_1orb_square(config, real = False)
+    NN_pairings_1orb_square_imag = construct_NN_pairings_1orb_square(config, real = False)
     '''
     for pairing in on_site_pairings_2orb_hex + NN_pairings_2orb_hex + \
                on_site_pairings_1orb_hex + NN_pairings_1orb_hex + \
