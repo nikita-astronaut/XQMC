@@ -121,7 +121,7 @@ while True:
     forces_pc = forces / np.sqrt(np.diag(S_cov))  # below (6.52)
     S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.diag(S_cov)), S_cov, 1.0 / np.sqrt(np.diag(S_cov)))  # (6.51, scale-invariant regularization)
     S_cov_pc += 1e-3 * np.eye(S_cov_pc.shape[0])  # (6.54)
-    S_cov_pc_inv = np.linalg.inv(S_cov_pc_inv)
+    S_cov_pc_inv = np.linalg.inv(S_cov_pc)
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
     step = step_pc / np.sqrt(np.diag(S_cov))
