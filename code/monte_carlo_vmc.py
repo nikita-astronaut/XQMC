@@ -108,7 +108,7 @@ while True:
     vol = config_vmc.total_dof // 2
 
     Os_mean = np.mean(Os, axis = 0)
-    forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean)
+    forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean).real
 
     print('estimating gradient on ', len(energies), 'samples', flush = True)
     print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
@@ -118,17 +118,17 @@ while True:
 
     Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
 
-    S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0])
+    S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
 
-    forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov).real))  # below (6.52)
-    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov).real)), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov).real)))  
+    forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
+    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
     # (6.51, scale-invariant regularization)
     S_cov_pc += 1e-3 * np.eye(S_cov_pc.shape[0])  # (6.54)
     S_cov_pc_inv = np.linalg.inv(S_cov_pc)
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
-    step = step_pc / np.sqrt(np.abs(np.diag(S_cov).real))
-    step = 0.03 * step.real  # learning-rate
+    step = step_pc / np.sqrt(np.abs(np.diag(S_cov)))
+    step = 0.03 * step  # learning-rate
 
     print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
     print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)

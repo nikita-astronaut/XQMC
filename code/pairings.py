@@ -310,12 +310,9 @@ def obtain_all_pairings(config):
 
     on_site_pairings_1orb_square_imag = construct_on_site_pairings_1orb_square(config, real = False)
     NN_pairings_1orb_square_imag = construct_NN_pairings_1orb_square(config, real = False)
+
     '''
-    for pairing in on_site_pairings_2orb_hex + NN_pairings_2orb_hex + \
-               on_site_pairings_1orb_hex + NN_pairings_1orb_hex + \
-               on_site_pairings_1orb_square + NN_pairings_1orb_square:
-        print(check_parity(config, pairing))
+    for n, pairing in enumerate(NN_pairings_1orb_square_imag):
+        print(check_parity(config, pairing), n)
     '''
     return
-
-
