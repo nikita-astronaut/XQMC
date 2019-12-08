@@ -108,7 +108,7 @@ while True:
     vol = config_vmc.total_dof // 2
 
     Os_mean = np.mean(Os, axis = 0)
-    forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean).real
+    forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean)
 
     print('estimating gradient on ', len(energies), 'samples', flush = True)
     print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
@@ -118,17 +118,17 @@ while True:
 
     Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
 
-    S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean), (Os - Os_mean)) / Os.shape[0]).real
+    S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0])
 
-    forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
-    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
+    forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov).real))  # below (6.52)
+    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov).real)), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov).real)))  
     # (6.51, scale-invariant regularization)
     S_cov_pc += 1e-3 * np.eye(S_cov_pc.shape[0])  # (6.54)
     S_cov_pc_inv = np.linalg.inv(S_cov_pc)
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
-    step = step_pc / np.sqrt(np.abs(np.diag(S_cov)))
-    step = 0.03 * step  # learning-rate
+    step = step_pc / np.sqrt(np.abs(np.diag(S_cov).real))
+    step = 0.03 * step.real  # learning-rate
 
     print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
     print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
@@ -140,29 +140,44 @@ while True:
     # gap_parameters[0] = np.max([1e-3, gap_parameters[0]])  # explicit regularizer (1e-3 is nothing! but below we can encounter instabilities)
     # gap_parameters[1] = np.max([1e-3, gap_parameters[1]])
 
-    log_file.write("{:3d} {:.7e} {:.7e} {:.3e} {:.3e} {:.5e} {:.5e} {:.5e} {:.5e} {:.5e} {:.5e} \n".format(n_step, np.mean(energies).real / vol,
+    log_file.write("{:3d} {:.7e} {:.7e} {:.3e} {:.3e} {:.5e} {:.5e} {:.5e} {:.5e} \n".format(n_step, np.mean(energies).real / vol,
                      np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, np.sqrt(np.sum(forces ** 2)),
-                     gap_parameters[0], gap_parameters[1], gap_parameters[2], gap_parameters[3],
+                     gap_parameters[0], gap_parameters[1],
                      jastrow_parameters[0], mu_parameter))
     log_file.flush()
     n_step += 1
 
 '''
-dt = 1e-6
+dt = 1e-10
 np.random.seed(11)
-wf_1 = wavefunction_singlet(config_vmc, pairings_list, [0.1], [0.1], [0.0 - dt / 2])
+wf_1 = wavefunction_singlet(config_vmc, pairings_list, [0.0], [0.1 - dt / 2, 0.1], [0.0], False, None)
 np.random.seed(11)
-wf_2 = wavefunction_singlet(config_vmc, pairings_list, [0.1], [0.1], [0.0 + dt / 2])  
-print(wf_1.E - wf_2.E)
+wf_2 = wavefunction_singlet(config_vmc, pairings_list, [0.0], [0.1 + dt / 2, 0.1], [0.0], False, None)  
+# print(wf_1.E - wf_2.E)
 while True:
-    print(wf_1.get_O()[0], wf_2.get_O()[0])
+    # print(wf_1.get_O()[1], wf_2.get_O()[1])
     # print(np.sum(np.abs(wf_1.U_matrix - wf_2.U_matrix)), np.linalg.matrix_rank(np.concatenate([wf_1.U_matrix, wf_2.U_matrix], axis = 1)), np.concatenate([wf_1.U_matrix, wf_2.U_matrix], axis = 1).shape)
     
     # print(np.linalg.det((wf_1.U_matrix.conj().T).dot(wf_2.U_matrix)))
     # print(wf_1.occupied_sites - wf_2.occupied_sites)
     # print(np.linalg.slogdet(wf_1.U_tilde_matrix)[1] - np.linalg.slogdet(wf_2.U_tilde_matrix)[1], np.linalg.slogdet(wf_2.U_tilde_matrix)[1])
-    print(2 * (wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) - 0.5 * wf_1.get_O()[2] - 0.5 * wf_2.get_O()[2], \
-          2 * (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl) - 0.5 * wf_1.get_O()[2] - 0.5 * wf_2.get_O()[2],  - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0])  # log derivative calculated explicitly
+    # print(wf_2.current_ampl, -wf_1.current_ampl)
+    wf_1.perform_explicit_GF_update()
+    wf_2.perform_explicit_GF_update()
+    der = wf_1.get_O()[1]
+    diffs = []
+    print((-np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl)) / dt / np.abs(wf_1.current_ampl) - der, \
+           (np.angle(wf_2.current_ampl) - np.angle(wf_1.current_ampl)) / dt - der.imag, \
+           np.angle(wf_2.current_ampl), np.angle(wf_1.current_ampl))
+
+    # omega = np.exp(2 * np.pi * np.arange(int(1e+8)) / 1e+8 * 1.0j)
+    # A1 = wf_1.current_ampl
+    # A2 = wf_2.current_ampl * omega
+    # diffs = (wf_2.current_ampl * omega - A1) / dt / (A1) - der
+    #   print(np.min(np.abs(np.array(diffs))))
+    #print(2 * (wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) - 0.5 * wf_1.get_O()[2] - 0.5 * wf_2.get_O()[2], \
+    #      2 * (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl) - 0.5 * wf_1.get_O()[2] - 0.5 * wf_2.get_O()[2],  \
+    #      - 0.5 * wf_1.get_O()[1] - 0.5 * wf_2.get_O()[2])  # log derivative calculated explicitly
     a = np.random.randint(10000)
     np.random.seed(a)
     wf_1.perform_MC_step()

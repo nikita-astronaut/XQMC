@@ -52,6 +52,7 @@ class wavefunction_singlet():
         self.b_update_list = []  # for delayed GF updates defined in (5.93 -- 5.97)
 
         self.current_ampl = np.linalg.det(self.U_tilde_matrix) * self.get_cur_Jastrow_factor()
+        self.current_det = np.linalg.det(self.U_tilde_matrix)
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
         self._state_dict = {}
@@ -203,7 +204,13 @@ class wavefunction_singlet():
 
         t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
+        self.current_det *= det_ratio
         self.occupied_sites[moved_site_idx] = empty_site
+
+        ## debug
+        # det_after = np.linalg.det(self.U_matrix[self.occupied_sites, :])
+        # print((self.current_det - det_after) / det_after, 'ratio check')
+
         self.empty_sites.remove(empty_site)
         self.empty_sites.add(moved_site)
 
