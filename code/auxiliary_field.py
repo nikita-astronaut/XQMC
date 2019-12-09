@@ -264,9 +264,9 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
 
     def _V_from_configuration(self, s, sign, spin):
         if spin > 0:
-            V = self.config.nu_U * sign * np.array([s[0], s[1]]) + self.config.nu_V * sign * np.array([s[2] + s[3], -s[2] - s[4]])
+            V = self.config.nu_V * sign * np.array([-s[0], s[0]]) + self.config.nu_U * sign * np.array([s[2], s[1]])
         else:
-            V = self.config.nu_U * sign * np.array([-s[0], -s[1]]) + self.config.nu_V * sign * np.array([s[4] + s[5], -s[3] - s[5]])
+            V = self.config.nu_V * sign * np.array([-s[0], s[0]]) + self.config.nu_U * sign * np.array([-s[2], -s[1]])
         return np.diag(np.exp(V))
 
         #return scipy.linalg.expm(sign * np.array([[self.config.nu_U * configuration[0, 0] + self.config.nu_V * configuration[0, 1], 0],
@@ -274,9 +274,9 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
-            self.configuration = np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2 // 2, 6)) * 2. - 1.0
+            self.configuration = np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
         if self.config.start_type == 'hot':
-            self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 6)) * 2. - 1.0
+            self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
 
         self.V_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
         self.Vinv_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))

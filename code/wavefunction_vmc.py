@@ -208,7 +208,7 @@ class wavefunction_singlet():
         self.occupied_sites[moved_site_idx] = empty_site
 
         ## debug
-        # det_after = np.linalg.det(self.U_matrix[self.occupied_sites, :])
+        #det_after = np.linalg.det(self.U_matrix[self.occupied_sites, :])
         # print((self.current_det - det_after) / det_after, 'ratio check')
 
         self.empty_sites.remove(empty_site)

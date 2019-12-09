@@ -101,9 +101,9 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
         # print(current_det_log + det_log_up_check + det_log_down_check)
         # t = time.time()
 
-        for sp_index in range(phi_field.config.total_dof // 4 * 6):
-            site_idx = sp_index // 6
-            o_index = sp_index % 6
+        for sp_index in range(phi_field.config.total_dof // 4 * 3):
+            site_idx = sp_index // 3
+            o_index = sp_index % 3
 
             # t = time.time()
 

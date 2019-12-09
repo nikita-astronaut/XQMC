@@ -4,8 +4,8 @@ import auxiliary_field
 dt_in_inv_t1 = 0.10
 U_in_t1 = 4
 V_in_t1 = 4
-nu_V = np.arccosh(np.exp(V_in_t1 * dt_in_inv_t1 / 2.))
-nu_U = np.arccosh(np.exp(U_in_t1 * dt_in_inv_t1 / 2.))
+nu_V = np.arccosh(np.exp(2 * V_in_t1 * dt_in_inv_t1))
+nu_U = np.arccosh(np.exp((U_in_t1 / 2. + V_in_t1) * dt_in_inv_t1))
 main_hopping = 1.0
 
 class simulation_parameters:

@@ -30,9 +30,9 @@ def construct_NN_delta(config, direction, geometry):
             # TODO: check models.nearest_neighbor
             if direction == models.nearest_neighbor(r1, r2, config.Ls, geometry, return_direction = True)[1]:
                 delta[first, second] = 1
-    ret = delta + delta.T
-    ret[np.where(ret != 0)] = 1
-    return ret
+    # ret = delta + delta.T
+    # ret[np.where(ret != 0)] = 1
+    return delta
 
 def construct_vi_hex(vi):
     '''

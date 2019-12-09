@@ -154,9 +154,9 @@ while True:
 '''
 dt = 1e-10
 np.random.seed(11)
-wf_1 = wavefunction_singlet(config_vmc, pairings_list, [0.0], [0.1 - dt / 2, 0.1], [0.0], False, None)
+wf_1 = wavefunction_singlet(config_vmc, pairings_list, [-5. - dt / 2], [1e-7], [0.0], False, None)
 np.random.seed(11)
-wf_2 = wavefunction_singlet(config_vmc, pairings_list, [0.0], [0.1 + dt / 2, 0.1], [0.0], False, None)  
+wf_2 = wavefunction_singlet(config_vmc, pairings_list, [-5. + dt / 2], [1e-7], [0.0], False, None)  
 # print(wf_1.E - wf_2.E)
 while True:
     # print(wf_1.get_O()[1], wf_2.get_O()[1])
@@ -168,20 +168,20 @@ while True:
     # print(wf_2.current_ampl, -wf_1.current_ampl)
     wf_1.perform_explicit_GF_update()
     wf_2.perform_explicit_GF_update()
-    der = wf_1.get_O()[1]
-    diffs = []
-    print((-np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl)) / dt / np.abs(wf_1.current_ampl) - der, \
-           (np.angle(wf_2.current_ampl) - np.angle(wf_1.current_ampl)) / dt - der.imag, \
-           np.angle(wf_2.current_ampl), np.angle(wf_1.current_ampl))
+    # der = wf_1.get_O()[1]
+    # diffs = []
+    # print((-np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl)) / dt / np.abs(wf_1.current_ampl) - der, \
+    #        (np.angle(wf_2.current_ampl) - np.angle(wf_1.current_ampl)) / dt - der.imag, \
+    #        np.angle(wf_2.current_ampl), np.angle(wf_1.current_ampl))
 
     # omega = np.exp(2 * np.pi * np.arange(int(1e+8)) / 1e+8 * 1.0j)
     # A1 = wf_1.current_ampl
     # A2 = wf_2.current_ampl * omega
     # diffs = (wf_2.current_ampl * omega - A1) / dt / (A1) - der
     #   print(np.min(np.abs(np.array(diffs))))
-    #print(2 * (wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) - 0.5 * wf_1.get_O()[2] - 0.5 * wf_2.get_O()[2], \
-    #      2 * (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl) - 0.5 * wf_1.get_O()[2] - 0.5 * wf_2.get_O()[2],  \
-    #      - 0.5 * wf_1.get_O()[1] - 0.5 * wf_2.get_O()[2])  # log derivative calculated explicitly
+    print(2 * (wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0], \
+          2 * (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl) - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0],  \
+          - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0])  # log derivative calculated explicitly
     a = np.random.randint(10000)
     np.random.seed(a)
     wf_1.perform_MC_step()
