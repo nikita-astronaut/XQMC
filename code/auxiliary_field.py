@@ -62,7 +62,7 @@ class auxiliary_field_intraorbital:
         u2, s2, v2 = svd_rhs
         m = v1.dot(u2)
         middle_mat = (u1.T).dot(v2.T) + xp.diag(s1).dot(m).dot(xp.diag(s2))
-        um, sm, vm = xp.linalg.svd(middle_mat)
+        um, sm, vm = scipy.linalg.svd(middle_mat, lapack_driver='gesvd')
 
         left = (vm.dot(v2)).T
         right = (u1.dot(um)).T
@@ -80,8 +80,8 @@ class auxiliary_field_intraorbital:
         self._get_partial_SVD_decompositions(spin = +1)
         self._get_partial_SVD_decompositions(spin = -1)
 
-        self.current_lhs_SVD_up = list(xp.linalg.svd(xp.diag(xp.ones(self.config.total_dof // 2))))
-        self.current_lhs_SVD_down = list(xp.linalg.svd(xp.diag(xp.ones(self.config.total_dof // 2))));
+        self.current_lhs_SVD_up = list(scipy.linalg.svd(xp.diag(xp.ones(self.config.total_dof // 2)), lapack_driver='gesvd'))
+        self.current_lhs_SVD_down = list(scipy.linalg.svd(xp.diag(xp.ones(self.config.total_dof // 2)), lapack_driver='gesvd'));
         return
 
     def _product_svds(self, svd1, svd2):
@@ -89,7 +89,7 @@ class auxiliary_field_intraorbital:
         u2, s2, v2 = svd2
         m = v1.dot(u2)
         middle_mat = xp.diag(s1).dot(m).dot(xp.diag(s2))
-        um, sm, vm = xp.linalg.svd(middle_mat)
+        um, sm, vm = scipy.linalg.svd(middle_mat, lapack_driver='gesvd')
         return u1.dot(um), sm, vm.dot(v2)
 
     def append_new_decomposition(self, tmin, tmax):
@@ -114,10 +114,18 @@ class auxiliary_field_intraorbital:
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                u, s, v = self.la.linalg.svd(M)
+                u, s, v = scipy.linalg.svd(M.astype(np.float64), lapack_driver='gesvd')  # this is a VERY tricky point
+                # there are two possible lapack drivers: gesdd and gesvd. the former ises the divide-and-conquer approach and is faster,
+                # while the latter performs QR decomposition and is MUCH MORE PRECISE. As small T and large U this is CRUCIAL
+                # otherwise the SVD decomposition is a complete mess.
+                # numpy uses gesdd and thus can not be osed in this calculation
+                # cupy and scipy, on contrary, use gesvd and must be used as the GPU and CPU backends, respectively
+                
+                # print('refresh', nr)
                 # print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
                 # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-11))
                 # print(xp.max(xp.abs(xp.eye(self.config.total_dof // 2) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
+                
                 current_U = current_U.dot(u)
                 if spin == +1:
                     self.partial_SVD_decompositions_up.append((current_U, s, v))
@@ -135,12 +143,12 @@ class auxiliary_field_intraorbital:
         for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
-            u, s, v = self.la.linalg.svd(M)
+            u, s, v = scipy.linalg.svd(M, lapack_driver='gesvd')
             # print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
             current_U = current_U.dot(u)
             M = self.la.diag(s).dot(v)
         m = current_U.T.dot(v.T) + self.la.diag(s)
-        um, sm, vm = self.la.linalg.svd(m)
+        um, sm, vm = scipy.linalg.svd(m, lapack_driver='gesvd')
         return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1))
 
     def get_assymetry_factor(self):
@@ -154,7 +162,7 @@ class auxiliary_field_intraorbital:
         
         for time_slice in range(tmin, tmax):
             M = self.B_l(spin, time_slice, inverse = False).dot(M)
-        return xp.linalg.svd(M)
+        return scipy.linalg.svd(M, lapack_driver='gesvd')  # this is a VERY tricky point (do not change the lapack driver!)
 
     def _load_configuration(self, path):
         return np.load(start_type)
@@ -348,7 +356,7 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         else:
             self.Delta_down = self.la.asarray(Delta)
             G = self.current_G_function_down
-        return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - cp.asnumpy(G[sx : sy + 1, sx : sy + 1])))
+        return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - G[sx : sy + 1, sx : sy + 1]))
 
     def update_G_seq(self, spin, sp_index, time_slice, o_index):
         if spin == +1:

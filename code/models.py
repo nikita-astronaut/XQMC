@@ -100,7 +100,7 @@ def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
 def model_hex_2orb_Kashino(config, mu, only_NN = False):
-    t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
+    t1, t2 = 0.331, 0 * (-0.010 + 1.0j * 0.097)
     if only_NN:
         t2 = 0.0 + 0.0j
 

@@ -126,6 +126,7 @@ class wavefunction_singlet():
         T[:self.K.shape[0], :self.K.shape[1]] = self.K
         T[self.K.shape[0]:, self.K.shape[1]:] = -self.K
         T[:self.K.shape[0], self.K.shape[1]:] = Delta
+
         T[self.K.shape[0]:, :self.K.shape[1]] = Delta.conj().T
         E, U = np.linalg.eigh(T)
 

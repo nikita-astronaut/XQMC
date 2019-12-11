@@ -43,7 +43,6 @@ def import_config(filename: str):
 config_vmc = import_config(sys.argv[1])
 from config_vmc import config as config_vmc
 
-
 def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
     hamiltonian = config_vmc.hamiltonian(config_vmc)
     if final_state == False:

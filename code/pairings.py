@@ -7,10 +7,10 @@ Xpauli = np.array([[0, 1], [1, 0]])
 iYpauli = np.array([[0, 1], [-1, 0]])
 Zpauli = np.array([[1, 0], [0, -1]])
 
-sigma_1 = Zpauli + 1.0j * Xpauli
-sigma_2 = Zpauli - 1.0j * Xpauli
+sigma_1 = (Zpauli + 1.0j * Xpauli) / np.sqrt(2)
+sigma_2 = (Zpauli - 1.0j * Xpauli) / np.sqrt(2)
 
-delta_hex = []
+delta_hex_AB, delta_hex_BA = [], []
 delta_square = []
 
 identity = np.array([[1]])
@@ -18,23 +18,40 @@ identity = np.array([[1]])
 def construct_onsite_delta(config):
     return np.eye(config.Ls ** 2)
 
+
+'''
+    1) in the case of square lattice constructs just the adjacency matrix with links looking onle in one direction (e.g. only up)
+    2) for hexagonal lattice the geometry is harder. We can have links of two kinds (A->B and B->A), and every link has three
+       possible directions. This function only gives AB--links, BA links are obtained via the transposition of the result
+'''
 def construct_NN_delta(config, direction, geometry):
-    delta = np.zeros((config.Ls ** 2, config.Ls ** 2))
+    if geometry == 'square':
+        interlattice = 0
+        n_sublattices = 1
+    else:
+        interlattice = 1  # interlattice -- sublattice2 - sublattice1
+        n_sublattices = 2
+
+    delta = np.zeros((config.Ls ** 2 * n_sublattices, config.Ls ** 2 * n_sublattices))
 
     for first in range(delta.shape[0]):
         for second in range(delta.shape[1]):
-            x1, y1 = first // config.Ls, first % config.Ls
-            x2, y2 = second // config.Ls, second % config.Ls
+            sublattice1, sublattice2 = first % n_sublattices, second % n_sublattices
+            space1, space2 = first // n_sublattices, second // n_sublattices
+            x1, y1 = space1 // config.Ls, space1 % config.Ls
+            x2, y2 = space2 // config.Ls, space2 % config.Ls
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
-            # TODO: check models.nearest_neighbor
+
+            if interlattice != sublattice2 - sublattice1:
+                continue
+
             if direction == models.nearest_neighbor(r1, r2, config.Ls, geometry, return_direction = True)[1]:
                 delta[first, second] = 1
-    # ret = delta + delta.T
-    # ret[np.where(ret != 0)] = 1
+
     return delta
 
-def construct_vi_hex(vi):
+def construct_vi_hex(vi, delta_hex):
     '''
         v[1] = delta1 + delta2 + delta3
         v[2] = delta1 + omega delta2 + omega^* delta3
@@ -43,7 +60,7 @@ def construct_vi_hex(vi):
         v[1] furnishes the A1--representation in the NN-space,
         v[2]uv[3] furnish the E--representation
     '''
-    global delta_hex
+
     phase_factor = 1.0 + 0.0j
     if vi == 2:
         phase_factor = np.exp(2.0 * np.pi / 3. * 1.0j)
@@ -90,16 +107,25 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     for first in range(Delta.shape[0]):
         for second in range(Delta.shape[1]):
-            orbit1, sublattice1, x1, y1 = models.from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
-            orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit1, sublattice1, x1, y1 = models.from_linearized_index(deepcopy(first), \
+                                                 config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), \
+                                                 config.Ls, config.n_orbitals, config.n_sublattices)
             space1 = x1 * config.Ls + y1
             space2 = x2 * config.Ls + y2
-            r1 = np.array([x1, y1])
-            r2 = np.array([x2, y2])
 
-            Delta[first, second] = sigma_l1l2[sublattice1, sublattice2] * \
-                                   sigma_o1o2[orbit1, orbit2] * \
-                                   delta_ij[space1, space2]
+            if sublattice2 - sublattice1 == 1:  # AB pairings (only in the hexagonal case)
+                delta_s1s2 = delta_ij[0]
+            elif sublattice2 - sublattice1 == -1:  # BA pairings (only in the hexagonal case)
+                delta_s1s2 = delta_ij[1]
+            else:
+                delta_s1s2 = delta_ij
+            # otherwise (subl2 = subl1 means this is a square lattice or hex on-site, just use the delta_ij matrix)
+            if sigma_l1l2[sublattice1, sublattice2] != 0.0:
+                # print(np.sum(delta_s1s2), sublattice1, sublattice2)
+                Delta[first, second] = sigma_l1l2[sublattice1, sublattice2] * \
+                                       sigma_o1o2[orbit1, orbit2] * \
+                                       delta_s1s2[space1, space2]
     return Delta
 
 def combine_product_terms(config, pairing):
@@ -154,12 +180,23 @@ def construct_NN_pairings_2orb_hex(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
-    global delta_hex
-    delta_hex = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
+    global delta_hex_AB, delta_hex_BA
+    delta_hex_AB = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
+    delta_hex_BA = [delta.T for delta in delta_hex_AB]
 
-    v1 = construct_vi_hex(1)
-    v2 = construct_vi_hex(2)
-    v3 = construct_vi_hex(3)
+
+    v1_AB = construct_vi_hex(1, delta_hex_AB)
+    v2_AB = construct_vi_hex(2, delta_hex_AB)
+    v3_AB = construct_vi_hex(3, delta_hex_AB)
+
+    v1_BA = construct_vi_hex(1, delta_hex_BA)
+    v2_BA = construct_vi_hex(2, delta_hex_BA)
+    v3_BA = construct_vi_hex(3, delta_hex_BA)
+
+    v1 = (v1_AB, v1_BA)
+    v2 = (v2_AB, v2_BA)
+    v3 = (v3_AB, v3_BA)
+
     # print(np.unique(v1), np.unique(v2), np.unique(v3))
     NN_pairings = []
 
@@ -206,12 +243,22 @@ def construct_NN_pairings_1orb_hex(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
-    global delta_hex
-    delta_tex = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
+    global delta_hex_AB, delta_hex_BA
+    delta_hex_AB = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
+    delta_hex_BA = [delta.conj().T for delta in delta_hex_AB]
 
-    v1 = construct_vi_hex(1)
-    v2 = construct_vi_hex(2)
-    v3 = construct_vi_hex(3)
+
+    v1_AB = construct_vi_hex(1, delta_hex_AB)
+    v2_AB = construct_vi_hex(2, delta_hex_AB)
+    v3_AB = construct_vi_hex(3, delta_hex_AB)
+
+    v1_BA = construct_vi_hex(1, delta_hex_BA)
+    v2_BA = construct_vi_hex(2, delta_hex_BA)
+    v3_BA = construct_vi_hex(3, delta_hex_BA)
+
+    v1 = (v1_AB, v1_BA)
+    v2 = (v2_AB, v2_BA)
+    v3 = (v3_AB, v3_BA)
 
     NN_pairings = []
 
@@ -259,6 +306,7 @@ def construct_NN_pairings_1orb_square(config, real = True):
 
 def check_parity(config, pairing):
     gap = combine_product_terms(config, pairing)
+    # print(np.sum(np.abs(gap)))
     # print(np.unique(gap))
     if np.allclose(gap + gap.T, 0):
         return 'triplet'
@@ -311,8 +359,7 @@ def obtain_all_pairings(config):
     on_site_pairings_1orb_square_imag = construct_on_site_pairings_1orb_square(config, real = False)
     NN_pairings_1orb_square_imag = construct_NN_pairings_1orb_square(config, real = False)
 
-    '''
-    for n, pairing in enumerate(NN_pairings_1orb_square_imag):
-        print(check_parity(config, pairing), n)
-    '''
+
+    # for n, pairing in enumerate(NN_pairings_1orb_square_real):
+    #     print(check_parity(config, pairing), n)
     return

@@ -147,8 +147,8 @@ def perform_sweep(phi_field, K_matrix, orbits, switch):
                 # print('final discrepancy after step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / 
                 #                                          np.sum(np.abs(G_up_check)), 
                 #                                          np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / 
-                #                                          np.sum(np.abs(G_down_check)))
-                # print(current_det_log + det_log_up_check + det_log_down_check)
+                #                                         np.sum(np.abs(G_down_check)))
+                ##print(current_det_log + det_log_up_check + det_log_down_check)
             else:
                 accept_history.append(0)
                 ratio_history.append(0)
@@ -169,14 +169,14 @@ if __name__ == "__main__":
 
     current_n_flips = 1
     n_flipped = 0
-    K_matrix = config.model(config.Ls, config.mu)
+    K_matrix = config.model(config, config.mu)
     K_operator = xp.asarray(scipy.linalg.expm(config.dt * K_matrix))
     K_operator_inverse = xp.asarray(scipy.linalg.expm(-config.dt * K_matrix))
     phi_field = config.field(config, K_operator, K_operator_inverse)
-    phi_field.copy_to_GPU()
+    # phi_field.copy_to_GPU()
     for n_sweep in range(config.n_sweeps):
         t = time.time()
         accept_history = []
-        current_field = perform_sweep(phi_field, K_matrix, config.n_orbitals, switch = True)
+        current_field = perform_sweep(phi_field, K_matrix, config.n_orbitals, switch = False)
         print('sweep took ' + str(time.time() - t))
         print_generator_log(n_sweep, current_field, K_matrix)
