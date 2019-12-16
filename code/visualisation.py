@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import models
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+
 from copy import deepcopy
 
 R_hexagonal = np.array([[np.sqrt(3) / 2, 1 / 2.], [np.sqrt(3) / 2., -1 / 2.]])
@@ -45,32 +47,47 @@ def plot_fermi_surface(config):
             e_k = np.linalg.eig(K_fourier)[0]
             k_vectors.append((k_real[0], k_real[1]))
             energies.append(np.sort(e_k))
+    energies = np.array(energies).real
+    k_vectors = np.array(k_vectors)
     E_max = np.sort(np.array(energies).reshape(-1))[config.N_electrons // 2]  # 2-spin degeneracy
 
-    kx_array = []
-    ky_array = []
+    fig = plt.figure()
+    ax = Axes3D(fig)
+
+    for band in range(energies.shape[1]):
+        ax.scatter(k_vectors[:, 0], k_vectors[:, 1], energies[:, band])
+    plt.show()
+
+    k_array = []
     s_array = []
     for i, k in enumerate(k_vectors):
         if np.sum(energies[i] <= E_max) > 0:
             s_array.append(np.sum(energies[i] <= E_max) * 10)
-            kx_array.append(k[0])
-            ky_array.append(k[1])
+            k_array.append(k)
 
+    k_array = np.array(k_array)
     plt.rc('text', usetex = True)
     plt.rc('font', family = 'TeX Gyre Adventor', size = 14)
     plt.rc("pdf", fonttype=42)
-    plt.scatter(kx_array, ky_array, s = s_array)
-
-    plt.grid(True)
-
+    
+    textshift = np.array([0.1, 0])
     if geometry == 'hexagonal':
+        rotate_K = np.array([[np.cos(np.pi / 3), np.sin(np.pi / 3.)], [-np.sin(np.pi / 3.), np.cos(np.pi / 3)]])
         K_point = 2 * np.pi * np.array([2 / np.sqrt(3), 2.0 / 3.0]) / 2.
         Gamma_point = 2 * np.pi * np.array([0., 0.]) / 2.
         M_point = 2 * np.pi * np.array([2 / np.sqrt(3), 0]) / 2.
         Kprime_point = 2 * np.pi * np.array([2 / np.sqrt(3), -2.0 / 3.0]) / 2.
+        for i in range(6):
+            rotation_matrix = np.linalg.matrix_power(rotate_K, i)
 
-        plt.scatter(K_point[0], K_point[1], s = 20, marker = '*', color = 'red')
-        plt.scatter(Kprime_point[0], Kprime_point[1], s = 20, marker = '*', color = 'red')
-        plt.scatter(Gamma_point[0], Gamma_point[1], s = 20, marker = '*', color = 'red')
-        plt.scatter(M_point[0], M_point[1], s = 20, marker = '*', color = 'red')
+            plt.scatter(k_array.dot(rotation_matrix)[:, 0], k_array.dot(rotation_matrix)[:, 1], s = s_array)
+            plt.scatter(*K_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
+            plt.text(*K_point.dot(rotation_matrix) + textshift, '$K$', fontsize = 14)
+            plt.scatter(*Kprime_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
+            plt.text(*Kprime_point.dot(rotation_matrix) + textshift, '$K\'$', fontsize = 14)
+            plt.scatter(*Gamma_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
+            plt.text(*Gamma_point.dot(rotation_matrix) + textshift, '$\\Gamma$', fontsize = 14)
+            plt.scatter(*M_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
+            plt.text(*M_point.dot(rotation_matrix) + textshift, '$M$', fontsize = 14)
+    plt.grid(True)
     plt.show()
