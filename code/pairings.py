@@ -308,7 +308,7 @@ def construct_NN_pairings_1orb_square(config, real = True):
 
 def check_parity(config, pairing):
     gap = combine_product_terms(config, pairing)
-    # print(np.sum(np.abs(gap)))
+    print(np.sum(np.abs(gap)) / config.Ls ** 2 / config.n_sublattices)
     # print(np.unique(gap))
     if np.allclose(gap + gap.T, 0):
         return 'triplet'

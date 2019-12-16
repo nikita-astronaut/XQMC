@@ -65,18 +65,8 @@ def nearest_neighbor_hexagonal_dir(r1, r2, L):
     if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1):
         return 3
     return -1
-'''
-def nearest_neighbor_square(r1, r2, L):
-    if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, 1):
-        return True
-    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1):
-        return True
-    # if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, -1):
-    #    return True
-    #if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, -1):
-    #    return True
-    return False
-'''
+
+
 def fifth_nearest_neighbor(r1, r2, L):
     if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, -2):
         return True
