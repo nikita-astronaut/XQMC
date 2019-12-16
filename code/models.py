@@ -9,6 +9,17 @@ def diff_modulo(x, y, L, d):
     else:
         return (x - y + L) % L == L + d
 
+def lattice_to_physical(lattice, geometry):
+    if geometry == 'square':
+        return lattice
+
+    x = lattice[0] * np.sqrt(3) + lattice[1] * np.sqrt(3) / 2.
+    y = lattice[1] * 3 / 2.
+
+    if lattice[2] == 1:
+        y += 1.
+    return x, y
+
 def nearest_neighbor(r1, r2, L, geometry, return_direction):
     if geometry == 'square':
         return nearest_neighbor_square(r1, r2, L, return_direction)
@@ -123,8 +134,10 @@ def model_hex_1orb(config, mu):
     K = np.zeros((config.total_dof // 2, config.total_dof // 2))
     for first in range(config.total_dof // 2):
         for second in range(config.total_dof // 2):
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, \
+                                                                config.n_orbitals, config.n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, \
+                                                                config.n_orbitals, config.n_sublattices)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
