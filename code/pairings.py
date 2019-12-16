@@ -263,10 +263,10 @@ def construct_NN_pairings_1orb_hex(config, real = True):
     NN_pairings = []
 
     NN_pairings.append([(Xpauli, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
-    NN_pairings.append([(iYpauli, identity, v1, 1.0), factor])  # A2 (A1 x A2 x A1) 1
+    NN_pairings.append([(iYpauli, identity, v1, 1.0), factor])  # B2 (A1 x A2 x A1) 1
 
-    NN_pairings.append([(Xpauli, identity, v2, 1.0), factor]); NN_pairings.append([(Xpauli, identity, v3, 1.0), factor])  # E (A1 x A1 x E) 2-3
-    NN_pairings.append([(iYpauli, identity, v2, 1.0), factor]); NN_pairings.append([(iYpauli, identity, v3, 1.0), factor])  # E (A2 x A1 x E) 4-5
+    NN_pairings.append([(Xpauli, identity, v2, 1.0), factor]); NN_pairings.append([(Xpauli, identity, v3, 1.0), factor])  # E1 (A1 x A1 x E) 2-3
+    NN_pairings.append([(iYpauli, identity, v2, 1.0), factor]); NN_pairings.append([(iYpauli, identity, v3, 1.0), factor])  # E2 (A2 x A1 x E) 4-5
     return NN_pairings
 
 
