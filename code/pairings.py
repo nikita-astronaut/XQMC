@@ -103,7 +103,7 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
         returns the matrix of the dimention L x L (L -- total number of sites including orbit),
         sigma_ll \\otimes sigma_oo \\otimes delta_ii
     '''
-
+    idx = 0
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     for first in range(Delta.shape[0]):
         for second in range(Delta.shape[1]):
@@ -111,8 +111,8 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
                                                  config.Ls, config.n_orbitals, config.n_sublattices)
             orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), \
                                                  config.Ls, config.n_orbitals, config.n_sublattices)
-            space1 = x1 * config.Ls + y1
-            space2 = x2 * config.Ls + y2
+            space1 = (x1 * config.Ls + y1) * config.n_sublattices + sublattice1
+            space2 = (x2 * config.Ls + y2) * config.n_sublattices + sublattice2
 
             if sublattice2 - sublattice1 == 1:  # AB pairings (only in the hexagonal case)
                 delta_s1s2 = delta_ij[0]
@@ -120,12 +120,14 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
                 delta_s1s2 = delta_ij[1]
             else:
                 delta_s1s2 = delta_ij
+
             # otherwise (subl2 = subl1 means this is a square lattice or hex on-site, just use the delta_ij matrix)
             if sigma_l1l2[sublattice1, sublattice2] != 0.0:
                 # print(np.sum(delta_s1s2), sublattice1, sublattice2)
                 Delta[first, second] = sigma_l1l2[sublattice1, sublattice2] * \
                                        sigma_o1o2[orbit1, orbit2] * \
                                        delta_s1s2[space1, space2]
+                idx += delta_s1s2[space1, space2]
     return Delta
 
 def combine_product_terms(config, pairing):
@@ -360,6 +362,6 @@ def obtain_all_pairings(config):
     NN_pairings_1orb_square_imag = construct_NN_pairings_1orb_square(config, real = False)
 
 
-    # for n, pairing in enumerate(NN_pairings_1orb_square_real):
-    #     print(check_parity(config, pairing), n)
+    for n, pairing in enumerate(NN_pairings_1orb_hex_real):
+        print(check_parity(config, pairing), n)
     return

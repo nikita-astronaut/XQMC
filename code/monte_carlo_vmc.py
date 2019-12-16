@@ -7,6 +7,8 @@ import pairings
 from joblib import Parallel, delayed
 import psutil
 from time import time
+
+
 n_cpus = psutil.cpu_count(logical = True) 
 print('performing simulation at', n_cpus, 'threads')
 
@@ -41,7 +43,8 @@ def import_config(filename: str):
     return module
 
 config_vmc = import_config(sys.argv[1])
-from config_vmc import config as config_vmc
+from config_vmc import MC_parameters as config_vmc
+config_vmc = config_vmc()
 
 def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
     hamiltonian = config_vmc.hamiltonian(config_vmc)
