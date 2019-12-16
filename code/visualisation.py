@@ -8,6 +8,9 @@ from copy import deepcopy
 R_hexagonal = np.array([[np.sqrt(3) / 2, 1 / 2.], [np.sqrt(3) / 2., -1 / 2.]])
 G_hexagonal = 2 * np.pi * np.array([[1 / np.sqrt(3), 1.], [1. / np.sqrt(3), -1.]])
 
+R_square = np.array([[1, 0], [0, 1]])
+G_square = 2 * np.pi * np.array([[1, 0], [0, 1]])
+
 def K_FT(k, K, config, R):
     L = config.Ls
     n_internal = config.n_sublattices * config.n_orbitals
@@ -89,5 +92,19 @@ def plot_fermi_surface(config):
             plt.text(*Gamma_point.dot(rotation_matrix) + textshift, '$\\Gamma$', fontsize = 14)
             plt.scatter(*M_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
             plt.text(*M_point.dot(rotation_matrix) + textshift, '$M$', fontsize = 14)
-    plt.grid(True)
+    else:
+        rotate_K = np.array([[np.cos(np.pi / 2), np.sin(np.pi / 2.)], [-np.sin(np.pi / 2.), np.cos(np.pi / 2)]])
+        K_point = 2 * np.pi * np.array([1, 1]) / 2.
+        Gamma_point = 2 * np.pi * np.array([0., 0.]) / 2.
+
+        for i in range(4):
+            rotation_matrix = np.linalg.matrix_power(rotate_K, i)
+
+            plt.scatter(k_array.dot(rotation_matrix)[:, 0], k_array.dot(rotation_matrix)[:, 1], s = s_array)
+            plt.scatter(*K_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
+            plt.text(*K_point.dot(rotation_matrix) + textshift, '$K$', fontsize = 14)
+            plt.scatter(*Gamma_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
+            plt.text(*Gamma_point.dot(rotation_matrix) + textshift, '$\\Gamma$', fontsize = 14)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.gca().set_aspect('equal', adjustable='box')
     plt.show()
