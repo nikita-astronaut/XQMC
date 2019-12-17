@@ -45,8 +45,9 @@ def import_config(filename: str):
 config_vmc = import_config(sys.argv[1])
 from config_vmc import MC_parameters as config_vmc
 config_vmc = config_vmc()
-# visualisation.plot_fermi_surface(config_vmc)
-visualisation.plot_all_pairings(config_vmc)
+if config_vmc.visualisation:
+    visualisation.plot_fermi_surface(config_vmc)
+    visualisation.plot_all_pairings(config_vmc)
 
 def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
     hamiltonian = config_vmc.hamiltonian(config_vmc)
