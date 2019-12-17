@@ -103,7 +103,6 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
         returns the matrix of the dimention L x L (L -- total number of sites including orbit),
         sigma_ll \\otimes sigma_oo \\otimes delta_ii
     '''
-    idx = 0
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     for first in range(Delta.shape[0]):
         for second in range(Delta.shape[1]):
@@ -127,7 +126,6 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
                 Delta[first, second] = sigma_l1l2[sublattice1, sublattice2] * \
                                        sigma_o1o2[orbit1, orbit2] * \
                                        delta_s1s2[space1, space2]
-                idx += delta_s1s2[space1, space2]
     return Delta
 
 def combine_product_terms(config, pairing):
@@ -362,6 +360,6 @@ def obtain_all_pairings(config):
     NN_pairings_1orb_square_imag = construct_NN_pairings_1orb_square(config, real = False)
 
 
-    for n, pairing in enumerate(NN_pairings_1orb_square_real):
-        print(check_parity(config, pairing), n)
+    # for n, pairing in enumerate(NN_pairings_1orb_square_real):
+    #     print(check_parity(config, pairing), n)
     return

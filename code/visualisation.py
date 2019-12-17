@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import models
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
+import pairings
 
 from copy import deepcopy
 
@@ -10,6 +11,13 @@ G_hexagonal = 2 * np.pi * np.array([[1 / np.sqrt(3), 1.], [1. / np.sqrt(3), -1.]
 
 R_square = np.array([[1, 0], [0, 1]])
 G_square = 2 * np.pi * np.array([[1, 0], [0, 1]])
+
+def set_style():
+    plt.rc('text', usetex = True)
+    plt.rc('font', family = 'TeX Gyre Adventor', size = 14)
+    plt.rc("pdf", fonttype=42)
+    plt.grid(True, linestyle='--', alpha=0.5)
+    return
 
 def K_FT(k, K, config, R):
     L = config.Ls
@@ -54,13 +62,20 @@ def plot_fermi_surface(config):
     k_vectors = np.array(k_vectors)
     E_max = np.sort(np.array(energies).reshape(-1))[config.N_electrons // 2]  # 2-spin degeneracy
 
+    set_style()
     fig = plt.figure()
     ax = Axes3D(fig)
 
     for band in range(energies.shape[1]):
-        ax.scatter(k_vectors[:, 0], k_vectors[:, 1], energies[:, band])
-    plt.show()
+        ax.scatter(k_vectors[:, 0] / np.pi, k_vectors[:, 1] / np.pi, energies[:, band])
+    plt.xlabel('$k_x,\\, \\pi$')
+    plt.ylabel('$k_y,\\, \\pi$')
+    ax.set_zlabel('$E(\\vec k) / t$')
+    plt.savefig('../plots/bands.pdf')
+    plt.clf()
 
+
+    set_style()
     k_array = []
     s_array = []
     for i, k in enumerate(k_vectors):
@@ -69,9 +84,7 @@ def plot_fermi_surface(config):
             k_array.append(k)
 
     k_array = np.array(k_array)
-    plt.rc('text', usetex = True)
-    plt.rc('font', family = 'TeX Gyre Adventor', size = 14)
-    plt.rc("pdf", fonttype=42)
+    
     
     textshift = np.array([0.1, 0])
     if geometry == 'hexagonal':
@@ -83,7 +96,7 @@ def plot_fermi_surface(config):
         for i in range(6):
             rotation_matrix = np.linalg.matrix_power(rotate_K, i)
 
-            plt.scatter(k_array.dot(rotation_matrix)[:, 0], k_array.dot(rotation_matrix)[:, 1], s = s_array)
+            plt.scatter(k_array.dot(rotation_matrix)[:, 0], k_array.dot(rotation_matrix)[:, 1], s = s_array, color = 'blue')
             plt.scatter(*K_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
             plt.text(*K_point.dot(rotation_matrix) + textshift, '$K$', fontsize = 14)
             plt.scatter(*Kprime_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
@@ -100,11 +113,55 @@ def plot_fermi_surface(config):
         for i in range(4):
             rotation_matrix = np.linalg.matrix_power(rotate_K, i)
 
-            plt.scatter(k_array.dot(rotation_matrix)[:, 0], k_array.dot(rotation_matrix)[:, 1], s = s_array)
-            plt.scatter(*K_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
-            plt.text(*K_point.dot(rotation_matrix) + textshift, '$K$', fontsize = 14)
+            plt.scatter(k_array.dot(rotation_matrix)[:, 0], k_array.dot(rotation_matrix)[:, 1], s = s_array, color = 'blue')
             plt.scatter(*Gamma_point.dot(rotation_matrix), s = 20, marker = '*', color = 'red')
             plt.text(*Gamma_point.dot(rotation_matrix) + textshift, '$\\Gamma$', fontsize = 14)
-    plt.grid(True, linestyle='--', alpha=0.5)
+    
     plt.gca().set_aspect('equal', adjustable='box')
+    plt.savefig('../plots/fermi_surface.pdf')
+    plt.clf()
+    return
+
+def plot_all_pairings(config):
+    for gap, name in zip(config.pairings_list, config.pairings_list_names):
+        gap_expanded = pairings.combine_product_terms(config, gap)
+
+        plot_pairing(config, gap_expanded, name)
+
+def plot_pairing(config, gap_expanded, name):
+    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+
+    if geometry == 'hexagonal':
+        R = R_hexagonal
+    else:
+        R = R_square
+    # set_style()
+
+    x1, y1 = config.Ls // 2, config.Ls // 2
+    for sublattice1 in range(config.n_sublattices):
+        for orbit1 in range(config.n_orbitals):
+            first = models.to_linearized_index(x1, y1, sublattice1, orbit1, config.Ls, config.n_orbitals, config.n_sublattices)
+            for second in range(config.total_dof // 2):
+                orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), config.Ls, \
+                                                                           config.n_orbitals, config.n_sublattices)
+
+                if gap_expanded[first, second] == 0:
+                    continue
+                
+                r1 = np.array(models.lattice_to_physical((x1, y1, sublattice1), geometry))
+                r2 = np.array(models.lattice_to_physical((x2, y2, sublattice2), geometry))
+
+                r1_origin = np.array(models.lattice_to_physical((x1, y1, 0), geometry))
+                r1 = r1 - r1_origin
+                r2 = r2 - r1_origin
+                print(r1, r2)
+                plt.annotate(s='', xy=r2, xytext=r1, arrowprops=dict(arrowstyle='->'))
+    
+    plt.xlabel('$x$')
+    plt.xlabel('$y$')
+    plt.xlim([-2, 2])
+    plt.ylim([-2, 2])
+    # plt.title(name)
     plt.show()
+    exit(-1)
+    return
