@@ -209,3 +209,4 @@ def apply_twisted_periodic_conditions(config, K):
             if np.abs(y1 - y2) > config.Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
                 K[first, second] *= -1
     return K
+    

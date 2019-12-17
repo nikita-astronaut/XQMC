@@ -173,13 +173,12 @@ def plot_pairing(config, gap_expanded, name):
                     if np.abs(value + 1.0j * np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
                         labelstring = '$-i \\omega^*$'
 
+                labelstring = '(' + str(orbit1) + '-' + str(orbit2) + '), ' + labelstring
+
+
                 r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)
                 r2 = np.array([x2, y2]).dot(R) + sublattice2 * np.array([1, 0]) / np.sqrt(3)
 
-                # r1 = np.array(models.lattice_to_physical((x1, y1, sublattice1), geometry))
-                # r2 = np.array(models.lattice_to_physical((x2, y2, sublattice2), geometry))
-
-                # r1_origin = np.array(models.lattice_to_physical((x1, y1, 0), geometry))
                 r1_origin = np.array([x1, y1]).dot(R)
                 r1 = r1 - r1_origin
                 r2 = r2 - r1_origin
@@ -187,17 +186,14 @@ def plot_pairing(config, gap_expanded, name):
                     plt.scatter(*r2, s=20, color='red')
                 else:
                     plt.scatter(*r2, s=20, color='blue')
-                plt.annotate(s='', xy=r2, xytext=r1, arrowprops=dict(arrowstyle='fancy'))
+                plt.annotate(s='', xy=r2, xytext=r1, arrowprops=dict(arrowstyle='->'))
                 
                 textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
                 textshift = textshift / np.sqrt(np.sum(textshift ** 2))
-
-                plt.text(*(r2 + 0.06 * textshift), labelstring, zorder=10)
+                shiftval = 0.06 - (orbit1 * config.n_orbitals + orbit2) * 0.06 / 2
+                plt.text(*(r2 + shiftval * textshift), labelstring, zorder=10)
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')
-    # plt.xlim([-2, 2])
-    # plt.ylim([-2, 2])
-    # plt.title(name)
     plt.show()
     return
