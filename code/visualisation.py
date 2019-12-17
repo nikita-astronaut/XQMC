@@ -135,7 +135,9 @@ def plot_pairing(config, gap_expanded, name):
         R = R_hexagonal
     else:
         R = R_square
-    # set_style()
+    set_style()
+
+    textshift = np.array([0.1, 0.1])
 
     x1, y1 = config.Ls // 2, config.Ls // 2
     for sublattice1 in range(config.n_sublattices):
@@ -147,21 +149,55 @@ def plot_pairing(config, gap_expanded, name):
 
                 if gap_expanded[first, second] == 0:
                     continue
-                
-                r1 = np.array(models.lattice_to_physical((x1, y1, sublattice1), geometry))
-                r2 = np.array(models.lattice_to_physical((x2, y2, sublattice2), geometry))
+                value = gap_expanded[first, second]
 
-                r1_origin = np.array(models.lattice_to_physical((x1, y1, 0), geometry))
+                labelstring = str(value)
+                if np.abs(value.imag) < 1e-10:
+                    labelstring = str(value.real)
+                elif geometry == 'hexagonal':
+                    if np.abs(value - np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring = '$\\omega$'
+                    if np.abs(value + np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring = '$-\\omega$'
+                    if np.abs(value - np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring = '$\\omega^*$'
+                    if np.abs(value + np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring = '$-\\omega^*$'
+
+                    if np.abs(value - 1.0j * np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring = '$i \\omega$'
+                    if np.abs(value + 1.0j * np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring = '$-i \\omega$'
+                    if np.abs(value - 1.0j * np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring = '$i \\omega^*$'
+                    if np.abs(value + 1.0j * np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring = '$-i \\omega^*$'
+
+                r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)
+                r2 = np.array([x2, y2]).dot(R) + sublattice2 * np.array([1, 0]) / np.sqrt(3)
+
+                # r1 = np.array(models.lattice_to_physical((x1, y1, sublattice1), geometry))
+                # r2 = np.array(models.lattice_to_physical((x2, y2, sublattice2), geometry))
+
+                # r1_origin = np.array(models.lattice_to_physical((x1, y1, 0), geometry))
+                r1_origin = np.array([x1, y1]).dot(R)
                 r1 = r1 - r1_origin
                 r2 = r2 - r1_origin
-                print(r1, r2)
-                plt.annotate(s='', xy=r2, xytext=r1, arrowprops=dict(arrowstyle='->'))
+                if sublattice2 == 0:
+                    plt.scatter(*r2, s=20, color='red')
+                else:
+                    plt.scatter(*r2, s=20, color='blue')
+                plt.annotate(s='', xy=r2, xytext=r1, arrowprops=dict(arrowstyle='fancy'))
+                
+                textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
+                textshift = textshift / np.sqrt(np.sum(textshift ** 2))
+
+                plt.text(*(r2 + 0.06 * textshift), labelstring, zorder=10)
     
     plt.xlabel('$x$')
-    plt.xlabel('$y$')
-    plt.xlim([-2, 2])
-    plt.ylim([-2, 2])
+    plt.ylabel('$y$')
+    # plt.xlim([-2, 2])
+    # plt.ylim([-2, 2])
     # plt.title(name)
     plt.show()
-    exit(-1)
     return
