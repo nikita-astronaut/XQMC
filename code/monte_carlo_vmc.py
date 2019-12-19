@@ -147,7 +147,6 @@ while True:
     step = step_pc / np.sqrt(np.abs(np.diag(S_cov)))
 
     print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
-    print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
 
     step = 0.03 * step 
 
@@ -155,6 +154,7 @@ while True:
     gap_parameters += step[1:1 + len(gap_parameters)]
     jastrow_parameters += step[1 + len(gap_parameters):]
 
+    print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
     log_file.write(("{:3d} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
                      np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, np.sqrt(np.sum(forces ** 2)),
                      *gap_parameters, *jastrow_parameters, mu_parameter))
