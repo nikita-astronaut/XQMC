@@ -94,7 +94,6 @@ jastrow_parameters = config_vmc.initial_jastrow_parameters
 mu_parameter = config_vmc.initial_mu_parameters  # chemical potential (mu)
 
 H = config_vmc.hamiltonian(config_vmc)
-opt = config_vmc.optimiser(config_vmc.opt_parameters)
 
 log_file = open(config_vmc.log_name, 'w')
 
@@ -133,14 +132,13 @@ while True:
 
 
     Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
-
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
-    print(np.sqrt(np.abs(np.diag(S_cov))))
+    print(np.sqrt(np.diag(S_cov)))
     # Hess = 2 * np.einsum('n,nk,nl->kl', (energies - energies.mean()), (Os - Os_mean).conj(), (Os - Os_mean)).real / Os.shape[0]
     forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
     S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
     # (6.51, scale-invariant regularization)
-    S_cov_pc += 1e-3 * np.eye(S_cov_pc.shape[0])  # (6.54)
+    S_cov_pc += config_vmc.opt_parameters[0] * np.eye(S_cov_pc.shape[0])  # (6.54)
     S_cov_pc_inv = np.linalg.inv(S_cov_pc)
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
@@ -148,7 +146,7 @@ while True:
 
     print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
 
-    step = 0.03 * step 
+    step = config_vmc.opt_parameters[1] * step 
 
     mu_parameter += step[0]
     gap_parameters += step[1:1 + len(gap_parameters)]

@@ -19,8 +19,7 @@ class MC_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.N_electrons = 72 # only applied if PN_projection = True
         self.correlation = 100
-        self.optimiser = optimisers.AdamOptimiser
-        self.opt_parameters = [0.5, 0.5, 1e-8, 1e-2]
+        self.opt_parameters = [10, 0.03]  # regularizer for the S_stoch matrix, learning rate
         self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.PN_projection = True
         self.initial_mu_parameters = 0.0
