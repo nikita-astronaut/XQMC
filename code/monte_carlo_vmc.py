@@ -8,6 +8,7 @@ from joblib import Parallel, delayed
 import psutil
 from time import time
 import visualisation
+import tests
 
 n_cpus = psutil.cpu_count(logical = True) 
 print('performing simulation at', n_cpus, 'threads')
@@ -45,6 +46,10 @@ def import_config(filename: str):
 config_vmc = import_config(sys.argv[1])
 from config_vmc import MC_parameters as config_vmc
 config_vmc = config_vmc()
+
+if config_vmc.tests:
+    tests.perform_numerical_derivative_check(config_vmc)
+
 if config_vmc.visualisation:
     visualisation.plot_fermi_surface(config_vmc)
     visualisation.plot_all_pairings(config_vmc)
@@ -130,9 +135,8 @@ while True:
     Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
 
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
-
+    print(np.sqrt(np.abs(np.diag(S_cov))))
     # Hess = 2 * np.einsum('n,nk,nl->kl', (energies - energies.mean()), (Os - Os_mean).conj(), (Os - Os_mean)).real / Os.shape[0]
-
     forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
     S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
     # (6.51, scale-invariant regularization)
@@ -141,10 +145,11 @@ while True:
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
     step = step_pc / np.sqrt(np.abs(np.diag(S_cov)))
-    step = 0.03 * step  # learning-rate
 
     print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
     print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
+
+    step = 0.03 * step 
 
     mu_parameter += step[0]
     gap_parameters += step[1:1 + len(gap_parameters)]
@@ -155,44 +160,3 @@ while True:
                      *gap_parameters, *jastrow_parameters, mu_parameter))
     log_file.flush()
     n_step += 1
-
-'''
-dt = 1e-10
-np.random.seed(11)
-wf_1 = wavefunction_singlet(config_vmc, pairings_list, [-5. - dt / 2], [1e-7], [0.0], False, None)
-np.random.seed(11)
-wf_2 = wavefunction_singlet(config_vmc, pairings_list, [-5. + dt / 2], [1e-7], [0.0], False, None)  
-# print(wf_1.E - wf_2.E)
-while True:
-    # print(wf_1.get_O()[1], wf_2.get_O()[1])
-    # print(np.sum(np.abs(wf_1.U_matrix - wf_2.U_matrix)), np.linalg.matrix_rank(np.concatenate([wf_1.U_matrix, wf_2.U_matrix], axis = 1)), np.concatenate([wf_1.U_matrix, wf_2.U_matrix], axis = 1).shape)
-    
-    # print(np.linalg.det((wf_1.U_matrix.conj().T).dot(wf_2.U_matrix)))
-    # print(wf_1.occupied_sites - wf_2.occupied_sites)
-    # print(np.linalg.slogdet(wf_1.U_tilde_matrix)[1] - np.linalg.slogdet(wf_2.U_tilde_matrix)[1], np.linalg.slogdet(wf_2.U_tilde_matrix)[1])
-    # print(wf_2.current_ampl, -wf_1.current_ampl)
-    wf_1.perform_explicit_GF_update()
-    wf_2.perform_explicit_GF_update()
-    # der = wf_1.get_O()[1]
-    # diffs = []
-    # print((-np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl)) / dt / np.abs(wf_1.current_ampl) - der, \
-    #        (np.angle(wf_2.current_ampl) - np.angle(wf_1.current_ampl)) / dt - der.imag, \
-    #        np.angle(wf_2.current_ampl), np.angle(wf_1.current_ampl))
-
-    # omega = np.exp(2 * np.pi * np.arange(int(1e+8)) / 1e+8 * 1.0j)
-    # A1 = wf_1.current_ampl
-    # A2 = wf_2.current_ampl * omega
-    # diffs = (wf_2.current_ampl * omega - A1) / dt / (A1) - der
-    #   print(np.min(np.abs(np.array(diffs))))
-    print(2 * (wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl + wf_2.current_ampl) - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0], \
-          2 * (-wf_2.current_ampl - wf_1.current_ampl) / dt / (wf_1.current_ampl - wf_2.current_ampl) - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0],  \
-          - 0.5 * wf_1.get_O()[0] - 0.5 * wf_2.get_O()[0])  # log derivative calculated explicitly
-    a = np.random.randint(10000)
-    np.random.seed(a)
-    wf_1.perform_MC_step()
-    np.random.seed(a)
-    wf_2.perform_MC_step()
-    # print(wf_1.get_O_pairing(0))  # log devirative calculated from O_k formula
-
-# generate_MC_chain(wf)
-'''

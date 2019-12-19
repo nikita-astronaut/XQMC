@@ -16,7 +16,7 @@ delta_square = []
 identity = np.array([[1]])
 
 def construct_onsite_delta(config):
-    return np.eye(config.Ls ** 2)
+    return np.eye(config.Ls ** 2 * config.n_sublattices)
 
 
 '''
