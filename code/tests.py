@@ -5,9 +5,9 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     der_numerically = 2 * (np.abs(wf_2.current_ampl) - np.abs(wf_1.current_ampl)) / dt / (np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl))
     der_analytically = 0.5 * wf_1.get_O()[der_idx] + 0.5 * wf_2.get_O()[der_idx]
 
-    result = np.abs(der_numerically - der_analytically) < 1e-5
+    result = np.abs(der_numerically - der_analytically.real) < 1e-5
     if not result:
-        print('Warning! The numerical derivative w.r. to one of the parameters did not match the analytical expression!')
+        print('Warning! The numerical derivative w.r. to one of the parameters did not match the analytical expression! :', der_numerically, der_analytically)
     return result
 
 
