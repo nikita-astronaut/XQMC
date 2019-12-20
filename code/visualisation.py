@@ -176,7 +176,7 @@ def plot_pairing(config, gap_expanded, name):
                 labelstring = '(' + str(orbit1) + '-' + str(orbit2) + '), ' + labelstring
 
 
-                r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)
+                r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)  # always 0 in the square case
                 r2 = np.array([x2, y2]).dot(R) + sublattice2 * np.array([1, 0]) / np.sqrt(3)
 
                 r1_origin = np.array([x1, y1]).dot(R)
@@ -192,6 +192,65 @@ def plot_pairing(config, gap_expanded, name):
                 textshift = textshift / np.sqrt(np.sum(textshift ** 2))
                 shiftval = 0.06 - (orbit1 * config.n_orbitals + orbit2) * 0.06 / 2
                 plt.text(*(r2 + shiftval * textshift), labelstring, zorder=10)
+    
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.show()
+    return
+
+def plot_Jastrow(config):
+    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+
+    if geometry == 'hexagonal':
+        R = R_hexagonal
+    else:
+        R = R_square
+    set_style()
+
+
+    Jastrow_A = models.get_adjacency_list(config, len(config.initial_jastrow_parameters))
+    Jastrow = np.sum(np.array([A * factor for A, factor in zip(config.initial_jastrow_parameters, Jastrow_A)]), axis = 0)
+
+    textshift = np.array([0.1, 0.1])
+
+    x1, y1 = config.Ls // 2, config.Ls // 2
+    for sublattice1 in range(config.n_sublattices):
+        for orbit1 in range(config.n_orbitals):
+            first = models.to_linearized_index(x1, y1, sublattice1, orbit1, config.Ls, config.n_orbitals, config.n_sublattices)
+            for second in range(config.total_dof // 2):
+                orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), config.Ls, \
+                                                                           config.n_orbitals, config.n_sublattices)
+
+
+                for index, pairing in enumerate(Jastrow_A):
+                    if pairing[first, second] == 0:
+                        continue
+                    value = config.initial_jastrow_parameters[index]
+
+                    labelstring = str(value)
+                    labelstring = '(' + str(orbit1) + '-' + str(orbit2) + '), ' + labelstring + ' ' + str(index)
+
+
+                    r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)  # always 0 in the square case
+                    r2 = np.array([x2, y2]).dot(R) + sublattice2 * np.array([1, 0]) / np.sqrt(3)
+
+                    r1_origin = np.array([x1, y1]).dot(R)
+                    r1 = r1 - r1_origin
+                    r2 = r2 - r1_origin
+                    if sublattice2 == 0:
+                        plt.scatter(*r2, s=20, color='red')
+                    else:
+                        plt.scatter(*r2, s=20, color='blue')
+
+                    if np.sum(np.abs(r1 - r2)) < 1e-5:
+                        plt.plot([r1[0]], [r1[1]], marker = '*', ms = 10)
+                    else:
+                        plt.annotate(s='', xy=r2, xytext=r1, arrowprops=dict(arrowstyle='->'))
+                
+                    textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
+                    textshift = textshift / np.sqrt(np.sum(textshift ** 2) + 1e-5)
+                    shiftval = 0.06 - (orbit1 * config.n_orbitals + orbit2) * 0.06 / 2
+                    plt.text(*(r2 + shiftval * textshift), labelstring, zorder=10)
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')

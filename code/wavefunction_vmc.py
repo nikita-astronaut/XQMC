@@ -194,9 +194,9 @@ class wavefunction_singlet():
         delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
         delta_beta = +1 if empty_site < len(self.state) // 2 else -1
 
-        Jastrow_ratio = get_GW_ratio(self.Jastrow, self.occupancy, moved_site % (len(self.state) // 2), 
-                                     empty_site % (len(self.state) // 2), 
-                                     delta_alpha, delta_beta)
+        Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, moved_site % (len(self.state) // 2), 
+                                          empty_site % (len(self.state) // 2), 
+                                          delta_alpha, delta_beta)
         # test = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
 
         self.wf += time() - t
@@ -267,11 +267,10 @@ class wavefunction_singlet():
 
 # had to move it outside of the class to speed-up with numba (jitclass is hard!)
 @jit(nopython=True)
-def get_GW_ratio(Jastrow, occupancy, alpha, beta, delta_alpha, delta_beta):
+def get_Jastrow_ratio(Jastrow, occupancy, alpha, beta, delta_alpha, delta_beta):
     factor = Jastrow[alpha, alpha]
-    return np.exp(-0.5 * delta_alpha * occupancy[alpha] * 2 * factor - \
-                   0.5 * delta_beta * occupancy[beta] * 2 * factor - \
-                   0.5 * (delta_alpha ** 2 * Jastrow[alpha, alpha] + delta_beta ** 2 * Jastrow[beta, beta] + \
+    return np.exp(-np.sum((delta_alpha * Jastrow[alpha, :] + delta_beta * Jastrow[beta, :]) * occupancy) - 
+                   0.5 * ((delta_alpha ** 2 + delta_beta ** 2) * factor + 
                           delta_alpha * delta_beta * (Jastrow[alpha, beta] + Jastrow[beta, alpha])))
 
 @jit(nopython=True)
@@ -280,7 +279,7 @@ def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
     delta_alpha = -1 if moved_site < len(state) // 2 else +1
     delta_beta = +1 if empty_site < len(state) // 2 else -1
 
-    Jastrow_ratio = get_GW_ratio(Jastrow, occupancy, moved_site % (len(state) // 2), \
-                                 empty_site % (len(state) // 2), delta_alpha, delta_beta)
+    Jastrow_ratio = get_Jastrow_ratio(Jastrow, occupancy, moved_site % (len(state) // 2), \
+                                      empty_site % (len(state) // 2), delta_alpha, delta_beta)
     det_ratio = W_GF[empty_site, place_in_string[moved_site]]
     return det_ratio * Jastrow_ratio

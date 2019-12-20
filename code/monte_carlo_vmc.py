@@ -50,12 +50,14 @@ if config_vmc.tests:
 if config_vmc.visualisation:
     visualisation.plot_fermi_surface(config_vmc)
     visualisation.plot_all_pairings(config_vmc)
+    visualisation.plot_Jastrow(config_vmc)
 
 n_cpus_max = psutil.cpu_count(logical = True) 
-print('max available CPUs: ', n_cpus_max, 'threads')
+print('max available CPUs:', n_cpus_max)
 n_cpus = config_vmc.n_cpus
 if config_vmc.n_cpus == -1:
     n_cpus = n_cpus_max
+print('performing simulation at', n_cpus, 'CPUs')
 
 
 def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
@@ -150,7 +152,7 @@ while True:
 
     print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
 
-    step = config_vmc.opt_parameters[1] * forces 
+    step = config_vmc.opt_parameters[1] * step 
 
     mu_parameter += step[0]
     gap_parameters += step[1:1 + len(gap_parameters)]

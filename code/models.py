@@ -153,7 +153,15 @@ def interorbital_mod(A, n_orbitals):
     res = []
     if n_orbitals == 1:
         return [A]
-    return [np.kron(A, np.array([[1, 0], [0, 1]])), np.kron(A, np.array([[0, 1], [1, 0]]))]  # now only symmetric
+
+    result = [np.kron(A, np.eye(n_orbitals))]
+    for i_orbital in range(n_orbitals):
+        for j_orbital in range(i_orbital + 1, n_orbitals):
+            coupling = np.zeros((n_orbitals, n_orbitals))
+            coupling[i_orbital, j_orbital] = 1
+            coupling += coupling.T
+            result = result + np.kron(A, coupling)
+    return result
 
 def get_adjacency_list(config, max_len):
     if config.n_sublattices == 2:
