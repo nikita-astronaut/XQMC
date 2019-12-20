@@ -33,9 +33,9 @@ def perform_numerical_derivative_check(config):
         der_idx = 2
         print(compare_derivatives_numerically(wf_1, wf_2, gap_idx + 1, dt))
 
-    print('Pairings derivative check...')
-    for jastrow_idx in range(len(config.initial_gap_parameters)):
-        delta = np.zeros(len(config.initial_gap_parameters))
+    print('Jastrow derivative check...')
+    for jastrow_idx in range(len(config.initial_jastrow_parameters)):
+        delta = np.zeros(len(config.initial_jastrow_parameters))
         delta[jastrow_idx] = 1
         np.random.seed(11)
         wf_1 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], config.initial_gap_parameters, config.initial_jastrow_parameters - dt / 2 * delta, False, None)
