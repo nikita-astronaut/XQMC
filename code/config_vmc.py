@@ -25,8 +25,9 @@ class MC_parameters:
         self.initial_gap_parameters = np.array([0.01])
         self.initial_jastrow_parameters = np.array([0.1, 0.1, 0.1, 0.1, 0.1])
         self.n_delayed_updates = 5
-        self.visualisation = True
-        self.tests = True
+        self.visualisation = False
+        self.tests = False
+        self.observables = 100  # how often to compute observables
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
         self.log_name = '/home/astronaut/Documents/DQMC_TBG/log_DplusiDwave.dat'
 

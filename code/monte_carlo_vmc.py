@@ -9,13 +9,7 @@ import psutil
 from time import time
 import visualisation
 import tests
-
-xp = np
-try:
-    import cupy as cp
-    xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
-except ImportError:
-    pass
+import observables_vmc
 
 # <<Borrowed>> from Tom
 def import_config(filename: str):
@@ -90,6 +84,9 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
             t = time()
             Os.append(wavefunction.get_O())
             t_forces += time() - t
+
+        if MC_step % config_vmc.observables:
+            observables_vmc.compute_observables(wavefunction)
         t = time()
         acceptance.append(wavefunction.perform_MC_step()[0])
         t_steps += time() - t
