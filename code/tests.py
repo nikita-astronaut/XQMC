@@ -183,3 +183,5 @@ def perform_double_move_check(config):
         print('Passed')
     else:
         printf('Failed on samples:', n_failed)
+
+    return

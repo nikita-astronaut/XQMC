@@ -170,13 +170,13 @@ if __name__ == "__main__":
     current_n_flips = 1
     n_flipped = 0
     K_matrix = config.model(config, config.mu)
-    K_operator = xp.asarray(scipy.linalg.expm(config.dt * K_matrix))
-    K_operator_inverse = xp.asarray(scipy.linalg.expm(-config.dt * K_matrix))
+    K_operator = scipy.linalg.expm(config.dt * K_matrix)
+    K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
     phi_field = config.field(config, K_operator, K_operator_inverse)
-    # phi_field.copy_to_GPU()
+    phi_field.copy_to_GPU()
     for n_sweep in range(config.n_sweeps):
         t = time.time()
         accept_history = []
-        current_field = perform_sweep(phi_field, K_matrix, config.n_orbitals, switch = False)
+        current_field = perform_sweep(phi_field, K_matrix, config.n_orbitals, switch = True)
         print('sweep took ' + str(time.time() - t))
         print_generator_log(n_sweep, current_field, K_matrix)
