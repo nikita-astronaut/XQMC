@@ -175,15 +175,19 @@ class wavefunction_singlet():
 
         return occupied_sites, empty_sites, place_in_string
 
-    def perform_MC_step(self):
+    def perform_MC_step(self, proposed_move = None):
         self.MC_step_index += 1
         conserving_move = False
         n_attempts = 0
 
-        moved_site_idx = self.random_numbers_move[self.MC_step_index]
-        moved_site = self.occupied_sites[moved_site_idx]
-        empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]
-        
+        if proposed_move == None:
+            moved_site_idx = self.random_numbers_move[self.MC_step_index]
+            moved_site = self.occupied_sites[moved_site_idx]
+            empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]
+        else:
+            moved_site, empty_site = proposed_move
+            moved_site_idx = self.place_in_string[moved_site]
+
         if empty_site not in self.empty_sites:
             return False, 1
 
@@ -279,24 +283,24 @@ class wavefunction_singlet():
         ratio += (delta - get_wf_ratio(*state, l + L, j + L)) * get_wf_ratio(*state, i, k)
         return ratio
 
-
+    '''
     ### testing part ###
     def get_wf_ratio_double_exchange_test(self, i, j, k, l):
         '''
-            only for debug: slower but surely currect version of the above function
+            # only for debug: slower but surely currect version of the above function
         '''
-        if (self.place_in_string[k] > -1) or (self.place_in_string[i] == -1):
+        if (self.place_in_string[j + L] > -1) or (self.place_in_string[i] == -1):
             return 0.0 + 0.0j
 
         expectation = 0.0 + 0.0j
 
         L = len(self.state) // 2
         delta = 1.0 if j == l else 0.0
-        W_0 = self.W_GF(k, self.place_in_string(i + L))
-        
+        W_0 = self.W_GF(k, self.place_in_string(i))
+
 
         occupancy_local = deepcopy(self.occupancy)
-
+    '''
 
     def get_Jastrow_test(self, jastrow_index):
         '''

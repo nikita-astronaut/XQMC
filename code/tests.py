@@ -44,3 +44,6 @@ def perform_numerical_derivative_check(config):
         der_idx = 2
         print(compare_derivatives_numerically(wf_1, wf_2, jastrow_idx + 1 + len(config.initial_gap_parameters), dt))
     return
+
+    def perform_double_move_check(config):
+        wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters - dt / 2], config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
