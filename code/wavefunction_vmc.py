@@ -64,8 +64,8 @@ class wavefunction_singlet():
 
     def get_Jastrow_ratio(self, alpha, beta, delta_alpha, delta_beta):
         return np.exp(-0.5 * delta_alpha * np.sum((self.Jastrow[alpha, :] + self.Jastrow[:, alpha]) * self.occupancy) - 
-                      0.5 * delta_beta * np.sum((self.Jastrow[beta, :] + self.Jastrow[:, beta]) * self.occupancy) - 
-                      0.5 * (delta_alpha ** 2 * self.Jastrow[alpha, alpha] + delta_beta ** 2 * self.Jastrow[beta, beta] + 
+                       0.5 * delta_beta * np.sum((self.Jastrow[beta, :] + self.Jastrow[:, beta]) * self.occupancy) - 
+                       0.5 * (delta_alpha ** 2 * self.Jastrow[alpha, alpha] + delta_beta ** 2 * self.Jastrow[beta, beta] + 
                              delta_alpha * delta_beta * (self.Jastrow[alpha, beta] + self.Jastrow[beta, alpha])))
 
     def get_cur_Jastrow_factor(self):
@@ -278,8 +278,19 @@ class wavefunction_singlet():
         return ratio
 
 
+    ### testing part ###
+    def get_wf_ratio_double_exchange_test(self, i, j, k, l):
+        '''
+            only for debug: slower but surely currect version of the above function
+        '''
 
+        
 
+    def get_Jastrow_test(self, jastrow_index):
+        '''
+            slowny and explicitly computes the np.exp(...) -- only for testing
+        '''
+        return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy))
 
 # had to move it outside of the class to speed-up with numba (jitclass is hard!)
 @jit(nopython=True)
