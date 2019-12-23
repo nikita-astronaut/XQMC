@@ -270,6 +270,8 @@ class wavefunction_singlet():
             = W(j + L, I(i)) W(k, I(l + L)) + (\\delta_jl - W(j + L, I(l + L))) W(k, I(i))
             where I(i) is the position of the occupied site i in the state bitstring
         '''
+
+        L = len(self.state) // 2
         state = (self.Jastrow, self.W_GF, self.place_in_string, self.state, self.occupancy)
         ratio = get_wf_ratio(*state, i, j + L) * get_wf_ratio(*state, l + L, k)
         delta = 1.0 if j == l else 0.0
@@ -287,6 +289,10 @@ class wavefunction_singlet():
             return 0.0 + 0.0j
 
         expectation = 0.0 + 0.0j
+
+        L = len(self.state) // 2
+        delta = 1.0 if j == l else 0.0
+        W_0 = self.W_GF(k, self.place_in_string(i + L))
         
 
         occupancy_local = deepcopy(self.occupancy)
