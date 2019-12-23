@@ -263,6 +263,22 @@ class wavefunction_singlet():
     def get_state(self):
         return self.occupied_sites, self.empty_sites, self.place_in_string
 
+    def get_wf_ratio_double_exchange(self, i, j, k, l):  # TODO: go jit
+        '''
+            this is required for the correlators <\\Delta^{\\dag} \\Delta>
+            computes the ratio <x|d_{j + L d^{\\dag}_i d_k d^{\\dag}_{l + L}} = 
+            = W(j + L, I(i)) W(k, I(l + L)) + (\\delta_jl - W(j + L, I(l + L))) W(k, I(i))
+            where I(i) is the position of the occupied site i in the state bitstring
+        '''
+        state = (self.Jastrow, self.W_GF, self.place_in_string, self.state, self.occupancy)
+        ratio = get_wf_ratio(*state, i, j + L) * get_wf_ratio(*state, l + L, k)
+        delta = 1.0 if j == l else 0.0
+
+        ratio += (delta - get_wf_ratio(*state, l + L, j + L)) * get_wf_ratio(*state, i, k)
+        return ratio
+
+
+
 
 
 # had to move it outside of the class to speed-up with numba (jitclass is hard!)
@@ -276,6 +292,10 @@ def get_Jastrow_ratio(Jastrow, occupancy, alpha, beta, delta_alpha, delta_beta):
 @jit(nopython=True)
 def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
                  moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
+    # if move is impossible, return 0.0
+    if place_in_string[moved_site] == -1 or place_in_string[empty_site] > -1:
+        return 0.0 + 0.0j
+
     delta_alpha = -1 if moved_site < len(state) // 2 else +1
     delta_beta = +1 if empty_site < len(state) // 2 else -1
 
