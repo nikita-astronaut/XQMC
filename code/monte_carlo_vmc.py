@@ -45,7 +45,11 @@ from config_vmc import MC_parameters as config_vmc
 config_vmc = config_vmc()
 
 if config_vmc.tests:
+    tests.perform_explicit_factors_check(config_vmc)
+    tests.perform_single_move_check(config_vmc)
     tests.perform_numerical_derivative_check(config_vmc)
+    tests.perform_double_move_check(config_vmc)
+
 
 if config_vmc.visualisation:
     visualisation.plot_fermi_surface(config_vmc)

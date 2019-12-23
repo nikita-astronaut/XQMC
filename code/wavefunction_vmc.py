@@ -51,8 +51,8 @@ class wavefunction_singlet():
         self.a_update_list = []
         self.b_update_list = []  # for delayed GF updates defined in (5.93 -- 5.97)
 
-        self.current_ampl = np.linalg.det(self.U_tilde_matrix) * self.get_cur_Jastrow_factor()
-        self.current_det = np.linalg.det(self.U_tilde_matrix)
+        self.current_ampl = self.get_cur_det() * self.get_cur_Jastrow_factor()
+        self.current_det = self.get_cur_det()
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
         self._state_dict = {}
@@ -70,6 +70,9 @@ class wavefunction_singlet():
 
     def get_cur_Jastrow_factor(self):
         return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy))
+
+    def get_cur_det(self):
+        return np.linalg.det(self._construct_U_tilde_matrix())
 
     def get_O_pairing(self, W_k):
         return -np.einsum('ij,ji', W_k, self.W_GF_complete)  # (6.98) from S.Sorella book
@@ -175,7 +178,7 @@ class wavefunction_singlet():
 
         return occupied_sites, empty_sites, place_in_string
 
-    def perform_MC_step(self, proposed_move = None):
+    def perform_MC_step(self, proposed_move = None, enforce = False):
         self.MC_step_index += 1
         conserving_move = False
         n_attempts = 0
@@ -184,28 +187,23 @@ class wavefunction_singlet():
             moved_site_idx = self.random_numbers_move[self.MC_step_index]
             moved_site = self.occupied_sites[moved_site_idx]
             empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]
-        else:
+        else:  # only in testmode
             moved_site, empty_site = proposed_move
             moved_site_idx = self.place_in_string[moved_site]
+            if empty_site not in self.empty_sites or moved_site not in self.occupied_sites:
+                return False, 1, moved_site, empty_site
 
         if empty_site not in self.empty_sites:
-            return False, 1
+            return False, 1, moved_site, empty_site
 
         t = time()
         det_ratio = self.W_GF[empty_site, moved_site_idx] + \
                     np.sum([a[empty_site, 0] * b[moved_site_idx, 0] for a, b in zip(self.a_update_list, self.b_update_list)])
-
-        delta_alpha = -1 if moved_site < len(self.state) // 2 else +1
-        delta_beta = +1 if empty_site < len(self.state) // 2 else -1
-
-        Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, moved_site % (len(self.state) // 2), 
-                                          empty_site % (len(self.state) // 2), 
-                                          delta_alpha, delta_beta)
-        # test = self.get_Jastrow_ratio(moved_site % (len(self.state) // 2), empty_site % (len(self.state) // 2), delta_alpha, delta_beta)
+        Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, moved_site, empty_site)
 
         self.wf += time() - t
-        if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
-            return False, 1
+        if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
+            return False, 1, moved_site, empty_site
 
         t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
@@ -250,7 +248,7 @@ class wavefunction_singlet():
             self.perform_explicit_GF_update()
 
         self.update += time() - t 
-        return True, det_ratio
+        return True, det_ratio * Jastrow_ratio, moved_site, empty_site
 
     def perform_explicit_GF_update(self):
         if len(self.a_update_list) == 0:
@@ -277,56 +275,59 @@ class wavefunction_singlet():
 
         L = len(self.state) // 2
         state = (self.Jastrow, self.W_GF, self.place_in_string, self.state, self.occupancy)
-        ratio = get_wf_ratio(*state, i, j + L) * get_wf_ratio(*state, l + L, k)
-        delta = 1.0 if j == l else 0.0
 
-        ratio += (delta - get_wf_ratio(*state, l + L, j + L)) * get_wf_ratio(*state, i, k)
-        return ratio
 
-    '''
-    ### testing part ###
-    def get_wf_ratio_double_exchange_test(self, i, j, k, l):
-        '''
-            # only for debug: slower but surely currect version of the above function
-        '''
-        if (self.place_in_string[j + L] > -1) or (self.place_in_string[i] == -1):
+        ## have to explicitly work-around two degenerate cases ##
+        if j == l:
+            if self.place_in_string[j + L] == -1:
+                return get_wf_ratio(*state, i, k)
             return 0.0 + 0.0j
 
-        expectation = 0.0 + 0.0j
+        if i == k:
+            if self.place_in_string[i] > -1:
+                delta = 1 if l == j else 0
+                return delta - get_wf_ratio(*state, l + L, j + L)
+            return 0.0 + 0.0j
 
-        L = len(self.state) // 2
-        delta = 1.0 if j == l else 0.0
-        W_0 = self.W_GF(k, self.place_in_string(i))
+        ## bus if everything is fine... ##
+        jastrow = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, i, k)
+        self.occupancy[i] -= 1
+        self.occupancy[k] += 1
+        jastrow *= get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, l + L, j + L)
+        self.occupancy[i] += 1
+        self.occupancy[k] -= 1
 
-
-        occupancy_local = deepcopy(self.occupancy)
-    '''
-
-    def get_Jastrow_test(self, jastrow_index):
-        '''
-            slowny and explicitly computes the np.exp(...) -- only for testing
-        '''
-        return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy))
+        return jastrow * (get_det_ratio(*state, i, j + L) * get_det_ratio(*state, l + L, k) - get_det_ratio(*state, l + L, j + L) * get_det_ratio(*state, i, k))
 
 # had to move it outside of the class to speed-up with numba (jitclass is hard!)
 @jit(nopython=True)
-def get_Jastrow_ratio(Jastrow, occupancy, alpha, beta, delta_alpha, delta_beta):
+def get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site):
+    delta_alpha = -1 if moved_site < len(state) // 2 else +1
+    delta_beta = +1 if empty_site < len(state) // 2 else -1
+    alpha, beta = moved_site % (len(state) // 2), empty_site % (len(state) // 2)
+
     factor = Jastrow[alpha, alpha]
     return np.exp(-np.sum((delta_alpha * Jastrow[alpha, :] + delta_beta * Jastrow[beta, :]) * occupancy) - 
                    0.5 * ((delta_alpha ** 2 + delta_beta ** 2) * factor + 
                           delta_alpha * delta_beta * (Jastrow[alpha, beta] + Jastrow[beta, alpha])))
 
 @jit(nopython=True)
-def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
+def get_det_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
                  moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
+    if moved_site == empty_site:  # if just density correlator <x|d^dag d|Ф> = <Ф|d^dag d |x>^*
+        if place_in_string[empty_site] > -1:
+            return 1.0 + 0.0j
+        return 0.0 + 0.0j
+
     # if move is impossible, return 0.0
     if place_in_string[moved_site] == -1 or place_in_string[empty_site] > -1:
         return 0.0 + 0.0j
 
-    delta_alpha = -1 if moved_site < len(state) // 2 else +1
-    delta_beta = +1 if empty_site < len(state) // 2 else -1
+    return W_GF[empty_site, place_in_string[moved_site]]
 
-    Jastrow_ratio = get_Jastrow_ratio(Jastrow, occupancy, moved_site % (len(state) // 2), \
-                                      empty_site % (len(state) // 2), delta_alpha, delta_beta)
-    det_ratio = W_GF[empty_site, place_in_string[moved_site]]
+@jit(nopython=True)
+def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
+                 moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
+    Jastrow_ratio = get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site)
+    det_ratio = get_det_ratio(Jastrow, W_GF, place_in_string, state, occupancy, moved_site, empty_site)
     return det_ratio * Jastrow_ratio
