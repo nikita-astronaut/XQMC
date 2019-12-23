@@ -283,8 +283,14 @@ class wavefunction_singlet():
         '''
             only for debug: slower but surely currect version of the above function
         '''
+        if (self.place_in_string[k] > -1) or (self.place_in_string[i] == -1):
+            return 0.0 + 0.0j
 
+        expectation = 0.0 + 0.0j
         
+
+        occupancy_local = deepcopy(self.occupancy)
+
 
     def get_Jastrow_test(self, jastrow_index):
         '''
