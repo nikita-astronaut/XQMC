@@ -15,7 +15,7 @@ class MC_parameters:
         self.hamiltonian = hamiltonians_vmc.hamiltonian_2bands
         self.n_sublattices = 1
         self.MC_chain = 180000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
-        self.MC_thermalisation = 120000
+        self.optimisation_steps = 300
         self.N_electrons = 100 # only applied if PN_projection = True
         self.correlation = 100
         self.opt_parameters = [1e-3, 3e-2]  # regularizer for the S_stoch matrix, learning rate
@@ -27,13 +27,13 @@ class MC_parameters:
         self.n_delayed_updates = 5
         self.visualisation = False
         self.tests = False
-        self.observables_frequency = 1000  # how often to compute observables
+        self.observables_frequency = 60000  # how often to compute observables
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
         self.log_name = '/home/astronaut/DQMC_TBG/log_DplusiDwave.dat'
         self.observables_log_name = '/home/astronaut/DQMC_TBG/observables_DplusiDwave.dat'
         pairings.obtain_all_pairings(self)
 
-        self.pairings_list = [pairings.NN_pairings_1orb_square_real[1]]
-        self.pairings_list_names = ['D-wave_re']
+        self.pairings_list = [pairings.NN_pairings_1orb_square_real[1], pairings.NN_pairings_1orb_square_imag[1]]
+        self.pairings_list_names = ['D-wave_re', 'D-wave_im']
 
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals

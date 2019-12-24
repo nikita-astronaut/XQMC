@@ -5,14 +5,6 @@ import models
 from copy import deepcopy
 from numba import jit
 
-xp = np
-try:
-    import cupy as cp
-    xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
-except ImportError:
-    pass
-
-
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, var_mu, var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):

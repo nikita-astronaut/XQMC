@@ -61,12 +61,12 @@ print('performing simulation at', n_cpus, 'CPUs')
 def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
     hamiltonian = config_vmc.hamiltonian(config_vmc)
     if final_state == False:
-        wavefunction = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, False, None)
+        wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, False, None)
     else:
-        wavefunction = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, True, final_state)
-    if not wavefunction.with_previous_state:
-        for MC_step in range(config_vmc.MC_thermalisation):
-            wavefunction.perform_MC_step()
+        wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, True, final_state)
+    if not wf.with_previous_state:
+        for MC_step in range(config_vmc.MC_chain * 2):
+            wf.perform_MC_step()
 
     energies = []
     Os = []
@@ -79,26 +79,26 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
 
     for MC_step in range(config_vmc.MC_chain):
         if MC_step % config_vmc.correlation == 0:
-            wavefunction.perform_explicit_GF_update()
+            wf.perform_explicit_GF_update()
             t = time()
-            energies.append(hamiltonian(wavefunction))
+            energies.append(hamiltonian(wf))
             t_energies += time() - t
             t = time()
-            Os.append(wavefunction.get_O())
+            Os.append(wf.get_O())
             t_forces += time() - t
 
         t = time()
         if MC_step % config_vmc.observables_frequency == 0:
-            obs, names = observables_vmc.compute_observables(wavefunction)
+            obs, names = observables_vmc.compute_observables(wf)
             observables.append(obs)
         t_observables += time() - t
 
         t = time()
-        acceptance.append(wavefunction.perform_MC_step()[0])
+        acceptance.append(wf.perform_MC_step()[0])
         t_steps += time() - t
 
-    print(t_observables, t_energies, t_steps, wavefunction.update, wavefunction.wf, t_forces)
-    return energies, Os, acceptance, wavefunction.get_state(), observables, names
+    # print(t_observables, t_energies, t_steps, wf.update, wf.wf, t_forces)
+    return energies, Os, acceptance, wf.get_state(), observables, names
 
 pairings_list = config_vmc.pairings_list
 pairings_names = config_vmc.pairings_list_names
@@ -110,7 +110,6 @@ H = config_vmc.hamiltonian(config_vmc)
 
 log_file = open(config_vmc.log_name, 'w')
 
-n_step = 0
 final_states = []
 
 log_file.write("<opt_step> <energy> <denergy> <acceptance> <force>")
@@ -125,7 +124,7 @@ observables_log.write("<opt_step> <energy> <denergy> <acceptance>")
 
 
 
-while True:
+for n_step in range(config_vmc.optimisation_steps):
     if n_step == 0:
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc, pairings_list, \
                                                                        (mu_parameter, gap_parameters, jastrow_parameters)) for i in range(n_cpus))
@@ -162,8 +161,7 @@ while True:
 
     Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
-    print(np.sqrt(np.diag(S_cov)))
-    # Hess = 2 * np.einsum('n,nk,nl->kl', (energies - energies.mean()), (Os - Os_mean).conj(), (Os - Os_mean)).real / Os.shape[0]
+    
     forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
     S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
     # (6.51, scale-invariant regularization)
@@ -174,7 +172,6 @@ while True:
     step = step_pc / np.sqrt(np.abs(np.diag(S_cov)))
 
     print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
-
     step = config_vmc.opt_parameters[1] * step 
 
     mu_parameter += step[0]
@@ -191,4 +188,3 @@ while True:
                           *observables))
     log_file.flush()
     observables_log.flush()
-    n_step += 1
