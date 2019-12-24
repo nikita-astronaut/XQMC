@@ -56,7 +56,7 @@ def perform_numerical_derivative_check(config):
     if compare_derivatives_numerically(wf_1, wf_2, 0, dt):
         print('Passed')
     else:
-        prinf('Failed!')
+        print('Failed!')
 
     print('Pairings derivative check...')
     n_passed = 0
@@ -72,7 +72,7 @@ def perform_numerical_derivative_check(config):
     if n_passed == len(config.initial_gap_parameters):
         print('Passed')
     else:
-        prinf('Failed!')
+        print('Failed!')
 
     print('Jastrow derivative check...')
     n_passed = 0
@@ -89,7 +89,7 @@ def perform_numerical_derivative_check(config):
     if n_passed == len(config.initial_jastrow_parameters):
         print('Passed')
     else:
-        prinf('Failed!')
+        print('Failed!')
     return
 
 def perform_single_move_check(config):
@@ -119,7 +119,7 @@ def perform_single_move_check(config):
     if n_failed == 0:
         print('Passed')
     else:
-        printf('Failed on samples:', n_failed)
+        print('Failed on samples:', n_failed)
 
     return
 
@@ -182,6 +182,6 @@ def perform_double_move_check(config):
     if n_failed == 0:
         print('Passed')
     else:
-        printf('Failed on samples:', n_failed)
+        print('Failed on samples:', n_failed)
 
     return

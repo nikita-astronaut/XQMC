@@ -101,7 +101,7 @@ def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
 def model_hex_2orb_Kashino(config, mu, only_NN = False):
-    t1, t2 = 0.331, 0 * (-0.010 + 1.0j * 0.097)
+    t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
     if only_NN:
         t2 = 0.0 + 0.0j
 
@@ -131,13 +131,12 @@ def model_hex_2orb_Kashino(config, mu, only_NN = False):
 
 def model_hex_1orb(config, mu):
     t1 = 1.
-    K = np.zeros((config.total_dof // 2, config.total_dof // 2))
-    for first in range(config.total_dof // 2):
-        for second in range(config.total_dof // 2):
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, \
-                                                                config.n_orbitals, config.n_sublattices)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, \
-                                                                config.n_orbitals, config.n_sublattices)
+    ndof = config.Ls ** 2 * 2 * 1 * 2
+    K = np.zeros((ndof // 2, ndof // 2))
+    for first in range(ndof // 2):
+        for second in range(ndof // 2):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, 1, 2)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, 1, 2)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
@@ -160,7 +159,7 @@ def interorbital_mod(A, n_orbitals):
             coupling = np.zeros((n_orbitals, n_orbitals))
             coupling[i_orbital, j_orbital] = 1
             coupling += coupling.T
-            result = result + np.kron(A, coupling)
+            result.append(np.kron(A, coupling))
     return result
 
 def get_adjacency_list(config, max_len):
@@ -172,7 +171,7 @@ def get_adjacency_list(config, max_len):
     A = np.abs(np.asarray(K_matrix)) > 1e-6
 
     adjacency_list = []
-    adj = np.diag(np.ones(len(np.diag(A))))
+    adj = np.eye(len(np.diag(A)))
     seen_elements = adj * 0
     while len(adjacency_list) < max_len:
         adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals)
@@ -184,11 +183,12 @@ def get_adjacency_list(config, max_len):
 
 def model_square_1orb(config, mu):
     t1 = 1.
-    K = np.zeros((config.total_dof // 2, config.total_dof // 2))
-    for first in range(config.total_dof // 2):
-        for second in range(config.total_dof // 2):
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
+    ndof = config.Ls ** 2 * 2 * 1 * 1
+    K = np.zeros((ndof // 2, ndof // 2))
+    for first in range(ndof // 2):
+        for second in range(ndof // 2):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, 1, 1)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, 1, 1)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])

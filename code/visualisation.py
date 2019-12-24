@@ -189,7 +189,7 @@ def plot_pairing(config, gap_expanded, name):
                 plt.annotate(s='', xy=r2, xytext=r1, arrowprops=dict(arrowstyle='->'))
                 
                 textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
-                textshift = textshift / np.sqrt(np.sum(textshift ** 2))
+                textshift = textshift / np.sqrt(np.sum(textshift ** 2) + 1e-5)
                 shiftval = 0.06 - (orbit1 * config.n_orbitals + orbit2) * 0.06 / 2
                 plt.text(*(r2 + shiftval * textshift), labelstring, zorder=10)
     
