@@ -268,7 +268,7 @@ class wavefunction_singlet():
     def get_wf_ratio_double_exchange(self, i, j, k, l):  # TODO: go jit
         '''
             this is required for the correlators <\\Delta^{\\dag} \\Delta>
-            computes the ratio <x|d_{j + L d^{\\dag}_i d_k d^{\\dag}_{l + L}} = 
+            computes the ratio <x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф> / <x|Ф> = 
             = W(j + L, I(i)) W(k, I(l + L)) + (\\delta_jl - W(j + L, I(l + L))) W(k, I(i))
             where I(i) is the position of the occupied site i in the state bitstring
         '''
@@ -278,12 +278,12 @@ class wavefunction_singlet():
 
 
         ## have to explicitly work-around two degenerate cases ##
-        if j == l:
+        if j == l: # then the two states act on |x> as d_{j + L} d^{\\dag}_{j + L} |x> = (1 - n_{j + L}) |x>
             if self.place_in_string[j + L] == -1:
                 return get_wf_ratio(*state, i, k)
             return 0.0 + 0.0j
 
-        if i == k:
+        if i == k: # then the two states act on |x> as d^{\dag}_i d_i |x> = n_i |x>
             if self.place_in_string[i] > -1:
                 delta = 1 if l == j else 0
                 return delta - get_wf_ratio(*state, l + L, j + L)

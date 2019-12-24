@@ -27,10 +27,10 @@ class MC_parameters:
         self.n_delayed_updates = 5
         self.visualisation = False
         self.tests = False
-        self.observables = 100  # how often to compute observables
+        self.observables_frequency = 1000  # how often to compute observables
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
-        self.log_name = '/home/astronaut/Documents/DQMC_TBG/log_DplusiDwave.dat'
-
+        self.log_name = '/home/astronaut/DQMC_TBG/log_DplusiDwave.dat'
+        self.observables_log_name = '/home/astronaut/DQMC_TBG/observables_DplusiDwave.dat'
         pairings.obtain_all_pairings(self)
 
         self.pairings_list = [pairings.NN_pairings_1orb_square_real[1]]

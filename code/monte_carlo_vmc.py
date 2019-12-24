@@ -74,6 +74,8 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
     t_energies = 0
     t_steps = 0
     t_forces = 0
+    t_observables = 0
+    observables = []
 
     for MC_step in range(config_vmc.MC_chain):
         if MC_step % config_vmc.correlation == 0:
@@ -85,14 +87,17 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
             Os.append(wavefunction.get_O())
             t_forces += time() - t
 
-        if MC_step % config_vmc.observables:
-            observables_vmc.compute_observables(wavefunction)
+        t = time()
+        if MC_step % config_vmc.observables_frequency:
+            observables.append(observables_vmc.compute_observables(wavefunction))
+        t_observables += time() - t
+
         t = time()
         acceptance.append(wavefunction.perform_MC_step()[0])
         t_steps += time() - t
 
     print(t_energies, t_steps, wavefunction.update, wavefunction.wf, t_forces)
-    return energies, Os, acceptance, wavefunction.get_state()
+    return energies, Os, acceptance, wavefunction.get_state(), observables
 
 pairings_list = config_vmc.pairings_list
 pairings_names = config_vmc.pairings_list_names
@@ -114,6 +119,11 @@ for i in range(len(jastrow_parameters)):
     log_file.write(" <jastrow_" + str(i) + ">")
 log_file.write(' <mu_BCS>\n')
 
+observables_log = open(config_vmc.observables_log_name, 'w')
+observables_log.write("<opt_step> <energy> <denergy> <acceptance>")
+
+
+
 while True:
     if n_step == 0:
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc, pairings_list, \
@@ -126,6 +136,17 @@ while True:
     Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
     acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
     final_states = [x[3] for x in results]
+
+    observables = np.concatenate([np.array(x[4]) for x in results], axis = 0)
+    observables_names = results[0][5]
+
+    if n_step == 0:
+        for obs_name in observables_names:
+            observables_log.write(" <" + obs_name + "> <d" + obs_name + ">")
+        observables_log.write('\n')
+
+    observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
+
 
     vol = config_vmc.total_dof // 2
 
@@ -163,5 +184,9 @@ while True:
     log_file.write(("{:3d} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
                      np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, np.sqrt(np.sum(forces ** 2)),
                      *gap_parameters, *jastrow_parameters, mu_parameter))
+
+    observables_log.write(("{:3d} {:.7e} {:.7e} {:.3e} " + " {:.5e}" * len(observables) + "\n").format(n_step, np.mean(energies).real / vol,
+                          np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, 
+                          *observables))
     log_file.flush()
     n_step += 1
