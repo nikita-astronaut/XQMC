@@ -11,6 +11,14 @@ import visualisation
 import tests
 import observables_vmc
 
+def remove_singularity(S):
+    for i in range(S.shape[0]):
+        if S[i] < 1e-4:
+            S[i, :] = 0.0
+            S[:, i] = 0.0
+            S[i, i] = 1.0
+    return S
+
 # <<Borrowed>> from Tom
 def import_config(filename: str):
     import importlib
@@ -162,6 +170,8 @@ for n_step in range(config_vmc.optimisation_steps):
     Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
     
+    S_cov = remove_singularity(S_cov)
+
     forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
     S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
     # (6.51, scale-invariant regularization)
