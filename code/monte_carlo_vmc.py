@@ -11,6 +11,14 @@ import visualisation
 import tests
 import observables_vmc
 
+def remove_singularity(S):
+    for i in range(S.shape[0]):
+        if S[i] < 1e-4:
+            S[i, :] = 0.0
+            S[:, i] = 0.0
+            S[i, i] = 1.0
+    return S
+
 # <<Borrowed>> from Tom
 def import_config(filename: str):
     import importlib
@@ -162,6 +170,9 @@ while True:
 
     Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
     S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
+    
+    S_cov = remove_singularity(S_cov)
+    
     print(np.sqrt(np.diag(S_cov)))
     # Hess = 2 * np.einsum('n,nk,nl->kl', (energies - energies.mean()), (Os - Os_mean).conj(), (Os - Os_mean)).real / Os.shape[0]
     forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
