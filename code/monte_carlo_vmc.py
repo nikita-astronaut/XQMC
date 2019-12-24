@@ -88,11 +88,11 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
             t_forces += time() - t
 
         t = time()
-        if MC_step % config_vmc.observables_frequency:
+        if MC_step % config_vmc.observables_frequency == 0:
             obs, names = observables_vmc.compute_observables(wavefunction)
             observables.append(obs)
         t_observables += time() - t
-        print(t_observables)
+
         t = time()
         acceptance.append(wavefunction.perform_MC_step()[0])
         t_steps += time() - t
@@ -190,4 +190,5 @@ while True:
                           np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, 
                           *observables))
     log_file.flush()
+    observables_log.flush()
     n_step += 1

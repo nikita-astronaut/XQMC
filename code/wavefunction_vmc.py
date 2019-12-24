@@ -265,40 +265,6 @@ class wavefunction_singlet():
     def get_state(self):
         return self.occupied_sites, self.empty_sites, self.place_in_string
 
-    def get_wf_ratio_double_exchange(self, i, j, k, l):  # TODO: go jit
-        '''
-            this is required for the correlators <\\Delta^{\\dag} \\Delta>
-            computes the ratio <x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф> / <x|Ф> = 
-            = W(j + L, I(i)) W(k, I(l + L)) + (\\delta_jl - W(j + L, I(l + L))) W(k, I(i))
-            where I(i) is the position of the occupied site i in the state bitstring
-        '''
-
-        L = len(self.state) // 2
-        state = (self.Jastrow, self.W_GF, self.place_in_string, self.state, self.occupancy)
-
-
-        ## have to explicitly work-around two degenerate cases ##
-        if j == l: # then the two states act on |x> as d_{j + L} d^{\\dag}_{j + L} |x> = (1 - n_{j + L}) |x>
-            if self.place_in_string[j + L] == -1:
-                return get_wf_ratio(*state, i, k)
-            return 0.0 + 0.0j
-
-        if i == k: # then the two states act on |x> as d^{\dag}_i d_i |x> = n_i |x>
-            if self.place_in_string[i] > -1:
-                delta = 1 if l == j else 0
-                return delta - get_wf_ratio(*state, l + L, j + L)
-            return 0.0 + 0.0j
-
-        ## bus if everything is fine... ##
-        jastrow = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, i, k)
-        self.occupancy[i] -= 1
-        self.occupancy[k] += 1
-        jastrow *= get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, l + L, j + L)
-        self.occupancy[i] += 1
-        self.occupancy[k] -= 1
-
-        return jastrow * (get_det_ratio(*state, i, j + L) * get_det_ratio(*state, l + L, k) - get_det_ratio(*state, l + L, j + L) * get_det_ratio(*state, i, k))
-
 # had to move it outside of the class to speed-up with numba (jitclass is hard!)
 @jit(nopython=True)
 def get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site):
@@ -331,3 +297,38 @@ def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
     Jastrow_ratio = get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site)
     det_ratio = get_det_ratio(Jastrow, W_GF, place_in_string, state, occupancy, moved_site, empty_site)
     return det_ratio * Jastrow_ratio
+
+@jit(nopython=True)
+def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupancy, i, j, k, l):  # TODO: go jit
+    '''
+        this is required for the correlators <\\Delta^{\\dag} \\Delta>
+        computes the ratio <x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф> / <x|Ф> = 
+        = W(j + L, I(i)) W(k, I(l + L)) + (\\delta_jl - W(j + L, I(l + L))) W(k, I(i))
+        where I(i) is the position of the occupied site i in the state bitstring
+    '''
+
+    L = len(state) // 2
+    state = (Jastrow, W_GF, place_in_string, state, occupancy)
+
+
+    ## have to explicitly work-around two degenerate cases ##
+    if j == l: # then the two states act on |x> as d_{j + L} d^{\\dag}_{j + L} |x> = (1 - n_{j + L}) |x>
+        if place_in_string[j + L] == -1:
+            return get_wf_ratio(*state, i, k)
+        return 0.0 + 0.0j
+
+    if i == k: # then the two states act on |x> as d^{\dag}_i d_i |x> = n_i |x>
+        if place_in_string[i] > -1:
+            delta = 1 if l == j else 0
+            return delta - get_wf_ratio(*state, l + L, j + L)
+        return 0.0 + 0.0j
+
+    ## bus if everything is fine... ##
+    jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, i, k)
+    occupancy[i] -= 1
+    occupancy[k] += 1
+    jastrow *= get_Jastrow_ratio(Jastrow, occupancy, state, l + L, j + L)
+    occupancy[i] += 1
+    occupancy[k] -= 1
+
+    return jastrow * (get_det_ratio(*state, i, j + L) * get_det_ratio(*state, l + L, k) - get_det_ratio(*state, l + L, j + L) * get_det_ratio(*state, i, k))
