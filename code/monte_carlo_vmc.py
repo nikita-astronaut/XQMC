@@ -118,6 +118,7 @@ for U in U_list:
     mu_parameter = config_vmc.initial_mu_parameters
 
     config_vmc.U = U
+    # config_vmc.V = U
     H = config_vmc.hamiltonian(config_vmc)
  
     log_file = open(config_vmc.log_name + '_U_' + str(U) + '.dat', 'w')
