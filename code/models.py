@@ -149,10 +149,6 @@ def model_hex_1orb(config, mu):
     return apply_twisted_periodic_conditions(config, K)
 
 def interorbital_mod(A, n_orbitals):
-    res = []
-    if n_orbitals == 1:
-        return [A]
-
     result = [np.kron(A, np.eye(n_orbitals))]
     for i_orbital in range(n_orbitals):
         for j_orbital in range(i_orbital + 1, n_orbitals):
@@ -173,12 +169,13 @@ def get_adjacency_list(config, max_len):
     adjacency_list = []
     adj = np.eye(len(np.diag(A)))
     seen_elements = adj * 0
+
     while len(adjacency_list) < max_len:
         adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals)
         seen_elements += adj
         adj = adj.dot(A)
         adj = np.logical_and(seen_elements == 0, adj > 0) * 1.
-    return adjacency_list
+    return adjacency_list[:max_len]
 
 
 def model_square_1orb(config, mu):

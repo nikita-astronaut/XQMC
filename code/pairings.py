@@ -150,25 +150,25 @@ def get_total_pairing_upwrapped(config, pairings_unwrapped, var_params):
 
 
 
-def construct_on_site_pairings_2orb_hex(config, real = True):
+def construct_on_site_2orb_hex(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
 
     onsite = construct_onsite_delta(config)
-    on_site_pairings = []
-    on_site_pairings.append([(Ipauli, Ipauli, onsite, 1), factor])  # A1 0
-    on_site_pairings.append([(Zpauli, iYpauli, onsite, 1), factor])  # A1 1
-    on_site_pairings.append([(Ipauli, iYpauli, onsite, 1), factor])  # A2 2
-    on_site_pairings.append([(Zpauli, Ipauli, onsite, 1), factor])  # A2 3
+    on_site = []
+    on_site.append([(Ipauli, Ipauli, onsite, 1), factor])  # A1 0
+    on_site.append([(Zpauli, iYpauli, onsite, 1), factor])  # A1 1
+    on_site.append([(Ipauli, iYpauli, onsite, 1), factor])  # A2 2
+    on_site.append([(Zpauli, Ipauli, onsite, 1), factor])  # A2 3
 
-    on_site_pairings.append([(Ipauli, Xpauli, onsite, 1.0), factor]); on_site_pairings.append([(Ipauli, Zpauli, onsite, 1.0), factor])  # E 4-5
-    on_site_pairings.append([(Zpauli, Xpauli, onsite, 1.0), factor]); on_site_pairings.append([(Zpauli, Zpauli, onsite, 1.0), factor])  # E 6-7
+    on_site.append([(Ipauli, Xpauli, onsite, 1.0), factor]); on_site.append([(Ipauli, Zpauli, onsite, 1.0), factor])  # E 4-5
+    on_site.append([(Zpauli, Xpauli, onsite, 1.0), factor]); on_site.append([(Zpauli, Zpauli, onsite, 1.0), factor])  # E 6-7
 
-    return on_site_pairings
+    return on_site
 
 
-def construct_NN_pairings_2orb_hex(config, real = True):
+def construct_NN_2orb_hex(config, real = True):
     '''
     each element of the result is the tensor--decomposed gap in the sublattice x orbitals x neighbors space
     the 2D--irreps go in pairs written in the single line -- one MUST include them both into the total gap
@@ -198,48 +198,48 @@ def construct_NN_pairings_2orb_hex(config, real = True):
     v3 = (v3_AB, v3_BA)
 
     # print(np.unique(v1), np.unique(v2), np.unique(v3))
-    NN_pairings = []
+    NN = []
 
-    NN_pairings.append([(Xpauli, Ipauli, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
-    NN_pairings.append([(iYpauli, iYpauli, v1, 1.0), factor])  # A1 (A2 x A2 x A1) 1 
+    NN.append([(Xpauli, Ipauli, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
+    NN.append([(iYpauli, iYpauli, v1, 1.0), factor])  # A1 (A2 x A2 x A1) 1 
 
-    NN_pairings.append([(Xpauli, iYpauli, v1, 1.0), factor])  # A2 (A2 x A1 x A1) 2
-    NN_pairings.append([(iYpauli, Ipauli, v1, 1.0), factor])  # A2 (A1 x A2 x A1) 3
+    NN.append([(Xpauli, iYpauli, v1, 1.0), factor])  # A2 (A2 x A1 x A1) 2
+    NN.append([(iYpauli, Ipauli, v1, 1.0), factor])  # A2 (A1 x A2 x A1) 3
 
-    NN_pairings.append([(Xpauli, Xpauli, v1, 1.0), factor]); NN_pairings.append([(Xpauli, Zpauli, v1, 1.0), factor])  # E (A1 x E x A1) 4-5
-    NN_pairings.append([(iYpauli, Xpauli, v1, 1.0), factor]); NN_pairings.append([(iYpauli, Zpauli, v1, 1.0), factor])  # E (A2 x E x A1) 6-7
+    NN.append([(Xpauli, Xpauli, v1, 1.0), factor]); NN.append([(Xpauli, Zpauli, v1, 1.0), factor])  # E (A1 x E x A1) 4-5
+    NN.append([(iYpauli, Xpauli, v1, 1.0), factor]); NN.append([(iYpauli, Zpauli, v1, 1.0), factor])  # E (A2 x E x A1) 6-7
 
-    NN_pairings.append([(Xpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, Ipauli, v3, 1.0), factor])  # E (A1 x A1 x E) 8-9
-    NN_pairings.append([(iYpauli, Ipauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, Ipauli, v3, 1.0), factor])  # E (A2 x A1 x E) 10-11
-    NN_pairings.append([(Xpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(Xpauli, iYpauli, v3, 1.0), factor])  # E (A1 x A2 x E) 12-13
-    NN_pairings.append([(iYpauli, iYpauli, v2, 1.0), factor]); NN_pairings.append([(iYpauli, iYpauli, v3, 1.0), factor])  # E (A2 x A2 x E) 14-15
+    NN.append([(Xpauli, Ipauli, v2, 1.0), factor]); NN.append([(Xpauli, Ipauli, v3, 1.0), factor])  # E (A1 x A1 x E) 8-9
+    NN.append([(iYpauli, Ipauli, v2, 1.0), factor]); NN.append([(iYpauli, Ipauli, v3, 1.0), factor])  # E (A2 x A1 x E) 10-11
+    NN.append([(Xpauli, iYpauli, v2, 1.0), factor]); NN.append([(Xpauli, iYpauli, v3, 1.0), factor])  # E (A1 x A2 x E) 12-13
+    NN.append([(iYpauli, iYpauli, v2, 1.0), factor]); NN.append([(iYpauli, iYpauli, v3, 1.0), factor])  # E (A2 x A2 x E) 14-15
 
-    NN_pairings.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor])  # A1 (A1 x E x E) 16
-    NN_pairings.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor])  # A1 (A2 x E x E) 17
+    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor])  # A1 (A1 x E x E) 16
+    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor])  # A1 (A2 x E x E) 17
 
-    NN_pairings.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor])  # A2 (A1 x E x E) 18
-    NN_pairings.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor])  # A2 (A2 x E x E) 19
+    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor])  # A2 (A1 x E x E) 18
+    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor])  # A2 (A2 x E x E) 19
 
-    NN_pairings.append([(Xpauli, sigma_1, v3, 1.0), factor]); NN_pairings.append([(Xpauli, sigma_2, v2, 1.0), factor])  # E (A1 x E x E) 20-21
-    NN_pairings.append([(iYpauli, sigma_1, v3, 1.0), factor]); NN_pairings.append([(iYpauli, sigma_2, v2, 1.0), factor])  # E (A2 x E x E) 22-23
+    NN.append([(Xpauli, sigma_1, v3, 1.0), factor]); NN.append([(Xpauli, sigma_2, v2, 1.0), factor])  # E (A1 x E x E) 20-21
+    NN.append([(iYpauli, sigma_1, v3, 1.0), factor]); NN.append([(iYpauli, sigma_2, v2, 1.0), factor])  # E (A2 x E x E) 22-23
 
-    return NN_pairings
+    return NN
 
 
-def construct_on_site_pairings_1orb_hex(config, real = True):
+def construct_on_site_1orb_hex(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
 
     onsite = construct_onsite_delta(config)
-    on_site_pairings = []
-    on_site_pairings.append([(Ipauli, identity, onsite, 1), factor])  # A1 0
-    on_site_pairings.append([(Zpauli, identity, onsite, 1), factor])  # A2 1
+    on_site = []
+    on_site.append([(Ipauli, identity, onsite, 1), factor])  # A1 0
+    on_site.append([(Zpauli, identity, onsite, 1), factor])  # A2 1
 
-    return on_site_pairings
+    return on_site
 
 
-def construct_NN_pairings_1orb_hex(config, real = True):
+def construct_NN_1orb_hex(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
@@ -260,29 +260,29 @@ def construct_NN_pairings_1orb_hex(config, real = True):
     v2 = (v2_AB, v2_BA)
     v3 = (v3_AB, v3_BA)
 
-    NN_pairings = []
+    NN = []
 
-    NN_pairings.append([(Xpauli, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
-    NN_pairings.append([(iYpauli, identity, v1, 1.0), factor])  # B2 (A1 x A2 x A1) 1
+    NN.append([(Xpauli, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
+    NN.append([(iYpauli, identity, v1, 1.0), factor])  # B2 (A1 x A2 x A1) 1
 
-    NN_pairings.append([(Xpauli, identity, v2, 1.0), factor]); NN_pairings.append([(Xpauli, identity, v3, 1.0), factor])  # E1 (A1 x A1 x E) 2-3
-    NN_pairings.append([(iYpauli, identity, v2, 1.0), factor]); NN_pairings.append([(iYpauli, identity, v3, 1.0), factor])  # E2 (A2 x A1 x E) 4-5
-    return NN_pairings
+    NN.append([(Xpauli, identity, v2, 1.0), factor]); NN.append([(Xpauli, identity, v3, 1.0), factor])  # E1 (A1 x A1 x E) 2-3
+    NN.append([(iYpauli, identity, v2, 1.0), factor]); NN.append([(iYpauli, identity, v3, 1.0), factor])  # E2 (A2 x A1 x E) 4-5
+    return NN
 
 
-def construct_on_site_pairings_1orb_square(config, real = True):
+def construct_on_site_1orb_square(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
 
     onsite = construct_onsite_delta(config)
-    on_site_pairings = []
-    on_site_pairings.append([(identity, identity, onsite, 1), factor])  # A1 0
+    on_site = []
+    on_site.append([(identity, identity, onsite, 1), factor])  # A1 0
 
-    return on_site_pairings
+    return on_site
 
 
-def construct_NN_pairings_1orb_square(config, real = True):
+def construct_NN_1orb_square(config, real = True):
     factor = 1.0
     if not real:
         factor = 1.0j
@@ -294,13 +294,13 @@ def construct_NN_pairings_1orb_square(config, real = True):
     v3 = construct_vi_square(3)
     v4 = construct_vi_square(4)
 
-    NN_pairings = []
+    NN = []
 
-    NN_pairings.append([(identity, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
-    NN_pairings.append([(identity, identity, v4, 1.0), factor])  # B2 (A1 x A1 x A2) 1
+    NN.append([(identity, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
+    NN.append([(identity, identity, v4, 1.0), factor])  # B2 (A1 x A1 x A2) 1
 
-    NN_pairings.append([(identity, identity, v2, 1.0), factor]); NN_pairings.append([(identity, identity, v3, 1.0), factor])  # E (A1 x A1 x E) 2-3
-    return NN_pairings
+    NN.append([(identity, identity, v2, 1.0), factor]); NN.append([(identity, identity, v3, 1.0), factor])  # E (A1 x A1 x E) 2-3
+    return NN
 
 
 
@@ -315,51 +315,51 @@ def check_parity(config, pairing):
     return 'WTF is this shit?!'
 
 
-on_site_pairings_2orb_hex_real = None
-NN_pairings_2orb_hex_real = None
+on_site_2orb_hex_real = None
+NN_2orb_hex_real = None
 
-on_site_pairings_1orb_hex_real = None
-NN_pairings_1orb_hex_real = None
+on_site_1orb_hex_real = None
+NN_1orb_hex_real = None
 
-on_site_pairings_1orb_square_real = None
-NN_pairings_1orb_square_real = None
+on_site_1orb_square_real = None
+NN_1orb_square_real = None
 
-on_site_pairings_2orb_hex_imag = None
-NN_pairings_2orb_hex_imag = None
+on_site_2orb_hex_imag = None
+NN_2orb_hex_imag = None
 
-on_site_pairings_1orb_hex_imag = None
-NN_pairings_1orb_hex_imag = None
+on_site_1orb_hex_imag = None
+NN_1orb_hex_imag = None
 
-on_site_pairings_1orb_square_imag = None
-NN_pairings_1orb_square_imag = None
+on_site_1orb_square_imag = None
+NN_1orb_square_imag = None
 
 def obtain_all_pairings(config):
-    global on_site_pairings_2orb_hex_imag, NN_pairings_2orb_hex_imag, \
-           on_site_pairings_1orb_hex_imag, NN_pairings_1orb_hex_imag, \
-           on_site_pairings_1orb_square_imag, NN_pairings_1orb_square_imag
-    global on_site_pairings_2orb_hex_real, NN_pairings_2orb_hex_real, \
-           on_site_pairings_1orb_hex_real, NN_pairings_1orb_hex_real, \
-           on_site_pairings_1orb_square_real, NN_pairings_1orb_square_real
+    global on_site_2orb_hex_imag, NN_2orb_hex_imag, \
+           on_site_1orb_hex_imag, NN_1orb_hex_imag, \
+           on_site_1orb_square_imag, NN_1orb_square_imag
+    global on_site_2orb_hex_real, NN_2orb_hex_real, \
+           on_site_1orb_hex_real, NN_1orb_hex_real, \
+           on_site_1orb_square_real, NN_1orb_square_real
 
-    on_site_pairings_2orb_hex_real = construct_on_site_pairings_2orb_hex(config)
-    NN_pairings_2orb_hex_real = construct_NN_pairings_2orb_hex(config)
+    on_site_2orb_hex_real = construct_on_site_2orb_hex(config)
+    NN_2orb_hex_real = construct_NN_2orb_hex(config)
 
-    on_site_pairings_1orb_hex_real = construct_on_site_pairings_1orb_hex(config)
-    NN_pairings_1orb_hex_real = construct_NN_pairings_1orb_hex(config)
+    on_site_1orb_hex_real = construct_on_site_1orb_hex(config)
+    NN_1orb_hex_real = construct_NN_1orb_hex(config)
 
-    on_site_pairings_1orb_square_real = construct_on_site_pairings_1orb_square(config)
-    NN_pairings_1orb_square_real = construct_NN_pairings_1orb_square(config)
+    on_site_1orb_square_real = construct_on_site_1orb_square(config)
+    NN_1orb_square_real = construct_NN_1orb_square(config)
 
-    on_site_pairings_2orb_hex_imag = construct_on_site_pairings_2orb_hex(config, real = False)
-    NN_pairings_2orb_hex_imag = construct_NN_pairings_2orb_hex(config, real = False)
+    on_site_2orb_hex_imag = construct_on_site_2orb_hex(config, real = False)
+    NN_2orb_hex_imag = construct_NN_2orb_hex(config, real = False)
 
-    on_site_pairings_1orb_hex_imag = construct_on_site_pairings_1orb_hex(config, real = False)
-    NN_pairings_1orb_hex_imag = construct_NN_pairings_1orb_hex(config, real = False)
+    on_site_1orb_hex_imag = construct_on_site_1orb_hex(config, real = False)
+    NN_1orb_hex_imag = construct_NN_1orb_hex(config, real = False)
 
-    on_site_pairings_1orb_square_imag = construct_on_site_pairings_1orb_square(config, real = False)
-    NN_pairings_1orb_square_imag = construct_NN_pairings_1orb_square(config, real = False)
+    on_site_1orb_square_imag = construct_on_site_1orb_square(config, real = False)
+    NN_1orb_square_imag = construct_NN_1orb_square(config, real = False)
 
 
-    # for n, pairing in enumerate(NN_pairings_1orb_square_real):
+    # for n, pairing in enumerate(NN_1orb_square_real):
     #     print(check_parity(config, pairing), n)
     return

@@ -187,16 +187,17 @@ class wavefunction_singlet():
                 return False, 1, moved_site, empty_site
 
         if empty_site not in self.empty_sites:
-            return False, 1, moved_site, empty_site
+            return False, 1, 1, moved_site, empty_site
 
         t = time()
         det_ratio = self.W_GF[empty_site, moved_site_idx] + \
                     np.sum([a[empty_site, 0] * b[moved_site_idx, 0] for a, b in zip(self.a_update_list, self.b_update_list)])
+
         Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, moved_site, empty_site)
 
         self.wf += time() - t
         if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
-            return False, 1, moved_site, empty_site
+            return False, 1, 1, moved_site, empty_site
 
         t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
@@ -241,7 +242,7 @@ class wavefunction_singlet():
             self.perform_explicit_GF_update()
 
         self.update += time() - t 
-        return True, det_ratio * Jastrow_ratio, moved_site, empty_site
+        return True, det_ratio, Jastrow_ratio, moved_site, empty_site
 
     def perform_explicit_GF_update(self):
         if len(self.a_update_list) == 0:
@@ -272,7 +273,7 @@ def get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site):
 
 @jit(nopython=True)
 def get_det_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
-                 moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
+                  moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
     if moved_site == empty_site:  # if just density correlator <x|d^dag d|Ф> = <Ф|d^dag d |x>^*
         if place_in_string[empty_site] > -1:
             return 1.0 + 0.0j
@@ -301,27 +302,32 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
     '''
 
     L = len(state) // 2
-    state = (Jastrow, W_GF, place_in_string, state, occupancy)
+    state_packed = (Jastrow, W_GF, place_in_string, state, occupancy)
 
 
     ## have to explicitly work-around two degenerate cases ##
     if j == l: # then the two states act on |x> as d_{j + L} d^{\\dag}_{j + L} |x> = (1 - n_{j + L}) |x>
         if place_in_string[j + L] == -1:
-            return get_wf_ratio(*state, i, k)
+            return get_wf_ratio(*state_packed, i, k)
         return 0.0 + 0.0j
 
     if i == k: # then the two states act on |x> as d^{\dag}_i d_i |x> = n_i |x>
         if place_in_string[i] > -1:
             delta = 1 if l == j else 0
-            return delta - get_wf_ratio(*state, l + L, j + L)
+            return delta - get_wf_ratio(*state_packed, l + L, j + L)
         return 0.0 + 0.0j
 
     ## bus if everything is fine... ##
-    jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, i, k)
-    occupancy[i] -= 1
-    occupancy[k] += 1
-    jastrow *= get_Jastrow_ratio(Jastrow, occupancy, state, l + L, j + L)
-    occupancy[i] += 1
-    occupancy[k] -= 1
+    ratio_det = get_det_ratio(*state_packed, i, j + L) * get_det_ratio(*state_packed, l + L, k) - \
+                get_det_ratio(*state_packed, l + L, j + L) * get_det_ratio(*state_packed, i, k)
+    jastrow = 0.0
+    if np.abs(ratio_det) > 1e-10:
+        jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, i, k)
+        occupancy[i] -= 1
+        occupancy[k] += 1
+        
+        jastrow *= get_Jastrow_ratio(Jastrow, occupancy, state, l + L, j + L)
+        occupancy[i] += 1
+        occupancy[k] -= 1
 
-    return jastrow * (get_det_ratio(*state, i, j + L) * get_det_ratio(*state, l + L, k) - get_det_ratio(*state, l + L, j + L) * get_det_ratio(*state, i, k))
+    return jastrow * ratio_det

@@ -190,11 +190,15 @@ def plot_pairing(config, gap_expanded, name):
                 
                 textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
                 textshift = textshift / np.sqrt(np.sum(textshift ** 2) + 1e-5)
-                shiftval = 0.06 - (orbit1 * config.n_orbitals + orbit2) * 0.06 / 2
-                plt.text(*(r2 + shiftval * textshift), labelstring, zorder=10)
+                shiftval = 0.1 - (orbit1 * config.n_orbitals + orbit2) * 0.1 / 2
+                plt.text(*(r2 + shiftval * textshift + np.random.uniform(-0.05, 0.05, 2)), labelstring, zorder=10, fontsize=8)
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')
+    plt.xlim([-1, 2])
+    plt.ylim([-1, 1])
+    print(name)
+    plt.title(name + ' pairing')
     plt.show()
     return
 
@@ -249,10 +253,12 @@ def plot_Jastrow(config):
                 
                     textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
                     textshift = textshift / np.sqrt(np.sum(textshift ** 2) + 1e-5)
-                    shiftval = 0.06 - (orbit1 * config.n_orbitals + orbit2) * 0.06 / 2
-                    plt.text(*(r2 + shiftval * textshift), labelstring, zorder=10)
+                    shiftval = 0.1 - (orbit1 * config.n_orbitals + orbit2) * 0.1 / 2
+                    plt.text(*(r2 + shiftval * textshift + np.random.uniform(-0.05, 0.05, 2)), labelstring, zorder=10, fontsize=8)
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')
+    plt.xlim([-1, 2])
+    plt.ylim([-1, 1])
     plt.show()
     return

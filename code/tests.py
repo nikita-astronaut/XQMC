@@ -1,10 +1,13 @@
 import numpy as np
-from wavefunction_vmc import wavefunction_singlet, get_wf_ratio, get_Jastrow_ratio, get_det_ratio
+from wavefunction_vmc import wavefunction_singlet, get_wf_ratio, get_Jastrow_ratio, get_det_ratio, get_wf_ratio_double_exchange
 from copy import deepcopy
 
 def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     der_numerically = 2 * (np.abs(wf_2.current_ampl) - np.abs(wf_1.current_ampl)) / dt / (np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl))
     der_analytically = 0.5 * wf_1.get_O()[der_idx] + 0.5 * wf_2.get_O()[der_idx]
+
+    if np.abs(der_analytically) < 1e-8 and np.abs(der_numerically) < 1e-8:
+        return True
 
     result = np.abs(der_numerically - der_analytically.real) / np.abs(der_numerically) < 1e-5
     if not result:
@@ -12,9 +15,18 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     return result
 
 def perform_explicit_factors_check(config):
-    np.random.seed(11)
-    wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
+    # np.random.seed(14)
+    wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], \
+                              config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
+
+    delta = wf.Jastrow - wf.Jastrow.T
     
+    print('Testing the Jastrow matrix is symmetric')
+    if np.sum(np.abs(delta)) < 1e-10:
+        print('Passed')
+    else:
+        print('Failed:', np.sum(np.abs(delta)))
+
     det_initial = wf.get_cur_det()
     Jastrow_initial = wf.get_cur_Jastrow_factor()
 
@@ -23,9 +35,9 @@ def perform_explicit_factors_check(config):
     dJastrow = 1.
     while not acc:
         state = deepcopy((wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy))
-        acc, dw, moved_site, empty_site = wf.perform_MC_step()
-        ddet = get_det_ratio(*state, moved_site, empty_site)
-        dJastrow = get_Jastrow_ratio(wf.Jastrow, wf.occupancy, wf.state, moved_site, empty_site)
+        acc, ddet, dJastrow, moved_site, empty_site = wf.perform_MC_step()
+        # ddet = get_det_ratio(*state, moved_site, empty_site)
+        # dJastrow = get_Jastrow_ratio(wf.Jastrow, wf.occupancy, wf.state, moved_site, empty_site)
     wf.perform_explicit_GF_update()
     det_final = wf.get_cur_det()
     Jastrow_final = wf.get_cur_Jastrow_factor()
@@ -41,6 +53,9 @@ def perform_explicit_factors_check(config):
         print('Passed:', dJastrow, Jastrow_final / Jastrow_initial)
     else:
         print('Failed:', dJastrow, Jastrow_final / Jastrow_initial)
+        print(moved_site % config.n_orbitals, empty_site % config.n_orbitals)
+        print(Jastrow_initial, Jastrow_final, dJastrow)
+        exit(-1)
     return
 
 
@@ -96,8 +111,9 @@ def perform_single_move_check(config):
     print('Testing simple moves <x|d^{\\dag}_i d_k|Ф> / <x|Ф>')
     n_agreed = 0
     n_failed = 0
+    wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], \
+                              config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
     while n_agreed < 5:
-        wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
         L = len(wf.state) // 2
         i, j = np.random.randint(0, 2 * L, size = 2)
 
@@ -105,7 +121,7 @@ def perform_single_move_check(config):
         state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
         ratio_fast = get_wf_ratio(*state, i, j)
         
-        acc, dw1, _, _ = wf.perform_MC_step((i, j), enforce = True)
+        acc = wf.perform_MC_step((i, j), enforce = True)[0]
         if not acc:
             continue
         wf.perform_explicit_GF_update()
@@ -126,11 +142,13 @@ def perform_single_move_check(config):
 
 
 def perform_double_move_check(config):
+    np.random.seed(12)
     print('Testing double moves <x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф> / <x|Ф>')
     n_agreed = 0
     n_failed = 0
+    wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
+                              config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
     while n_agreed < 5:
-        wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
         L = len(wf.state) // 2
         i, j, k, l = np.random.randint(0, L, size = 4)
         if i == k:  # I am tired :)) this case is already considered everywhere
@@ -138,11 +156,11 @@ def perform_double_move_check(config):
         fillings = wf.place_in_string[j + L] > -1, wf.place_in_string[k] > -1
 
         initial_ampl = wf.current_ampl
-        ratio_fast = wf.get_wf_ratio_double_exchange(i, j, k, l)
-
-        state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
+        state = deepcopy((wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy))
+        ratio_fast = get_wf_ratio_double_exchange(*state, i, j, k, l)
+        
         W_ik_0 = get_wf_ratio(*state, i, k)
-        acc, dw1, _, _ = wf.perform_MC_step((i, k), enforce = True)
+        acc = wf.perform_MC_step(proposed_move = (i, k), enforce = True)[0]
 
         if not acc:
             continue
@@ -161,7 +179,7 @@ def perform_double_move_check(config):
         else:
             ratio_check = -W_lj_upd * W_ik_0
 
-        acc, dw2, _, _ = wf.perform_MC_step((l + L, j + L), enforce = True)
+        acc = wf.perform_MC_step(proposed_move = (l + L, j + L), enforce = True)[0]
         if not acc:
             continue
         wf.perform_explicit_GF_update()
