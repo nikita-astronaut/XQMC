@@ -37,7 +37,8 @@ class HubbardHamiltonian(object):
         # t = time()
         # this sum runs in the real indices space (not 2--extended as above)
         E_loc += np.einsum('i,i,i', particles, 2 * np.diag(self.edges_quadric), 1 - holes)  # TODO: check this properly
-        E_loc += np.einsum('i,ij,j', 1 + particles - holes, self.edges_quadric - np.diag(self.edges_quadric), 1 + particles - holes)
+
+        E_loc += np.einsum('i,ij,j', 1 + particles - holes, self.edges_quadric - np.diag(np.diag(self.edges_quadric)), 1 + particles - holes)
         # print('U: ', time() - t)
         # self._states_dict[tuple(wavefunction.state)] = E_loc
         return E_loc

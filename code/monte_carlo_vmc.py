@@ -48,10 +48,10 @@ from config_vmc import MC_parameters as config_vmc
 config_vmc = config_vmc()
 
 if config_vmc.tests:
-    tests.perform_explicit_factors_check(config_vmc)
-    tests.perform_double_move_check(config_vmc)
-    tests.perform_single_move_check(config_vmc)
-    tests.perform_numerical_derivative_check(config_vmc)
+    if tests.perform_all_tests(config_vmc):
+        print('\033[92m All tests passed successfully \033[0m')
+    else:
+        print('\033[91m Warning: some of the tests failed! \033[0m')
 
 if config_vmc.visualisation:
     visualisation.plot_fermi_surface(config_vmc)
@@ -118,21 +118,21 @@ for U in U_list:
     mu_parameter = config_vmc.initial_mu_parameters
 
     config_vmc.U = U
-    # config_vmc.V = U
+    config_vmc.V = U
     H = config_vmc.hamiltonian(config_vmc)
  
     log_file = open(config_vmc.log_name + '_U_' + str(U) + '.dat', 'w')
     final_states = []
 
-    log_file.write("<opt_step> <energy> <denergy> <acceptance> <force>")
+    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨acceptance⟩ ⟨force⟩")
     for gap_name in pairings_names:
-        log_file.write(" <" + gap_name + ">")
+        log_file.write(" ⟨" + gap_name + "⟩")
     for i in range(len(jastrow_parameters)):
-        log_file.write(" <jastrow_" + str(i) + ">")
-    log_file.write(' <mu_BCS>\n')
+        log_file.write(" ⟨jastrow_" + str(i) + "⟩")
+    log_file.write(' ⟨mu_BCS⟩\n')
 
     observables_log = open(config_vmc.observables_log_name + '_U_' + str(U) + '.dat', 'w')
-    observables_log.write("<opt_step> <energy> <denergy> <acceptance>")
+    observables_log.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨acceptance⟩")
 
 
     for n_step in range(config_vmc.optimisation_steps):
@@ -153,7 +153,7 @@ for U in U_list:
 
         if n_step == 0:
             for obs_name in observables_names:
-                observables_log.write(" <" + obs_name + "> <d" + obs_name + ">")
+                observables_log.write(" ⟨" + obs_name + "⟩ ⟨d" + obs_name + "⟩")
             observables_log.write('\n')
 
         observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)

@@ -6,14 +6,14 @@ import pairings
 
 class MC_parameters:
     def __init__(self):
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = 10  # spatial size, the lattice will be of size Ls x Ls
         self.U = [2, 4, 6, 8, 10] # the force of on-site Coulomb repulsion in the units of t1
         self.V = 0.  # the force of on-site Coulomb repulsion in the units of t1
-        self.model = models.model_hex_2orb_Kashino
-        self.n_orbitals = 2
+        self.model = models.model_square_1orb
+        self.n_orbitals = 1
         self.mu = 0.0
         self.hamiltonian = hamiltonians_vmc.hamiltonian_2bands
-        self.n_sublattices = 2
+        self.n_sublattices = 1
         self.MC_chain = 180000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
         self.optimisation_steps = 300
         self.N_electrons = self.Ls ** 2 * self.n_sublattices * self.n_orbitals # only applied if PN_projection = True
@@ -30,8 +30,8 @@ class MC_parameters:
         self.observables_log_name = '/home/astronaut/Documents/DQMC_TBG/logs/observables'
         pairings.obtain_all_pairings(self)
 
-        self.pairings_list = [pairings.on_site_2orb_hex_real[0]]#, pairings.NN_2orb_hex_real[0], pairings.NN_2orb_hex_real[8], pairings.NN_2orb_hex_real[9], pairings.NN_2orb_hex_imag[8], pairings.NN_2orb_hex_imag[9]]
-        self.pairings_list_names = ['S']#, 'S*', 'D1re', 'D2re', 'D1im', 'D2im']
+        self.pairings_list = [pairings.on_site_1orb_square_real[0], pairings.NN_1orb_square_real[1], pairings.NN_1orb_square_imag[1]] #, pairings.NN_2orb_hex_real[0], pairings.NN_2orb_hex_real[8], pairings.NN_2orb_hex_real[9], pairings.NN_2orb_hex_imag[8], pairings.NN_2orb_hex_imag[9]]
+        self.pairings_list_names = ['S', 'Dre', 'Dim']#, 'S*', 'D1re', 'D2re', 'D1im', 'D2im']
 
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
 

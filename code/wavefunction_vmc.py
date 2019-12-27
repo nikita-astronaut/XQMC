@@ -179,6 +179,7 @@ class wavefunction_singlet():
         if proposed_move == None:
             moved_site_idx = self.random_numbers_move[self.MC_step_index]
             moved_site = self.occupied_sites[moved_site_idx]
+            # empty_site = random.sample(self.empty_sites,. 1)
             empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]
         else:  # only in testmode
             moved_site, empty_site = proposed_move
@@ -262,6 +263,9 @@ class wavefunction_singlet():
 # had to move it outside of the class to speed-up with numba (jitclass is hard!)
 @jit(nopython=True)
 def get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site):
+    if moved_site == empty_site:
+        return 1.0
+
     delta_alpha = -1 if moved_site < len(state) // 2 else +1
     delta_beta = +1 if empty_site < len(state) // 2 else -1
     alpha, beta = moved_site % (len(state) // 2), empty_site % (len(state) // 2)

@@ -20,7 +20,7 @@ def perform_explicit_factors_check(config):
                               config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
 
     delta = wf.Jastrow - wf.Jastrow.T
-    
+    success = True
     print('Testing the Jastrow matrix is symmetric')
     if np.sum(np.abs(delta)) < 1e-10:
         print('Passed')
@@ -47,20 +47,20 @@ def perform_explicit_factors_check(config):
         print('Passed:', ddet, det_final / det_initial)
     else:
         print('Failed:', ddet, det_final / det_initial)
+        success = False
 
     print('Testing the Jastrow(U_ini) / Jastrow(U_fin) ratio')
     if np.abs(dJastrow - Jastrow_final / Jastrow_initial) / np.abs(dJastrow) < 1e-11:
         print('Passed:', dJastrow, Jastrow_final / Jastrow_initial)
     else:
         print('Failed:', dJastrow, Jastrow_final / Jastrow_initial)
-        print(moved_site % config.n_orbitals, empty_site % config.n_orbitals)
-        print(Jastrow_initial, Jastrow_final, dJastrow)
-        exit(-1)
-    return
+        success = False
+    return success
 
 
 def perform_numerical_derivative_check(config):
     dt = 1e-6
+    success = True
 
     print('chemical potential derivative check...')
     np.random.seed(11)
@@ -72,6 +72,7 @@ def perform_numerical_derivative_check(config):
         print('Passed')
     else:
         print('Failed!')
+        success = False
 
     print('Pairings derivative check...')
     n_passed = 0
@@ -88,6 +89,7 @@ def perform_numerical_derivative_check(config):
         print('Passed')
     else:
         print('Failed!')
+        success = False
 
     print('Jastrow derivative check...')
     n_passed = 0
@@ -105,10 +107,13 @@ def perform_numerical_derivative_check(config):
         print('Passed')
     else:
         print('Failed!')
-    return
+        success = False
+
+    return success
 
 def perform_single_move_check(config):
-    print('Testing simple moves <x|d^{\\dag}_i d_k|Ф> / <x|Ф>')
+    success = True
+    print('Testing simple moves ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], \
@@ -130,20 +135,51 @@ def perform_single_move_check(config):
         if (np.abs(final_ampl / initial_ampl - ratio_fast) < 1e-11):
             n_agreed += 1
         else:
-            print('single move check <x|d^{\\dag}_i d_k|Ф> / <x|Ф> failed:', final_ampl / initial_ampl, ratio_fast)
+            print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
             n_failed += 1
+            success = False
     if n_failed == 0:
         print('Passed')
     else:
         print('Failed on samples:', n_failed)
 
-    return
+    return success
+
+
+def perform_onsite_gf_is_density_check(config):
+    success = True
+    print('Testing ⟨x|d^{\\dag}_i d_i|Ф⟩ / ⟨x|Ф⟩ = n_i')
+    n_agreed = 0
+    n_failed = 0
+    wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], \
+                              config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
+    while n_agreed < 5:
+        L = len(wf.state) // 2
+        i = np.random.randint(0, 2 * L)
+
+        state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
+        gf = get_wf_ratio(*state, i, i)
+
+        density = float(wf.place_in_string[i] > -1)
+        
+        if np.abs(density - gf) < 1e-11:
+            n_agreed += 1
+        else:
+            print('Testing ⟨x|d^{\\dag}_i d_i|Ф⟩ / ⟨x|Ф⟩ = n_i failed:', density, gf, i)
+            n_failed += 1
+            success = False
+    if n_failed == 0:
+        print('Passed')
+    else:
+        print('Failed on samples:', n_failed)
+
+    return success
 
 
 
 def perform_double_move_check(config):
-    np.random.seed(12)
-    print('Testing double moves <x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф> / <x|Ф>')
+    success = True
+    print('Testing double moves ⟨x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф⟩ / ⟨x|Ф⟩')
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
@@ -195,11 +231,22 @@ def perform_double_move_check(config):
         if (np.abs(ratio_fast - ratio_straight) / np.abs(ratio_fast) < 1e-11) and (np.abs(ratio_fast - ratio_check) / np.abs(ratio_fast) < 1e-11):
             n_agreed += 1
         else:
-            print('double move check <x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф> / <x|Ф> failed:', ratio_fast, ratio_straight, ratio_check, i, j, k, l)
+            print('double move check ⟨x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф⟩ / ⟨x|Ф⟩ failed:', ratio_fast, ratio_straight, ratio_check, i, j, k, l)
             n_failed += 1
+            success = False
     if n_failed == 0:
         print('Passed')
     else:
         print('Failed on samples:', n_failed)
 
-    return
+    return success
+
+def perform_all_tests(config):
+    success = True
+    success = success and perform_explicit_factors_check(config)
+    success = success and perform_double_move_check(config)
+    success = success and perform_single_move_check(config)
+    success = success and perform_numerical_derivative_check(config)
+    success = success and perform_onsite_gf_is_density_check(config)
+
+    return success
