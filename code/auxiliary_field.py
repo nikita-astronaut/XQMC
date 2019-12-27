@@ -269,18 +269,8 @@ class auxiliary_field_intraorbital:
 
 class auxiliary_field_interorbital(auxiliary_field_intraorbital):
     def __init__(self, config, K, K_inverse):
-        # self.matrix_exponents = np.zeros(shape = (2 ** (config.n_orbitals ** 2), config.n_orbitals, config.n_orbitals))
-        # self._precompute_matrix_exponents(config)
         super().__init__(config, K, K_inverse)
         return
-
-    # def _precompute_matrix_exponents(self, config):
-    #     for a in range(2 ** (config.n_orbitals ** 2)):
-    #         spin = (2.0 * np.unpackbits(np.array(a, dtype = np.uint8))[-4:] - 1.).reshape(2, 2)
-    #         exp = self.la.expm(np.array([[config.nu_U * spin[0, 0] + config.nu_V * spin[0, 1], 0],
-    #                                           [0, config.nu_U * spin[1, 1] + config.nu_V * spin[1, 0]]]))
-    #         self.matrix_exponents[a, ...] = exp
-    #     return
 
     def _V_from_configuration(self, s, sign, spin):
         if spin > 0:
@@ -288,9 +278,6 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         else:
             V = self.config.nu_V * sign * np.array([-s[0], s[0]]) + self.config.nu_U * sign * np.array([-s[2], -s[1]])
         return np.diag(np.exp(V))
-
-        #return self.la.expm(sign * np.array([[self.config.nu_U * configuration[0, 0] + self.config.nu_V * configuration[0, 1], 0],
-        #                                          [0, self.config.nu_U * configuration[1, 1] + self.config.nu_V * configuration[1, 0]]]))
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
@@ -410,7 +397,6 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         self.Vinv_up = cp.asnumpy(self.Vinv_up)
         self.V_down = cp.asnumpy(self.V_down)
         self.Vinv_down = cp.asnumpy(self.Vinv_down)
-        # self.matrix_exponents = cp.asnumpy(self.matrix_exponents)
         return
 
     def copy_to_GPU(self):
@@ -419,6 +405,5 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         self.Vinv_up = cp.asarray(self.Vinv_up)
         self.V_down = cp.asarray(self.V_down)
         self.Vinv_down = cp.asarray(self.Vinv_down)
-        # self.matrix_exponents = cp.asarray(self.matrix_exponents)
-        self.configuration = cp.asnumpy(self.configuration)  # amendment to Super
+        self.configuration = cp.asnumpy(self.configuration)
         return

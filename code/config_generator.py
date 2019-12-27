@@ -1,8 +1,8 @@
 import models
 import numpy as np
 import auxiliary_field
-dt_in_inv_t1 = 0.10
-U_in_t1 = 8
+dt_in_inv_t1 = 0.2
+U_in_t1 = 6
 V_in_t1 = 0
 nu_V = np.arccosh(np.exp(2 * V_in_t1 * dt_in_inv_t1))
 nu_U = np.arccosh(np.exp((U_in_t1 / 2. + V_in_t1) * dt_in_inv_t1))
@@ -10,8 +10,8 @@ main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self):
-        self.Ls = 10  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = 120  # the number of time slices for the Suzuki-Trotter procedure
+        self.Ls = 8  # spatial size, the lattice will be of size Ls x Ls
+        self.Nt = 20  # the number of time slices for the Suzuki-Trotter procedure
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
         self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.V = V_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1

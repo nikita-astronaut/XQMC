@@ -72,8 +72,8 @@ def staggered_magnetisation(phi):
     return (AA + BB - AB - BA) / (phi.config.total_dof // 2) ** 2 / 4.
 
 def SzSz_onsite(phi_field):
-    G_function_up = phi_field.get_current_G_function(+1)
-    G_function_down = phi_field.get_current_G_function(-1)
+    G_function_up = phi_field.current_G_function_up
+    G_function_down = phi_field.current_G_function_down
 
     return (-2.0 * xp.sum((xp.diag(G_function_up) * xp.diag(G_function_down))) + xp.sum(xp.diag(G_function_down)) + xp.sum(xp.diag(G_function_up))) / (phi_field.config.total_dof // 2)
 
@@ -87,9 +87,7 @@ def get_n_adj(K_matrix, distance):
         seen_elements += adj
     return xp.logical_and(seen_elements == 0, adj.dot(A) > 0) * 1.
 
-def SzSz_n_neighbor(phi, K_matrix, distance):
-    adj = get_n_adj(K_matrix, distance)
-
+def SzSz_n_neighbor(phi, adj):
     G_function_up = phi.current_G_function_up
     G_function_down = phi.current_G_function_down
 
@@ -116,5 +114,12 @@ def compute_all_observables(phi):
     for i, adj in enumerate(adj_list):
         observables.append(double_occupancy_n_neighbor(phi, adj).item())
         names.append('⟨n_↑(i) n_↓(j)⟩_' + str(i))
+
+    observables.append(SzSz_onsite(phi).item())
+    names.append('⟨S_z S_z⟩_0')
+
+    for i, adj in enumerate(adj_list[1:]):
+        observables.append(SzSz_n_neighbor(phi, adj).item())
+        names.append('⟨S_z(i) S_z(j)⟩_' + str(i + 1))
 
     return observables, names
