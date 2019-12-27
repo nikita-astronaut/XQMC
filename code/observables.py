@@ -94,8 +94,6 @@ def SzSz_n_neighbor(phi, adj):
     return (xp.einsum('i,j,ij', xp.diag(G_function_up) - xp.diag(G_function_down), xp.diag(G_function_up) - xp.diag(G_function_down), adj) - \
             xp.einsum('ij,ji,ij', G_function_up, G_function_up, adj) - xp.einsum('ij,ji,ij', G_function_down, G_function_down, adj)) / xp.sum(adj)
 
-
-
 def double_occupancy_n_neighbor(phi, adj):
     G_function_up = phi.current_G_function_up
     G_function_down = phi.current_G_function_down
