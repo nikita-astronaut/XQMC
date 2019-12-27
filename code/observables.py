@@ -100,6 +100,27 @@ def double_occupancy_n_neighbor(phi, adj):
 
     return xp.einsum('i,j,ij', xp.diag(G_function_up), xp.diag(G_function_down), adj) / xp.sum(adj)
 
+def kinetic_energy(phi):
+    G_function_up = phi.current_G_function_up
+    G_function_down = phi.current_G_function_down
+
+    return xp.einsum('ij,ij', phi.K_matrix, G_function_up + G_function_down) / G_function_up.shape[0]
+
+def Coloumb_energy(phi):
+    G_function_up = phi.current_G_function_up
+    G_function_down = phi.current_G_function_down
+
+    energy_coloumb = phi.config.U * xp.einsum('i, i', xp.diag(G_function_up) - 1. / 2., xp.diag(G_function_down) - 1. / 2.).item() / G_function_up.shape[0]
+    if phi.config.n_orbitals == 1:
+        return energy_coloumb
+    orbital_1 = xp.arange(0, G_function_up.shape[0], 2)
+    orbital_2 = xp.arange(1, G_function_up.shape[0], 2)
+    energy_coloumb += 2 * phi.config.V * xp.einsum('i,i', (xp.diag(G_function_up)[orbital_1] + xp.diag(G_function_down)[orbital_1]),
+                                                          (xp.diag(G_function_up)[orbital_2] + xp.diag(G_function_down)[orbital_2])).item() / G_function_up.shape[0]
+
+
+    return energy_coloumb
+
 
 def compute_all_observables(phi):
     adj_list = models.get_adjacency_list(phi.config, 4 * (1 + phi.config.n_orbitals * (phi.config.n_orbitals - 1) // 2))
@@ -108,6 +129,12 @@ def compute_all_observables(phi):
 
     observables.append(total_density(phi).item())
     names.append('⟨n⟩')
+
+    observables.append(kinetic_energy(phi).item())
+    names.append('⟨E_K⟩')
+
+    observables.append(Coloumb_energy(phi))
+    names.append('⟨E_C⟩')
 
     for i, adj in enumerate(adj_list):
         observables.append(double_occupancy_n_neighbor(phi, adj).item())

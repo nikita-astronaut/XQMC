@@ -152,7 +152,7 @@ if __name__ == "__main__":
     K_matrix = config.model(config, config.mu)
     K_operator = scipy.linalg.expm(config.dt * K_matrix)
     K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
-    phi_field = config.field(config, K_operator, K_operator_inverse)
+    phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix)
     phi_field.copy_to_GPU()
 
     observables_log = open(config.observables_log_name + '_U_' + str(config.U) + '.dat', 'w')

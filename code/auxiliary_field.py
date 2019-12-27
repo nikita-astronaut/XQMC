@@ -14,7 +14,7 @@ except ImportError:
 
 
 class auxiliary_field_intraorbital:
-    def __init__(self, config, K, K_inverse):
+    def __init__(self, config, K, K_inverse, K_matrix):
         self.la = np
         self.cpu = True
 
@@ -22,6 +22,7 @@ class auxiliary_field_intraorbital:
         self._get_initial_field_configuration()
         self.K = K
         self.K_inverse = K_inverse
+        self.K_matrix = K_matrix
         self.partial_SVD_decompositions_up = []
         self.partial_SVD_decompositions_down = []
         self.current_lhs_SVD_up = []
