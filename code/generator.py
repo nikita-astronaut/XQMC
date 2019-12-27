@@ -55,97 +55,76 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
     phi_field.refresh_G_functions()
     if switch:
         phi_field.copy_to_CPU()
-    # G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, -1)
-    # G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, -1)
-    # la = phi_field.la
-    # print('discrepancy BEFORE even loop = ', la.sum(la.abs(phi_field.current_G_function_up - G_up_check)) / la.sum(la.abs(G_up_check)), \
-    #                                          la.sum(la.abs(phi_field.current_G_function_down - G_down_check)) / la.sum(la.abs(G_down_check)))
 
+    GF_checked = False
     observables = []
 
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
-            # print('refreshed')
-            # print('assymetry = ', phi_field.get_assymetry_factor(), time_slice)
-        #t = time.time()
+
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             if switch:
                 phi_field.copy_to_GPU()
             t = time.time()
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
-            # print('recomputation', phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
             if switch:
                 phi_field.copy_to_CPU()
-            # print('before', current_det_sign)
             current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
-            # print('assymetry = ', phi_field.get_assymetry_factor(), time_slice)
-        # t = time.time()
+
         phi_field.wrap_up(time_slice)
-        # print('wrap-up took ' + str(time.time() - t))
-        #phi_field.copy_to_GPU()
-        # G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
-        # G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
-        # print('discrepancy BEFORE step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check)), \
-        #                                      np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check)))
-        # print(current_det_log + det_log_up_check + det_log_down_check)
-        # t = time.time()
 
-        for sp_index in range(phi_field.config.total_dof // 4 * 3):
-            site_idx = sp_index // 3
-            o_index = sp_index % 3
 
-            # t = time.time()
+        if phi_field.config.n_orbitals == 1:
+            sp_index_range = phi_field.config.total_dof // 2
+            n_fields = 1
+        else:
+            sp_index_range = phi_field.config.total_dof // 4 * 3
+            n_fields = 3
+
+        for sp_index in range(sp_index_range):
+            site_idx = sp_index // n_fields
+            o_index = sp_index % n_fields
+
 
             sign_history.append(current_det_sign)
-            # t = time.time()
+
             ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o_index) * \
                     phi_field.get_det_ratio(-1, site_idx, time_slice, o_index)
-            # print('ratio of G took ' + str(time.time() - t))
-            # B_up_new = auxiliary_field.B_l(configuration, +1, time_slice, K_operator, config)
-            # B_down_new = auxiliary_field.B_l(configuration, -1, time_slice, K_operator, config)
-            # print('B_matrixes making took ' + str(time.time() - t))
-            # t = time.time()
-            # new_det_log, sign_new_det = auxiliary_field.get_det_partial_matrices(M_up_partial, B_up_new, M_down_partial, B_down_new, identity)
-            # print('det computation took ' + str(time.time() - t))
-            # t = time.time()
-            # ratio = np.min([1, np.exp(new_det_log - current_det_log)])
-            # print(np.exp(new_det_log - current_det_log) / ratio_improved - 1.)
+
             lamb = np.random.uniform(0, 1)
 
             if lamb < np.min([1, np.abs(ratio)]):
                 current_det_log += np.log(np.abs(ratio))
-                # print(current_det_log)
+
                 ratio_history.append(np.log(np.abs(ratio)))
-                # print(np.log(np.abs(ratio)))
-                # print(np.mean(ratio_history))
+
                 current_det_sign *= np.sign(ratio)
                 accept_history.append(+1)
-                # t = time.time()
+
                 phi_field.update_G_seq(+1, site_idx, time_slice, o_index)
                 phi_field.update_G_seq(-1, site_idx, time_slice, o_index)
-                # print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
-                # t = time.time()
+
                 phi_field.update_field(site_idx, time_slice, o_index)
-                # print('update V took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
-                #print('update G took ' + str(time.time() - t), phi_field.config.total_dof // 2 * orbits)
-                # print(current_det_sign)
 
-                # G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
-                # G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+                
+                if not GF_checked:
+                    G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+                    G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+                    d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
+                    d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
+                    GF_checked = True
 
-                # print('final discrepancy after step = ', np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / 
-                #                                          np.sum(np.abs(G_up_check)), 
-                #                                          np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / 
-                #                                         np.sum(np.abs(G_down_check)))
-                ##print(current_det_log + det_log_up_check + det_log_down_check)
+                    if np.abs(d_gf_up) < 1e-8 and np.abs(d_gf_down) < 1e-8:
+                        print('\033[92m GF test passed successfully \033[0m')
+                    else:
+                        print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
             else:
                 accept_history.append(0)
                 ratio_history.append(0)
-            # print('one slip on slice took ' + str(time.time() - t))
-            # t = time.time()
+
         obs, names = obs_methods.compute_all_observables(phi_field)
         observables.append(np.array(obs))
     if n_sweep == 0:
