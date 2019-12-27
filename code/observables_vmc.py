@@ -28,28 +28,30 @@ def gap_gap_correlator(state, pairing):
 @jit(nopython=True)
 def n_up_n_down_correlator(state, adj):
     '''
-        <n_up(i) n_down(j)> = \\sum\\limits_{ij} A[i, j] c^{\\dag}_{i, up} c_{i, up} c^{\\dag}_{j, down} c_{j, down} = 
-                            = \\sum\\limits_{ij} A[i, j] d^{\\dag}_{i} d_{i} d_{j + L} d^{\\dag}_{j + L} = 
-                            = \\sum\\limits_{ij} A[i, j] d_{j + L} d^{\\dag}_{i} d_{i} d^{\\dag}_{j + L} = 
-                            = \\sum\\limits_{ij} A[i, j] F(i, j, i, j)
+        <x|n_up(i) n_down(j)|Ф> / <x|Ф> = \\sum\\limits_{ij} A[i, j] <x|c^{\\dag}_{i, up} c_{i, up} c^{\\dag}_{j, down} c_{j, down}|Ф> / <x|Ф> = 
+                                        = \\sum\\limits_{ij} A[i, j] <x|d^{\\dag}_{i} d_{i} d_{j + L} d^{\\dag}_{j + L}|Ф> / <x|Ф> = 
+                                        = \\sum\\limits_{ij} A[i, j] n_i(x) (1 - n_{j + L}(x))
     '''
 
     L = len(state[3]) // 2
     correlator = 0.0
     for i in range(L):
         for j in np.where(adj[i, :] > 0)[0]:
-            correlator += np.real(wavefunction_vmc.get_wf_ratio_double_exchange(*state, i, j, i, j))
+            n_i = float(state[2][i] > -1)
+            n_j = float(state[2][j + L] > -1)
+            correlator += n_i * (1. - n_j)
 
     # normalize to the total number of accounted links
     correlator /= np.sum(np.abs(adj))
     return correlator
 
+'''
 @jit(nopython=True)
 def Sz_Sz_correlator(state, adj):
     '''
-        <n_up(i) n_down(j)> = \\sum\\limits_{ij} A[i, j] c^{\\dag}_{i, up} c_{i, up} c^{\\dag}_{j, down} c_{j, down} = 
-                            = \\sum\\limits_{ij} A[i, j] d^{\\dag}_{i} d_{i} d_{j + L} d_{j + L} =
-                            = \\sum\\limits_{ij} A[i, j] n_i (1 - n_{j + L}) [after particle-hole transform] 
+        #<n_up(i) n_down(j)> = \\sum\\limits_{ij} A[i, j] c^{\\dag}_{i, up} c_{i, up} c^{\\dag}_{j, down} c_{j, down} = 
+        #                    = \\sum\\limits_{ij} A[i, j] d^{\\dag}_{i} d_{i} d_{j + L} d_{j + L} =
+        #                    = \\sum\\limits_{ij} A[i, j] n_i (1 - n_{j + L}) [after particle-hole transform] 
     '''
 
     L = len(state[3]) // 2
@@ -61,6 +63,7 @@ def Sz_Sz_correlator(state, adj):
     # normalize to the total number of accounted links
     correlator /= np.sum(np.abs(adj))
     return correlator
+'''
 
 def compute_observables(wf):
     state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
