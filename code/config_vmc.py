@@ -7,7 +7,7 @@ import pairings
 class MC_parameters:
     def __init__(self):
         self.Ls = 10  # spatial size, the lattice will be of size Ls x Ls
-        self.U = [2, 4, 6, 8, 10] # the force of on-site Coulomb repulsion in the units of t1
+        self.U = [4, 6, 8, 10] # the force of on-site Coulomb repulsion in the units of t1
         self.V = 0.  # the force of on-site Coulomb repulsion in the units of t1
         self.model = models.model_square_1orb
         self.n_orbitals = 1
@@ -16,7 +16,7 @@ class MC_parameters:
         self.n_sublattices = 1
         self.MC_chain = 180000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
         self.optimisation_steps = 300
-        self.N_electrons = self.Ls ** 2 * self.n_sublattices * self.n_orbitals # only applied if PN_projection = True
+        self.N_electrons = self.Ls ** 2 * self.n_sublattices * self.n_orbitals - 16 # only applied if PN_projection = True
         self.correlation = self.N_electrons
         self.opt_parameters = [1e-3, 3e-2]  # regularizer for the S_stoch matrix, learning rate
         self.BC_twist = False  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
@@ -30,11 +30,11 @@ class MC_parameters:
         self.observables_log_name = '/home/astronaut/Documents/DQMC_TBG/logs/observables'
         pairings.obtain_all_pairings(self)
 
-        self.pairings_list = [pairings.on_site_1orb_square_real[0], pairings.NN_1orb_square_real[1], pairings.NN_1orb_square_imag[1]] #, pairings.NN_2orb_hex_real[0], pairings.NN_2orb_hex_real[8], pairings.NN_2orb_hex_real[9], pairings.NN_2orb_hex_imag[8], pairings.NN_2orb_hex_imag[9]]
-        self.pairings_list_names = ['S', 'Dre', 'Dim']#, 'S*', 'D1re', 'D2re', 'D1im', 'D2im']
+        self.pairings_list = [pairings.on_site_1orb_square_real[0], pairings.NN_1orb_square_real[1], pairings.NN_1orb_square_imag[1]]
+        self.pairings_list_names = ['S', 'Dre', 'Dim']
 
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
 
-        self.initial_mu_parameters = -0.0
+        self.initial_mu_parameters = -0.51
         self.initial_gap_parameters = np.random.uniform(-0.1, 0.1, size = len(self.pairings_list))
-        self.initial_jastrow_parameters = np.array([0.5, 0.5, 0.3, 0.3])
+        self.initial_jastrow_parameters = np.array([1.4, 0.5, 0.3, 0.3])

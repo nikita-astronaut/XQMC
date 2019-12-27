@@ -8,7 +8,8 @@ import models
 def gap_gap_correlator(state, pairing):
     '''
         <\\Delta^{\\dag} \\Delta> = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
-                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} d_{j + L} d^{\\dag}_{i} d_k d^{\\dag}_{l + L}.
+                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} d_{j + L} d^{\\dag}_{i} d_k d^{\\dag}_{l + L} = 
+                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} F(i, j, k, l)
     '''
 
     correlator = 0.0
@@ -28,6 +29,25 @@ def gap_gap_correlator(state, pairing):
 def n_up_n_down_correlator(state, adj):
     '''
         <n_up(i) n_down(j)> = \\sum\\limits_{ij} A[i, j] c^{\\dag}_{i, up} c_{i, up} c^{\\dag}_{j, down} c_{j, down} = 
+                            = \\sum\\limits_{ij} A[i, j] d^{\\dag}_{i} d_{i} d_{j + L} d^{\\dag}_{j + L} = 
+                            = \\sum\\limits_{ij} A[i, j] d_{j + L} d^{\\dag}_{i} d_{i} d^{\\dag}_{j + L} = 
+                            = \\sum\\limits_{ij} A[i, j] F(i, j, i, j)
+    '''
+
+    L = len(state[3]) // 2
+    correlator = 0.0
+    for i in range(L):
+        for j in np.where(adj[i, :] > 0)[0]:
+            correlator += np.real(wavefunction_vmc.get_wf_ratio_double_exchange(*state, i, j, i, j))
+
+    # normalize to the total number of accounted links
+    correlator /= np.sum(np.abs(adj))
+    return correlator
+
+@jit(nopython=True)
+def Sz_Sz_correlator(state, adj):
+    '''
+        <n_up(i) n_down(j)> = \\sum\\limits_{ij} A[i, j] c^{\\dag}_{i, up} c_{i, up} c^{\\dag}_{j, down} c_{j, down} = 
                             = \\sum\\limits_{ij} A[i, j] d^{\\dag}_{i} d_{i} d_{j + L} d_{j + L} =
                             = \\sum\\limits_{ij} A[i, j] n_i (1 - n_{j + L}) [after particle-hole transform] 
     '''
@@ -41,7 +61,6 @@ def n_up_n_down_correlator(state, adj):
     # normalize to the total number of accounted links
     correlator /= np.sum(np.abs(adj))
     return correlator
-
 
 def compute_observables(wf):
     state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)

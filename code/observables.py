@@ -98,10 +98,23 @@ def SzSz_n_neighbor(phi, K_matrix, distance):
 
 
 
-def double_occupancy_n_neighbor(h_configuration, K, K_matrix, config, distance):
-    adj = get_n_adj(K_matrix, distance)
-
-    G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
-    G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
+def double_occupancy_n_neighbor(phi, adj):
+    G_function_up = phi.current_G_function_up
+    G_function_down = phi.current_G_function_down
 
     return xp.einsum('i,j,ij', xp.diag(G_function_up), xp.diag(G_function_down), adj) / xp.sum(adj)
+
+
+def compute_all_observables(phi):
+    adj_list = models.get_adjacency_list(phi.config, 4 * (1 + phi.config.n_orbitals * (phi.config.n_orbitals - 1) // 2))
+    observables = []
+    names = []
+
+    observables.append(total_density(phi).item())
+    names.append('⟨n⟩')
+
+    for i, adj in enumerate(adj_list):
+        observables.append(double_occupancy_n_neighbor(phi, adj).item())
+        names.append('⟨n_↑(i) n_↓(j)⟩_' + str(i))
+
+    return observables, names

@@ -105,7 +105,7 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
         acceptance.append(wf.perform_MC_step()[0])
         t_steps += time() - t
 
-    # print(t_observables, t_energies, t_steps, wf.update, wf.wf, t_forces)
+    print(t_observables, t_energies, t_steps, wf.update, wf.wf, t_forces)
     return energies, Os, acceptance, wf.get_state(), observables, names
 
 pairings_list = config_vmc.pairings_list

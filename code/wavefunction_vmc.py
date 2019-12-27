@@ -297,7 +297,7 @@ def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
     return det_ratio * Jastrow_ratio
 
 @jit(nopython=True)
-def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupancy, i, j, k, l):  # TODO: go jit
+def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupancy, i, j, k, l):
     '''
         this is required for the correlators <\\Delta^{\\dag} \\Delta>
         computes the ratio <x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф> / <x|Ф> = 
