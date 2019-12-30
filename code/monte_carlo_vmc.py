@@ -47,16 +47,16 @@ config_vmc = import_config(sys.argv[1])
 from config_vmc import MC_parameters as config_vmc
 config_vmc = config_vmc()
 
+if config_vmc.visualisation:
+    visualisation.plot_fermi_surface(config_vmc)
+    visualisation.plot_all_pairings(config_vmc)
+    visualisation.plot_all_Jastrow(config_vmc)
+
 if config_vmc.tests:
     if tests.perform_all_tests(config_vmc):
         print('\033[92m All tests passed successfully \033[0m')
     else:
         print('\033[91m Warning: some of the tests failed! \033[0m')
-
-if config_vmc.visualisation:
-    visualisation.plot_fermi_surface(config_vmc)
-    visualisation.plot_all_pairings(config_vmc)
-    visualisation.plot_Jastrow(config_vmc)
 
 n_cpus_max = psutil.cpu_count(logical = True) 
 print('max available CPUs:', n_cpus_max)

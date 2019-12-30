@@ -13,7 +13,7 @@ class wavefunction_singlet():
         self.var_params_gap = var_params_gap  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
         self.var_params_Jastrow = var_params_Jastrow
         self.var_mu = var_mu
-        self.Jastrow_A = models.get_adjacency_list(self.config, len(var_params_Jastrow))
+        self.Jastrow_A = config.adjacency_list
 
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
 

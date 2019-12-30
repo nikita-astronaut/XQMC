@@ -3,6 +3,12 @@ from copy import deepcopy
 
 abpc = 1.0
 
+R_hexagonal = np.array([[np.sqrt(3) / 2, 1 / 2.], [np.sqrt(3) / 2., -1 / 2.]])
+G_hexagonal = 2 * np.pi * np.array([[1 / np.sqrt(3), 1.], [1. / np.sqrt(3), -1.]])
+
+R_square = np.array([[1, 0], [0, 1]])
+G_square = 2 * np.pi * np.array([[1, 0], [0, 1]])
+
 def diff_modulo(x, y, L, d):
     if d >= 0:
         return (x - y + L) % L == d  # or (x - y + L) % L == L - d
@@ -158,23 +164,36 @@ def interorbital_mod(A, n_orbitals):
             result.append(np.kron(A, coupling))
     return result
 
+def get_bc_copies(r, R, Ls, sublattice):
+    copies = []
+    for x in range(-1, 2):
+        for y in range(-1, 2):
+            copies.append(np.array([r[0] + x * Ls, r[1] + y * Ls]).dot(R) + sublattice * np.array([1, 0]) / np.sqrt(3))
+    return copies
+
 def get_adjacency_list(config, max_len):
     if config.n_sublattices == 2:
-        K_matrix = model_hex_1orb(config, 0.0)  # only nearest-neighbors
+        R = R_hexagonal
     else:
-        K_matrix = model_square_1orb(config, 0.0)  # only nearest-neighbors
+        R = R_square
 
-    A = np.abs(np.asarray(K_matrix)) > 1e-6
+    A = np.zeros((config.total_dof // 2 // config.n_orbitals, config.total_dof // 2 // config.n_orbitals))
+
+    for first in range(config.total_dof // 2 // config.n_orbitals):  # omit orbitals for the time being
+        for second in range(config.total_dof // 2 // config.n_orbitals):
+            _, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, 1, config.n_sublattices)
+            _, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, 1, config.n_sublattices)
+            
+            r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)  # always 0 in the square case
+            r2s = get_bc_copies([x2, y2], R, config.Ls, sublattice2)
+            A[first, second] = np.min([np.sum((r1 - r2) ** 2) for r2 in r2s])
+    distances = np.sort(np.unique(A.round(decimals=10)))
 
     adjacency_list = []
-    adj = np.eye(len(np.diag(A)))
-    seen_elements = adj * 0
+    for dist in distances:
+        adj = (A.round(decimals=10) == dist).astype(np.float32)
 
-    while len(adjacency_list) < max_len:
         adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals)
-        seen_elements += adj
-        adj = adj.dot(A)
-        adj = np.logical_and(seen_elements == 0, adj > 0) * 1.
     return adjacency_list[:max_len]
 
 
