@@ -17,6 +17,7 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
 def perform_explicit_factors_check(config):
     # np.random.seed(14)
     wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], \
+                              config.initial_sdw_parameters, config.initial_cdw_parameters,
                               config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
 
     delta = wf.Jastrow - wf.Jastrow.T
@@ -64,11 +65,64 @@ def perform_numerical_derivative_check(config):
 
     print('chemical potential derivative check...')
     np.random.seed(11)
-    wf_1 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters - dt / 2], config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
+    wf_1 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters - dt / 2], 
+        config.initial_sdw_parameters, config.initial_cdw_parameters,
+        config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
     np.random.seed(11)
-    wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters + dt / 2], config.initial_gap_parameters, config.initial_jastrow_parameters, False, None) 
+    wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters + dt / 2], 
+        config.initial_sdw_parameters, config.initial_cdw_parameters,
+        config.initial_gap_parameters, config.initial_jastrow_parameters, False, None) 
     der_idx = 2
     if compare_derivatives_numerically(wf_1, wf_2, 0, dt):
+        print('Passed')
+    else:
+        print('Failed!')
+        success = False
+
+    print('SDW derivative check...')
+    n_passed = 0
+    for sdw_idx in range(len(config.initial_sdw_parameters)):
+        delta = np.zeros(len(config.initial_sdw_parameters))
+        delta[sdw_idx] = 1
+        np.random.seed(11)
+        wf_1 = wavefunction_singlet(config, config.pairings_list, 
+            [config.initial_mu_parameters], 
+            config.initial_sdw_parameters - dt / 2 * delta, config.initial_cdw_parameters,
+            config.initial_gap_parameters, 
+            config.initial_jastrow_parameters, False, None)
+        np.random.seed(11)
+        wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
+            config.initial_sdw_parameters + dt / 2 * delta, config.initial_cdw_parameters,
+            config.initial_gap_parameters, config.initial_jastrow_parameters, False, None) 
+        der_idx = 2
+        n_passed += float(compare_derivatives_numerically(wf_1, wf_2, sdw_idx + 1, dt))
+
+    if n_passed == len(config.initial_sdw_parameters):
+        print('Passed')
+    else:
+        print('Failed!')
+        success = False
+
+    print('CDW derivative check...')
+    n_passed = 0
+    for cdw_idx in range(len(config.initial_cdw_parameters)):
+        delta = np.zeros(len(config.initial_cdw_parameters))
+        delta[cdw_idx] = 1
+        np.random.seed(11)
+        wf_1 = wavefunction_singlet(config, config.pairings_list, 
+            [config.initial_mu_parameters], 
+            config.initial_sdw_parameters, config.initial_cdw_parameters - dt / 2 * delta,
+            config.initial_gap_parameters, 
+            config.initial_jastrow_parameters, False, None)
+        np.random.seed(11)
+        wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
+            config.initial_sdw_parameters, config.initial_cdw_parameters + dt / 2 * delta,
+            config.initial_gap_parameters, config.initial_jastrow_parameters, False, None) 
+        der_idx = 2
+        n_passed += float(compare_derivatives_numerically(wf_1, wf_2, cdw_idx + 1 + 
+                          len(config.initial_sdw_parameters), dt))
+
+    if n_passed == len(config.initial_cdw_parameters):
         print('Passed')
     else:
         print('Failed!')
@@ -80,11 +134,16 @@ def perform_numerical_derivative_check(config):
         delta = np.zeros(len(config.initial_gap_parameters))
         delta[gap_idx] = 1
         np.random.seed(11)
-        wf_1 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], config.initial_gap_parameters - dt / 2 * delta, config.initial_jastrow_parameters, False, None)
+        wf_1 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
+            config.initial_sdw_parameters, config.initial_cdw_parameters,
+            config.initial_gap_parameters - dt / 2 * delta, config.initial_jastrow_parameters, False, None)
         np.random.seed(11)
-        wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], config.initial_gap_parameters + dt / 2 * delta, config.initial_jastrow_parameters, False, None) 
+        wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
+            config.initial_sdw_parameters, config.initial_cdw_parameters,
+            config.initial_gap_parameters + dt / 2 * delta, config.initial_jastrow_parameters, False, None) 
         der_idx = 2
-        n_passed += float(compare_derivatives_numerically(wf_1, wf_2, gap_idx + 1, dt))
+        n_passed += float(compare_derivatives_numerically(wf_1, wf_2, gap_idx + 1 + 
+                          len(config.initial_sdw_parameters) + len(config.initial_cdw_parameters), dt))
     if n_passed == len(config.initial_gap_parameters):
         print('Passed')
     else:
@@ -97,11 +156,19 @@ def perform_numerical_derivative_check(config):
         delta = np.zeros(len(config.initial_jastrow_parameters))
         delta[jastrow_idx] = 1
         np.random.seed(11)
-        wf_1 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], config.initial_gap_parameters, config.initial_jastrow_parameters - dt / 2 * delta, False, None)
+        wf_1 = wavefunction_singlet(config, config.pairings_list, 
+            [config.initial_mu_parameters], 
+            config.initial_sdw_parameters, config.initial_cdw_parameters,
+            config.initial_gap_parameters, 
+            config.initial_jastrow_parameters - dt / 2 * delta, False, None)
         np.random.seed(11)
-        wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], config.initial_gap_parameters, config.initial_jastrow_parameters + dt / 2 * delta, False, None) 
+        wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
+            config.initial_sdw_parameters, config.initial_cdw_parameters,
+            config.initial_gap_parameters, config.initial_jastrow_parameters + dt / 2 * delta, False, None) 
         der_idx = 2
-        n_passed += float(compare_derivatives_numerically(wf_1, wf_2, jastrow_idx + 1 + len(config.initial_gap_parameters), dt))
+        n_passed += float(compare_derivatives_numerically(wf_1, wf_2, jastrow_idx + 1 + 
+                          len(config.initial_gap_parameters) + len(config.initial_sdw_parameters) + 
+                          len(config.initial_cdw_parameters), dt))
 
     if n_passed == len(config.initial_jastrow_parameters):
         print('Passed')
@@ -117,6 +184,7 @@ def perform_single_move_check(config):
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], \
+                              config.initial_sdw_parameters, config.initial_cdw_parameters, \
                               config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
     while n_agreed < 5:
         L = len(wf.state) // 2
@@ -152,6 +220,7 @@ def perform_onsite_gf_is_density_check(config):
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], \
+                              config.initial_sdw_parameters, config.initial_cdw_parameters, \
                               config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
     while n_agreed < 5:
         L = len(wf.state) // 2
@@ -182,7 +251,8 @@ def perform_double_move_check(config):
     print('Testing double moves ⟨x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф⟩ / ⟨x|Ф⟩')
     n_agreed = 0
     n_failed = 0
-    wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
+    wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters],
+                              config.initial_sdw_parameters, config.initial_cdw_parameters,
                               config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
     while n_agreed < 5:
         L = len(wf.state) // 2

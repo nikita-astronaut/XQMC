@@ -116,6 +116,8 @@ for U in U_list:
     gap_parameters = config_vmc.initial_gap_parameters
     jastrow_parameters = config_vmc.initial_jastrow_parameters
     mu_parameter = config_vmc.initial_mu_parameters
+    sdw_parameter = config_vmc.initial_sdw_parameters
+    cdw_parameter = config_vmc.initial_cdw_parameters
 
     config_vmc.U = U
     config_vmc.V = U
@@ -129,6 +131,12 @@ for U in U_list:
         log_file.write(" ⟨" + gap_name + "⟩")
     for i in range(len(jastrow_parameters)):
         log_file.write(" ⟨jastrow_" + str(i) + "⟩")
+
+    for i in range(len(sdw_parameter)):
+        log_file.write(" ⟨sdw_" + str(i % config_vmc.n_orbitals) + '_' + str((i // config_vmc.n_orbitals) % config_vmc.n_sublattices) + "⟩")
+    for i in range(len(cdw_parameter)):
+        log_file.write(" ⟨cdw_" + str(i % config_vmc.n_orbitals) + '_' + str((i // config_vmc.n_orbitals) % config_vmc.n_sublattices) + "⟩")
+
     log_file.write(' ⟨mu_BCS⟩\n')
 
     observables_log = open(config_vmc.observables_log_name + '_U_' + str(U) + '.dat', 'w')
@@ -138,10 +146,10 @@ for U in U_list:
     for n_step in range(config_vmc.optimisation_steps):
         if n_step == 0:
             results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc, pairings_list, \
-                                                                           (mu_parameter, gap_parameters, jastrow_parameters)) for i in range(n_cpus))
+                                                                           (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters)) for i in range(n_cpus))
         else:
             results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc, pairings_list, \
-                                                                           (mu_parameter, gap_parameters, jastrow_parameters), \
+                                                                           (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
                                                                            final_state = final_states[i]) for i in range(n_cpus))
         energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)
         Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
@@ -190,8 +198,10 @@ for U in U_list:
         step = config_vmc.opt_parameters[1] * step 
 
         mu_parameter += step[0]
-        gap_parameters += step[1:1 + len(gap_parameters)]
-        jastrow_parameters += step[1 + len(gap_parameters):]
+        sdw_parameter += step[1:1 + len(sdw_parameter)]
+        cdw_parameter += step[1 + len(sdw_parameter):1 + len(cdw_parameter) + len(sdw_parameter)]
+        gap_parameters += step[1 + len(cdw_parameter) + len(sdw_parameter):1 + len(gap_parameters) + len(cdw_parameter) + len(sdw_parameter)]
+        jastrow_parameters += step[1 + len(gap_parameters) + len(cdw_parameter) + len(sdw_parameter):]
 
         print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
         log_file.write(("{:3d} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,

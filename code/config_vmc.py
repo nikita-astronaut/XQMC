@@ -22,8 +22,8 @@ class MC_parameters:
         self.BC_twist = False  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.PN_projection = True
         self.n_delayed_updates = 5
-        self.visualisation = True
-        self.tests = True
+        self.visualisation = False
+        self.tests = False
         self.observables_frequency = 60000  # how often to compute observables
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
         self.log_name = '/home/astronaut/DQMC_TBG/logs/log'
@@ -37,5 +37,7 @@ class MC_parameters:
 
         self.initial_mu_parameters = -0.51
         self.initial_gap_parameters = np.random.uniform(-0.1, 0.1, size = len(self.pairings_list))
-        self.initial_jastrow_parameters = np.array([1.4, 0.5, 0.3, 0.3, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.initial_jastrow_parameters = np.array([1.4, 0.5, 0.3, 0.3, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        self.initial_sdw_parameters = np.random.uniform(-0.1, 0.1, size = self.n_orbitals * self.n_sublattices)
+        self.initial_cdw_parameters = np.random.uniform(-0.1, 0.1, size = self.n_orbitals * self.n_sublattices)
         self.adjacency_list = models.get_adjacency_list(self, len(self.initial_jastrow_parameters))

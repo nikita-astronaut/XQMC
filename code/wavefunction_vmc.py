@@ -6,15 +6,19 @@ from copy import deepcopy
 from numba import jit
 
 class wavefunction_singlet():
-    def __init__(self, config, pairings_list, var_mu, var_params_gap, var_params_Jastrow, \
+    def __init__(self, config, pairings_list, var_mu, var_SDW, var_CDW, 
+                 var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):
         self.config = config
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self.config, gap) for gap in pairings_list]
         self.var_params_gap = var_params_gap  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
         self.var_params_Jastrow = var_params_Jastrow
         self.var_mu = var_mu
-        self.Jastrow_A = config.adjacency_list
+        self.var_SDW = var_SDW
+        self.var_CDW = var_CDW
+        self.checkerboard = np.kron(np.ones((config.Ls ** 2 // 2, config.Ls ** 2 // 2)), np.array([[1, -1], [-1, 1]]))
 
+        self.Jastrow_A = config.adjacency_list
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
 
         self.U_matrix = self._construct_U_matrix()
@@ -48,6 +52,12 @@ class wavefunction_singlet():
         self.current_det = self.get_cur_det()
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
+        self.W_waves_derivatives = [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
+                                    dof % self.config.n_sublattices, 'SDW')) \
+                                    for dof in range(self.config.n_orbitals * self.config.n_sublattices)] + \
+                                   [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
+                                    dof % self.config.n_sublattices, 'CDW')) \
+                                    for dof in range(self.config.n_orbitals * self.config.n_sublattices)]
         self._state_dict = {}
 
         self.random_numbers_acceptance = np.random.random(size = int(1e+6))
@@ -83,6 +93,19 @@ class wavefunction_singlet():
         V = -np.diag([1.0] * self.K.shape[0] + [-1.0] * self.K.shape[0]) + 0.0j
         return V
 
+    def _construct_wave_V(self, orbital, sublattice, wave_type):
+        sublattice_matrix = np.zeros((self.config.n_sublattices, self.config.n_sublattices))
+        sublattice_matrix[sublattice, sublattice] = 1.
+
+        orbital_matrix = np.zeros((self.config.n_orbitals, self.config.n_orbitals))
+        sublattice_matrix[orbital, orbital] = 1.            
+
+        dof_matrix = np.kron(np.kron(self.checkerboard, sublattice_matrix), orbital_matrix)
+
+        if wave_type == 'SDW':
+            return np.kron(np.eye(2), dof_matrix)
+        return np.kron(np.diag([1, -1]), dof_matrix)
+
     def _get_derivative(self, V):  # obtaining (6.99) from S. Sorella book
         Vdash = (self.U_full.conj().T).dot(V).dot(self.U_full)  # (6.94) in S. Sorella book
         Vdash_rescaled = np.zeros(shape = Vdash.shape) * 1.0j  # (6.94) from S. Sorella book
@@ -104,7 +127,9 @@ class wavefunction_singlet():
         O_mu = [self.get_O_pairing(self.W_mu_derivative)]
         O_pairing = [self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
         O_Jastrow = [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
-        O = O_mu + O_pairing + O_Jastrow
+        O_waves = [self.get_O_pairing(W_wave_derivative) for W_wave_derivative in self.W_waves_derivatives]
+
+        O = O_mu + O_waves + O_pairing + O_Jastrow
 
         return np.array(O)
 
@@ -118,12 +143,28 @@ class wavefunction_singlet():
         self.adjacency_list = [np.where(self.big_adjacency_matrix[:, i] > 0)[0] for i in range(self.big_adjacency_matrix.shape[1])]
 
         Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
-        T = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j
-        T[:self.K.shape[0], :self.K.shape[1]] = self.K
-        T[self.K.shape[0]:, self.K.shape[1]:] = -self.K
-        T[:self.K.shape[0], self.K.shape[1]:] = Delta
 
+        ## CONTRUCTION OF H_MF (mean field, denoted as T) ##
+        ## standard kinetic term (\mu included) ##
+        T = np.kron(np.diag([1, -1]), self.K) + 0.0j
+
+        ## various local pairing terms ##
+        T[:self.K.shape[0], self.K.shape[1]:] = Delta
         T[self.K.shape[0]:, :self.K.shape[1]] = Delta.conj().T
+        
+        ## SDW/CDW is the same for every orbital and sublattice ##
+
+        for dof in range(self.config.n_orbitals * self.config.n_sublattices):
+            sublattice = dof % self.config.n_sublattices
+            orbital = (dof // self.config.n_sublattices) % self.config.n_orbitals
+
+            T += self._construct_wave_V(orbital, sublattice, 'SDW') * self.var_SDW[dof]
+            T += self._construct_wave_V(orbital, sublattice, 'CDW') * self.var_CDW[dof]
+            #  delta_cdw_i \sum_xy (-1)^{x + y} [n_up_i(x, y) + n_down_i(x, y)] = \sum_xy (-1)^{x + y} [n_i(x, y) - n_i(x + L, y + L)]
+            #  delta_sdw_i \sum_xy (-1)^{x + y} [n_up_i(x, y) - n_down_i(x, y)] = \sum_xy (-1)^{x + y} [n_i(x, y) + n_i(x + L, y + L)]
+
+
+
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
