@@ -35,7 +35,7 @@ class HubbardHamiltonian(object):
         # print('mu: ', time() - t)
         # t = time()
         # this sum runs in the real indices space (not 2--extended as above)
-        E_loc += np.einsum('i,i,i', particles, 2 * np.diag(self.edges_quadric), 1 - holes)  # TODO: check this properly
+        E_loc += np.einsum('i,i,i', particles - 0.5, np.diag(self.edges_quadric), 1 - holes - 0.5)  # TODO: check this properly
 
         E_loc += np.einsum('i,ij,j', 1 + particles - holes, self.edges_quadric * self.offdiagonal_mask, 1 + particles - holes)
         # print('U: ', time() - t)
