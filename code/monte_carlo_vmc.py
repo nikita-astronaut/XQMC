@@ -68,10 +68,12 @@ print('performing simulation at', n_cpus, 'CPUs')
 
 def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
     hamiltonian = config_vmc.hamiltonian(config_vmc)
+    t = time()
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, False, None)
     else:
         wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, True, final_state)
+    print(t - time())
     if not wf.with_previous_state:
         for MC_step in range(config_vmc.MC_chain * 2):
             wf.perform_MC_step()
@@ -206,7 +208,7 @@ for U in U_list:
         print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + '\033[0m', flush = True)
         log_file.write(("{:3d} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
                         np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, np.sqrt(np.sum(forces ** 2)),
-                        *gap_parameters, *jastrow_parameters, mu_parameter))
+                        *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
 
         observables_log.write(("{:3d} {:.7e} {:.7e} {:.3e} " + " {:.5e}" * len(observables) + "\n").format(n_step, np.mean(energies).real / vol,
                             np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, 
