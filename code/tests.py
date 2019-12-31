@@ -248,7 +248,7 @@ def perform_onsite_gf_is_density_check(config):
 
 def perform_double_move_check(config):
     success = True
-    print('Testing double moves ⟨x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф⟩ / ⟨x|Ф⟩')
+    print('Testing double moves ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩')
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters],
@@ -256,17 +256,16 @@ def perform_double_move_check(config):
                               config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
     while n_agreed < 5:
         L = len(wf.state) // 2
-        i, j, k, l = np.random.randint(0, L, size = 4)
-        if i == k:  # I am tired :)) this case is already considered everywhere
-            continue
-        fillings = wf.place_in_string[j + L] > -1, wf.place_in_string[k] > -1
+        i, j, k, l = np.random.randint(0, 2 * L, size = 4)
+        if i == j or i == l or k == l or k == j:
+            continue  # the degenerate cases are considered separately (directly by density operator)
 
         initial_ampl = wf.current_ampl
         state = deepcopy((wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy))
         ratio_fast = get_wf_ratio_double_exchange(*state, i, j, k, l)
         
-        W_ik_0 = get_wf_ratio(*state, i, k)
-        acc = wf.perform_MC_step(proposed_move = (i, k), enforce = True)[0]
+        W_ij_0 = get_wf_ratio(*state, i, j)
+        acc = wf.perform_MC_step(proposed_move = (i, j), enforce = True)[0]
 
         if not acc:
             continue
@@ -275,33 +274,21 @@ def perform_double_move_check(config):
 
         middle_ampl = wf.current_ampl
 
-        W_lj_upd = get_wf_ratio(*state, l + L, j + L)
+        W_kl_upd = get_wf_ratio(*state, k, l)
+        ratio_check = W_kl_upd * W_ij_0
 
-        if j == l:
-            if wf.place_in_string[j + L] > -1:
-                ratio_check = 0
-            else:
-                ratio_check = W_ik_0
-        else:
-            ratio_check = -W_lj_upd * W_ik_0
-
-        acc = wf.perform_MC_step(proposed_move = (l + L, j + L), enforce = True)[0]
+        acc = wf.perform_MC_step(proposed_move = (k, l), enforce = True)[0]
         if not acc:
             continue
         wf.perform_explicit_GF_update()
         final_ampl = wf.current_ampl
 
-        ratio_straight = -final_ampl / initial_ampl
-        if j == l:
-            if wf.place_in_string[j + L] > -1:
-                ratio_straight = 0
-            else:
-                ratio_straight = middle_ampl / initial_ampl
+        ratio_straight = final_ampl / initial_ampl
 
         if (np.abs(ratio_fast - ratio_straight) / np.abs(ratio_fast) < 1e-11) and (np.abs(ratio_fast - ratio_check) / np.abs(ratio_fast) < 1e-11):
             n_agreed += 1
         else:
-            print('double move check ⟨x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф⟩ / ⟨x|Ф⟩ failed:', ratio_fast, ratio_straight, ratio_check, i, j, k, l)
+            print('double move check ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩ failed:', ratio_fast / ratio_straight, ratio_straight, ratio_check, i, j, k, l)
             n_failed += 1
             success = False
     if n_failed == 0:

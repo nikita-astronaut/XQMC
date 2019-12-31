@@ -192,7 +192,6 @@ def get_adjacency_list(config, max_len):
     adjacency_list = []
     for dist in distances:
         adj = (A.round(decimals=10) == dist).astype(np.float32)
-
         adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals)
     return adjacency_list[:max_len]
 

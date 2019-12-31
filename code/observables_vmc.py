@@ -9,15 +9,17 @@ def gap_gap_correlator(state, pairing):
     '''
         <\\Delta^{\\dag} \\Delta> = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
                                   = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} d_{j + L} d^{\\dag}_{i} d_k d^{\\dag}_{l + L} = 
-                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} F(i, j, k, l)
+                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} d^{\\dag}_{i} d_{j + L} d^{\\dag}_{l + L} d_k = 
+                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} F(i, j + L, k, l + L)
     '''
 
+    L = len(state[3]) // 2
     correlator = 0.0
     for i in range(pairing.shape[0]):
         for j in np.where(pairing[i, :] != 0.0)[0]:
             for k in range(pairing.shape[0]):
                 for l in np.where(pairing[k, :] != 0.0)[0]:
-                    correlator += np.real(wavefunction_vmc.get_wf_ratio_double_exchange(*state, i, j, k, l) * \
+                    correlator += np.real(wavefunction_vmc.get_wf_ratio_double_exchange(*state, i, j + L, l + L, k) * \
                                           np.conj(pairing[i, j]) * pairing[k, l])
 
     # normalize pairing for the number of bonds coming from every site
@@ -45,14 +47,14 @@ def n_up_n_down_correlator(state, adj):
     correlator /= np.sum(np.abs(adj))
     return correlator
 
-
+'''
 @jit(nopython=True)
 def Sz_Sz_correlator(state, adj):
-    ''' 
+     
     <n_up(i) n_down(j)> = \\sum\\limits_{ij} A[i, j] c^{\\dag}_{i, up} c_{i, up} c^{\\dag}_{j, down} c_{j, down} = 
                         = \\sum\\limits_{ij} A[i, j] d^{\\dag}_{i} d_{i} d_{j + L} d_{j + L} =
                         = \\sum\\limits_{ij} A[i, j] n_i (1 - n_{j + L}) [after particle-hole transform] 
-    '''
+    
 
     L = len(state[3]) // 2
     correlator = 0.0
@@ -63,14 +65,14 @@ def Sz_Sz_correlator(state, adj):
     # normalize to the total number of accounted links
     correlator /= np.sum(np.abs(adj))
     return correlator
-
+'''
 
 def compute_observables(wf):
     state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
     observables = []
     names = []
 
-    adj_list = models.get_adjacency_list(wf.config, len(wf.config.initial_jastrow_parameters))  # by default we look only at the correlations within the Jastrow factor
+    adj_list = wf.Jastrow_A  # by default we look only at the correlations within the Jastrow factor
 
     for i, adj in enumerate(adj_list):
         observables.append(n_up_n_down_correlator(state, adj))

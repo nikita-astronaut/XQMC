@@ -19,27 +19,20 @@ class HubbardHamiltonian(object):
             E_loc(i) = \\sum_{j ~ i} H_{ij} \\psi_j / \\psi_i,
             where j ~ i are the all indixes having non-zero matrix element with i H_{ij}
         '''
-        # if tuple(wavefunction.state) in self._states_dict:
-        #     return self._states_dict[tuple(wavefunction.state)]
 
         E_loc = 0.0 + 0.0j
         base_state = wavefunction.state
         particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
 
-        # t = time()
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, \
                  (wavefunction.Jastrow, wavefunction.W_GF, wavefunction.place_in_string, wavefunction.state, wavefunction.occupancy))
-        # print('quadratic: ', time() - t)
-        # t = time()
+
         E_loc -= self.config.mu * (np.sum(particles) - np.sum(holes) + 1)
-        # print('mu: ', time() - t)
-        # t = time()
         # this sum runs in the real indices space (not 2--extended as above)
         E_loc += np.einsum('i,i,i', particles - 0.5, np.diag(self.edges_quadric), 1 - holes - 0.5)  # TODO: check this properly
 
         E_loc += np.einsum('i,ij,j', 1 + particles - holes, self.edges_quadric * self.offdiagonal_mask, 1 + particles - holes)
-        # print('U: ', time() - t)
-        # self._states_dict[tuple(wavefunction.state)] = E_loc
+
         return E_loc
 
     def reset(self):
@@ -80,28 +73,17 @@ class hamiltonian_2bands(HubbardHamiltonian):
         self.offdiagonal_mask = np.ones(K_matrix.shape[0])
         self.offdiagonal_mask -= np.diag(np.diag(self.offdiagonal_mask))
 
-        edges_quadratic = np.zeros((2 * K_matrix.shape[0], 2 * K_matrix.shape[1]))
-        edges_quadratic[:K_matrix.shape[0], :K_matrix.shape[1]] = K_matrix
-        edges_quadratic[K_matrix.shape[0]:, K_matrix.shape[1]:] = -K_matrix
+        edges_quadratic = np.kron(np.diag([1, -1]), K_matrix)
 
         # for V_{ij} n_i n_j density--density interactions
         edges_quadric = np.diag([self.config.U] * K_matrix.shape[0])
 
         return edges_quadratic, edges_quadric
 
-
-
 @jit(nopython=True)
 def get_E_quadratic(base_state, edges_quadratic, wf_state):
     E_loc = 0.0 + 0.0j
-    '''
-    mask = np.outer(base_state == 1, base_state == 0)
 
-    edges_contributing = np.where(edges_quadratic * mask != 0.0)
-
-    for i, j in zip(edges_contributing[0], edges_contributing[1]):
-        E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, i, j)
-    '''
     for i in range(len(base_state)):
         for j in range(len(base_state)):
             if not (base_state[i] == 1 and base_state[j] == 0):

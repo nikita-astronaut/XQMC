@@ -98,7 +98,7 @@ class wavefunction_singlet():
         sublattice_matrix[sublattice, sublattice] = 1.
 
         orbital_matrix = np.zeros((self.config.n_orbitals, self.config.n_orbitals))
-        sublattice_matrix[orbital, orbital] = 1.            
+        orbital_matrix[orbital, orbital] = 1.            
 
         dof_matrix = np.kron(np.kron(self.checkerboard, sublattice_matrix), orbital_matrix)
 
@@ -338,41 +338,56 @@ def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
     return det_ratio * Jastrow_ratio
 
 @jit(nopython=True)
+def density(place_in_string, index):
+    return 1.0 if place_in_string[index] > -1 else 0.0
+
+@jit(nopython=True)
 def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupancy, i, j, k, l):
     '''
         this is required for the correlators <\\Delta^{\\dag} \\Delta>
-        computes the ratio <x|d_{j + L} d^{\\dag}_i d_k d^{\\dag}_{l + L}|Ф> / <x|Ф> = 
-        = W(j + L, I(i)) W(k, I(l + L)) + (\\delta_jl - W(j + L, I(l + L))) W(k, I(i))
+        computes the ratio <x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф> / <x|Ф> = 
+        = W(j, I(i)) W(l, I(k)) + (\\delta_jk - W(j, I(k))) W(l, I(i)),
         where I(i) is the position of the occupied site i in the state bitstring
     '''
 
     L = len(state) // 2
     state_packed = (Jastrow, W_GF, place_in_string, state, occupancy)
 
+    ## have to explicitly work-around degenerate cases ##
+    if i == j:
+        n_i = density(place_in_string, i)
+        return 0.0 + 0.0j if n_i == 0 else get_wf_ratio(*state_packed, k, l)
 
-    ## have to explicitly work-around two degenerate cases ##
-    if j == l: # then the two states act on |x> as d_{j + L} d^{\\dag}_{j + L} |x> = (1 - n_{j + L}) |x>
-        if place_in_string[j + L] == -1:
-            return get_wf_ratio(*state_packed, i, k)
-        return 0.0 + 0.0j
+    if j == k:
+        n_j = density(place_in_string, j)
+        return 0.0 + 0.0j if n_j == 1 else get_wf_ratio(*state_packed, i, l)
 
-    if i == k: # then the two states act on |x> as d^{\dag}_i d_i |x> = n_i |x>
-        if place_in_string[i] > -1:
-            delta = 1 if l == j else 0
-            return delta - get_wf_ratio(*state_packed, l + L, j + L)
-        return 0.0 + 0.0j
+    if l == i and l != k:
+        n_l = density(place_in_string, l)
+        delta_jk = 1.0 if j == k else 0.0
+        return 0.0 + 0.0j if n_l == 0 else delta_jk - get_wf_ratio(*state_packed, k, j)
 
-    ## bus if everything is fine... ##
-    ratio_det = get_det_ratio(*state_packed, i, j + L) * get_det_ratio(*state_packed, l + L, k) - \
-                get_det_ratio(*state_packed, l + L, j + L) * get_det_ratio(*state_packed, i, k)
+    if l == k and l != i:
+        n_l = density(place_in_string, l)
+        return 0.0 + 0.0j if n_l == 0 else get_wf_ratio(*state_packed, i, j)
+
+    if l == k and l == i:
+        n_i = density(place_in_string, i)
+        return 0.0 + 0.0j if n_i == 1 else get_wf_ratio(*state_packed, i, j)
+
+    ## bus if everything is non-equal... ##
+    delta_jk = 1.0 if j == k else 0.0
+    ratio_det = get_det_ratio(*state_packed, i, j) * get_det_ratio(*state_packed, k, l) - \
+                get_det_ratio(*state_packed, i, l) * get_det_ratio(*state_packed, k, j)
     jastrow = 0.0
     if np.abs(ratio_det) > 1e-10:
-        jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, i, k)
-        occupancy[i] -= 1
-        occupancy[k] += 1
-        
-        jastrow *= get_Jastrow_ratio(Jastrow, occupancy, state, l + L, j + L)
-        occupancy[i] += 1
-        occupancy[k] -= 1
+        jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, i, j)
+        delta_i = 1 if i < L else -1
+        delta_j = 1 if j < L else -1
+        occupancy[i % L] -= delta_i
+        occupancy[j % L] += delta_j
 
+        jastrow *= get_Jastrow_ratio(Jastrow, occupancy, state, k, l)
+        occupancy[i % L] += delta_i
+        occupancy[j % L] -= delta_j
     return jastrow * ratio_det
