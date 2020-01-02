@@ -123,7 +123,7 @@ def Coloumb_energy(phi):
 
 
 def compute_all_observables(phi):
-    adj_list = models.get_adjacency_list(phi.config, 4 * (1 + phi.config.n_orbitals * (phi.config.n_orbitals - 1) // 2))
+    adj_list = models.get_adjacency_list(phi.config)[:4]
     observables = []
     names = []
 

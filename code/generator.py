@@ -53,8 +53,6 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
         phi_field.copy_to_GPU()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
-    if switch:
-        phi_field.copy_to_CPU()
 
     GF_checked = False
     observables = []
@@ -70,12 +68,14 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
-            if switch:
-                phi_field.copy_to_CPU()
+            # if switch:
+            #     phi_field.copy_to_CPU()
             current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
 
-        phi_field.wrap_up(time_slice)
 
+        phi_field.wrap_up(time_slice)
+        if switch:
+            phi_field.copy_to_CPU()
 
         if phi_field.config.n_orbitals == 1:
             sp_index_range = phi_field.config.total_dof // 2
@@ -109,7 +109,7 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
 
                 phi_field.update_field(site_idx, time_slice, o_index)
 
-                
+                 
                 if not GF_checked:
                     G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                     G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
@@ -121,12 +121,13 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
                         print('\033[92m GF test passed successfully \033[0m')
                     else:
                         print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
+                
             else:
                 accept_history.append(0)
                 ratio_history.append(0)
-
-        obs, names = obs_methods.compute_all_observables(phi_field)
-        observables.append(np.array(obs))
+        if time_slice == 0:
+            obs, names = obs_methods.compute_all_observables(phi_field)
+            observables.append(np.array(obs))
     if n_sweep == 0:
         for obs_name in names:
             observables_log.write(" ⟨" + obs_name + "⟩ ⟨d" + obs_name + "⟩")

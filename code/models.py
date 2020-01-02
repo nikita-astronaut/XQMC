@@ -171,7 +171,7 @@ def get_bc_copies(r, R, Ls, sublattice):
             copies.append(np.array([r[0] + x * Ls, r[1] + y * Ls]).dot(R) + sublattice * np.array([1, 0]) / np.sqrt(3))
     return copies
 
-def get_adjacency_list(config, max_len):
+def get_adjacency_list(config):
     if config.n_sublattices == 2:
         R = R_hexagonal
     else:
@@ -188,12 +188,11 @@ def get_adjacency_list(config, max_len):
             r2s = get_bc_copies([x2, y2], R, config.Ls, sublattice2)
             A[first, second] = np.min([np.sum((r1 - r2) ** 2) for r2 in r2s])
     distances = np.sort(np.unique(A.round(decimals=10)))
-
     adjacency_list = []
     for dist in distances:
         adj = (A.round(decimals=10) == dist).astype(np.float32)
         adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals)
-    return adjacency_list[:max_len]
+    return adjacency_list
 
 
 def model_square_1orb(config, mu):

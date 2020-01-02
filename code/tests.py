@@ -6,7 +6,7 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     der_numerically = 2 * (np.abs(wf_2.current_ampl) - np.abs(wf_1.current_ampl)) / dt / (np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl))
     der_analytically = 0.5 * wf_1.get_O()[der_idx] + 0.5 * wf_2.get_O()[der_idx]
 
-    if np.abs(der_analytically) < 1e-8 and np.abs(der_numerically) < 1e-8:
+    if np.abs(der_analytically) < 1e-6 and np.abs(der_numerically) < 1e-6:
         return True
 
     result = np.abs(der_numerically - der_analytically.real) / np.abs(der_numerically) < 1e-5

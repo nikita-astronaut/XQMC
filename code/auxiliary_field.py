@@ -269,8 +269,8 @@ class auxiliary_field_intraorbital:
 
 
 class auxiliary_field_interorbital(auxiliary_field_intraorbital):
-    def __init__(self, config, K, K_inverse):
-        super().__init__(config, K, K_inverse)
+    def __init__(self, config, K, K_inverse, K_matrix):
+        super().__init__(config, K, K_inverse, K_matrix)
         return
 
     def _V_from_configuration(self, s, sign, spin):
