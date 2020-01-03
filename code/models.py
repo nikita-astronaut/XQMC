@@ -231,4 +231,11 @@ def apply_twisted_periodic_conditions(config, K):
             if np.abs(y1 - y2) > config.Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
                 K[first, second] *= -1
     return K
-    
+
+def spatial_checkerboard(config):
+    checkerboard = np.zeros(config.Ls ** 2)
+    for x in range(config.Ls):
+        for y in range(config.Ls):
+            lin_index = x * config.Ls + y
+            checkerboard[lin_index] = (-1) ** (x + y)
+    return np.diag(checkerboard)

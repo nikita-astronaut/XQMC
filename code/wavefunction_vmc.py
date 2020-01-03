@@ -16,7 +16,7 @@ class wavefunction_singlet():
         self.var_mu = var_mu
         self.var_SDW = var_SDW
         self.var_CDW = var_CDW
-        self.checkerboard = np.kron(np.ones((config.Ls ** 2 // 2, config.Ls ** 2 // 2)), np.array([[1, -1], [-1, 1]]))
+        self.checkerboard = models.spatial_checkerboard(self.config)
 
         self.Jastrow_A = config.adjacency_list
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
@@ -52,15 +52,13 @@ class wavefunction_singlet():
         self.current_det = self.get_cur_det()
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
-        
+       
         self.W_waves_derivatives = [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
                                     dof % self.config.n_sublattices, 'SDW')) \
                                     for dof in range(self.config.n_orbitals * self.config.n_sublattices)] + \
                                    [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
                                     dof % self.config.n_sublattices, 'CDW')) \
                                     for dof in range(self.config.n_orbitals * self.config.n_sublattices)]
-
-        print(np.sum(np.abs(self.W_waves_derivatives[0])))
 
         self.random_numbers_acceptance = np.random.random(size = int(1e+6))
         self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+6))
