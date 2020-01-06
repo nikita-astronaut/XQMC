@@ -110,14 +110,16 @@ def Coloumb_energy(phi):
     G_function_up = phi.current_G_function_up
     G_function_down = phi.current_G_function_down
 
-    energy_coloumb = phi.config.U * xp.einsum('i, i', xp.diag(G_function_up) - 1. / 2., xp.diag(G_function_down) - 1. / 2.).item() / G_function_up.shape[0]
+    energy_coloumb = (phi.config.U / 2.) * xp.sum((xp.diag(G_function_up) + xp.diag(G_function_down) - 1.) ** 2).item() \
+                     / G_function_up.shape[0]
     if phi.config.n_orbitals == 1:
         return energy_coloumb
+
     orbital_1 = xp.arange(0, G_function_up.shape[0], 2)
     orbital_2 = xp.arange(1, G_function_up.shape[0], 2)
-    energy_coloumb += 2 * phi.config.V * xp.einsum('i,i', (xp.diag(G_function_up)[orbital_1] + xp.diag(G_function_down)[orbital_1]),
-                                                          (xp.diag(G_function_up)[orbital_2] + xp.diag(G_function_down)[orbital_2])).item() / G_function_up.shape[0]
-
+    energy_coloumb += phi.config.V * xp.einsum('i,i', (xp.diag(G_function_up)[orbital_1] + xp.diag(G_function_down)[orbital_1] - 1),
+                                                      (xp.diag(G_function_up)[orbital_2] + xp.diag(G_function_down)[orbital_2] - 1)).item() \
+                                                      / G_function_up.shape[0]
 
     return energy_coloumb
 
