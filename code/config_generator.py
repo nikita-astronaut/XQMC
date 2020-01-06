@@ -5,7 +5,7 @@ dt_in_inv_t1 = 0.05
 U_in_t1 = 6.
 V_in_t1 = 0. 
 nu_V = np.arccosh(np.exp(V_in_t1 / 2. * dt_in_inv_t1))
-nu_U = np.arccosh(np.exp((U_in_t1 / 2. + V_in_t1 / 4.) * dt_in_inv_t1))
+nu_U = np.arccosh(np.exp((U_in_t1 / 2. + V_in_t1 / 2.) * dt_in_inv_t1))
 main_hopping = 1.0
 
 class simulation_parameters:
