@@ -60,9 +60,9 @@ class wavefunction_singlet():
                                     dof % self.config.n_sublattices, 'CDW')) \
                                     for dof in range(self.config.n_orbitals * self.config.n_sublattices)]
 
-        self.random_numbers_acceptance = np.random.random(size = int(1e+6))
-        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+6))
-        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(1e+6))
+        self.random_numbers_acceptance = np.random.random(size = int(1e+7))
+        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+7))
+        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(1e+7))
         return
 
     def get_cur_Jastrow_factor(self):
