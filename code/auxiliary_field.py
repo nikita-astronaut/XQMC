@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 import time
 import scipy
+import models
 from copy import deepcopy
 
 xp = np
@@ -19,6 +20,7 @@ class auxiliary_field_intraorbital:
         self.cpu = True
 
         self.config = config
+        self.adj_list = models.get_adjacency_list(self.config)[:4]
         self._get_initial_field_configuration()
         self.K = K
         self.K_inverse = K_inverse

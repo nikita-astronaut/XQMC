@@ -1,5 +1,6 @@
 import numpy as np
 import models
+from time import time
 
 xp = np  # by default the code is executed on the CPU
 try:
@@ -125,7 +126,7 @@ def Coloumb_energy(phi):
 
 
 def compute_all_observables(phi):
-    adj_list = models.get_adjacency_list(phi.config)[:4]
+    adj_list = phi.adj_list
     observables = []
     names = []
 
