@@ -30,7 +30,7 @@ densities = []
 def print_greetings(config):
     print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
           "lattice = {:d}^2 x {:d}".format(config.start_type, 1.0 / config.dt / config.Nt, config.mu, config.Ls, config.Nt))
-    print("# iteration current_flips N_swipes <log(ratio)> d<log(ratio)> <acceptance> <sign> d<sign> <density> <S_AF> <K> <Sz(0)Sz(0)> <Sz(0)Sz(1)> <Sz(0)Sz(2)> <Sz(0)Sz(3)> <Sz(0)Sz(4)> <Sz(0)Sz(5)> <n_up(0) n_down(0)> <n_up(0) n_down(1)> <n_up(0) n_down(2)> <n_up(0) n_down(3)> <n_up(0) n_down(4)>")
+    print("# iteration current_flips N_swipes <log(ratio)> d<log(ratio)> <acceptance> <sign> d<sign>")
     return
 
 def print_generator_log(n_sweep, phi_field):
@@ -40,7 +40,7 @@ def print_generator_log(n_sweep, phi_field):
     n_print = np.min([n_sweep * config.total_dof // 2 * config.Nt, config.n_smoothing])
     n_history = np.min([n_print, len(ratio_history)])
     
-    print("{:d}, {:d}, {:.9f} +/- {:.9f}, {:.3f}, {:.3f} +/- {:.3f}".format(n_sweep, current_n_flips, \
+    print("{:d} {:.9f} +/- {:.9f} {:.3f} {:.3f} +/- {:.3f}".format(n_sweep, \
         np.mean(ratio_history[-n_history:]), np.std(ratio_history[-n_history:]) / np.sqrt(len(ratio_history[-n_history:])), \
         np.mean(accept_history), \
         np.mean(sign_history[-n_print:]), np.std(sign_history[-n_print:]) / np.sqrt(len(sign_history[-n_print:]))), flush = True)
@@ -56,6 +56,7 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
 
     GF_checked = False
     observables = []
+    obs_signs = []
 
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
@@ -125,18 +126,22 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
         obs, names = obs_methods.compute_all_observables(phi_field)
         if switch:
             phi_field.copy_to_CPU()
-        observables.append(np.array(obs))
+
+        observables.append(np.array(obs) * current_det_sign)  # the sign is included into observables (reweighting)
+        obs_signs.append(current_det_sign)
+
     if n_sweep == 0:
         for obs_name in names:
             observables_log.write(" ⟨" + obs_name + "⟩ ⟨d" + obs_name + "⟩")
         observables_log.write('\n')
-    observables = np.array(observables)
+    observables = np.array(observables) / np.mean(obs_signs)
     observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
+
     cut = phi_field.config.n_smoothing
-    observables_log.write(("{:4d} {:.4e} {:.4e} {:.4e} {:.4e} {:.4e} " + " {:.5e}" * len(observables) + "\n").format(n_sweep, np.mean(ratio_history[-cut:]),
+    observables_log.write(("{:4d} {:.4e} {:.4e} {:.4e} {:.4e} {:.4e} {4:.e}" + " {:.5e}" * len(observables) + "\n").format(n_sweep, np.mean(ratio_history[-cut:]),
                             np.std(ratio_history[-cut:]) / np.sqrt(len(ratio_history[-cut:])),
                             np.mean(accept_history[-cut:]),
-                            np.mean(sign_history[-cut:]), np.std(sign_history[-cut:]) / np.sqrt(len(sign_history[-cut:])),
+                            np.mean(sign_history[-cut:]), np.std(sign_history[-cut:]) / np.sqrt(len(sign_history[-cut:])), np.mean(obs_signs),
                             *observables))
     observables_log.flush()
     return phi_field
@@ -145,8 +150,6 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
 if __name__ == "__main__":
     print_greetings(config)
 
-    current_n_flips = 1
-    n_flipped = 0
     K_matrix = config.model(config, config.mu)
     K_operator = scipy.linalg.expm(config.dt * K_matrix)
     K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
@@ -154,7 +157,7 @@ if __name__ == "__main__":
     phi_field.copy_to_GPU()
 
     observables_log = open(config.observables_log_name + '_U_' + str(config.U) + '.dat', 'w')
-    observables_log.write("⟨step⟩ ⟨ratio⟩ ⟨dratio⟩ ⟨acceptance⟩ ⟨sign⟩ ⟨dsign⟩ ")
+    observables_log.write("⟨step⟩ ⟨ratio⟩ ⟨dratio⟩ ⟨acceptance⟩ ⟨sign⟩ ⟨dsign⟩ ⟨sign_obs⟩ ")
 
     for n_sweep in range(config.n_sweeps):
         t = time()

@@ -31,7 +31,7 @@ class HubbardHamiltonian(object):
         # this sum runs in the real indices space (not 2--extended as above)
         density = particles - holes
 
-        E_loc += np.einsum('i,i,i', particles, 2 * np.diag(self.edges_quadric), 1 - holes)
+        E_loc += np.einsum('i,i,i', density, np.diag(self.edges_quadric), density)
         # on-site term U/2 \rho^2 = U n_up n_down + (U/2) (-n_up - n_down + 1)
         # so, at half-filling the standart U n_up n_down and my U/2 \rho^2 must agree
 

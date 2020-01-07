@@ -7,7 +7,7 @@ import models
 @jit(nopython=True)
 def gap_gap_correlator(state, pairing):
     '''
-        <\\Delta^{\\dag} \\Delta> = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
+        ⟨\\Delta^{\\dag} \\Delta⟩ = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
                                   = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} d_{j + L} d^{\\dag}_{i} d_k d^{\\dag}_{l + L} = 
                                   = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} d^{\\dag}_{i} d_{j + L} d^{\\dag}_{l + L} d_k = 
                                   = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} F(i, j + L, k, l + L)

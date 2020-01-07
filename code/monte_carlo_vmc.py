@@ -128,7 +128,7 @@ for U in U_list:
     log_file = open(config_vmc.log_name + '_U_' + str(U) + '.dat', 'w')
     final_states = []
 
-    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨acceptance⟩ ⟨force⟩")
+    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩")
     for gap_name in pairings_names:
         log_file.write(" ⟨" + gap_name + "⟩")
     for i in range(len(jastrow_parameters)):
@@ -142,7 +142,7 @@ for U in U_list:
     log_file.write(' ⟨mu_BCS⟩\n')
 
     observables_log = open(config_vmc.observables_log_name + '_U_' + str(U) + '.dat', 'w')
-    observables_log.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨acceptance⟩")
+    observables_log.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩")
 
 
     for n_step in range(config_vmc.optimisation_steps):
@@ -172,8 +172,11 @@ for U in U_list:
         Os_mean = np.mean(Os, axis = 0)
         forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean).real
 
+        variance = (np.mean(np.abs(energies) ** 2) - np.mean(energies) ** 2) / vol
+
         print('estimating gradient on ', len(energies), 'samples', flush = True)
         print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
+        print('\033[93m σ^2 / t / vol = ' + str(variance) + '\033[0m', flush = True)
         print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
         print('\033[94m |forces_raw| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
 
@@ -206,12 +209,12 @@ for U in U_list:
         jastrow_parameters += step[1 + len(gap_parameters) + len(cdw_parameter) + len(sdw_parameter):]
 
         print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + ', SDW/CDW = ' + str([sdw_parameter, cdw_parameter]) + '\033[0m', flush = True)
-        log_file.write(("{:3d} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
-                        np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, np.sqrt(np.sum(forces ** 2)),
+        log_file.write(("{:3d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
+                        np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, np.sqrt(np.sum(forces ** 2)),
                         *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
 
-        observables_log.write(("{:3d} {:.7e} {:.7e} {:.3e} " + " {:.5e}" * len(observables) + "\n").format(n_step, np.mean(energies).real / vol,
-                            np.std(energies).real / np.sqrt(len(energies)) / vol, acceptance, 
+        observables_log.write(("{:3d} {:.7e} {:.7e} {:.7e} {:.3e} " + " {:.5e}" * len(observables) + "\n").format(n_step, np.mean(energies).real / vol,
+                            np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, 
                             *observables))
         log_file.flush()
         observables_log.flush()
