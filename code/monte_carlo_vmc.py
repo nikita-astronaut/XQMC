@@ -67,7 +67,7 @@ if config_vmc.n_cpus == -1:
 print('performing simulation at', n_cpus, 'CPUs')
 
 
-def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state = False):
+def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final_state = False):
     hamiltonian = config_vmc.hamiltonian(config_vmc)
 
     if final_state == False:
@@ -88,7 +88,7 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
     t_observables = 0
     observables = []
 
-    for MC_step in range(config_vmc.MC_chain):
+    for MC_step in range(int(config_vmc.MC_chain * (config_vmc.opt_parameters[2] ** n_iter))):
         if MC_step % config_vmc.correlation == 0:
             wf.perform_explicit_GF_update()
             t = time()
@@ -149,10 +149,10 @@ for U, V in zip(U_list, V_list):
 
     for n_step in range(config_vmc.optimisation_steps):
         if n_step == 0:
-            results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc, pairings_list, \
+            results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, config_vmc, pairings_list, \
                                                                            (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters)) for i in range(n_cpus))
         else:
-            results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(config_vmc, pairings_list, \
+            results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, config_vmc, pairings_list, \
                                                                            (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
                                                                            final_state = final_states[i]) for i in range(n_cpus))
         energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)

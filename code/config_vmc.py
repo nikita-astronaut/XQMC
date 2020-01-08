@@ -15,10 +15,10 @@ class MC_parameters:
         self.hamiltonian = hamiltonians_vmc.hamiltonian_4bands
         self.n_sublattices = 2
         self.MC_chain = 180000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
-        self.optimisation_steps = 300
+        self.optimisation_steps = 500
         self.N_electrons = self.Ls ** 2 * self.n_sublattices * self.n_orbitals # only applied if PN_projection = True
         self.correlation = self.N_electrons * 3
-        self.opt_parameters = [1e-3, 1e-2]  # regularizer for the S_stoch matrix, learning rate
+        self.opt_parameters = [1e-3, 1e-2, 1.003]  # regularizer for the S_stoch matrix, learning rate, MC_chain increasement rate
         self.BC_twist = False  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.PN_projection = True
         self.n_delayed_updates = 5
