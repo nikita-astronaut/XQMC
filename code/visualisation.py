@@ -197,8 +197,8 @@ def plot_pairing(config, gap_expanded, name):
     return
 
 def plot_all_Jastrow(config):
-    for jastrow in models.get_adjacency_list(config, len(config.initial_jastrow_parameters))[0]:
-        plot_Jastrow(config, jastrow)
+    for index, jastrow in enumerate(models.get_adjacency_list(config)[0]):
+        plot_Jastrow(config, jastrow, index)
     return
 
 def plot_Jastrow(config, Jastrow, index):
@@ -253,7 +253,7 @@ def plot_Jastrow(config, Jastrow, index):
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')
-    plt.title('jastrow_' + str(orbit1) + '-' + str(orbit2) + ' , $r = ' + str(dist) + '$')
+    plt.title('jastrow-' + str(orbit1) + '-' + str(orbit2) + ' , $r = ' + str(dist) + '$')
     plt.savefig('../plots/jastrow_' + str(orbit1) + '-' + str(orbit2) + '_' + str(dist) + '.pdf')
     plt.clf()
     return

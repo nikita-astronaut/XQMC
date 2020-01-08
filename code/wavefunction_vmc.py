@@ -20,7 +20,6 @@ class wavefunction_singlet():
 
         self.Jastrow_A = config.adjacency_list
         self.Jastrow = np.sum(np.array([A[0] * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
-
         self.U_matrix = self._construct_U_matrix()
         self.with_previous_state = with_previous_state
 
@@ -305,9 +304,8 @@ def get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site):
     delta_beta = +1 if empty_site < len(state) // 2 else -1
     alpha, beta = moved_site % (len(state) // 2), empty_site % (len(state) // 2)
 
-    factor = Jastrow[alpha, alpha]
     return np.exp(-np.sum((delta_alpha * Jastrow[alpha, :] + delta_beta * Jastrow[beta, :]) * occupancy) - 
-                   0.5 * ((delta_alpha ** 2 + delta_beta ** 2) * factor + 
+                   0.5 * ((delta_alpha ** 2 * Jastrow[alpha, alpha] + delta_beta ** 2 * Jastrow[beta, beta]) + 
                           delta_alpha * delta_beta * (Jastrow[alpha, beta] + Jastrow[beta, alpha])))
 
 @jit(nopython=True)

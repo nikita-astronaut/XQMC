@@ -31,11 +31,9 @@ class HubbardHamiltonian(object):
         # this sum runs in the real indices space (not 2--extended as above)
         density = particles - holes
 
-        E_loc += np.einsum('i,i,i', density, np.diag(self.edges_quadric), density)
+        E_loc += np.einsum('i,ij,j', density, self.edges_quadric, density)
         # on-site term U/2 \rho^2 = U n_up n_down + (U/2) (-n_up - n_down + 1)
         # so, at half-filling the standart U n_up n_down and my U/2 \rho^2 must agree
-
-        E_loc += np.einsum('i,ij,j', density, self.edges_quadric * self.offdiagonal_mask, density)
 
         return E_loc
 
@@ -53,8 +51,6 @@ class hamiltonian_4bands(HubbardHamiltonian):
 
         # for V_{ij} n_i n_j density--density interactions
         edges_quadric = np.diag(np.ones(K_matrix.shape[0]) * self.config.U / 2.0)
-        self.offdiagonal_mask = np.ones(K_matrix.shape[0])
-        self.offdiagonal_mask -= np.diag(np.diag(self.offdiagonal_mask))
 
         for i in range(K_matrix.shape[0]):
             for j in range(K_matrix.shape[1]):

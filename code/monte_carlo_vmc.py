@@ -11,6 +11,7 @@ import visualisation
 import tests
 import observables_vmc
 from copy import deepcopy
+import os
 
 def remove_singularity(S):
     for i in range(S.shape[0]):
@@ -99,7 +100,7 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
 
         t = time()
         if MC_step % config_vmc.observables_frequency == 0:
-            obs, names = observables_vmc.compute_observables(wf, config_vmc.longest_distance)
+            obs, names = observables_vmc.compute_observables(wf)
             observables.append(obs)
         t_observables += time() - t
 
@@ -114,7 +115,12 @@ pairings_list = config_vmc.pairings_list
 pairings_names = config_vmc.pairings_list_names
 
 U_list = deepcopy(config_vmc.U)
-for U in U_list:
+V_list = deepcopy(config_vmc.V)
+
+os.makedirs(config_vmc.workdir, exist_ok=True)
+
+for U, V in zip(U_list, V_list):
+    obs_files = []
     gap_parameters = config_vmc.initial_gap_parameters
     jastrow_parameters = config_vmc.initial_jastrow_parameters
     mu_parameter = config_vmc.initial_mu_parameters
@@ -122,10 +128,10 @@ for U in U_list:
     cdw_parameter = config_vmc.initial_cdw_parameters
 
     config_vmc.U = U
-    config_vmc.V = U
+    config_vmc.V = V
     H = config_vmc.hamiltonian(config_vmc)
  
-    log_file = open(config_vmc.log_name + '_U_' + str(U) + '.dat', 'w')
+    log_file = open(os.path.join(config_vmc.workdir, 'U_' + str(U) + '_V_' + str(V) + '_general_log.dat'), 'w')
     final_states = []
 
     log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩")
@@ -140,10 +146,6 @@ for U in U_list:
         log_file.write(" ⟨cdw_" + str(i % config_vmc.n_orbitals) + '_' + str((i // config_vmc.n_orbitals) % config_vmc.n_sublattices) + "⟩")
 
     log_file.write(' ⟨mu_BCS⟩\n')
-
-    observables_log = open(config_vmc.observables_log_name + '_U_' + str(U) + '.dat', 'w')
-    observables_log.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩")
-
 
     for n_step in range(config_vmc.optimisation_steps):
         if n_step == 0:
@@ -163,8 +165,12 @@ for U in U_list:
 
         if n_step == 0:
             for obs_name in observables_names:
-                observables_log.write(" ⟨" + obs_name + "⟩ ⟨d" + obs_name + "⟩")
-            observables_log.write('\n')
+                obs_files.append(open(os.path.join(config_vmc.workdir, 'U_' + str(U) + '_V_' + str(V) + '_' + obs_name + '.dat'), 'w'))
+                
+                for adj in config_vmc.adjacency_list:
+                    obs_files[-1].write("{:.5e}/{:d}/{:d} ".format(adj[3], adj[1], adj[2]))
+                obs_files[-1].write('\n')
+
 
         observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
         vol = config_vmc.total_dof // 2
@@ -213,10 +219,12 @@ for U in U_list:
                         np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, np.sqrt(np.sum(forces ** 2)),
                         *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
 
-        observables_log.write(("{:3d} {:.7e} {:.7e} {:.7e} {:.3e} " + " {:.5e}" * len(observables) + "\n").format(n_step, np.mean(energies).real / vol,
-                            np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, 
-                            *observables))
+        data_per_name = len(config_vmc.adjacency_list) * 2  # mean and std
+        for n, file in enumerate(obs_files):
+            data = observables[data_per_name * n : data_per_name * (n + 1)]
+            file.write(("{:.6e}" * len(data)).format(*data))
+            file.write('\n')
+            file.flush()
         log_file.flush()
-        observables_log.flush()
-    observables_log.close()
     log_file.close()
+    [file.close() for file in obs_files]

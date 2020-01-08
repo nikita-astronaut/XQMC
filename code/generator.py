@@ -126,9 +126,8 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
         obs, names = obs_methods.compute_all_observables(phi_field)
         if switch:
             phi_field.copy_to_CPU()
-
-        observables.append(np.array(obs) * current_det_sign)  # the sign is included into observables (reweighting)
-        obs_signs.append(current_det_sign)
+        observables.append(np.array(obs) * current_det_sign.item())  # the sign is included into observables (reweighting)
+        obs_signs.append(current_det_sign.item())
 
     if n_sweep == 0:
         for obs_name in names:
@@ -138,7 +137,7 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
     observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
 
     cut = phi_field.config.n_smoothing
-    observables_log.write(("{:4d} {:.4e} {:.4e} {:.4e} {:.4e} {:.4e} {4:.e}" + " {:.5e}" * len(observables) + "\n").format(n_sweep, np.mean(ratio_history[-cut:]),
+    observables_log.write(("{:4d} {:.4e} {:.4e} {:.4e} {:.4e} {:.4e} {:.4e}" + " {:.5e}" * len(observables) + "\n").format(n_sweep, np.mean(ratio_history[-cut:]),
                             np.std(ratio_history[-cut:]) / np.sqrt(len(ratio_history[-cut:])),
                             np.mean(accept_history[-cut:]),
                             np.mean(sign_history[-cut:]), np.std(sign_history[-cut:]) / np.sqrt(len(sign_history[-cut:])), np.mean(obs_signs),

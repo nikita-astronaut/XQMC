@@ -1,6 +1,7 @@
 import numpy as np
 import models
 from time import time
+import auxiliary_field
 
 xp = np  # by default the code is executed on the CPU
 try:
@@ -9,7 +10,7 @@ try:
 except ImportError:
     pass
 
-import auxiliary_field
+
 
 def get_B_sublattice_mask(config):
     return xp.asarray(1.0 * np.array([models.from_linearized_index(index, config.Ls, config.n_orbitals)[1] for index in range(config.n_sublattices * config.n_orbitals * config.Ls ** 2)]))

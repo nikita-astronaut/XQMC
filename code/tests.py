@@ -9,31 +9,31 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     if np.abs(der_analytically) < 1e-6 and np.abs(der_numerically) < 1e-6:
         return True
 
-    result = np.abs(der_numerically - der_analytically.real) / np.abs(der_numerically) < 1e-5
+    result = np.isclose(der_numerically, der_analytically.real, rtol=1e-5, atol=1e-5)
     if not result:
         print('Warning! The numerical derivative w.r. to one of the parameters did not match the analytical expression! :', der_numerically, der_analytically)
     return result
 
-def perform_explicit_factors_check(config):
+def test_explicit_factors_check(config):
     # np.random.seed(14)
     wf = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], \
                               config.initial_sdw_parameters, config.initial_cdw_parameters,
                               config.initial_gap_parameters, config.initial_jastrow_parameters, False, None)
 
-    delta = wf.Jastrow - wf.Jastrow.T
+    delta = np.sum(np.abs(wf.Jastrow - wf.Jastrow.T))
     success = True
     print('Testing the Jastrow matrix is symmetric')
-    if np.sum(np.abs(delta)) < 1e-10:
+    if np.isclose(delta, 0.0, rtol=1e-11, atol=1e-11):
         print('Passed')
     else:
         print('Failed:', np.sum(np.abs(delta)))
 
 
     print('Testing det and jastrow factors')
-    for _ in range(10):
+    for _ in range(100):
         det_initial = wf.get_cur_det()
         Jastrow_initial = wf.get_cur_Jastrow_factor()
-
+        
         acc = False
         ddet = 1.
         dJastrow = 1.
@@ -43,16 +43,13 @@ def perform_explicit_factors_check(config):
         wf.perform_explicit_GF_update()
         det_final = wf.get_cur_det()
         Jastrow_final = wf.get_cur_Jastrow_factor()
-
-        if np.abs(ddet - det_final / det_initial) / np.abs(ddet) > 1e-11:
+        if not np.isclose(ddet, det_final / det_initial, atol = 1e-10, rtol = 1e-10):
             print('Det ratio failed:', ddet, det_final / det_initial, moved_site, empty_site)
             success = False
 
-        if np.abs(dJastrow - Jastrow_final / Jastrow_initial) / np.abs(dJastrow) > 1e-11:
+        if not np.isclose(dJastrow, Jastrow_final / Jastrow_initial, rtol=1e-10, atol=1e-10):
             print('Jastrow ratio failed:', dJastrow, Jastrow_final / Jastrow_initial, moved_site, empty_site)
             success = False
-        else:
-            print('Jastrow ratio passed:', dJastrow, Jastrow_final / Jastrow_initial, moved_site, empty_site)
 
     if success:
         print('Passed')
@@ -60,7 +57,7 @@ def perform_explicit_factors_check(config):
     return success
 
 
-def perform_numerical_derivative_check(config):
+def test_numerical_derivative_check(config):
     dt = 1e-6
     success = True
 
@@ -179,7 +176,7 @@ def perform_numerical_derivative_check(config):
 
     return success
 
-def perform_single_move_check(config):
+def test_single_move_check(config):
     success = True
     print('Testing simple moves ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
     n_agreed = 0
@@ -201,7 +198,7 @@ def perform_single_move_check(config):
         wf.perform_explicit_GF_update()
         final_ampl = wf.current_ampl
 
-        if (np.abs(final_ampl / initial_ampl - ratio_fast) < 1e-11):
+        if np.isclose(final_ampl / initial_ampl, ratio_fast):
             n_agreed += 1
         else:
             print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
@@ -215,7 +212,7 @@ def perform_single_move_check(config):
     return success
 
 
-def perform_onsite_gf_is_density_check(config):
+def test_onsite_gf_is_density_check(config):
     success = True
     print('Testing ⟨x|d^{\\dag}_i d_i|Ф⟩ / ⟨x|Ф⟩ = n_i')
     n_agreed = 0
@@ -232,7 +229,7 @@ def perform_onsite_gf_is_density_check(config):
 
         density = float(wf.place_in_string[i] > -1)
         
-        if np.abs(density - gf) < 1e-11:
+        if np.isclose(density, gf, atol = 1e-11, rtol = 1e-11):
             n_agreed += 1
         else:
             print('Testing ⟨x|d^{\\dag}_i d_i|Ф⟩ / ⟨x|Ф⟩ = n_i failed:', density, gf, i)
@@ -245,9 +242,24 @@ def perform_onsite_gf_is_density_check(config):
 
     return success
 
+def test_all_jastrow_factors_add_to_one(config):
+    print('Testing all Jastrow correlations included only once')
+    factors = config.adjacency_list
+    success = True
 
+    result = np.zeros(factors[0][0].shape)
+    for A in factors:
+        result += A[0]
 
-def perform_double_move_check(config):
+    if np.allclose(result, np.ones(A[0].shape)):
+        print('Passed')
+    else:
+        print('Failed')
+        success = False
+
+    return success
+
+def test_double_move_check(config):
     success = True
     print('Testing double moves ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩')
     n_agreed = 0
@@ -286,7 +298,7 @@ def perform_double_move_check(config):
 
         ratio_straight = final_ampl / initial_ampl
 
-        if (np.abs(ratio_fast - ratio_straight) / np.abs(ratio_fast) < 1e-11) and (np.abs(ratio_fast - ratio_check) / np.abs(ratio_fast) < 1e-11):
+        if np.allclose([ratio_fast, ratio_fast], [ratio_straight, ratio_check], atol = 1e-11, rtol = 1e-11):
             n_agreed += 1
         else:
             print('double move check ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩ failed:', ratio_fast / ratio_straight, ratio_straight, ratio_check, i, j, k, l)
@@ -301,10 +313,11 @@ def perform_double_move_check(config):
 
 def perform_all_tests(config):
     success = True
-    success = success and perform_explicit_factors_check(config)
-    success = success and perform_double_move_check(config)
-    success = success and perform_single_move_check(config)
-    success = success and perform_numerical_derivative_check(config)
-    success = success and perform_onsite_gf_is_density_check(config)
+    success = success and test_all_jastrow_factors_add_to_one(config)
+    success = success and test_explicit_factors_check(config)
+    success = success and test_double_move_check(config)
+    success = success and test_single_move_check(config)
+    success = success and test_numerical_derivative_check(config)
+    success = success and test_onsite_gf_is_density_check(config)
 
     return success

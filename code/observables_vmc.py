@@ -24,7 +24,7 @@ def gap_gap_correlator(state, pairing, adj):
                                            np.conj(pairing[i, j]) * pairing[k, l])
 
     # normalize pairing for the number of bonds coming from every site
-    correlator /= np.sum(np.abs(pairing[0, :]))
+    correlator /= np.sum(np.abs(pairing[0, :])) / np.sum(adj)
     return correlator
 
 
@@ -68,18 +68,17 @@ def Sz_Sz_correlator(state, adj):
     return correlator
 '''
 
-def compute_observables(wf, longest_distance):
+def compute_observables(wf):
     state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
     observables = []
-    names = []
+    names = ['density'] + wf.config.pairings_list_names
 
-    adj_list = wf.Jastrow_A  # by default we look only at the correlations within the Jastrow factor
+    adj_list = wf.Jastrow_A
 
-    for i, adj in enumerate(adj_list):
+    for adj in adj_list:
         observables.append(n_up_n_down_correlator(state, adj[0]))
-        names.append('⟨n_↑(i)n_↓(j)⟩_' + str(adj[1]) + '-' + str(adj[2]) + '_' + str(round(adj[3], 2)))
 
-    for name, pairing_unwrapped in zip(wf.config.pairings_list_names, wf.pairings_list_unwrapped):
-        observables.append(gap_gap_correlator(state, pairing_unwrapped, longest_distance) / (wf.config.total_dof // 2))
-        names.append('Δ^†Δ_' + name)
+    for pairing_unwrapped in wf.pairings_list_unwrapped:
+        for adj in adj_list:
+            observables.append(gap_gap_correlator(state, pairing_unwrapped, adj[0]))
     return observables, names
