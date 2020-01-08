@@ -2,8 +2,8 @@ import models
 import numpy as np
 import auxiliary_field
 dt_in_inv_t1 = 0.1
-U_in_t1 = 6.
-V_in_t1 = 5.
+U_in_t1 = 4.
+V_in_t1 = 4.
 nu_V = np.arccosh(np.exp(V_in_t1 / 2. * dt_in_inv_t1))
 nu_U = np.arccosh(np.exp((U_in_t1 / 2. + V_in_t1 / 2.) * dt_in_inv_t1))
 main_hopping = 1.0
@@ -29,7 +29,7 @@ class simulation_parameters:
         self.n_save_frequency = 10  # every n-th configuration will be stored during generation
         self.save_path = './configurations/'  # where the configurations will be stored | they will have the name save_path/conf_genN.npy, where N is the generated number
         self.n_print_frequency = 3  # write to log every n_print_frequency spin flips
-        self.n_smoothing = 10000 # the number of configurations used for smoothing during the generation log output
+        self.n_smoothing = 100000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
         self.observables_log_name = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/observables'

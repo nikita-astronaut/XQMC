@@ -1,26 +1,27 @@
-import wavefunction_vmc
+import wavefunction_vmc as wf_vmc
 import pairings
 import numpy as np
 from numba import jit
 import models
 
 @jit(nopython=True)
-def gap_gap_correlator(state, pairing):
+def gap_gap_correlator(state, pairing, adj):
     '''
         ⟨\\Delta^{\\dag} \\Delta⟩ = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
                                   = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} d_{j + L} d^{\\dag}_{i} d_k d^{\\dag}_{l + L} = 
                                   = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} d^{\\dag}_{i} d_{j + L} d^{\\dag}_{l + L} d_k = 
-                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} F(i, j + L, k, l + L)
+                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} [F(i, j + L, k, l + L) - D(i, j + L) D(k, l + L)}]
     '''
 
     L = len(state[3]) // 2
     correlator = 0.0
-    for i in range(pairing.shape[0]):
+    for i in range(pairing.shape[0]):  # over the whole lattice (exploit translational invariance)
         for j in np.where(pairing[i, :] != 0.0)[0]:
-            for k in range(pairing.shape[0]):
+            for k in np.where(adj[i, :] != 0.0)[0]:  # only the sites located at certain distance from i
                 for l in np.where(pairing[k, :] != 0.0)[0]:
-                    correlator += np.real(wavefunction_vmc.get_wf_ratio_double_exchange(*state, i, j + L, l + L, k) * \
-                                          np.conj(pairing[i, j]) * pairing[k, l])
+                    correlator += np.real((wf_vmc.get_wf_ratio_double_exchange(*state, i, j + L, l + L, k) - \
+                                           wf_vmc.get_wf_ratio(*state, i, j + L) * wf_vmc.get_wf_ratio(*state, l + L, k)) * \
+                                           np.conj(pairing[i, j]) * pairing[k, l])
 
     # normalize pairing for the number of bonds coming from every site
     correlator /= np.sum(np.abs(pairing[0, :]))
@@ -67,7 +68,7 @@ def Sz_Sz_correlator(state, adj):
     return correlator
 '''
 
-def compute_observables(wf):
+def compute_observables(wf, longest_distance):
     state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
     observables = []
     names = []
@@ -75,10 +76,10 @@ def compute_observables(wf):
     adj_list = wf.Jastrow_A  # by default we look only at the correlations within the Jastrow factor
 
     for i, adj in enumerate(adj_list):
-        observables.append(n_up_n_down_correlator(state, adj))
-        names.append('⟨n_↑(i) n_↓(j)⟩_' + str(i))
+        observables.append(n_up_n_down_correlator(state, adj[0]))
+        names.append('⟨n_↑(i)n_↓(j)⟩_' + str(adj[1]) + '-' + str(adj[2]) + '_' + str(round(adj[3], 2)))
 
     for name, pairing_unwrapped in zip(wf.config.pairings_list_names, wf.pairings_list_unwrapped):
-        observables.append(gap_gap_correlator(state, pairing_unwrapped) / (wf.config.total_dof // 2))
-        names.append('Δ^† Δ_' + name)
+        observables.append(gap_gap_correlator(state, pairing_unwrapped, longest_distance) / (wf.config.total_dof // 2))
+        names.append('Δ^†Δ_' + name)
     return observables, names

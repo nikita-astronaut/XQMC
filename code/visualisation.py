@@ -197,12 +197,14 @@ def plot_pairing(config, gap_expanded, name):
     return
 
 def plot_all_Jastrow(config):
-    for n, jastrow in enumerate(models.get_adjacency_list(config, len(config.initial_jastrow_parameters))):
-        plot_Jastrow(config, jastrow, n)
+    for jastrow in models.get_adjacency_list(config, len(config.initial_jastrow_parameters))[0]:
+        plot_Jastrow(config, jastrow)
     return
 
 def plot_Jastrow(config, Jastrow, index):
     geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+
+    pairing, orbit1, orbit2, dist = Jastrow
 
     if geometry == 'hexagonal':
         R = models.R_hexagonal
@@ -220,7 +222,7 @@ def plot_Jastrow(config, Jastrow, index):
                 orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), config.Ls, \
                                                                            config.n_orbitals, config.n_sublattices)
 
-                if Jastrow[first, second] == 0:
+                if pairing[first, second] == 0:
                     continue
                 value = config.initial_jastrow_parameters[index]
 
@@ -251,7 +253,7 @@ def plot_Jastrow(config, Jastrow, index):
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')
-    plt.title(str(index) + ' jastrow')
-    plt.savefig('../plots/jastrow_' + str(index) + '.pdf')
+    plt.title('jastrow_' + str(orbit1) + '-' + str(orbit2) + ' , $r = ' + str(dist) + '$')
+    plt.savefig('../plots/jastrow_' + str(orbit1) + '-' + str(orbit2) + '_' + str(dist) + '.pdf')
     plt.clf()
     return

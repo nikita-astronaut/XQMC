@@ -1,5 +1,5 @@
 import numpy as np
-from wavefunction_vmc import wavefunction_singlet, get_wf_ratio, get_Jastrow_ratio, get_det_ratio, get_wf_ratio_double_exchange
+from wavefunction_vmc import wavefunction_singlet, get_wf_ratio, get_det_ratio, get_wf_ratio_double_exchange
 from copy import deepcopy
 
 def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
@@ -28,34 +28,35 @@ def perform_explicit_factors_check(config):
     else:
         print('Failed:', np.sum(np.abs(delta)))
 
-    det_initial = wf.get_cur_det()
-    Jastrow_initial = wf.get_cur_Jastrow_factor()
 
-    acc = False
-    ddet = 1.
-    dJastrow = 1.
-    while not acc:
-        state = deepcopy((wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy))
-        acc, ddet, dJastrow, moved_site, empty_site = wf.perform_MC_step()
-        # ddet = get_det_ratio(*state, moved_site, empty_site)
-        # dJastrow = get_Jastrow_ratio(wf.Jastrow, wf.occupancy, wf.state, moved_site, empty_site)
-    wf.perform_explicit_GF_update()
-    det_final = wf.get_cur_det()
-    Jastrow_final = wf.get_cur_Jastrow_factor()
+    print('Testing det and jastrow factors')
+    for _ in range(10):
+        det_initial = wf.get_cur_det()
+        Jastrow_initial = wf.get_cur_Jastrow_factor()
 
-    print('Testing the det(U_ini) / det(U_fin) ratio')
-    if np.abs(ddet - det_final / det_initial) / np.abs(ddet) < 1e-11:
-        print('Passed:', ddet, det_final / det_initial)
-    else:
-        print('Failed:', ddet, det_final / det_initial)
-        success = False
+        acc = False
+        ddet = 1.
+        dJastrow = 1.
+        while not acc:
+            state = deepcopy((wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy))
+            acc, ddet, dJastrow, moved_site, empty_site = wf.perform_MC_step()
+        wf.perform_explicit_GF_update()
+        det_final = wf.get_cur_det()
+        Jastrow_final = wf.get_cur_Jastrow_factor()
 
-    print('Testing the Jastrow(U_ini) / Jastrow(U_fin) ratio')
-    if np.abs(dJastrow - Jastrow_final / Jastrow_initial) / np.abs(dJastrow) < 1e-11:
-        print('Passed:', dJastrow, Jastrow_final / Jastrow_initial)
-    else:
-        print('Failed:', dJastrow, Jastrow_final / Jastrow_initial)
-        success = False
+        if np.abs(ddet - det_final / det_initial) / np.abs(ddet) > 1e-11:
+            print('Det ratio failed:', ddet, det_final / det_initial, moved_site, empty_site)
+            success = False
+
+        if np.abs(dJastrow - Jastrow_final / Jastrow_initial) / np.abs(dJastrow) > 1e-11:
+            print('Jastrow ratio failed:', dJastrow, Jastrow_final / Jastrow_initial, moved_site, empty_site)
+            success = False
+        else:
+            print('Jastrow ratio passed:', dJastrow, Jastrow_final / Jastrow_initial, moved_site, empty_site)
+
+    if success:
+        print('Passed')
+
     return success
 
 
@@ -72,7 +73,7 @@ def perform_numerical_derivative_check(config):
     wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters + dt / 2], 
         config.initial_sdw_parameters, config.initial_cdw_parameters,
         config.initial_gap_parameters, config.initial_jastrow_parameters, False, None) 
-    der_idx = 2
+
     if compare_derivatives_numerically(wf_1, wf_2, 0, dt):
         print('Passed')
     else:
@@ -94,7 +95,7 @@ def perform_numerical_derivative_check(config):
         wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
             config.initial_sdw_parameters + dt / 2 * delta, config.initial_cdw_parameters,
             config.initial_gap_parameters, config.initial_jastrow_parameters, False, None) 
-        der_idx = 2
+
         n_passed += float(compare_derivatives_numerically(wf_1, wf_2, sdw_idx + 1, dt))
 
     if n_passed == len(config.initial_sdw_parameters):
@@ -118,7 +119,7 @@ def perform_numerical_derivative_check(config):
         wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
             config.initial_sdw_parameters, config.initial_cdw_parameters + dt / 2 * delta,
             config.initial_gap_parameters, config.initial_jastrow_parameters, False, None) 
-        der_idx = 2
+
         n_passed += float(compare_derivatives_numerically(wf_1, wf_2, cdw_idx + 1 + 
                           len(config.initial_sdw_parameters), dt))
 
@@ -141,7 +142,7 @@ def perform_numerical_derivative_check(config):
         wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
             config.initial_sdw_parameters, config.initial_cdw_parameters,
             config.initial_gap_parameters + dt / 2 * delta, config.initial_jastrow_parameters, False, None) 
-        der_idx = 2
+
         n_passed += float(compare_derivatives_numerically(wf_1, wf_2, gap_idx + 1 + 
                           len(config.initial_sdw_parameters) + len(config.initial_cdw_parameters), dt))
     if n_passed == len(config.initial_gap_parameters):
@@ -165,7 +166,7 @@ def perform_numerical_derivative_check(config):
         wf_2 = wavefunction_singlet(config, config.pairings_list, [config.initial_mu_parameters], 
             config.initial_sdw_parameters, config.initial_cdw_parameters,
             config.initial_gap_parameters, config.initial_jastrow_parameters + dt / 2 * delta, False, None) 
-        der_idx = 2
+
         n_passed += float(compare_derivatives_numerically(wf_1, wf_2, jastrow_idx + 1 + 
                           len(config.initial_gap_parameters) + len(config.initial_sdw_parameters) + 
                           len(config.initial_cdw_parameters), dt))

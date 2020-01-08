@@ -154,14 +154,15 @@ def model_hex_1orb(config, mu):
     K = K - mu * np.eye(K.shape[0])
     return apply_twisted_periodic_conditions(config, K)
 
-def interorbital_mod(A, n_orbitals):
-    result = [np.kron(A, np.eye(n_orbitals))]
+def interorbital_mod(A, n_orbitals, dist):
+    result = []
     for i_orbital in range(n_orbitals):
-        for j_orbital in range(i_orbital + 1, n_orbitals):
+        for j_orbital in range(i_orbital, n_orbitals):
             coupling = np.zeros((n_orbitals, n_orbitals))
             coupling[i_orbital, j_orbital] = 1
-            coupling += coupling.T
-            result.append(np.kron(A, coupling))
+            coupling[j_orbital, i_orbital] = 1
+
+            result.append([np.kron(A, coupling), i_orbital, j_orbital, dist])
     return result
 
 def get_bc_copies(r, R, Ls, sublattice):
@@ -189,10 +190,14 @@ def get_adjacency_list(config):
             A[first, second] = np.min([np.sum((r1 - r2) ** 2) for r2 in r2s])
     distances = np.sort(np.unique(A.round(decimals=10)))
     adjacency_list = []
+    longest_distance = None
     for dist in distances:
         adj = (A.round(decimals=10) == dist).astype(np.float32)
-        adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals)
-    return adjacency_list
+        adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals, dist)
+
+        if dist == distances.max():
+            longest_distance = np.kron(adj, np.ones((config.n_orbitals, config.n_orbitals)))
+    return adjacency_list, longest_distance
 
 
 def model_square_1orb(config, mu):

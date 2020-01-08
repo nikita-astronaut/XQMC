@@ -19,7 +19,7 @@ class wavefunction_singlet():
         self.checkerboard = models.spatial_checkerboard(self.config)
 
         self.Jastrow_A = config.adjacency_list
-        self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
+        self.Jastrow = np.sum(np.array([A[0] * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
 
         self.U_matrix = self._construct_U_matrix()
         self.with_previous_state = with_previous_state
@@ -75,7 +75,7 @@ class wavefunction_singlet():
         return -np.einsum('ij,ji', W_k, self.W_GF_complete)  # (6.98) from S.Sorella book
 
     def get_O_Jastrow(self, jastrow_index):
-        return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index], self.occupancy)
+        return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index][0], self.occupancy)
 
     def _construct_gap_V(self, gap):
         V = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j  # (6.91) in S. Sorella book

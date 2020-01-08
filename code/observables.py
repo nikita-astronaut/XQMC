@@ -140,14 +140,16 @@ def compute_all_observables(phi):
     names.append('⟨E_C⟩')
 
     for i, adj in enumerate(adj_list):
-        observables.append(double_occupancy_n_neighbor(phi, adj).item())
-        names.append('⟨n_↑(i) n_↓(j)⟩_' + str(i))
+        observables.append(double_occupancy_n_neighbor(phi, adj[0]).item())
+        names.append('⟨n_↑(i)n_↓(j)⟩_' + str(adj[1]) + '-' + str(adj[2]) + '_' + str(adj[3]))
 
     observables.append(SzSz_onsite(phi).item())
-    names.append('⟨S_z S_z⟩_0')
+    names.append('⟨S_zS_z⟩_0')
 
+    '''
     for i, adj in enumerate(adj_list[1:]):
         observables.append(SzSz_n_neighbor(phi, adj).item())
-        names.append('⟨S_z(i) S_z(j)⟩_' + str(i + 1))
+        names.append('⟨S_z(i)S_z(j)⟩_' + str(i + 1))
+    '''
 
     return observables, names

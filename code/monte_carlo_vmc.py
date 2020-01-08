@@ -99,7 +99,7 @@ def get_MC_chain_result(config_vmc, pairings_list, opt_parameters, final_state =
 
         t = time()
         if MC_step % config_vmc.observables_frequency == 0:
-            obs, names = observables_vmc.compute_observables(wf)
+            obs, names = observables_vmc.compute_observables(wf, config_vmc.longest_distance)
             observables.append(obs)
         t_observables += time() - t
 
@@ -131,8 +131,8 @@ for U in U_list:
     log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩")
     for gap_name in pairings_names:
         log_file.write(" ⟨" + gap_name + "⟩")
-    for i in range(len(jastrow_parameters)):
-        log_file.write(" ⟨jastrow_" + str(i) + "⟩")
+    for jastrow in config_vmc.adjacency_list:
+        log_file.write(" ⟨jastrow_" + str(jastrow[1]) + '-' + str(jastrow[2]) + '_' + str(round(jastrow[3], 2)) + "⟩")
 
     for i in range(len(sdw_parameter)):
         log_file.write(" ⟨sdw_" + str(i % config_vmc.n_orbitals) + '_' + str((i // config_vmc.n_orbitals) % config_vmc.n_sublattices) + "⟩")
