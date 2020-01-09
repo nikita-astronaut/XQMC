@@ -107,15 +107,18 @@ def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
 def model_hex_2orb_Kashino(config, mu, only_NN = False):
+    n_orbitals = 2
+    n_sublattices = 2
+    total_dof = config.Ls ** 2 * n_orbitals * n_sublattices * 2
     t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
     if only_NN:
         t2 = 0.0 + 0.0j
 
-    K = np.zeros((config.total_dof // 2, config.total_dof // 2))
-    for first in range(config.total_dof // 2):
-        for second in range(config.total_dof // 2):
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
+    K = np.zeros((total_dof // 2, total_dof // 2))
+    for first in range(total_dof // 2):
+        for second in range(total_dof // 2):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, n_orbitals, n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, n_orbitals, n_sublattices)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
@@ -133,16 +136,18 @@ def model_hex_2orb_Kashino(config, mu, only_NN = False):
 
     K = K + K.conj().T
     K = K - mu * np.eye(K.shape[0])
-    return apply_twisted_periodic_conditions(config, K)
+    return apply_twisted_periodic_conditions(config, n_orbitals, n_sublattices, K), n_orbitals, n_sublattices
 
 def model_hex_1orb(config, mu):
     t1 = 1.
-    ndof = config.Ls ** 2 * 2 * 1 * 2
-    K = np.zeros((ndof // 2, ndof // 2))
-    for first in range(ndof // 2):
-        for second in range(ndof // 2):
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, 1, 2)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, 1, 2)
+    n_orbitals = 1
+    n_sublattices = 2
+    total_dof = config.Ls ** 2 * n_orbitals * n_sublattices * 2
+    K = np.zeros((total_dof // 2, total_dof // 2))
+    for first in range(total_dof // 2):
+        for second in range(total_dof // 2):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, n_orbitals, n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, n_orbitals, n_sublattices)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
@@ -152,7 +157,7 @@ def model_hex_1orb(config, mu):
 
     K = K + K.conj().T
     K = K - mu * np.eye(K.shape[0])
-    return apply_twisted_periodic_conditions(config, K)
+    return apply_twisted_periodic_conditions(config, n_orbitals, n_sublattices, K), n_orbitals, n_sublattices
 
 def interorbital_mod(A, n_orbitals, dist):
     result = []
@@ -202,12 +207,14 @@ def get_adjacency_list(config):
 
 def model_square_1orb(config, mu):
     t1 = 1.
-    ndof = config.Ls ** 2 * 2 * 1 * 1
-    K = np.zeros((ndof // 2, ndof // 2))
-    for first in range(ndof // 2):
-        for second in range(ndof // 2):
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, 1, 1)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, 1, 1)
+    n_orbitals = 1
+    n_sublattices = 1
+    total_dof = config.Ls ** 2 * n_orbitals * n_sublattices * 2
+    K = np.zeros((total_dof // 2, total_dof // 2))
+    for first in range(total_dof // 2):
+        for second in range(total_dof // 2):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, n_orbitals, n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, n_orbitals, n_sublattices)
 
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
@@ -217,9 +224,9 @@ def model_square_1orb(config, mu):
 
     # K = K + K.conj().T # already counted
     K = K - mu * np.eye(K.shape[0])
-    return apply_twisted_periodic_conditions(config, K)
+    return apply_twisted_periodic_conditions(config, n_orbitals, n_sublattices, K), n_orbitals, n_sublattices
 
-def apply_twisted_periodic_conditions(config, K):
+def apply_twisted_periodic_conditions(config, n_orbitals, n_sublattices, K):
     '''
         if config.BC_twist == True, we demand that if j >= L, c_{j} = -c_{j % L} (only in y--direction)
     '''
@@ -230,8 +237,8 @@ def apply_twisted_periodic_conditions(config, K):
         for second in range(K.shape[1]):
             if K[first, second] == 0.0:
                 continue
-            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, config.n_orbitals, config.n_sublattices)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, config.n_orbitals, config.n_sublattices)
+            orbit1, sublattice1, x1, y1 = from_linearized_index(deepcopy(first), config.Ls, n_orbitals, n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(deepcopy(second), config.Ls, n_orbitals, n_sublattices)
 
             if np.abs(y1 - y2) > config.Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
                 K[first, second] *= -1

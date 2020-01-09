@@ -10,7 +10,7 @@ class wavefunction_singlet():
                  var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):
         self.config = config
-        self.pairings_list_unwrapped = [pairings.combine_product_terms(self.config, gap) for gap in pairings_list]
+        self.pairings_list_unwrapped = self.config.pairings_list_unwrapped
         self.var_params_gap = var_params_gap  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
         self.var_params_Jastrow = var_params_Jastrow
         self.var_mu = var_mu
@@ -127,8 +127,8 @@ class wavefunction_singlet():
         return np.array(O)
 
     def _construct_U_matrix(self):
-        self.K = self.config.model(self.config, self.var_mu)
-        self.adjacency_matrix = np.abs(np.asarray(self.config.model(self.config, 0.0))) > 1e-6
+        self.K = self.config.model(self.config, self.var_mu)[0]
+        self.adjacency_matrix = np.abs(np.asarray(self.config.model(self.config, 0.0)[0])) > 1e-6
         self.big_adjacency_matrix = np.zeros((2 * self.adjacency_matrix.shape[0], 2 * self.adjacency_matrix.shape[1]))
         self.big_adjacency_matrix[:self.adjacency_matrix.shape[0], :self.adjacency_matrix.shape[1]] = self.adjacency_matrix
         self.big_adjacency_matrix[self.adjacency_matrix.shape[0]:, self.adjacency_matrix.shape[1]:] = self.adjacency_matrix

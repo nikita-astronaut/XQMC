@@ -86,20 +86,26 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
     t_steps = 0
     t_forces = 0
     t_observables = 0
+    t_update = 0
     observables = []
+    names = []
 
     for MC_step in range(int(config_vmc.MC_chain * (config_vmc.opt_parameters[2] ** n_iter))):
         if MC_step % config_vmc.correlation == 0:
+            t = time()
             wf.perform_explicit_GF_update()
+            t_update += time() - t
+
             t = time()
             energies.append(hamiltonian(wf))
             t_energies += time() - t
+
             t = time()
             Os.append(wf.get_O())
             t_forces += time() - t
 
         t = time()
-        if MC_step % config_vmc.observables_frequency == 0:
+        if MC_step % config_vmc.observables_frequency == 0 and n_iter > config_vmc.thermalization:
             obs, names = observables_vmc.compute_observables(wf)
             observables.append(obs)
         t_observables += time() - t
@@ -108,7 +114,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
         acceptance.append(wf.perform_MC_step()[0])
         t_steps += time() - t
 
-    print(t_observables, t_energies, t_steps, wf.update, wf.wf, t_forces)
+    print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf)
     return energies, Os, acceptance, wf.get_state(), observables, names
 
 pairings_list = config_vmc.pairings_list
@@ -132,7 +138,7 @@ for U, V in zip(U_list, V_list):
     H = config_vmc.hamiltonian(config_vmc)
  
     log_file = open(os.path.join(config_vmc.workdir, 'U_' + str(U) + '_V_' + str(V) + '_general_log.dat'), 'w')
-    final_states = []
+    final_states = [False] * n_cpus
 
     log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩")
     for gap_name in pairings_names:
@@ -148,31 +154,15 @@ for U, V in zip(U_list, V_list):
     log_file.write(' ⟨mu_BCS⟩\n')
 
     for n_step in range(config_vmc.optimisation_steps):
-        if n_step == 0:
-            results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, config_vmc, pairings_list, \
-                                                                           (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters)) for i in range(n_cpus))
-        else:
-            results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, config_vmc, pairings_list, \
-                                                                           (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
-                                                                           final_state = final_states[i]) for i in range(n_cpus))
+        results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, config_vmc, pairings_list, \
+                                                                       (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
+                                                                       final_state = final_states[i]) for i in range(n_cpus))
+
         energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)
         Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
         acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
         final_states = [x[3] for x in results]
 
-        observables = np.concatenate([np.array(x[4]) for x in results], axis = 0)
-        observables_names = results[0][5]
-
-        if n_step == 0:
-            for obs_name in observables_names:
-                obs_files.append(open(os.path.join(config_vmc.workdir, 'U_' + str(U) + '_V_' + str(V) + '_' + obs_name + '.dat'), 'w'))
-                
-                for adj in config_vmc.adjacency_list:
-                    obs_files[-1].write("{:.5e}/{:d}/{:d} ".format(adj[3], adj[1], adj[2]))
-                obs_files[-1].write('\n')
-
-
-        observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
         vol = config_vmc.total_dof // 2
 
         Os_mean = np.mean(Os, axis = 0)
@@ -184,7 +174,7 @@ for U, V in zip(U_list, V_list):
         print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
         print('\033[93m σ^2 / t / vol = ' + str(variance) + '\033[0m', flush = True)
         print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
-        print('\033[94m |forces_raw| = ' + str(np.sqrt(np.sum(forces ** 2))) + ' ' + str(forces) + '\033[0m', flush = True)
+        print('\033[94m |forces_raw| = ' + str(np.sqrt(np.sum(forces ** 2))) + '\033[0m', flush = True)
 
 
         Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
@@ -205,7 +195,7 @@ for U, V in zip(U_list, V_list):
             step = forces
             print('Too high enhancement due to S_cov matrix: switching to gradient descent for this step')
 
-        print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + ' ' + str(step) + '\033[0m', flush = True)
+        print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + '\033[0m', flush = True)
         step = config_vmc.opt_parameters[1] * step 
 
         mu_parameter += step[0]
@@ -218,13 +208,29 @@ for U, V in zip(U_list, V_list):
         log_file.write(("{:3d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
                         np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, np.sqrt(np.sum(forces ** 2)),
                         *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
+        log_file.flush()
 
+        observables = np.concatenate([np.array(x[4]) for x in results], axis = 0)
+        observables_names = results[0][5]
+        if len(observables_names) == 0:
+            continue
+
+        if n_step == config_vmc.thermalization + 1:
+            for obs_name in observables_names:
+                obs_files.append(open(os.path.join(config_vmc.workdir, 'U_' + str(U) + '_V_' + str(V) + '_' + obs_name + '.dat'), 'w'))
+                
+                for adj in config_vmc.adjacency_list:
+                    obs_files[-1].write("f({:.5e}/{:d}/{:d}) df({:.5e}/{:d}/{:d}) ".format(adj[3], adj[1], adj[2], adj[3], adj[1], adj[2]))
+                obs_files[-1].write('\n')
+
+
+        observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
+        
         data_per_name = len(config_vmc.adjacency_list) * 2  # mean and std
         for n, file in enumerate(obs_files):
             data = observables[data_per_name * n : data_per_name * (n + 1)]
-            file.write(("{:.6e}" * len(data)).format(*data))
+            file.write(("{:.6e} " * len(data)).format(*data))
             file.write('\n')
             file.flush()
-        log_file.flush()
     log_file.close()
     [file.close() for file in obs_files]

@@ -132,7 +132,7 @@ def combine_product_terms(config, pairing):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     for sigma_ll, sigma_oo, delta_ii, C in pairing[:-1]:
         Delta += C * expand_tensor_product(config, sigma_ll, sigma_oo, delta_ii)  # C -- the coefficient corresponding for the right D_3 transformation properties (irrep)
-    return models.apply_twisted_periodic_conditions(config, Delta * pairing[-1])  # the overal coefficient of this irrep (can be 1 or i)
+    return models.apply_twisted_periodic_conditions(config, config.n_orbitals, config.n_sublattices, Delta * pairing[-1])  # the overal coefficient of this irrep (can be 1 or i)
 
 def get_total_pairing(config, pairings, var_params):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j

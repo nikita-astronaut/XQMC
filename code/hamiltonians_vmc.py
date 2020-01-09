@@ -44,7 +44,8 @@ class hamiltonian_4bands(HubbardHamiltonian):
 
     def _get_edges(self):
         edges_quadratic = []  # for t_{ij} c^{\dag}_i c_j interactions
-        K_matrix = self.config.model(self.config, 0.0)
+        K_matrix = self.config.model(self.config, 0.0)[0]
+
         edges_quadratic = np.zeros((2 * K_matrix.shape[0], 2 * K_matrix.shape[1]))
         edges_quadratic[:K_matrix.shape[0], :K_matrix.shape[1]] = K_matrix
         edges_quadratic[K_matrix.shape[0]:, K_matrix.shape[1]:] = -K_matrix
