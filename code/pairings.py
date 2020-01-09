@@ -130,9 +130,9 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
 
 def combine_product_terms(config, pairing):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
-    for sigma_ll, sigma_oo, delta_ii, C in pairing[:-1]:
+    for sigma_ll, sigma_oo, delta_ii, C in pairing[:-2]:
         Delta += C * expand_tensor_product(config, sigma_ll, sigma_oo, delta_ii)  # C -- the coefficient corresponding for the right D_3 transformation properties (irrep)
-    return models.apply_twisted_periodic_conditions(config, config.n_orbitals, config.n_sublattices, Delta * pairing[-1])  # the overal coefficient of this irrep (can be 1 or i)
+    return models.apply_twisted_periodic_conditions(config, config.n_orbitals, config.n_sublattices, Delta * pairing[-2])  # the overal coefficient of this irrep (can be 1 or i)
 
 def get_total_pairing(config, pairings, var_params):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
@@ -148,25 +148,25 @@ def get_total_pairing_upwrapped(config, pairings_unwrapped, var_params):
 
     return Delta
 
-
-
 def construct_on_site_2orb_hex(config, real = True):
     factor = 1.0
+    addstring = ''
     if not real:
         factor = 1.0j
+        addstring = 'j'
 
     onsite = construct_onsite_delta(config)
     on_site = []
-    on_site.append([(Ipauli, Ipauli, onsite, 1), factor])  # A1 0
-    on_site.append([(Zpauli, iYpauli, onsite, 1), factor])  # A1 1
-    on_site.append([(Ipauli, iYpauli, onsite, 1), factor])  # A2 2
-    on_site.append([(Zpauli, Ipauli, onsite, 1), factor])  # A2 3
 
-    on_site.append([(Ipauli, Xpauli, onsite, 1.0), factor]); on_site.append([(Ipauli, Zpauli, onsite, 1.0), factor])  # E 4-5
-    on_site.append([(Zpauli, Xpauli, onsite, 1.0), factor]); on_site.append([(Zpauli, Zpauli, onsite, 1.0), factor])  # E 6-7
+    on_site.append([(Ipauli, Ipauli, onsite, 1), factor, addstring + 'σ_0⊗σ_0⊗δ'])  # A1 0
+    on_site.append([(Zpauli, iYpauli, onsite, 1), factor, addstring + 'σ_z⊗jσ_y⊗δ'])  # A1 1
+    on_site.append([(Ipauli, iYpauli, onsite, 1), factor, addstring + 'σ_0⊗jσ_y⊗δ'])  # A2 2
+    on_site.append([(Zpauli, Ipauli, onsite, 1), factor, addstring + 'σ_z⊗I⊗δ'])  # A2 3
+
+    on_site.append([(Ipauli, Xpauli, onsite, 1.0), factor, addstring + 'σ_0⊗σ_x⊗δ']); on_site.append([(Ipauli, Zpauli, onsite, 1.0), factor, addstring + 'σ_0⊗σ_z⊗δ'])  # E 4-5
+    on_site.append([(Zpauli, Xpauli, onsite, 1.0), factor, addstring + 'σ_z⊗σ_x⊗δ']); on_site.append([(Zpauli, Zpauli, onsite, 1.0), factor, addstring + 'σ_z⊗σ_z⊗δ'])  # E 6-7
 
     return on_site
-
 
 def construct_NN_2orb_hex(config, real = True):
     '''
@@ -178,8 +178,11 @@ def construct_NN_2orb_hex(config, real = True):
     add the gap twice -- with real = True and real = False
     '''
     factor = 1.0
+    addstring = ''
     if not real:
         factor = 1.0j
+        addstring = 'j'
+
     global delta_hex_AB, delta_hex_BA
     delta_hex_AB = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
     delta_hex_BA = [delta.T for delta in delta_hex_AB]
@@ -200,49 +203,54 @@ def construct_NN_2orb_hex(config, real = True):
     # print(np.unique(v1), np.unique(v2), np.unique(v3))
     NN = []
 
-    NN.append([(Xpauli, Ipauli, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
-    NN.append([(iYpauli, iYpauli, v1, 1.0), factor])  # A1 (A2 x A2 x A1) 1 
+    NN.append([(Xpauli, Ipauli, v1, 1.0), factor, addstring + 'σ_x⊗σ_0⊗v_1'])  # A1 (A1 x A1 x A1) 0
+    NN.append([(iYpauli, iYpauli, v1, 1.0), factor, addstring + '(iσ_y)⊗(iσ_y)⊗v_1'])  # A1 (A2 x A2 x A1) 1 
 
-    NN.append([(Xpauli, iYpauli, v1, 1.0), factor])  # A2 (A2 x A1 x A1) 2
-    NN.append([(iYpauli, Ipauli, v1, 1.0), factor])  # A2 (A1 x A2 x A1) 3
+    NN.append([(Xpauli, iYpauli, v1, 1.0), factor, addstring + 'σ_x⊗(iσ_y)⊗v_1'])  # A2 (A2 x A1 x A1) 2
+    NN.append([(iYpauli, Ipauli, v1, 1.0), factor, addstring + '(iσ_y)⊗σ_0⊗v_1'])  # A2 (A1 x A2 x A1) 3
 
-    NN.append([(Xpauli, Xpauli, v1, 1.0), factor]); NN.append([(Xpauli, Zpauli, v1, 1.0), factor])  # E (A1 x E x A1) 4-5
-    NN.append([(iYpauli, Xpauli, v1, 1.0), factor]); NN.append([(iYpauli, Zpauli, v1, 1.0), factor])  # E (A2 x E x A1) 6-7
+    NN.append([(Xpauli, Xpauli, v1, 1.0), factor, addstring + 'σ_x⊗σ_x⊗v_1']); NN.append([(Xpauli, Zpauli, v1, 1.0), factor, addstring + 'σ_x⊗σ_z⊗v_1'])  # E (A1 x E x A1) 4-5
+    NN.append([(iYpauli, Xpauli, v1, 1.0), factor, addstring + '(iσ_y)⊗σ_x⊗v_1']); NN.append([(iYpauli, Zpauli, v1, 1.0), factor, addstring + '(iσ_y)⊗σ_z⊗v_1'])  # E (A2 x E x A1) 6-7
 
-    NN.append([(Xpauli, Ipauli, v2, 1.0), factor]); NN.append([(Xpauli, Ipauli, v3, 1.0), factor])  # E (A1 x A1 x E) 8-9
-    NN.append([(iYpauli, Ipauli, v2, 1.0), factor]); NN.append([(iYpauli, Ipauli, v3, 1.0), factor])  # E (A2 x A1 x E) 10-11
-    NN.append([(Xpauli, iYpauli, v2, 1.0), factor]); NN.append([(Xpauli, iYpauli, v3, 1.0), factor])  # E (A1 x A2 x E) 12-13
-    NN.append([(iYpauli, iYpauli, v2, 1.0), factor]); NN.append([(iYpauli, iYpauli, v3, 1.0), factor])  # E (A2 x A2 x E) 14-15
+    NN.append([(Xpauli, Ipauli, v2, 1.0), factor, addstring + 'σ_x⊗σ_0⊗v_2']); NN.append([(Xpauli, Ipauli, v3, 1.0), factor, addstring + 'σ_x⊗σ_0⊗v_3'])  # E (A1 x A1 x E) 8-9
+    NN.append([(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iσ_y)⊗σ_0⊗v_2']); NN.append([(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iσ_y)⊗σ_0⊗v_3'])  # E (A2 x A1 x E) 10-11
+    NN.append([(Xpauli, iYpauli, v2, 1.0), factor, addstring + 'σ_x⊗(iσ_y)⊗v_2']); NN.append([(Xpauli, iYpauli, v3, 1.0), factor, addstring + 'σ_x⊗(iσ_y)⊗v_3'])  # E (A1 x A2 x E) 12-13
+    NN.append([(iYpauli, iYpauli, v2, 1.0), factor, addstring + '(iσ_y)⊗(iσ_y)⊗v_2']); NN.append([(iYpauli, iYpauli, v3, 1.0), factor, addstring + '(iσ_y)⊗(iσ_y)⊗v_3'])  # E (A2 x A2 x E) 14-15
 
-    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor])  # A1 (A1 x E x E) 16
-    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor])  # A1 (A2 x E x E) 17
+    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor, addstring + '[σ_x⊗σ_1⊗v_2 + σ_x⊗σ_2⊗v_3]'])  # A1 (A1 x E x E) 16
+    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iσ_y)⊗σ_1⊗v_2 - (iσ_y)⊗σ_2⊗v_3]'])  # A1 (A2 x E x E) 17
 
-    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor])  # A2 (A1 x E x E) 18
-    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor])  # A2 (A2 x E x E) 19
+    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor, addstring + '[σ_x⊗σ_1⊗v_2 - σ_x⊗σ_2⊗v_3]'])  # A2 (A1 x E x E) 18
+    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor, addstring + '[(iσ_y)⊗σ_1⊗v_2 + (iσ_y)⊗σ_2⊗v_3]'])  # A2 (A2 x E x E) 19
 
-    NN.append([(Xpauli, sigma_1, v3, 1.0), factor]); NN.append([(Xpauli, sigma_2, v2, 1.0), factor])  # E (A1 x E x E) 20-21
-    NN.append([(iYpauli, sigma_1, v3, 1.0), factor]); NN.append([(iYpauli, sigma_2, v2, 1.0), factor])  # E (A2 x E x E) 22-23
+    NN.append([(Xpauli, sigma_1, v3, 1.0), factor, addstring + 'σ_x⊗σ_1⊗v_3']); NN.append([(Xpauli, sigma_2, v2, 1.0), factor, addstring + 'σ_x⊗σ_2⊗v_2'])  # E (A1 x E x E) 20-21
+    NN.append([(iYpauli, sigma_1, v3, 1.0), factor, addstring + '(iσ_y)⊗σ_1⊗v_3']); NN.append([(iYpauli, sigma_2, v2, 1.0), factor, addstring + '(iσ_y)⊗σ_2⊗v_2'])  # E (A2 x E x E) 22-23
 
     return NN
 
 
 def construct_on_site_1orb_hex(config, real = True):
     factor = 1.0
+    addstring = ''
     if not real:
         factor = 1.0j
+        addstring = 'j'
 
     onsite = construct_onsite_delta(config)
     on_site = []
-    on_site.append([(Ipauli, identity, onsite, 1), factor])  # A1 0
-    on_site.append([(Zpauli, identity, onsite, 1), factor])  # A2 1
+    on_site.append([(Ipauli, identity, onsite, 1), factor, addstring + 'σ_0⊗I⊗δ'])  # A1 0
+    on_site.append([(Zpauli, identity, onsite, 1), factor, addstring + 'σ_z⊗I⊗δ'])  # A2 1
 
     return on_site
 
 
 def construct_NN_1orb_hex(config, real = True):
     factor = 1.0
+    addstring = ''
     if not real:
         factor = 1.0j
+        addstring = 'j'
+
     global delta_hex_AB, delta_hex_BA
     delta_hex_AB = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
     delta_hex_BA = [delta.conj().T for delta in delta_hex_AB]
@@ -262,30 +270,35 @@ def construct_NN_1orb_hex(config, real = True):
 
     NN = []
 
-    NN.append([(Xpauli, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
-    NN.append([(iYpauli, identity, v1, 1.0), factor])  # B2 (A1 x A2 x A1) 1
+    NN.append([(Xpauli, identity, v1, 1.0), factor, addstring + 'σ_x⊗I⊗v_1'])  # A1 (A1 x A1 x A1) 0
+    NN.append([(iYpauli, identity, v1, 1.0), factor, addstring + '(iσ_y)⊗I⊗v_1'])  # B2 (A1 x A2 x A1) 1
 
-    NN.append([(Xpauli, identity, v2, 1.0), factor]); NN.append([(Xpauli, identity, v3, 1.0), factor])  # E1 (A1 x A1 x E) 2-3
-    NN.append([(iYpauli, identity, v2, 1.0), factor]); NN.append([(iYpauli, identity, v3, 1.0), factor])  # E2 (A2 x A1 x E) 4-5
+    NN.append([(Xpauli, identity, v2, 1.0), factor, addstring + 'σ_x⊗I⊗v_2']); NN.append([(Xpauli, identity, v3, 1.0), factor, addstring + 'σ_x⊗I⊗v_3'])  # E1 (A1 x A1 x E) 2-3
+    NN.append([(iYpauli, identity, v2, 1.0), factor, addstring + '(iσ_y)⊗I⊗v_2']); NN.append([(iYpauli, identity, v3, 1.0), factor, addstring + '(iσ_y)⊗I⊗v_3'])  # E2 (A2 x A1 x E) 4-5
     return NN
 
 
 def construct_on_site_1orb_square(config, real = True):
     factor = 1.0
+    addstring = ''
     if not real:
         factor = 1.0j
+        addstring = 'j'
 
     onsite = construct_onsite_delta(config)
     on_site = []
-    on_site.append([(identity, identity, onsite, 1), factor])  # A1 0
+    on_site.append([(identity, identity, onsite, 1), factor, addstring + 'I⊗I⊗δ'])  # A1 0
 
     return on_site
 
 
 def construct_NN_1orb_square(config, real = True):
     factor = 1.0
+    addstring = ''
     if not real:
         factor = 1.0j
+        addstring = 'j'
+
     global delta_square
     delta_square = [construct_NN_delta(config, direction, geometry='square') for direction in range(1, 5)]
 
@@ -296,10 +309,10 @@ def construct_NN_1orb_square(config, real = True):
 
     NN = []
 
-    NN.append([(identity, identity, v1, 1.0), factor])  # A1 (A1 x A1 x A1) 0
-    NN.append([(identity, identity, v4, 1.0), factor])  # B2 (A1 x A1 x A2) 1
+    NN.append([(identity, identity, v1, 1.0), factor, addstring + 'I⊗I⊗v_1'])  # A1 (A1 x A1 x A1) 0
+    NN.append([(identity, identity, v4, 1.0), factor, addstring + 'I⊗I⊗v_4'])  # B2 (A1 x A1 x A2) 1
 
-    NN.append([(identity, identity, v2, 1.0), factor]); NN.append([(identity, identity, v3, 1.0), factor])  # E (A1 x A1 x E) 2-3
+    NN.append([(identity, identity, v2, 1.0), factor, addstring + 'I⊗I⊗v_2']); NN.append([(identity, identity, v3, 1.0), factor, addstring + 'I⊗I⊗v_3'])  # E (A1 x A1 x E) 2-3
     return NN
 
 

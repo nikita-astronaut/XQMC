@@ -20,10 +20,11 @@ class MC_parameters:
         self.PN_projection = True
 
         self.MC_chain = 180000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)\
-        self.optimisation_steps = 500; self.thermalization = 400  # thermalisation = steps w.o. observables measurement
+        self.optimisation_steps = 500; self.thermalization = 400; self.obs_calc_frequency = 20
+        # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         
         self.correlation = self.N_electrons * 3
-        self.observables_frequency = 60000  # how often to compute observables
+        self.observables_frequency = self.MC_chain // 3  # how often to compute observables
         self.opt_parameters = [1e-3, 1e-2, 1.003]  # regularizer for the S_stoch matrix, learning rate, MC_chain increasement rate
         self.n_delayed_updates = 5
 
@@ -33,12 +34,10 @@ class MC_parameters:
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/2/'
         pairings.obtain_all_pairings(self)
 
-        self.pairings_list = [pairings.on_site_2orb_hex_real[0], pairings.on_site_2orb_hex_real[1], pairings.NN_2orb_hex_real[0], \
-                              pairings.NN_2orb_hex_real[1], pairings.NN_2orb_hex_imag[1], pairings.NN_2orb_hex_real[2], \
-                              pairings.NN_2orb_hex_imag[2], pairings.NN_2orb_hex_real[3], pairings.NN_2orb_hex_imag[3]]
+        self.pairings_list = pairings.on_site_2orb_hex_real + pairings.on_site_2orb_hex_imag + \
+                             pairings.NN_2orb_hex_real + pairings.NN_2orb_hex_imag
 
-        # self.pairings_list = [pairings.on_site_1orb_square_real[0], pairings.NN_1orb_square_real[0], pairings.NN_1orb_square_real[1], pairings.NN_1orb_square_imag[1], pairings.NN_1orb_square_real[2], pairings.NN_1orb_square_imag[2], pairings.NN_1orb_square_real[3], pairings.NN_1orb_square_imag[3]]
-        self.pairings_list_names = ['S', 'Sz', 'S*', 'Dre', 'Dim', 'Pre1', 'Pim1', 'Pre2', 'Pim2']
+        self.pairings_list_names = [p[-1] for p in self.pairings_list]
 
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
 

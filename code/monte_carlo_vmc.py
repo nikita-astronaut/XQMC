@@ -105,7 +105,8 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
             t_forces += time() - t
 
         t = time()
-        if MC_step % config_vmc.observables_frequency == 0 and n_iter > config_vmc.thermalization:
+        if MC_step % config_vmc.observables_frequency == 0 and n_iter > config_vmc.thermalization \
+            and n_iter % config_vmc.obs_calc_frequency == 0:
             obs, names = observables_vmc.compute_observables(wf)
             observables.append(obs)
         t_observables += time() - t
