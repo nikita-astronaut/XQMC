@@ -217,11 +217,11 @@ def construct_NN_2orb_hex(config, real = True):
     NN.append([(Xpauli, iYpauli, v2, 1.0), factor, addstring + 'σ_x⊗(iσ_y)⊗v_2']); NN.append([(Xpauli, iYpauli, v3, 1.0), factor, addstring + 'σ_x⊗(iσ_y)⊗v_3'])  # E (A1 x A2 x E) 12-13
     NN.append([(iYpauli, iYpauli, v2, 1.0), factor, addstring + '(iσ_y)⊗(iσ_y)⊗v_2']); NN.append([(iYpauli, iYpauli, v3, 1.0), factor, addstring + '(iσ_y)⊗(iσ_y)⊗v_3'])  # E (A2 x A2 x E) 14-15
 
-    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor, addstring + '[σ_x⊗σ_1⊗v_2 + σ_x⊗σ_2⊗v_3]'])  # A1 (A1 x E x E) 16
-    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iσ_y)⊗σ_1⊗v_2 - (iσ_y)⊗σ_2⊗v_3]'])  # A1 (A2 x E x E) 17
+    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor, addstring + '[σ_x⊗σ_1⊗v_2+σ_x⊗σ_2⊗v_3]'])  # A1 (A1 x E x E) 16
+    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iσ_y)⊗σ_1⊗v_2-(iσ_y)⊗σ_2⊗v_3]'])  # A1 (A2 x E x E) 17
 
-    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor, addstring + '[σ_x⊗σ_1⊗v_2 - σ_x⊗σ_2⊗v_3]'])  # A2 (A1 x E x E) 18
-    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor, addstring + '[(iσ_y)⊗σ_1⊗v_2 + (iσ_y)⊗σ_2⊗v_3]'])  # A2 (A2 x E x E) 19
+    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor, addstring + '[σ_x⊗σ_1⊗v_2-σ_x⊗σ_2⊗v_3]'])  # A2 (A1 x E x E) 18
+    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor, addstring + '[(iσ_y)⊗σ_1⊗v_2+(iσ_y)⊗σ_2⊗v_3]'])  # A2 (A2 x E x E) 19
 
     NN.append([(Xpauli, sigma_1, v3, 1.0), factor, addstring + 'σ_x⊗σ_1⊗v_3']); NN.append([(Xpauli, sigma_2, v2, 1.0), factor, addstring + 'σ_x⊗σ_2⊗v_2'])  # E (A1 x E x E) 20-21
     NN.append([(iYpauli, sigma_1, v3, 1.0), factor, addstring + '(iσ_y)⊗σ_1⊗v_3']); NN.append([(iYpauli, sigma_2, v2, 1.0), factor, addstring + '(iσ_y)⊗σ_2⊗v_2'])  # E (A2 x E x E) 22-23

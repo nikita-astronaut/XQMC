@@ -149,7 +149,7 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
 if __name__ == "__main__":
     print_greetings(config)
 
-    K_matrix = config.model(config, config.mu)
+    K_matrix = config.model(config, config.mu)[0]
     K_operator = scipy.linalg.expm(config.dt * K_matrix)
     K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
     phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix)

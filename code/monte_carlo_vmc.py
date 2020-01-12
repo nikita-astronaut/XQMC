@@ -12,6 +12,9 @@ import tests
 import observables_vmc
 from copy import deepcopy
 import os
+import pickle
+
+
 
 def remove_singularity(S):
     for i in range(S.shape[0]):
@@ -21,6 +24,14 @@ def remove_singularity(S):
             S[i, i] = 1.0
     return S
 
+def save_parameters(mu, sdw, cdw, gap, jastrow, local_workdir):
+    params_dict = {'mu' : mu_parameter, 'sdw' : sdw, 'cdw' : cdw, 'gap' : gap, 'jastrow' : jastrow}
+    return pickle.dump(params_dict, open(os.path.join(local_workdir, 'last_opt_params.p'), "wb"))
+
+def load_parameters(local_workdir):
+    params_dict = pickle.load(open(os.path.join(local_workdir, 'last_opt_params.p'), "rb"))
+    return params_dict['mu'], params_dict['sdw'], params_dict['cdw'], params_dict['gap'], params_dict['jastrow']
+
 # <<Borrowed>> from Tom
 def import_config(filename: str):
     import importlib
@@ -29,13 +40,13 @@ def import_config(filename: str):
     module_dir = os.path.dirname(filename)
     if extension != ".py":
         raise ValueError(
-            "Could not import the network from {!r}: not a Python source file.".format(
+            "Could not import the module from {!r}: not a Python source file.".format(
                 filename
             )
         )
     if not os.path.exists(filename):
         raise ValueError(
-            "Could not import the network from {!r}: no such file or directory".format(
+            "Could not import the module from {!r}: no such file or directory".format(
                 filename
             )
         )
@@ -47,6 +58,12 @@ def import_config(filename: str):
 config_vmc = import_config(sys.argv[1])
 from config_vmc import MC_parameters as config_vmc
 config_vmc = config_vmc()
+
+os.makedirs(config_vmc.workdir, exist_ok=True)
+with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target,\
+     open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
+    target.write(source.read())
+
 
 if config_vmc.visualisation:
     visualisation.plot_fermi_surface(config_vmc)
@@ -106,7 +123,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
 
         t = time()
         if MC_step % config_vmc.observables_frequency == 0 and n_iter > config_vmc.thermalization \
-            and n_iter % config_vmc.obs_calc_frequency == 0:
+            and (n_iter - config_vmc.thermalization) % config_vmc.obs_calc_frequency == 1:
             obs, names = observables_vmc.compute_observables(wf)
             observables.append(obs)
         t_observables += time() - t
@@ -124,24 +141,29 @@ pairings_names = config_vmc.pairings_list_names
 U_list = deepcopy(config_vmc.U)
 V_list = deepcopy(config_vmc.V)
 
-os.makedirs(config_vmc.workdir, exist_ok=True)
-
 for U, V in zip(U_list, V_list):
+    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}'.format(U, V))  # add here all parameters that are being iterated
+    os.makedirs(local_workdir, exist_ok=True)
+
     obs_files = []
-    gap_parameters = config_vmc.initial_gap_parameters
-    jastrow_parameters = config_vmc.initial_jastrow_parameters
-    mu_parameter = config_vmc.initial_mu_parameters
-    sdw_parameter = config_vmc.initial_sdw_parameters
-    cdw_parameter = config_vmc.initial_cdw_parameters
+    if config_vmc.load_parameters:
+        mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters = load_parameters(local_workdir)
+    else:
+        gap_parameters = config_vmc.initial_gap_parameters
+        jastrow_parameters = config_vmc.initial_jastrow_parameters
+        mu_parameter = config_vmc.initial_mu_parameters
+        sdw_parameter = config_vmc.initial_sdw_parameters
+        cdw_parameter = config_vmc.initial_cdw_parameters
 
     config_vmc.U = U
     config_vmc.V = V
     H = config_vmc.hamiltonian(config_vmc)
  
-    log_file = open(os.path.join(config_vmc.workdir, 'U_' + str(U) + '_V_' + str(V) + '_general_log.dat'), 'w')
+    log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
+
     final_states = [False] * n_cpus
 
-    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩")
+    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩")
     for gap_name in pairings_names:
         log_file.write(" ⟨" + gap_name + "⟩")
     for jastrow in config_vmc.adjacency_list:
@@ -169,13 +191,12 @@ for U, V in zip(U_list, V_list):
         Os_mean = np.mean(Os, axis = 0)
         forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean).real
 
-        variance = (np.mean(np.abs(energies) ** 2) - np.mean(energies) ** 2) / vol
+        variance = np.real((np.mean(np.abs(energies) ** 2) - np.mean(energies) ** 2) / vol)
 
         print('estimating gradient on ', len(energies), 'samples', flush = True)
         print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
         print('\033[93m σ^2 / t / vol = ' + str(variance) + '\033[0m', flush = True)
         print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
-        print('\033[94m |forces_raw| = ' + str(np.sqrt(np.sum(forces ** 2))) + '\033[0m', flush = True)
 
 
         Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
@@ -196,18 +217,22 @@ for U, V in zip(U_list, V_list):
             step = forces
             print('Too high enhancement due to S_cov matrix: switching to gradient descent for this step')
 
-        print('\033[94m |forces_SR| = ' + str(np.sqrt(np.sum(step ** 2))) + '\033[0m', flush = True)
+        print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2))))
         step = config_vmc.opt_parameters[1] * step 
 
-        mu_parameter += step[0]
-        sdw_parameter += step[1:1 + len(sdw_parameter)]
-        cdw_parameter += step[1 + len(sdw_parameter):1 + len(cdw_parameter) + len(sdw_parameter)]
-        gap_parameters += step[1 + len(cdw_parameter) + len(sdw_parameter):1 + len(gap_parameters) + len(cdw_parameter) + len(sdw_parameter)]
-        jastrow_parameters += step[1 + len(gap_parameters) + len(cdw_parameter) + len(sdw_parameter):]
+        offset = 0
+        mu_parameter += step[offset]; offset += 1
+        sdw_parameter += step[offset:offset + len(sdw_parameter)]; offset += len(sdw_parameter)
+        cdw_parameter += step[offset:offset + len(cdw_parameter)]; offset += len(cdw_parameter)
+        gap_parameters += step[offset:offset + len(gap_parameters)]; offset += len(gap_parameters)
+        jastrow_parameters += step[offset:]
+        save_parameters(mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters,
+                        local_workdir)
+
 
         print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + ', SDW/CDW = ' + str([sdw_parameter, cdw_parameter]) + '\033[0m', flush = True)
-        log_file.write(("{:3d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
-                        np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, np.sqrt(np.sum(forces ** 2)),
+        log_file.write(("{:3d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
+                        np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
                         *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
         log_file.flush()
 
@@ -218,14 +243,15 @@ for U, V in zip(U_list, V_list):
 
         if n_step == config_vmc.thermalization + 1:
             for obs_name in observables_names:
-                obs_files.append(open(os.path.join(config_vmc.workdir, 'U_' + str(U) + '_V_' + str(V) + '_' + obs_name + '.dat'), 'w'))
+                obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
                 
                 for adj in config_vmc.adjacency_list:
-                    obs_files[-1].write("f({:.5e}/{:d}/{:d}) df({:.5e}/{:d}/{:d}) ".format(adj[3], adj[1], adj[2], adj[3], adj[1], adj[2]))
+                    obs_files[-1].write("f({:.5e}/{:d}/{:d}) df({:.5e}/{:d}/{:d}) ".format(adj[3], \
+                                        adj[1], adj[2], adj[3], adj[1], adj[2]))
                 obs_files[-1].write('\n')
 
-
-        observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
+        observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis],\
+                      observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
         
         data_per_name = len(config_vmc.adjacency_list) * 2  # mean and std
         for n, file in enumerate(obs_files):

@@ -42,7 +42,7 @@ def plot_fermi_surface(config):
         R = models.R_square
         G = models.G_square
 
-    K = config.model(config, 0.0)
+    K = config.model(config, 0.0)[0]
     k_vectors = []
     energies = []
     for kx in range(config.Ls):
@@ -191,9 +191,9 @@ def plot_pairing(config, gap_expanded, name):
     plt.ylabel('$y$')
     plt.xlim([-1, 2])
     plt.ylim([-1, 1])
-    print(name)
-    plt.title(name + ' pairing')
-    plt.show()
+    # plt.title(name + ' pairing')
+    plt.savefig('../plots/' + name + '.pdf')
+    plt.clf()
     return
 
 def plot_all_Jastrow(config):
