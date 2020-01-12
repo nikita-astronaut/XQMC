@@ -96,7 +96,7 @@ def SzSz_n_neighbor(phi, adj):
     return (xp.einsum('i,j,ij', xp.diag(G_function_up) - xp.diag(G_function_down), xp.diag(G_function_up) - xp.diag(G_function_down), adj) - \
             xp.einsum('ij,ji,ij', G_function_up, G_function_up, adj) - xp.einsum('ij,ji,ij', G_function_down, G_function_down, adj)) / xp.sum(adj)
 
-def double_occupancy_n_neighbor(phi, adj):
+def n_up_n_down_correlator(phi, adj):
     G_function_up = phi.current_G_function_up
     G_function_down = phi.current_G_function_down
 
@@ -107,6 +107,9 @@ def kinetic_energy(phi):
     G_function_down = phi.current_G_function_down
 
     return xp.einsum('ij,ij', phi.K_matrix, G_function_up + G_function_down) / G_function_up.shape[0]
+
+def gap_gap_correlator(phi, pairing_unwrapped, adj):
+    
 
 def Coloumb_energy(phi):
     G_function_up = phi.current_G_function_up
@@ -129,28 +132,19 @@ def Coloumb_energy(phi):
 def compute_all_observables(phi):
     adj_list = phi.adj_list
     observables = []
-    names = []
+    names = ['⟨n⟩', '⟨E_K⟩', '⟨E_C⟩', 'density'] + wf.config.pairings_list_names
 
     observables.append(total_density(phi).item())
-    names.append('⟨n⟩')
-
     observables.append(kinetic_energy(phi).item())
-    names.append('⟨E_K⟩')
-
     observables.append(Coloumb_energy(phi))
-    names.append('⟨E_C⟩')
 
-    for i, adj in enumerate(adj_list):
-        observables.append(double_occupancy_n_neighbor(phi, adj[0]).item())
-        names.append('⟨n_↑(i)n_↓(j)⟩_' + str(adj[1]) + '-' + str(adj[2]) + '_' + str(adj[3]))
+    names = ['density'] + wf.config.pairings_list_names
 
-    observables.append(SzSz_onsite(phi).item())
-    names.append('⟨S_zS_z⟩_0')
+    for adj in adj_list:
+        observables.append(n_up_n_down_correlator(phi, adj[0]))
 
-    '''
-    for i, adj in enumerate(adj_list[1:]):
-        observables.append(SzSz_n_neighbor(phi, adj).item())
-        names.append('⟨S_z(i)S_z(j)⟩_' + str(i + 1))
-    '''
+    for pairing_unwrapped in phi.config.pairings_list_unwrapped:
+        for adj in adj_list:
+            observables.append(gap_gap_correlator(phi, pairing_unwrapped, adj[0]))
 
     return observables, names

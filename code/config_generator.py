@@ -34,8 +34,11 @@ class simulation_parameters:
         self.n_smoothing = 20000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
-        self.observables_log_name = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/observables'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/1/'
 
         pairings.obtain_all_pairings(self)
         self.pairings_list = pairings.on_site_2orb_hex_real + pairings.on_site_2orb_hex_imag + \
                              pairings.NN_2orb_hex_real + pairings.NN_2orb_hex_imag
+
+        self.pairings_list_names = [p[-1] for p in self.pairings_list]
+        self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
