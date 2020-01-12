@@ -1,9 +1,11 @@
 import models
 import numpy as np
 import auxiliary_field
+import pairings
+
 dt_in_inv_t1 = 0.1
-U_in_t1 = 4.
-V_in_t1 = 4.
+U_in_t1 = 2.
+V_in_t1 = 2.
 nu_V = np.arccosh(np.exp(V_in_t1 / 2. * dt_in_inv_t1))
 nu_U = np.arccosh(np.exp((U_in_t1 / 2. + V_in_t1 / 2.) * dt_in_inv_t1))
 main_hopping = 1.0
@@ -33,3 +35,7 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
         self.observables_log_name = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/observables'
+
+        pairings.obtain_all_pairings(self)
+        self.pairings_list = pairings.on_site_2orb_hex_real + pairings.on_site_2orb_hex_imag + \
+                             pairings.NN_2orb_hex_real + pairings.NN_2orb_hex_imag
