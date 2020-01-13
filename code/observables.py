@@ -120,7 +120,7 @@ def gap_gap_correlator(phi, gap, adj):
 
     result = 0.0 + 0.0j
     for i in range(gap.shape[0]):
-        for k in np.where(adj[i, k] > 0)[0]:
+        for k in np.where(adj[i, :] > 0)[0]:
             for j in np.where(np.abs(gap[i, :]) != 0.)[0]:
                 for l in np.where(np.abs(gap[k, :]) != 0.)[0]:
                     result += np.conj(gap[i, j]) * gap[k, l] * G_function_down[l, j] * G_function_up[k, i] * adj[i, k]
