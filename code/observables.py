@@ -115,11 +115,19 @@ def gap_gap_correlator(phi, gap, adj):
                                   (i ~ j | k ~ l)_{delta}, (i ~ k)_{adj}
     '''
 
-    G_function_up = phi.current_G_function_up
-    G_function_down = phi.current_G_function_down
+    G_function_up = xp.eye(G_function_up.shape[0]) - phi.current_G_function_up
+    G_function_down = xp.eye(G_function_down.shape[0]) - phi.current_G_function_down
 
-    return xp.einsum('ij,kl,lj,ki,ik', np.conj(gap), gap, xp.eye(G_function_down.shape[0]) - G_function_down,
-                                       xp.eye(G_function_up.shape[0]) - G_function_up, adj)
+    result = 0.0 + 0.0j
+    for i in range(gap.shape[0]):
+        for k in np.where(adj[i, k] > 0)[0]:
+            for j in np.where(np.abs(gap[i, :]) != 0.)[0]:
+                for l in np.where(np.abs(gap[k, :]) != 0.)[0]:
+                    result += np.conj(gap[i, j]) * gap[k, l] * G_function_down[l, j] * G_function_up[k, i] * adj[i, k]
+
+    return np.real(result)
+    # return xp.einsum('ij,kl,lj,ki,ik', np.conj(gap), gap, xp.eye(G_function_down.shape[0]) - G_function_down,
+    #                                    xp.eye(G_function_up.shape[0]) - G_function_up, adj)
 
 def Coloumb_energy(phi):
     G_function_up = phi.current_G_function_up
