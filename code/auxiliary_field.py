@@ -6,6 +6,7 @@ import models
 from copy import deepcopy
 
 xp = np
+
 try:
     import cupy as cp
     xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available

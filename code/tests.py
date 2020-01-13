@@ -12,6 +12,9 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     result = np.isclose(der_numerically, der_analytically.real, rtol=1e-5, atol=1e-5)
     if not result:
         print('Warning! The numerical derivative w.r. to one of the parameters did not match the analytical expression! :', der_numerically, der_analytically)
+    else:
+        print('Passed: {:.5f} / {:.5f}'.format(der_numerically, der_analytically.real)) 
+
     return result
 
 def test_explicit_factors_check(config):

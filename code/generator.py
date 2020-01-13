@@ -5,6 +5,7 @@ xp = np  # by default the code is executed on the CPU
 cp = np
 
 gpu_avail = False
+
 try:
     import cupy as cp
     xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
@@ -12,6 +13,7 @@ try:
 except ImportError:
     print('No CuPy found in the system, running on a CPU')
 
+# gpu_avail = False
 
 import scipy.linalg
 from copy import deepcopy
@@ -183,7 +185,7 @@ if __name__ == "__main__":
             ### light logging ###
             if n_sweep == 0:
                 log_file.write('step ' + ('{:s} d{:s} ' * len(names_l)).format(*names_l, *names_l)); log_file.write('\n')
-            log_file.write(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l))
+            log_file.write(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l)); log_file.write('\n')
             print(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l))
             log_file.flush()
 
@@ -204,8 +206,7 @@ if __name__ == "__main__":
             for n, file in enumerate(obs_files):
                 data = obs_h[:offset]; file.write(('{:d} ' + '{:.6e} ' * offset).format(n_sweep, *data))  # for sign
                 data = obs_h[offset + data_per_name * n : offset + data_per_name * (n + 1)]
-                file.write(("{:.6e} " * len(data)).format(*data))
-                file.write('\n')
+                file.write(("{:.6e} " * len(data)).format(*data)); file.write('\n')
                 file.flush()
         log_file.close()
         [file.close() for file in obs_files]

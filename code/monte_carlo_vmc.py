@@ -231,7 +231,7 @@ for U, V in zip(U_list, V_list):
 
 
         print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + ', SDW/CDW = ' + str([sdw_parameter, cdw_parameter]) + '\033[0m', flush = True)
-        log_file.write(("{:3d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
+        log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
                         np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
                         *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
         log_file.flush()
