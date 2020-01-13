@@ -6,7 +6,6 @@ import models
 from copy import deepcopy
 
 xp = np
-
 try:
     import cupy as cp
     xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
@@ -15,7 +14,8 @@ except ImportError:
 
 
 class auxiliary_field_intraorbital:
-    def __init__(self, config, K, K_inverse, K_matrix):
+    def __init__(self, config, K, K_inverse, K_matrix, gpu_avail):
+        self.gpu_avail = gpu_avail
         self.la = np
         self.cpu = True
 
@@ -238,6 +238,8 @@ class auxiliary_field_intraorbital:
         return
 
     def copy_to_CPU(self):
+        if not self.gpu_avail:
+            return self
         self.cpu = True
         self.current_G_function_up = cp.asnumpy(self.current_G_function_up)
         self.current_G_function_down = cp.asnumpy(self.current_G_function_down)
@@ -248,6 +250,8 @@ class auxiliary_field_intraorbital:
         return self
 
     def copy_to_GPU(self):
+        if not self.gpu_avail:
+            return self
         self.cpu = False
         self.current_G_function_up = cp.array(self.current_G_function_up)
         self.current_G_function_down = cp.array(self.current_G_function_down)
@@ -271,8 +275,8 @@ class auxiliary_field_intraorbital:
 
 
 class auxiliary_field_interorbital(auxiliary_field_intraorbital):
-    def __init__(self, config, K, K_inverse, K_matrix):
-        super().__init__(config, K, K_inverse, K_matrix)
+    def __init__(self, config, K, K_inverse, K_matrix, gpu_avail):
+        super().__init__(config, K, K_inverse, K_matrix, gpu_avail)
         return
 
     def _V_from_configuration(self, s, sign, spin):
@@ -358,6 +362,8 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
         else:
             self.Delta_down = self.la.asarray(Delta)
             G = self.current_G_function_down
+        if self.cpu:
+            return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - G[sx : sy + 1, sx : sy + 1]))
         return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - cp.asnumpy(G[sx : sy + 1, sx : sy + 1])))
 
     def update_G_seq(self, spin, sp_index, time_slice, o_index):
@@ -396,6 +402,8 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
 
     def copy_to_CPU(self):
         super().copy_to_CPU()
+        if not self.gpu_avail:
+            return self
         self.V_up = cp.asnumpy(self.V_up)
         self.Vinv_up = cp.asnumpy(self.Vinv_up)
         self.V_down = cp.asnumpy(self.V_down)
@@ -404,6 +412,8 @@ class auxiliary_field_interorbital(auxiliary_field_intraorbital):
 
     def copy_to_GPU(self):
         super().copy_to_GPU()
+        if not self.gpu_avail:
+            return self
         self.V_up = cp.asarray(self.V_up)
         self.Vinv_up = cp.asarray(self.Vinv_up)
         self.V_down = cp.asarray(self.V_down)

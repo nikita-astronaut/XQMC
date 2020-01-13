@@ -1,11 +1,14 @@
 import numpy as np
+import os
 
 xp = np  # by default the code is executed on the CPU
 cp = np
 
+gpu_avail = False
 try:
     import cupy as cp
     xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
+    gpu_avail = True
 except ImportError:
     print('No CuPy found in the system, running on a CPU')
 
@@ -24,39 +27,23 @@ sign_history = []
 ratio_history = []
 
 config = simulation_parameters()
-S_AF_history = []
-SzSz_history = []
-densities = []
 def print_greetings(config):
     print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
           "lattice = {:d}^2 x {:d}".format(config.start_type, 1.0 / config.dt / config.Nt, config.mu, config.Ls, config.Nt))
-    print("# iteration current_flips N_swipes <log(ratio)> d<log(ratio)> <acceptance> <sign> d<sign>")
+    print('# sweep ⟨r⟩ d⟨r⟩ ⟨acc⟩ d⟨acc⟩ ⟨sign⟩ d⟨sign⟩ ⟨n⟩ d⟨n⟩ ⟨E_K⟩ d⟨E_K⟩ ⟨E_C⟩ d⟨E_C⟩ ⟨E_T⟩ d⟨E_T⟩')
     return
 
-def print_generator_log(n_sweep, phi_field):
+def perform_sweep(phi_field, n_sweep, switch = True):
     global accept_history, sign_history, ratio_history
-    if n_sweep % config.n_print_frequency != 0:
-        return
-    n_print = np.min([n_sweep * config.total_dof // 2 * config.Nt, config.n_smoothing])
-    n_history = np.min([n_print, len(ratio_history)])
-    
-    print("{:d} {:.9f} +/- {:.9f} {:.3f} {:.3f} +/- {:.3f}".format(n_sweep, \
-        np.mean(ratio_history[-n_history:]), np.std(ratio_history[-n_history:]) / np.sqrt(len(ratio_history[-n_history:])), \
-        np.mean(accept_history), \
-        np.mean(sign_history[-n_print:]), np.std(sign_history[-n_print:]) / np.sqrt(len(sign_history[-n_print:]))), flush = True)
-    return
-
-
-def perform_sweep(phi_field, switch, observables_log, n_sweep):
-    global accept_history
     if switch:
         phi_field.copy_to_GPU()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
 
     GF_checked = False
-    observables = []
-    obs_signs = []
+    observables_light = []; obs_signs_light = []; names_light = []
+    observables_heavy = []; obs_signs_heavy = []; names_heavy = []
+    
 
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
@@ -123,27 +110,47 @@ def perform_sweep(phi_field, switch, observables_log, n_sweep):
                 ratio_history.append(0)
         if switch:
             phi_field.copy_to_GPU()
-        obs, names = obs_methods.compute_all_observables(phi_field)
+
+
+        ### light observables ### (calculated always during calculator and generator stages)
+        obs, names_light = obs_methods.compute_light_observables(phi_field)
+        observables_light.append(np.array(obs) * current_det_sign.item())  # the sign is included into observables (reweighting)
+        obs_signs_light.append(current_det_sign.item())
+
+        ### heavy observables ### (calculated only during the generator stage)
+        if n_sweep >= phi_field.config.thermalization:
+            obs, names_heavy = obs_methods.compute_heavy_observables(phi_field)
+            observables_heavy.append(np.array(obs) * current_det_sign.item())  # the sign is included into observables (reweighting)
+            obs_signs_heavy.append(current_det_sign.item())
+
         if switch:
             phi_field.copy_to_CPU()
-        observables.append(np.array(obs) * current_det_sign.item())  # the sign is included into observables (reweighting)
-        obs_signs.append(current_det_sign.item())
-
-    if n_sweep == 0:
-        for obs_name in names:
-            observables_log.write(" ⟨" + obs_name + "⟩ ⟨d" + obs_name + "⟩")
-        observables_log.write('\n')
-    observables = np.array(observables) / np.mean(obs_signs)
-    observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis], observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
-
     cut = phi_field.config.n_smoothing
-    observables_log.write(("{:4d} {:.4e} {:.4e} {:.4e} {:.4e} {:.4e} {:.4e}" + " {:.5e}" * len(observables) + "\n").format(n_sweep, np.mean(ratio_history[-cut:]),
-                            np.std(ratio_history[-cut:]) / np.sqrt(len(ratio_history[-cut:])),
-                            np.mean(accept_history[-cut:]),
-                            np.mean(sign_history[-cut:]), np.std(sign_history[-cut:]) / np.sqrt(len(sign_history[-cut:])), np.mean(obs_signs),
-                            *observables))
-    observables_log.flush()
-    return phi_field
+
+
+    ### light observables ### (calculated always during calculator and generator stages)
+    observables_light = np.array(observables_light) / np.mean(obs_signs_light)
+    observables_light = np.concatenate([observables_light.mean(axis = 0)[:, np.newaxis], 
+                                        observables_light.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
+
+    obs_light_extra = [np.mean(ratio_history[-cut:]), np.std(ratio_history[-cut:]) / np.sqrt(cut),
+                       np.mean(accept_history[-cut:]), np.std(accept_history[-cut:]) / np.sqrt(cut),
+                       np.mean(sign_history[-cut:]), np.std(sign_history[-cut:]) / np.sqrt(cut), 
+                       np.mean(obs_signs_light), np.std(obs_signs_light) / np.sqrt(len(obs_signs_light))]
+
+    observables_light = np.concatenate([np.array(obs_light_extra), observables_light], axis = 0)
+    names_light = ['⟨ratio⟩', '⟨acc⟩', '⟨sign_gen⟩', '⟨sign_obs_l⟩'] + names_light
+
+    ### heavy observables ### (calculated only during the generator stage)
+    if n_sweep >= phi_field.config.thermalization:
+        observables_heavy = np.array(observables_heavy) / np.mean(obs_signs_heavy)
+        observables_heavy = np.concatenate([observables_heavy.mean(axis = 0)[:, np.newaxis], 
+                                            observables_heavy.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
+
+        observables_heavy = np.concatenate([np.array([np.mean(obs_signs_heavy), 
+                                np.std(obs_signs_heavy) / np.sqrt(len(obs_signs_heavy))]), observables_heavy], axis = 0)
+        names_heavy = ['⟨sign_obs_h⟩'] + names_heavy
+    return phi_field, (observables_light, names_light), (observables_heavy, names_heavy)
 
 
 if __name__ == "__main__":
@@ -152,15 +159,53 @@ if __name__ == "__main__":
     K_matrix = config.model(config, config.mu)[0]
     K_operator = scipy.linalg.expm(config.dt * K_matrix)
     K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
-    phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix)
-    phi_field.copy_to_GPU()
 
-    observables_log = open(config.observables_log_name + '_U_' + str(config.U) + '.dat', 'w')
-    observables_log.write("⟨step⟩ ⟨ratio⟩ ⟨dratio⟩ ⟨acceptance⟩ ⟨sign⟩ ⟨dsign⟩ ⟨sign_obs⟩ ")
+    U_list = deepcopy(config.U); V_list = deepcopy(config.V)
 
-    for n_sweep in range(config.n_sweeps):
-        t = time()
-        accept_history = []
-        current_field = perform_sweep(phi_field, True, observables_log, n_sweep)
-        print('sweep took ' + str(time() - t))
-        print_generator_log(n_sweep, current_field)
+    for U, V in zip(U_list, V_list):
+        config.U = U; config.V = V;
+        phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix, gpu_avail)
+        phi_field.copy_to_GPU()
+
+        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}'.format(U, V))  # add here all parameters that are being iterated
+        os.makedirs(local_workdir, exist_ok=True)
+
+        obs_files = []
+        log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
+        log_file.write("⟨step⟩ ⟨ratio⟩ ⟨dratio⟩ ⟨acc⟩ ⟨dacc⟩ ⟨sign⟩ ⟨dsign⟩ ")
+
+        for n_sweep in range(config.n_sweeps):
+            accept_history = []
+            current_field, light, heavy = perform_sweep(phi_field, n_sweep)
+
+            obs_l, names_l = light; obs_h, names_h = heavy
+
+            ### light logging ###
+            if n_sweep == 0:
+                log_file.write('step ' + ('{:s} d{:s} ' * len(names_l)).format(*names_l, *names_l)); log_file.write('\n')
+            log_file.write(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l))
+            print(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l))
+            log_file.flush()
+
+
+            ### heavy logging ###
+            if n_sweep == config.thermalization:
+                for obs_name in names_h:
+                    obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
+                
+                obs_files[-1].write('step sign_obs dsign_obs ')
+                for adj in current_field.adj_list:
+                    obs_files[-1].write("f({:.5e}/{:d}/{:d}) df({:.5e}/{:d}/{:d}) ".format(adj[3], \
+                                        adj[1], adj[2], adj[3], adj[1], adj[2])); obs_files[-1].write('\n')
+                
+
+            data_per_name = len(current_field.adj_list) * 2  # mean and std
+            offset = 2
+            for n, file in enumerate(obs_files):
+                data = obs_h[:offset]; file.write(('{:d} ' + '{:.6e} ' * offset).format(n_sweep, *data))  # for sign
+                data = obs_h[offset + data_per_name * n : offset + data_per_name * (n + 1)]
+                file.write(("{:.6e} " * len(data)).format(*data))
+                file.write('\n')
+                file.flush()
+        log_file.close()
+        [file.close() for file in obs_files]

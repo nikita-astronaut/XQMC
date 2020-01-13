@@ -108,8 +108,18 @@ def kinetic_energy(phi):
 
     return xp.einsum('ij,ij', phi.K_matrix, G_function_up + G_function_down) / G_function_up.shape[0]
 
-def gap_gap_correlator(phi, pairing_unwrapped, adj):
-    
+def gap_gap_correlator(phi, gap, adj):
+    '''
+        ⟨\\Delta^{\\dag} \\Delta⟩ = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
+                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} [\\delta_{jl} - G^{down}(l, j)] [\\delta_{ik} - G^{up}_{k, i}]
+                                  (i ~ j | k ~ l)_{delta}, (i ~ k)_{adj}
+    '''
+
+    G_function_up = phi.current_G_function_up
+    G_function_down = phi.current_G_function_down
+
+    return xp.einsum('ij,kl,lj,ki,ik', np.conj(gap), gap, xp.eye(G_function_down.shape[0]) - G_function_down,
+                                       xp.eye(G_function_up.shape[0]) - G_function_up, adj)
 
 def Coloumb_energy(phi):
     G_function_up = phi.current_G_function_up
@@ -128,17 +138,16 @@ def Coloumb_energy(phi):
 
     return energy_coloumb
 
+def compute_light_observables(phi):
+    observables = [total_density(phi).item(), kinetic_energy(phi).item(), Coloumb_energy(phi), \
+                   kinetic_energy(phi).item() + Coloumb_energy(phi)]
+    names = ['density', '⟨E_K⟩', '⟨E_C⟩', '⟨E_T⟩']
+    return observables, names
 
-def compute_all_observables(phi):
+def compute_heavy_observables(phi):
     adj_list = phi.adj_list
     observables = []
-    names = ['⟨n⟩', '⟨E_K⟩', '⟨E_C⟩', 'density'] + wf.config.pairings_list_names
-
-    observables.append(total_density(phi).item())
-    observables.append(kinetic_energy(phi).item())
-    observables.append(Coloumb_energy(phi))
-
-    names = ['density'] + wf.config.pairings_list_names
+    names = ['⟨nupndown⟩'] + phi.config.pairings_list_names
 
     for adj in adj_list:
         observables.append(n_up_n_down_correlator(phi, adj[0]))
