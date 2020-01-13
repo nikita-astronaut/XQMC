@@ -115,8 +115,8 @@ def gap_gap_correlator(phi, gap, adj):
                                   (i ~ j | k ~ l)_{delta}, (i ~ k)_{adj}
     '''
 
-    G_function_up = xp.eye(G_function_up.shape[0]) - phi.current_G_function_up
-    G_function_down = xp.eye(G_function_down.shape[0]) - phi.current_G_function_down
+    G_function_up = xp.eye(phi.current_G_function_up.shape[0]) - phi.current_G_function_up
+    G_function_down = xp.eye(phi.current_G_function_down.shape[0]) - phi.current_G_function_down
 
     result = 0.0 + 0.0j
     for i in range(gap.shape[0]):
