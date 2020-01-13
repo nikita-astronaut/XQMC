@@ -162,7 +162,6 @@ def compute_heavy_observables(phi):
 
     for pairing_unwrapped in phi.config.pairings_list_unwrapped:
         for n, adj in enumerate(adj_list):
-            print(n)
             observables.append(gap_gap_correlator(phi, pairing_unwrapped, adj[0]))
 
     return observables, names
