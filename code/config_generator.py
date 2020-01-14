@@ -13,7 +13,7 @@ main_hopping = 1.0
 class simulation_parameters:
     def __init__(self):
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = 40  # the number of time slices for the Suzuki-Trotter procedure
+        self.Nt = 50  # the number of time slices for the Suzuki-Trotter procedure
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
         self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.V = V_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1

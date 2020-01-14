@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import itertools
 
 xp = np  # by default the code is executed on the CPU
 cp = np
@@ -174,7 +175,6 @@ if __name__ == "__main__":
 
         obs_files = []
         log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
-        log_file.write("⟨step⟩ ⟨ratio⟩ ⟨dratio⟩ ⟨acc⟩ ⟨dacc⟩ ⟨sign⟩ ⟨dsign⟩ ")
 
         for n_sweep in range(config.n_sweeps):
             accept_history = []
@@ -184,7 +184,7 @@ if __name__ == "__main__":
 
             ### light logging ###
             if n_sweep == 0:
-                log_file.write('step ' + ('{:s} d{:s} ' * len(names_l)).format(*names_l, *names_l)); log_file.write('\n')
+                log_file.write('step ' + ('{:s} d{:s} ' * len(names_l)).format(*[x for pair in zip(names_l, names_l) for x in pair])); log_file.write('\n')
             log_file.write(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l)); log_file.write('\n')
             print(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l))
             log_file.flush()

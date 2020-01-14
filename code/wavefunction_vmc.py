@@ -157,14 +157,13 @@ class wavefunction_singlet():
             #  delta_sdw_i \sum_xy (-1)^{x + y} [n_up_i(x, y) - n_down_i(x, y)] = \sum_xy (-1)^{x + y} [n_i(x, y) + n_i(x + L, y + L)]
 
 
-
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
         self.U_full = deepcopy(U)
         self.E = E
 
-        lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals=
+        lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
         rest_states = np.setdiff1d(np.arange(len(self.E)), lowest_energy_states)
 
 

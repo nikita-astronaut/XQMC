@@ -14,7 +14,18 @@ from copy import deepcopy
 import os
 import pickle
 
+def perform_transition_analysis(Es, U_vecs, current_labels, config):
+    if len(U_vecs) < 2:
+        return current_labels
 
+    A = np.abs(np.einsum('ij,jk->ik', np.conj(U_vecs[-2]).T, U_vecs[-1]))
+
+    new_labels = np.zeros(A.shape[0])
+    for i in range(len(new_labels)):
+        new_labels[i] = current_labels[np.argsort(A[:, i])[-1]]
+        A[np.argsort(A[:, i])[-1], i] = 0.0
+    print('remainings:', [np.sum(np.abs(A[:, j]) ** 2) for j in range(A.shape[1])])
+    return new_labels.astype(np.int64)
 
 def remove_singularity(S):
     for i in range(S.shape[0]):
@@ -92,7 +103,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
     else:
         wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, True, final_state)
 
-    if not wf.with_previous_state:
+    if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
         for MC_step in range(config_vmc.MC_chain * 2):
             wf.perform_MC_step()
 
@@ -133,7 +144,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
         t_steps += time() - t
 
     print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf)
-    return energies, Os, acceptance, wf.get_state(), observables, names
+    return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E
 
 pairings_list = config_vmc.pairings_list
 pairings_names = config_vmc.pairings_list_names
@@ -160,10 +171,11 @@ for U, V in zip(U_list, V_list):
     H = config_vmc.hamiltonian(config_vmc)
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
+    levels_log_file = open(os.path.join(local_workdir, 'levels_log.dat'), 'w')
 
     final_states = [False] * n_cpus
 
-    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩")
+    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩")
     for gap_name in pairings_names:
         log_file.write(" ⟨" + gap_name + "⟩")
     for jastrow in config_vmc.adjacency_list:
@@ -176,16 +188,34 @@ for U, V in zip(U_list, V_list):
 
     log_file.write(' ⟨mu_BCS⟩\n')
 
+    ### keeping track of levels occupations ###
+    Es = []
+    U_vecs = []
+    initial_state_idx = np.arange(config_vmc.total_dof)  # enumerates the number of states with respect to adiabatic evolution of the initial states (threads)
+    current_selected_states = np.arange(config_vmc.total_dof // 2)  # labels of the threads that are now in the min-level set [better they do not change...]
+
     for n_step in range(config_vmc.optimisation_steps):
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, config_vmc, pairings_list, \
                                                                        (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
                                                                        final_state = final_states[i]) for i in range(n_cpus))
+        ###### OCCUPATION LOGGING #####
+        Es.append(results[0][7])
+        U_vecs.append(results[0][6])  # to keep track of the level occupations
+        initial_state_idx = perform_transition_analysis(Es, U_vecs, initial_state_idx, config_vmc)
+        min_labels = np.argsort(Es[-1])[:config_vmc.total_dof // 2]
+        gap = -Es[-1][np.argsort(Es[-1])[config_vmc.total_dof // 2 - 1]] + Es[-1][np.argsort(Es[-1])[config_vmc.total_dof // 2]]
+        new_selected_states = initial_state_idx[min_labels]
+        if len(np.unique(np.concatenate([current_selected_states, new_selected_states]))) != len(current_selected_states):
+            print('# !!! some of the levels dropped out of the set!!! #')
+        levels_log_file.write(('{:d} ' * (len(new_selected_states) + 1)).format(n_step, *new_selected_states)); levels_log_file.write('\n')
+        levels_log_file.flush()
+        ###### END OCCUPATION LOGGING #####
 
+        ### SR STEP ###
         energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)
         Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
         acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
         final_states = [x[3] for x in results]
-
         vol = config_vmc.total_dof // 2
 
         Os_mean = np.mean(Os, axis = 0)
@@ -230,11 +260,16 @@ for U, V in zip(U_list, V_list):
                         local_workdir)
 
 
-        print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + ', Jastrow =' + str(jastrow_parameters) + ', SDW/CDW = ' + str([sdw_parameter, cdw_parameter]) + '\033[0m', flush = True)
-        log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
+        print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + \
+              ', Jastrow =' + str(jastrow_parameters) + \
+              ', SDW/CDW = ' + str([sdw_parameter, cdw_parameter]) + '\033[0m', flush = True)
+        log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
                         np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
-                        *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
+                        gap, *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
         log_file.flush()
+
+        ### END SR STEP ###
+
 
         observables = np.concatenate([np.array(x[4]) for x in results], axis = 0)
         observables_names = results[0][5]
@@ -260,4 +295,5 @@ for U, V in zip(U_list, V_list):
             file.write('\n')
             file.flush()
     log_file.close()
+    levels_log_file.close()
     [file.close() for file in obs_files]

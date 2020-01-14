@@ -149,7 +149,7 @@ def Coloumb_energy(phi):
 def compute_light_observables(phi):
     observables = [total_density(phi).item(), kinetic_energy(phi).item(), Coloumb_energy(phi), \
                    kinetic_energy(phi).item() + Coloumb_energy(phi)]
-    names = ['density', '⟨E_K⟩', '⟨E_C⟩', '⟨E_T⟩']
+    names = ['⟨density⟩', '⟨E_K⟩', '⟨E_C⟩', '⟨E_T⟩']
     return observables, names
 
 def compute_heavy_observables(phi):
