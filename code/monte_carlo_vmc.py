@@ -106,7 +106,9 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
     if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
         for MC_step in range(config_vmc.MC_chain * 2):
             wf.perform_MC_step()
-
+    else:
+        for MC_step in range(config_vmc.MC_chain // 4):  # else thermalize a little bit
+            wf.perform_MC_step()
     energies = []
     Os = []
     acceptance = []
