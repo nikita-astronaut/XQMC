@@ -82,7 +82,9 @@ if config_vmc.visualisation:
     visualisation.plot_all_Jastrow(config_vmc)
 
 if config_vmc.tests:
-    if tests.perform_all_tests(config_vmc):
+    config_tests = deepcopy(config_vmc)
+    config_tests.U = config_tests.U[0]; config_tests.V = config_tests.V[0]; config_tests.N_electrons = config_tests.N_electrons[0];
+    if tests.perform_all_tests(config_tests):
         print('\033[92m All tests passed successfully \033[0m')
     else:
         print('\033[91m Warning: some of the tests failed! \033[0m')

@@ -71,7 +71,6 @@ def Sz_Sz_correlator(state, adj):
 def compute_observables(wf):
     state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
     observables = []
-     + 
 
     pairings_orb = (wf.config.n_orbitals * (phi.config.n_orbitals + 1)) // 2
     adj_list = wf.Jastrow_A
