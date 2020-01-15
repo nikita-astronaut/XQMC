@@ -159,7 +159,7 @@ for U, V in zip(U_list, V_list):
     os.makedirs(local_workdir, exist_ok=True)
 
     obs_files = []
-    if config_vmc.load_parameters:
+    if config_vmc.load_parameters and os.path.isfile(os.path.join(local_workdir, 'last_opt_params.p')):
         mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters = load_parameters(local_workdir)
     else:
         gap_parameters = config_vmc.initial_gap_parameters
