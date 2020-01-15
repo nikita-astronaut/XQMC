@@ -156,7 +156,7 @@ V_list = deepcopy(config_vmc.V)
 N_electrons_list = depcopy(config_vmc.N_electrons)
 
 for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
-    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}'.format(U, V))  # add here all parameters that are being iterated
+    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_{:d}'.format(U, V, N_electrons))  # add here all parameters that are being iterated
     os.makedirs(local_workdir, exist_ok=True)
 
     obs_files = []
@@ -171,6 +171,8 @@ for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
 
     config_vmc.U = U
     config_vmc.V = V
+    config_vmc.N_electrons = N_electrons
+
     H = config_vmc.hamiltonian(config_vmc)
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
