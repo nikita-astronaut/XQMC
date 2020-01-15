@@ -7,8 +7,8 @@ import pairings
 class MC_parameters:
     def __init__(self):
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.U = [4.0, 3.0, 4.0, 5.0, 6.0] # the force of on-site Coulomb repulsion in the units of t1
-        self.V = [4.0, 3.0, 4.0, 5.0, 6.0] # the force of on-site Coulomb repulsion in the units of t1
+        self.U = [2.] * 5 # the force of on-site Coulomb repulsion in the units of t1
+        self.V = [2.] * 5 # the force of on-site Coulomb repulsion in the units of t1
         self.mu = 0.0
         self.BC_twist = False  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.model = models.model_hex_2orb_Kashino
@@ -16,7 +16,7 @@ class MC_parameters:
         self.hamiltonian = hamiltonians_vmc.hamiltonian_4bands
 
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        self.N_electrons = self.total_dof // 2 # only applied if PN_projection = True
+        self.N_electrons = np.arange(0, -24, -5) + self.total_dof // 2 # only applied if PN_projection = True
         self.PN_projection = True
 
         self.MC_chain = 180000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
@@ -36,8 +36,9 @@ class MC_parameters:
         self.load_parameters = False  # whether to load previous variational parameters from workdir
         pairings.obtain_all_pairings(self)
 
-        self.pairings_list = pairings.on_site_2orb_hex_real + pairings.on_site_2orb_hex_imag + \
-                             pairings.NN_2orb_hex_real + pairings.NN_2orb_hex_imag
+        # !!! real ones must (!) come before the imaginary ones
+        self.pairings_list = pairings.on_site_2orb_hex_real + pairings.NN_2orb_hex_real + \
+                             pairings.on_site_2orb_hex_imag + pairings.NN_2orb_hex_imag
 
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
 

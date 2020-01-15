@@ -2,6 +2,7 @@ import numpy as np
 import models
 from time import time
 import auxiliary_field
+from numba import jit
 
 xp = np  # by default the code is executed on the CPU
 try:
@@ -108,15 +109,16 @@ def kinetic_energy(phi):
 
     return xp.einsum('ij,ij', phi.K_matrix, G_function_up + G_function_down) / G_function_up.shape[0]
 
-def gap_gap_correlator(phi, gap, adj):
+@jit(nopython=True)
+def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj):
     '''
         ⟨\\Delta^{\\dag} \\Delta⟩ = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
                                   = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} [\\delta_{jl} - G^{down}(l, j)] [\\delta_{ik} - G^{up}_{k, i}]
                                   (i ~ j | k ~ l)_{delta}, (i ~ k)_{adj}
     '''
 
-    G_function_up = xp.eye(phi.current_G_function_up.shape[0]) - phi.current_G_function_up
-    G_function_down = xp.eye(phi.current_G_function_down.shape[0]) - phi.current_G_function_down
+    G_function_up = np.eye(current_G_function_up.shape[0]) - current_G_function_up
+    G_function_down = np.eye(current_G_function_down.shape[0]) - current_G_function_down
 
     result = 0.0 + 0.0j
     for i in range(gap.shape[0]):
@@ -153,15 +155,18 @@ def compute_light_observables(phi):
     return observables, names
 
 def compute_heavy_observables(phi):
-    adj_list = phi.adj_list
+    pairings_orb = (phi.config.n_orbitals * (phi.config.n_orbitals + 1)) // 2
+
+    adj_list_density = phi.adj_list[:2 * pairings_orb]  # on-site and nn
+    adj_list_pairings = phi.adj_list[-pairings_orb:]  # only largest distance
     observables = []
     names = ['⟨nupndown⟩'] + phi.config.pairings_list_names
 
-    for adj in adj_list:
-        observables.append(n_up_n_down_correlator(phi, adj[0]))
+    for adj in adj_list_density:
+        observables.append(n_up_n_down_correlator(phi, adj[0]).item())
 
     for pairing_unwrapped in phi.config.pairings_list_unwrapped:
-        for n, adj in enumerate(adj_list):
-            observables.append(gap_gap_correlator(phi, pairing_unwrapped, adj[0]))
-
+        for n, adj in enumerate(adj_list_pairings):
+            observables.append(gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
+                                                  pairing_unwrapped, adj[0]))
     return observables, names

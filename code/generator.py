@@ -31,8 +31,8 @@ ratio_history = []
 
 config = simulation_parameters()
 def print_greetings(config):
-    print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
-          "lattice = {:d}^2 x {:d}".format(config.start_type, 1.0 / config.dt / config.Nt, config.mu, config.Ls, config.Nt))
+    # print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
+    #      "lattice = {:d}^2 x {:d}".format(config.start_type, 1.0 / config.dt / config.Nt, config.mu, config.Ls, config.Nt))
     print('# sweep ⟨r⟩ d⟨r⟩ ⟨acc⟩ d⟨acc⟩ ⟨sign⟩ d⟨sign⟩ ⟨n⟩ d⟨n⟩ ⟨E_K⟩ d⟨E_K⟩ ⟨E_C⟩ d⟨E_C⟩ ⟨E_T⟩ d⟨E_T⟩')
     return
 
@@ -75,7 +75,7 @@ def perform_sweep(phi_field, n_sweep, switch = True):
             o_index = sp_index % n_fields
 
 
-            sign_history.append(current_det_sign)
+            sign_history.append(current_det_sign.item())
 
             ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o_index) * \
                     phi_field.get_det_ratio(-1, site_idx, time_slice, o_index)
@@ -111,9 +111,6 @@ def perform_sweep(phi_field, n_sweep, switch = True):
             else:
                 accept_history.append(0)
                 ratio_history.append(0)
-        if switch:
-            phi_field.copy_to_GPU()
-
 
         ### light observables ### (calculated always during calculator and generator stages)
         obs, names_light = obs_methods.compute_light_observables(phi_field)
@@ -126,9 +123,7 @@ def perform_sweep(phi_field, n_sweep, switch = True):
             observables_heavy.append(np.array(obs) * current_det_sign.item())  # the sign is included into observables (reweighting)
             obs_signs_heavy.append(current_det_sign.item())
 
-        if switch:
-            phi_field.copy_to_CPU()
-    cut = phi_field.config.n_smoothing
+    cut = np.min([phi_field.config.n_smoothing, len(ratio_history)])
 
 
     ### light observables ### (calculated always during calculator and generator stages)
@@ -140,7 +135,6 @@ def perform_sweep(phi_field, n_sweep, switch = True):
                        np.mean(accept_history[-cut:]), np.std(accept_history[-cut:]) / np.sqrt(cut),
                        np.mean(sign_history[-cut:]), np.std(sign_history[-cut:]) / np.sqrt(cut), 
                        np.mean(obs_signs_light), np.std(obs_signs_light) / np.sqrt(len(obs_signs_light))]
-
     observables_light = np.concatenate([np.array(obs_light_extra), observables_light], axis = 0)
     names_light = ['⟨ratio⟩', '⟨acc⟩', '⟨sign_gen⟩', '⟨sign_obs_l⟩'] + names_light
 
@@ -159,18 +153,20 @@ def perform_sweep(phi_field, n_sweep, switch = True):
 if __name__ == "__main__":
     print_greetings(config)
 
-    K_matrix = config.model(config, config.mu)[0]
-    K_operator = scipy.linalg.expm(config.dt * K_matrix)
-    K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
+    U_list = deepcopy(config.U); V_list = deepcopy(config.V); mu_list = deepcopy(config.mu)
 
-    U_list = deepcopy(config.U); V_list = deepcopy(config.V)
-
-    for U, V in zip(U_list, V_list):
-        config.U = U; config.V = V;
+    for U, V, mu in zip(U_list, V_list, mu_list):
+        config.U = U; config.V = V; config.mu = mu;
+        
+        config.nu_V = np.arccosh(np.exp(V / 2. * config.dt))
+        config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
+        K_matrix = config.model(config, config.mu)[0]
+        K_operator = scipy.linalg.expm(config.dt * K_matrix)
+        K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
         phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix, gpu_avail)
         phi_field.copy_to_GPU()
 
-        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}'.format(U, V))  # add here all parameters that are being iterated
+        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}'.format(U, V, mu))  # add here all parameters that are being iterated
         os.makedirs(local_workdir, exist_ok=True)
 
         obs_files = []

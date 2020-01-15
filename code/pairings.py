@@ -161,7 +161,7 @@ def construct_on_site_2orb_hex(config, real = True):
     on_site.append([(Ipauli, Ipauli, onsite, 1), factor, addstring + 'σ_0⊗σ_0⊗δ'])  # A1 0
     on_site.append([(Zpauli, iYpauli, onsite, 1), factor, addstring + 'σ_z⊗jσ_y⊗δ'])  # A1 1
     on_site.append([(Ipauli, iYpauli, onsite, 1), factor, addstring + 'σ_0⊗jσ_y⊗δ'])  # A2 2
-    on_site.append([(Zpauli, Ipauli, onsite, 1), factor, addstring + 'σ_z⊗I⊗δ'])  # A2 3
+    on_site.append([(Zpauli, Ipauli, onsite, 1), factor, addstring + 'σ_z⊗σ_0⊗δ'])  # A2 3
 
     on_site.append([(Ipauli, Xpauli, onsite, 1.0), factor, addstring + 'σ_0⊗σ_x⊗δ']); on_site.append([(Ipauli, Zpauli, onsite, 1.0), factor, addstring + 'σ_0⊗σ_z⊗δ'])  # E 4-5
     on_site.append([(Zpauli, Xpauli, onsite, 1.0), factor, addstring + 'σ_z⊗σ_x⊗δ']); on_site.append([(Zpauli, Zpauli, onsite, 1.0), factor, addstring + 'σ_z⊗σ_z⊗δ'])  # E 6-7

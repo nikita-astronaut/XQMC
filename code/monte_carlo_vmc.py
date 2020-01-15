@@ -153,8 +153,9 @@ pairings_names = config_vmc.pairings_list_names
 
 U_list = deepcopy(config_vmc.U)
 V_list = deepcopy(config_vmc.V)
+N_electrons_list = depcopy(config_vmc.N_electrons)
 
-for U, V in zip(U_list, V_list):
+for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
     local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}'.format(U, V))  # add here all parameters that are being iterated
     os.makedirs(local_workdir, exist_ok=True)
 
