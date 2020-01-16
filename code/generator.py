@@ -141,6 +141,7 @@ def perform_sweep(phi_field, n_sweep, switch = True):
     ### heavy observables ### (calculated only during the generator stage)
     if n_sweep >= phi_field.config.thermalization:
         observables_heavy = np.array(observables_heavy) / np.mean(obs_signs_heavy)
+
         observables_heavy = np.concatenate([observables_heavy.mean(axis = 0)[:, np.newaxis], 
                                             observables_heavy.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
 
@@ -177,7 +178,6 @@ if __name__ == "__main__":
             current_field, light, heavy = perform_sweep(phi_field, n_sweep)
 
             obs_l, names_l = light; obs_h, names_h = heavy
-
             ### light logging ###
             if n_sweep == 0:
                 log_file.write('step ' + ('{:s} d{:s} ' * len(names_l)).format(*[x for pair in zip(names_l, names_l) for x in pair])); log_file.write('\n')
@@ -188,20 +188,32 @@ if __name__ == "__main__":
 
             ### heavy logging ###
             if n_sweep == config.thermalization:
-                for obs_name in names_h:
+                for obs_name in names_h[1:]:
                     obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
                 
-                obs_files[-1].write('step sign_obs dsign_obs ')
-                for adj in current_field.adj_list:
-                    obs_files[-1].write("f({:.5e}/{:d}/{:d}) df({:.5e}/{:d}/{:d}) ".format(adj[3], \
-                                        adj[1], adj[2], adj[3], adj[1], adj[2])); obs_files[-1].write('\n')
-                
+                    if 'density' in obs_name:
+                        adj_list = current_field.adj_list[:current_field.config.n_adj_density]  # on-site and nn
+                    else:
+                        adj_list = current_field.adj_list[-current_field.config.n_adj_pairings:]  # only largest distance
 
-            data_per_name = len(current_field.adj_list) * 2  # mean and std
-            offset = 2
-            for n, file in enumerate(obs_files):
-                data = obs_h[:offset]; file.write(('{:d} ' + '{:.6e} ' * offset).format(n_sweep, *data))  # for sign
-                data = obs_h[offset + data_per_name * n : offset + data_per_name * (n + 1)]
+                    obs_files[-1].write('step sign_obs dsign_obs ')
+                    for adj in adj_list:
+                        obs_files[-1].write("f({:.5e}/{:d}/{:d}) df({:.5e}/{:d}/{:d}) ".format(adj[3], \
+                                            adj[1], adj[2], adj[3], adj[1], adj[2]));
+                    obs_files[-1].write('\n')
+                
+            ### to files writing ###
+            data_per_name_pairings = current_field.config.n_adj_pairings * 2  # mean and std
+            data_per_name_densities = current_field.config.n_adj_density * 2  # mean and std
+            add_offset = 2
+            current_written = 0
+            for file in obs_files:
+                data = obs_h[:add_offset]; file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))  # for sign and epoch no
+
+                data_size = data_per_name_densities if 'density' in file.name else data_per_name_pairings
+
+                data = obs_h[add_offset + current_written:add_offset + current_written + data_size]
+                current_written += data_size
                 file.write(("{:.6e} " * len(data)).format(*data)); file.write('\n')
                 file.flush()
         log_file.close()

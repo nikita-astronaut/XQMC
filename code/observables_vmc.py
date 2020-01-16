@@ -72,19 +72,18 @@ def compute_observables(wf):
     state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
     observables = []
 
-    pairings_orb = (wf.config.n_orbitals * (phi.config.n_orbitals + 1)) // 2
     adj_list = wf.Jastrow_A
-    adj_list_density = adj_list[:2 * pairings_orb]  # on-site and nn
-    adj_list_pairings = adj_list[-pairings_orb:]  # only largest distance
+    adj_list_density = adj_list[:wf.config.n_adj_density]  # on-site and nn
+    adj_list_pairings = adj_list[-wf.config.n_adj_pairings:]  # only largest distance
     
-    names = ['density']
+    names = ['⟨nupndown⟩_density']
     for adj in adj_list_density:
         observables.append(n_up_n_down_correlator(state, adj[0]))
 
     for pairing_unwrapped, name in zip(wf.pairings_list_unwrapped, wf.config.pairings_list_names):  # only the real-ones (since the imaginary factor j is irrelevant)
         if name[0] == 'j':
             continue
-        names.append(name)
+        names.append('⟨' + name + '⟩_pairing')
         for adj in adj_list_pairings:
             observables.append(gap_gap_correlator(state, pairing_unwrapped, adj[0]))
     return observables, names

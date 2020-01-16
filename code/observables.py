@@ -156,12 +156,10 @@ def compute_light_observables(phi):
     return observables, names
 
 def compute_heavy_observables(phi):
-    pairings_orb = (phi.config.n_orbitals * (phi.config.n_orbitals + 1)) // 2
-
-    adj_list_density = phi.adj_list[:2 * pairings_orb]  # on-site and nn
-    adj_list_pairings = phi.adj_list[-pairings_orb:]  # only largest distance
+    adj_list_density = phi.adj_list[:phi.config.n_adj_density]  # on-site and nn
+    adj_list_pairings = phi.adj_list[-phi.config.n_adj_pairings:]  # only largest distance
     observables = []
-    names = ['⟨nupndown⟩'] + phi.config.pairings_list_names
+    names = ['⟨nupndown⟩_density'] + ['⟨' + p + '⟩_pairing' for p in phi.config.pairings_list_names]
 
     for adj in adj_list_density:
         observables.append(n_up_n_down_correlator(phi, adj[0]).item())

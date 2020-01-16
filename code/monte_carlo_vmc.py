@@ -292,7 +292,13 @@ for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
             for obs_name in observables_names:
                 obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
                 
-                for adj in config_vmc.adjacency_list:
+                if 'density' in obs_name:
+                    adj_list = config_vmc.adjacency_list[:config_vmc.n_adj_density]  # on-site and nn
+                else:
+                    adj_list = config_vmc.adjacency_list[-config_vmc.n_adj_pairings:]  # only largest distance
+
+
+                for adj in adj_list:
                     obs_files[-1].write("f({:.5e}/{:d}/{:d}) df({:.5e}/{:d}/{:d}) ".format(adj[3], \
                                         adj[1], adj[2], adj[3], adj[1], adj[2]))
                 obs_files[-1].write('\n')
@@ -300,11 +306,17 @@ for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
         observables = np.concatenate([observables.mean(axis = 0)[:, np.newaxis],\
                       observables.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
         
-        data_per_name = len(config_vmc.adjacency_list) * 2  # mean and std
-        for n, file in enumerate(obs_files):
-            data = observables[data_per_name * n : data_per_name * (n + 1)]
-            file.write(("{:.6e} " * len(data)).format(*data))
-            file.write('\n')
+        ### to files writing ###
+        data_per_name_pairings = current_field.config.n_adj_pairings * 2  # mean and std
+        data_per_name_densities = current_field.config.n_adj_density * 2  # mean and std
+        current_written = 0
+        for file in obs_files:
+            file.write(('{:d} ').format(n_step))  # for sign and epoch no
+            data_size = data_per_name_densities if 'density' in file.name else data_per_name_pairings
+
+            data = obs_h[current_written:current_written + data_size]
+            current_written += data_size
+            file.write(("{:.6e} " * len(data)).format(*data)); file.write('\n')
             file.flush()
     log_file.close()
     levels_log_file.close()
