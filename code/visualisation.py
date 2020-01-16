@@ -54,7 +54,7 @@ def plot_fermi_surface(config):
             energies.append(np.sort(e_k))
     energies = np.array(energies).real
     k_vectors = np.array(k_vectors)
-    E_max = np.sort(np.array(energies).reshape(-1))[config.N_electrons // 2]  # 2-spin degeneracy
+    E_max = np.sort(np.array(energies).reshape(-1))[config.N_electrons[0] // 2]  # 2-spin degeneracy
 
     set_style()
     fig = plt.figure()
