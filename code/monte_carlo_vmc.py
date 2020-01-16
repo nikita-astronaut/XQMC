@@ -13,6 +13,7 @@ import observables_vmc
 from copy import deepcopy
 import os
 import pickle
+import config_vmc as cv_module
 
 def perform_transition_analysis(Es, U_vecs, current_labels, config):
     if len(U_vecs) < 2:
@@ -66,10 +67,14 @@ def import_config(filename: str):
     sys.path.pop(0)
     return module
 
-config_vmc = import_config(sys.argv[1])
-from config_vmc import MC_parameters as config_vmc
-config_vmc = config_vmc()
+config_vmc_file = import_config(sys.argv[1])
+config_vmc_import = config_vmc_file.MC_parameters()
 
+config_vmc = cv_module.MC_parameters()
+config_vmc.__dict__ = config_vmc_import.__dict__.copy()
+
+
+print(config_vmc, config_vmc.U)
 os.makedirs(config_vmc.workdir, exist_ok=True)
 with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target,\
      open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
@@ -99,7 +104,6 @@ print('performing simulation at', n_cpus, 'CPUs')
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final_state = False):
     hamiltonian = config_vmc.hamiltonian(config_vmc)
-
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, False, None)
     else:
@@ -111,6 +115,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
     else:
         for MC_step in range(config_vmc.MC_chain // 4):  # else thermalize a little bit
             wf.perform_MC_step()
+
     energies = []
     Os = []
     acceptance = []
@@ -155,7 +160,7 @@ pairings_names = config_vmc.pairings_list_names
 
 U_list = deepcopy(config_vmc.U)
 V_list = deepcopy(config_vmc.V)
-N_electrons_list = depcopy(config_vmc.N_electrons)
+N_electrons_list = deepcopy(config_vmc.N_electrons)
 
 for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
     local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_{:d}'.format(U, V, N_electrons))  # add here all parameters that are being iterated
@@ -174,7 +179,7 @@ for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
     config_vmc.U = U
     config_vmc.V = V
     config_vmc.N_electrons = N_electrons
-
+    print(config_vmc.correlation)
     H = config_vmc.hamiltonian(config_vmc)
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
