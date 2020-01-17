@@ -163,7 +163,7 @@ J_list = deepcopy(config_vmc.J)
 N_electrons_list = deepcopy(config_vmc.N_electrons)
 
 for U, V, J, N_electrons in zip(U_list, V_list, J_list, N_electrons_list):
-    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_J_{:2f}_{:d}'.format(U, V, J, N_electrons))  # add here all parameters that are being iterated
+    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_J_{:.2f}_{:d}'.format(U, V, J, N_electrons))  # add here all parameters that are being iterated
     os.makedirs(local_workdir, exist_ok=True)
 
     obs_files = []
@@ -292,7 +292,7 @@ for U, V, J, N_electrons in zip(U_list, V_list, J_list, N_electrons_list):
 
         if n_step == config_vmc.thermalization + 1:
             for obs_name in observables_names:
-                obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
+                obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'a+'))
                 
                 if 'density' in obs_name:
                     adj_list = config_vmc.adjacency_list[:config_vmc.n_adj_density]  # on-site and nn
