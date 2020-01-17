@@ -74,7 +74,6 @@ config_vmc = cv_module.MC_parameters()
 config_vmc.__dict__ = config_vmc_import.__dict__.copy()
 
 
-print(config_vmc, config_vmc.U)
 os.makedirs(config_vmc.workdir, exist_ok=True)
 with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target,\
      open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
@@ -160,10 +159,11 @@ pairings_names = config_vmc.pairings_list_names
 
 U_list = deepcopy(config_vmc.U)
 V_list = deepcopy(config_vmc.V)
+J_list = deepcopy(config_vmc.J)
 N_electrons_list = deepcopy(config_vmc.N_electrons)
 
-for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
-    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_{:d}'.format(U, V, N_electrons))  # add here all parameters that are being iterated
+for U, V, J, N_electrons in zip(U_list, V_list, J_list, N_electrons_list):
+    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_J_{:2f}_{:d}'.format(U, V, J, N_electrons))  # add here all parameters that are being iterated
     os.makedirs(local_workdir, exist_ok=True)
 
     obs_files = []
@@ -178,8 +178,9 @@ for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
 
     config_vmc.U = U
     config_vmc.V = V
+    config_vmc.J = J
     config_vmc.N_electrons = N_electrons
-    print(config_vmc.correlation)
+
     H = config_vmc.hamiltonian(config_vmc)
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
@@ -223,7 +224,7 @@ for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
         levels_log_file.flush()
         ###### END OCCUPATION LOGGING #####
 
-        ### SR STEP ###
+        
         energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)
         Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
         acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
@@ -241,9 +242,10 @@ for U, V, N_electrons in zip(U_list, V_list, N_electrons_list):
         print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
 
 
+        ### SR STEP ###
         Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
         S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
-    
+
         S_cov = remove_singularity(S_cov)
 
         forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)

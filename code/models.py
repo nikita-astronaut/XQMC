@@ -106,7 +106,7 @@ def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
 def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 2):
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
-def model_hex_2orb_Kashino(config, mu, only_NN = False):
+def model_hex_2orb_Koshino(config, mu, only_NN = False):
     n_orbitals = 2
     n_sublattices = 2
     total_dof = config.Ls ** 2 * n_orbitals * n_sublattices * 2
