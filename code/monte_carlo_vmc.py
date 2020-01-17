@@ -183,7 +183,7 @@ for U, V, J, N_electrons in zip(U_list, V_list, J_list, N_electrons_list):
 
     H = config_vmc.hamiltonian(config_vmc)
  
-    log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
+    log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
     levels_log_file = open(os.path.join(local_workdir, 'levels_log.dat'), 'w')
 
     final_states = [False] * n_cpus
