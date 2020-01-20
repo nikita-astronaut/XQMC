@@ -243,10 +243,16 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = False):  # inv
             orbit2, sublattice2, x2, y2 = from_linearized_index(second, Ls, n_orbitals, n_sublattices)
 
             if np.abs(x1 - x2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
-                K[first, second] *= x_factor
+                if x2 > x1:
+                    K[first, second] *= x_factor
+                else:
+                    K[first, second] *= np.conj(x_factor)
 
             if np.abs(y1 - y2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
-                K[first, second] *= y_factor
+                if y2 > y1:
+                    K[first, second] *= y_factor
+                else:
+                    K[first, second] *= np.conj(y_factor)
     return K
 
 def apply_TBC(config, K, inverse = False):
