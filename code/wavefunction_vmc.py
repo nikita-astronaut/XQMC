@@ -4,25 +4,34 @@ import pairings
 import models
 from copy import deepcopy
 from numba import jit
+import scipy
 
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, var_mu, var_SDW, var_CDW, 
                  var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):
         self.config = config
-        self.pairings_list_unwrapped = self.config.pairings_list_unwrapped
-        self.var_params_gap = var_params_gap  # if the parameter is complex, we need to double the gap (repeat it twice in the list, but one of times with the i (real = False))
+        self.pairings_list_unwrapped = [models.apply_TBC(config, deepcopy(gap), inverse = False) \
+                                        for gap in self.config.pairings_list_unwrapped]
+        self.var_params_gap = var_params_gap
         self.var_params_Jastrow = var_params_Jastrow
         self.var_mu = var_mu
         self.var_SDW = var_SDW
         self.var_CDW = var_CDW
-        self.checkerboard = models.spatial_checkerboard(self.config)
 
+
+        ### mean-field Hamiltonian precomputed elements ###
+        self.K_up = self.config.model(self.config, self.var_mu, spin = +1.0)[0]
+        self.K_down = self.config.model(self.config, self.var_mu, spin = -1.0)[0]
+        self.Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
+        self.checkerboard = models.spatial_checkerboard(self.config.Ls)
         self.Jastrow_A = config.adjacency_list
         self.Jastrow = np.sum(np.array([A[0] * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
+
+
+        ### diagonalisation of the MF--Hamiltonian ###
         self.U_matrix = self._construct_U_matrix()
         self.with_previous_state = with_previous_state
-
         self.MC_step_index = 0
         self.update = 0.
         self.wf = 0.
@@ -30,7 +39,9 @@ class wavefunction_singlet():
         if self.config.PN_projection:
             self.total_fugacity = 0.0
         else:
-            self.total_fugacity = np.sum(self.Jastrow) / self.Jastrow.shape[0] + self.config.fugacity
+            self.total_fugacity = self.config.fugacity  # counted from the level of (1/N) np.sum(Jastrow)
+
+
 
 
         while True:
@@ -48,6 +59,9 @@ class wavefunction_singlet():
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
                 print('degenerate')
 
+
+
+        ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
 
         self.a_update_list = []
@@ -55,6 +69,10 @@ class wavefunction_singlet():
 
         self.current_ampl = self.get_cur_det() * self.get_cur_Jastrow_factor()
         self.current_det = self.get_cur_det()
+
+
+
+        ### pre-computed W-matrices for fast derivative computation ###
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
        
@@ -64,15 +82,31 @@ class wavefunction_singlet():
                                    [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
                                     dof % self.config.n_sublattices, 'CDW')) \
                                     for dof in range(self.config.n_orbitals * self.config.n_sublattices)]
+        
 
+        ### allowed 1-particle moves ###
+        self.adjacency_matrix = np.abs(np.asarray(self.config.model(self.config, 0.0, spin = 1.0)[0])) > 1e-6
+        self.big_adjacency_matrix = np.kron(np.eye(2), self.adjacency_matrix)
+        if not self.config.PN_projection:  # not only particle-conserving moves
+            self.big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(self.adjacency_matrix.shape[0]))
+            # on-site pariticle<->hole transitions
+
+        self.adjacency_list = [np.where(self.big_adjacency_matrix[:, i] > 0)[0] \
+                               for i in range(self.big_adjacency_matrix.shape[1])]
+
+        ### random numbers for random moves ###
         self.random_numbers_acceptance = np.random.random(size = int(1e+7))
         self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+7))
         self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(1e+7))
+
         return
 
     def get_cur_Jastrow_factor(self):
         return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy) - \
                       self.total_fugacity * np.sum(self.occupancy))
+
+    def total_density(self):
+        return np.sum(self.occupancy) + self.config.total_dof // 2
 
     def get_cur_det(self):
         return np.linalg.det(self._construct_U_tilde_matrix())
@@ -84,13 +118,13 @@ class wavefunction_singlet():
         return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index][0], self.occupancy)
 
     def _construct_gap_V(self, gap):
-        V = np.zeros((2 * self.K.shape[0], 2 * self.K.shape[1])) * 1.0j  # (6.91) in S. Sorella book
-        V[:self.K.shape[0], self.K.shape[1]:] = gap
-        V[self.K.shape[0]:, :self.K.shape[1]] = gap.conj().T
+        V = np.zeros((self.config.total_dof, self.config.total_dof)) * 1.0j  # (6.91) in S. Sorella book
+        V[:self.config.total_dof // 2, self.config.total_dof // 2:] = gap
+        V[self.config.total_dof // 2:, :self.config.total_dof // 2] = gap.conj().T
         return V
 
     def _construct_mu_V(self):
-        V = -np.diag([1.0] * self.K.shape[0] + [-1.0] * self.K.shape[0]) + 0.0j
+        V = -np.diag([1.0] * (self.config.total_dof // 2) + [-1.0] * (self.config.total_dof // 2)) + 0.0j
         return V
 
     def _construct_wave_V(self, orbital, sublattice, wave_type):
@@ -134,26 +168,12 @@ class wavefunction_singlet():
         return np.array(O)
 
     def _construct_U_matrix(self):
-        self.K = self.config.model(self.config, self.var_mu)[0]
-        self.adjacency_matrix = np.abs(np.asarray(self.config.model(self.config, 0.0)[0])) > 1e-6
-
-        self.big_adjacency_matrix = np.kron(np.eye(2), self.adjacency_matrix)
-        if not self.config.PN_projection:  # not only particle-conserving moves
-            self.big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(self.adjacency_matrix.shape[0]))
-            # on-site pariticle<->hole transitions
-
-        self.adjacency_list = [np.where(self.big_adjacency_matrix[:, i] > 0)[0] \
-                               for i in range(self.big_adjacency_matrix.shape[1])]
-
-        Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
-
         ## CONTRUCTION OF H_MF (mean field, denoted as T) ##
         ## standard kinetic term (\mu included) ##
-        T = np.kron(np.diag([1, -1]), self.K) + 0.0j
-
+        T = scipy.linalg.block_diag(self.K_up, self.K_down) + 0.0j
         ## various local pairing terms ##
-        T[:self.K.shape[0], self.K.shape[1]:] = Delta
-        T[self.K.shape[0]:, :self.K.shape[1]] = Delta.conj().T
+        T[:self.config.total_dof // 2, self.config.total_dof // 2:] = self.Delta
+        T[self.config.total_dof // 2:, :self.config.total_dof // 2] = self.Delta.conj().T
         
         ## SDW/CDW is the same for every orbital and sublattice ##
 
@@ -178,8 +198,6 @@ class wavefunction_singlet():
 
 
         U = U[:, lowest_energy_states]  # select only occupied orbitals
-        self.n_particles = int(np.rint((np.sum(U[:U.shape[0] // 2] * np.conj(U[:U.shape[0] // 2]))).real))
-        self.n_holes = int(np.rint(np.sum(U[U.shape[0] // 2:] * np.conj(U[U.shape[0] // 2:])).real))
         self.E_fermi = np.max(self.E[lowest_energy_states])
 
         if E[rest_states].min() - self.E_fermi < 1e-14:
@@ -216,12 +234,10 @@ class wavefunction_singlet():
 
     def perform_MC_step(self, proposed_move = None, enforce = False):
         self.MC_step_index += 1
-        n_attempts = 0
 
         if proposed_move == None:
             moved_site_idx = self.random_numbers_move[self.MC_step_index]
             moved_site = self.occupied_sites[moved_site_idx]
-            # empty_site = random.sample(self.empty_sites,. 1)
             empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]
         else:  # only in testmode
             moved_site, empty_site = proposed_move

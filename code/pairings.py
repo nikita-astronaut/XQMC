@@ -18,7 +18,6 @@ identity = np.array([[1]])
 def construct_onsite_delta(config):
     return np.eye(config.Ls ** 2 * config.n_sublattices)
 
-
 '''
     1) in the case of square lattice constructs just the adjacency matrix with links looking onle in one direction (e.g. only up)
     2) for hexagonal lattice the geometry is harder. We can have links of two kinds (A->B and B->A), and every link has three
@@ -46,7 +45,7 @@ def construct_NN_delta(config, direction, geometry):
             if interlattice != sublattice2 - sublattice1:
                 continue
 
-            if direction == models.nearest_neighbor(r1, r2, config.Ls, geometry, return_direction = True)[1]:
+            if direction == models.nearest_neighbor(r1, r2, config.Ls, geometry)[1]:
                 delta[first, second] = 1
 
     return delta
@@ -132,7 +131,7 @@ def combine_product_terms(config, pairing):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     for sigma_ll, sigma_oo, delta_ii, C in pairing[:-2]:
         Delta += C * expand_tensor_product(config, sigma_ll, sigma_oo, delta_ii)  # C -- the coefficient corresponding for the right D_3 transformation properties (irrep)
-    return models.apply_twisted_periodic_conditions(config, config.n_orbitals, config.n_sublattices, Delta * pairing[-2])  # the overal coefficient of this irrep (can be 1 or i)
+    return Delta * pairing[-2]  # the overal coefficient of this irrep (can be 1 or i)
 
 def get_total_pairing(config, pairings, var_params):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j

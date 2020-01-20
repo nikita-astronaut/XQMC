@@ -25,7 +25,7 @@ def perform_transition_analysis(Es, U_vecs, current_labels, config):
     for i in range(len(new_labels)):
         new_labels[i] = current_labels[np.argsort(A[:, i])[-1]]
         A[np.argsort(A[:, i])[-1], i] = 0.0
-    print('remainings:', [np.sum(np.abs(A[:, j]) ** 2) for j in range(A.shape[1])])
+    # print('remainings:', [np.sum(np.abs(A[:, j]) ** 2) for j in range(A.shape[1])])
     return new_labels.astype(np.int64)
 
 def remove_singularity(S):
@@ -75,7 +75,7 @@ config_vmc.__dict__ = config_vmc_import.__dict__.copy()
 
 
 os.makedirs(config_vmc.workdir, exist_ok=True)
-with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target,\
+with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target, \
      open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
     target.write(source.read())
 
@@ -102,7 +102,14 @@ print('performing simulation at', n_cpus, 'CPUs')
 
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final_state = False):
-    hamiltonian = config_vmc.hamiltonian(config_vmc)
+    twist = [1., 1.]
+    if config_vmc.BC_twist:
+        twist = np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2)  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
+
+    config_vmc.twist = tuple(twist)
+    hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
+
+
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, False, None)
     else:
@@ -115,9 +122,11 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
         for MC_step in range(config_vmc.MC_chain // 4):  # else thermalize a little bit
             wf.perform_MC_step()
 
+
     energies = []
     Os = []
     acceptance = []
+    densities = []
     t_energies = 0
     t_steps = 0
     t_forces = 0
@@ -134,6 +143,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
 
             t = time()
             energies.append(hamiltonian(wf))
+            densities.append(wf.total_density())
             t_energies += time() - t
 
             t = time()
@@ -152,7 +162,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final
         t_steps += time() - t
 
     print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf)
-    return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E
+    return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E, densities
 
 pairings_list = config_vmc.pairings_list
 pairings_names = config_vmc.pairings_list_names
@@ -213,7 +223,7 @@ for U, V, J, N_electrons in zip(U_list, V_list, J_list, N_electrons_list):
     current_selected_states = np.arange(config_vmc.total_dof // 2)  # labels of the threads that are now in the min-level set [better they do not change...]
 
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
-        results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, config_vmc, pairings_list, \
+        results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, deepcopy(config_vmc), pairings_list, \
                                                                        (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
                                                                        final_state = final_states[i]) for i in range(n_cpus))
         ###### OCCUPATION LOGGING #####
@@ -235,6 +245,7 @@ for U, V, J, N_electrons in zip(U_list, V_list, J_list, N_electrons_list):
         acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
         final_states = [x[3] for x in results]
         vol = config_vmc.total_dof // 2
+        densities = np.concatenate([np.array(x[8]) for x in results], axis = 0)
 
         Os_mean = np.mean(Os, axis = 0)
         forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean).real
@@ -243,6 +254,7 @@ for U, V, J, N_electrons in zip(U_list, V_list, J_list, N_electrons_list):
 
         print('estimating gradient on ', len(energies), 'samples', flush = True)
         print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
+        print('\033[93m <n> / vol = ' + str(np.mean(densities) / vol) + '+/-' + str(np.std(densities) / np.sqrt(len(densities)) / vol) + '\033[0m', flush = True)
         print('\033[93m σ^2 / t / vol = ' + str(variance) + '\033[0m', flush = True)
         print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
 

@@ -4,10 +4,15 @@ from time import time
 from wavefunction_vmc import get_wf_ratio, density, get_wf_ratio_double_exchange
 from numba import jit
 from time import time
+import scipy
+
 
 class HubbardHamiltonian(object):
     def __init__(self, config):
         self.config = config
+        K_matrix_up = self.config.model(self.config, 0.0, spin = +1.0)[0]
+        K_matrix_down = self.config.model(self.config, 0.0, spin = -1.0)[0]
+        self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
 
     def _get_edges(self):
         raise NotImplementedError()
@@ -18,34 +23,21 @@ class HubbardHamiltonian(object):
 class hamiltonian_Koshino(HubbardHamiltonian):
     def __init__(self, config):
         super().__init__(config)
-        self.edges_quadratic, self.edges_quadric, self.orbitsals = self._get_edges()
+        self.edges_quadric, self.orbitals = self._get_interaction()
 
-    def _get_edges(self):
-        edges_quadratic = []  # for t_{ij} c^{\dag}_i c_j interactions
-        K_matrix = self.config.model(self.config, 0.0)[0]
-
-        edges_quadratic = np.zeros((2 * K_matrix.shape[0], 2 * K_matrix.shape[1]))
-        edges_quadratic[:K_matrix.shape[0], :K_matrix.shape[1]] = K_matrix
-        edges_quadratic[K_matrix.shape[0]:, K_matrix.shape[1]:] = -K_matrix
-
+    def _get_interaction(self):
         # for V_{ij} n_i n_j density--density interactions
-        edges_quadric = np.diag(np.ones(K_matrix.shape[0]) * self.config.U / 2.0)
+        edges_quadric = np.diag(np.ones(self.config.total_dof // 2) * self.config.U / 2.0)
 
-        x_orbit, y_orbit = np.arange(0, self.config.total_dof // 2 // 2, 2), \
-                           np.arange(1, self.config.total_dof // 2 // 2, 2)  # for Hund exchange terms
+        x_orbit, y_orbit = np.arange(0, self.config.total_dof // 2, 2), \
+                           np.arange(1, self.config.total_dof // 2, 2)
                            # x_orbit[i] and y_orbit[i] are the two orbitals residing on the same lattice site
 
-        for i in range(K_matrix.shape[0]):
-            for j in range(K_matrix.shape[1]):
-                orbit1, sublattice1, x1, y1 = models.from_linearized_index(i, self.config.Ls, self.config.n_orbitals)
-                orbit2, sublattice2, x2, y2 = models.from_linearized_index(j, self.config.Ls, self.config.n_orbitals)
+        for x, y in zip(x_orbit, y_orbit):
+            edges_quadric[x, y] = self.config.V / 2.0
+            edges_quadric[y, x] = self.config.V / 2.0
 
-                if x1 == x2 and y1 == y2 and sublattice1 == sublattice2 and orbit1 != orbit2:
-                    edges_quadric[i, j] = self.config.V / 2.0
-
-
-
-        return edges_quadratic, edges_quadric, (x_orbit, y_orbit)
+        return edges_quadric, (x_orbit, y_orbit)
 
     def __call__(self, wf):
         '''
@@ -72,28 +64,22 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         if self.config.J == 0:
             return E_loc
 
-        # Hund terms:
-        E_loc += self.config.J * (get_E_J_Hund(self.orbitsals, wf_state, wf.total_fugacity) + \
-                                  get_E_Jprime_Hund(self.orbitsals, wf_state, wf.total_fugacity))
+        # Hund terms (are not affected by the twisted BC):
+        E_loc += self.config.J * (get_E_J_Hund(self.orbitals, wf_state, wf.total_fugacity) + \
+                                  get_E_Jprime_Hund(self.orbitals, wf_state, wf.total_fugacity))
         return E_loc
 
 
 class hamiltonian_2bands(HubbardHamiltonian):
     def __init__(self, config):
         super().__init__(config)
+        self.edges_quadric = _get_interaction(self)
 
-    def _get_edges(self):
-        edges_quadratic = []  # for t_{ij} c^{\dag}_i c_j interactions
-        K_matrix = self.config.model(self.config, 0.0)
-        self.offdiagonal_mask = np.ones(K_matrix.shape[0])
-        self.offdiagonal_mask -= np.diag(np.diag(self.offdiagonal_mask))
-
-        edges_quadratic = np.kron(np.diag([1, -1]), K_matrix)
-
+    def _get_interaction(self):
         # for V_{ij} n_i n_j density--density interactions
-        edges_quadric = np.diag(np.ones(K_matrix.shape[0]) * self.config.U / 2.0)
+        edges_quadric = np.diag(np.ones(self.config.total_dof // 2) * self.config.U / 2.0)
 
-        return edges_quadratic, edges_quadric
+        return edges_quadric
 
 @jit(nopython=True)
 def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
