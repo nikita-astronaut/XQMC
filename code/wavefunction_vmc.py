@@ -19,7 +19,6 @@ class wavefunction_singlet():
         self.var_SDW = var_SDW
         self.var_CDW = var_CDW
 
-
         ### mean-field Hamiltonian precomputed elements ###
         self.K_up = self.config.model(self.config, self.var_mu, spin = +1.0)[0]
         self.K_down = self.config.model(self.config, self.var_mu, spin = -1.0)[0]
@@ -170,11 +169,11 @@ class wavefunction_singlet():
     def _construct_U_matrix(self):
         ## CONTRUCTION OF H_MF (mean field, denoted as T) ##
         ## standard kinetic term (\mu included) ##
-        T = scipy.linalg.block_diag(self.K_up, self.K_down) + 0.0j
+        T = scipy.linalg.block_diag(self.K_up, -self.K_down) + 0.0j
         ## various local pairing terms ##
-        T[:self.config.total_dof // 2, self.config.total_dof // 2:] = self.Delta
-        T[self.config.total_dof // 2:, :self.config.total_dof // 2] = self.Delta.conj().T
-        
+        T[:self.config.total_dof // 2, self.config.total_dof // 2:] = 0 * self.Delta
+        T[self.config.total_dof // 2:, :self.config.total_dof // 2] = 0 * self.Delta.conj().T
+
         ## SDW/CDW is the same for every orbital and sublattice ##
 
         for dof in range(self.config.n_orbitals * self.config.n_sublattices):

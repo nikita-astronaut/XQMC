@@ -9,16 +9,15 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
-        self.BC_twist = False  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
+        self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.twist = tuple([1., 1.])
         self.model = models.model_hex_2orb_Koshino
         _, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)
 
 
-
         ### interaction parameters ###
-        self.U = np.array([2.] * 5) # the force of on-site Coulomb repulsion in the units of t1
-        self.V = np.array([2.] * 5) # the force of on-site Coulomb repulsion in the units of t1
+        self.U = np.array([2.]) # the force of on-site Coulomb repulsion in the units of t1
+        self.V = np.array([2.]) # the force of on-site Coulomb repulsion in the units of t1
         self.J = (self.U - self.V) / 2  # only used in 2-orbital models, set equal to J'
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
 
@@ -60,5 +59,5 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False; self.tests = False
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/astronaut/DQMC_TBG/logs/3/'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/test/'
         self.load_parameters = False  # whether to load previous variational parameters from workdir

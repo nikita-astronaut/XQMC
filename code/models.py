@@ -121,7 +121,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
 
 
 def model_hex_2orb_Koshino(config, mu, spin):
-    return _model_hex_2orb_Koshino(config.Ls, config.twist, config.mu, spin)
+    return _model_hex_2orb_Koshino(config.Ls, config.twist, mu, spin)
 
 
 @jit(nopython=True)
@@ -149,7 +149,7 @@ def _model_hex_1orb(Ls, twist, mu, spin):
     return _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = inverse), n_orbitals, n_sublattices
 
 def model_hex_1orb(config, mu, spin):
-    return _model_hex_1orb(config.Ls, config.twist, config.mu, spin)
+    return _model_hex_1orb(config.Ls, config.twist, mu, spin)
 
 
 def interorbital_mod(A, n_orbitals, dist):
@@ -227,7 +227,7 @@ def _model_square_1orb(Ls, twist, mu, spin):
 
 
 def model_square_1orb(config, mu, spin):
-    return _model_square_1orb(config.Ls, config.twist, config.mu, spin)
+    return _model_square_1orb(config.Ls, config.twist, mu, spin)
 
 
 @jit(nopython=True)
