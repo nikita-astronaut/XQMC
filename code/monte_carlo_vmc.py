@@ -37,7 +37,7 @@ def remove_singularity(S):
     return S
 
 def save_parameters(mu, sdw, cdw, gap, jastrow, local_workdir, step_no):
-    params_dict = {'mu' : mu_parameter, 'sdw' : sdw, 'cdw' : cdw, 'gap' : gap, 'jastrow' : jastrow, 'step_no' : step_no}
+    params_dict = {'mu' : mu, 'sdw' : sdw, 'cdw' : cdw, 'gap' : gap, 'jastrow' : jastrow, 'step_no' : step_no}
     return pickle.dump(params_dict, open(os.path.join(local_workdir, 'last_opt_params.p'), "wb"))
 
 def load_parameters(local_workdir):
