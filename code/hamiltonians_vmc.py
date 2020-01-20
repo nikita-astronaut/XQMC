@@ -60,7 +60,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
-        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state)
+        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.total_fugacity)
 
         density = particles - holes
         E_loc -= self.config.mu * np.sum(density + 1)
@@ -73,7 +73,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             return E_loc
 
         # Hund terms:
-        E_loc += self.config.J * (get_E_J_Hund(self.orbitsals, wf_state) + get_E_Jprime_Hund(self.orbitsals, wf_state))
+        E_loc += self.config.J * (get_E_J_Hund(self.orbitsals, wf_state, wf.total_fugacity) + \
+                                  get_E_Jprime_Hund(self.orbitsals, wf_state, wf.total_fugacity))
         return E_loc
 
 
@@ -95,18 +96,18 @@ class hamiltonian_2bands(HubbardHamiltonian):
         return edges_quadratic, edges_quadric
 
 @jit(nopython=True)
-def get_E_quadratic(base_state, edges_quadratic, wf_state):
+def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
     E_loc = 0.0 + 0.0j
 
     for i in range(len(base_state)):
         for j in range(len(base_state)):
             if not (base_state[i] == 1 and base_state[j] == 0):
                 continue
-            E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, i, j)
+            E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)
     return E_loc
 
 @jit(nopython=True)
-def get_E_J_Hund(orbitals, wf_state):
+def get_E_J_Hund(orbitals, wf_state, total_fugacity):
     '''
         E_hund = J \\sum_{i, s1, s2} c^{\\dag}_ixs1 c^{\\dag}_iys2 c_ixs2 c_iys1 = 
 
@@ -125,13 +126,13 @@ def get_E_J_Hund(orbitals, wf_state):
 
     for x, y in zip(x_orbital, y_orbital):
         E_loc += -density(wf_state[2], x) * density(wf_state[2], y)  # (1)
-        E_loc += get_wf_ratio_double_exchange(*wf_state, x, y + L, x + L, y)  # (2)
-        E_loc += get_wf_ratio_double_exchange(*wf_state, y, x + L, y + L, x)  # (3)
+        E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, x, y + L, x + L, y)  # (2)
+        E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, y, x + L, y + L, x)  # (3)
         E_loc += -(1 - density(wf_state[2], x)) * (1 - density(wf_state[2], y))  # (4)
     return E_loc
 
 @jit(nopython=True)
-def get_E_Jprime_Hund(orbitals, wf_state):
+def get_E_Jprime_Hund(orbitals, wf_state, total_fugacity):
     '''
         E_hund_prime = J \\sum_{i, o1 != o2} c^{\\dag}_io1up c^{\\dag}_io1down c_io2down c_io2up = 
                        J \\sum_{i, o1 != o2} d^{\\dag}_io1 d_{io1 + L} d^{\\dag}_{io2 + L} d_{i o2} =
@@ -142,6 +143,6 @@ def get_E_Jprime_Hund(orbitals, wf_state):
     E_loc = 0.0 + 0.0j
 
     for x, y in zip(x_orbital, y_orbital):
-        E_loc += get_wf_ratio_double_exchange(*wf_state, x, x + L, y + L, y)  # (x-y)
-        E_loc += get_wf_ratio_double_exchange(*wf_state, y, y + L, x + L, x)  # (y-x)
+        E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, x, x + L, y + L, y)  # (x-y)
+        E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, y, y + L, x + L, x)  # (y-x)
     return E_loc  # in the wide-spread approximation J = J'

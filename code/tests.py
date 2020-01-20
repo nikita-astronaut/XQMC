@@ -193,7 +193,7 @@ def test_single_move_check(config):
 
         initial_ampl = wf.current_ampl
         state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
-        ratio_fast = get_wf_ratio(*state, i, j)
+        ratio_fast = get_wf_ratio(*state, wf.total_fugacity, i, j)
         
         acc = wf.perform_MC_step((i, j), enforce = True)[0]
         if not acc:
@@ -278,9 +278,9 @@ def test_double_move_check(config):
 
         initial_ampl = wf.current_ampl
         state = deepcopy((wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy))
-        ratio_fast = get_wf_ratio_double_exchange(*state, i, j, k, l)
+        ratio_fast = get_wf_ratio_double_exchange(*state, wf.total_fugacity, i, j, k, l)
         
-        W_ij_0 = get_wf_ratio(*state, i, j)
+        W_ij_0 = get_wf_ratio(*state, wf.total_fugacity, i, j)
         acc = wf.perform_MC_step(proposed_move = (i, j), enforce = True)[0]
 
         if not acc:
@@ -290,7 +290,7 @@ def test_double_move_check(config):
 
         middle_ampl = wf.current_ampl
 
-        W_kl_upd = get_wf_ratio(*state, k, l)
+        W_kl_upd = get_wf_ratio(*state, wf.total_fugacity, k, l)
         ratio_check = W_kl_upd * W_ij_0
 
         acc = wf.perform_MC_step(proposed_move = (k, l), enforce = True)[0]

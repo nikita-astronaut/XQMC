@@ -27,6 +27,12 @@ class wavefunction_singlet():
         self.update = 0.
         self.wf = 0.
 
+        if self.config.PN_projection:
+            self.total_fugacity = 0.0
+        else:
+            self.total_fugacity = np.sum(self.Jastrow) / self.Jastrow.shape[0] + self.config.fugacity
+
+
         while True:
             if self.with_previous_state:
                 self.occupied_sites, self.empty_sites, self.place_in_string = previous_state
@@ -65,7 +71,8 @@ class wavefunction_singlet():
         return
 
     def get_cur_Jastrow_factor(self):
-        return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy))
+        return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy) - \
+                      self.total_fugacity * np.sum(self.occupancy))
 
     def get_cur_det(self):
         return np.linalg.det(self._construct_U_tilde_matrix())
@@ -129,11 +136,14 @@ class wavefunction_singlet():
     def _construct_U_matrix(self):
         self.K = self.config.model(self.config, self.var_mu)[0]
         self.adjacency_matrix = np.abs(np.asarray(self.config.model(self.config, 0.0)[0])) > 1e-6
-        self.big_adjacency_matrix = np.zeros((2 * self.adjacency_matrix.shape[0], 2 * self.adjacency_matrix.shape[1]))
-        self.big_adjacency_matrix[:self.adjacency_matrix.shape[0], :self.adjacency_matrix.shape[1]] = self.adjacency_matrix
-        self.big_adjacency_matrix[self.adjacency_matrix.shape[0]:, self.adjacency_matrix.shape[1]:] = self.adjacency_matrix
 
-        self.adjacency_list = [np.where(self.big_adjacency_matrix[:, i] > 0)[0] for i in range(self.big_adjacency_matrix.shape[1])]
+        self.big_adjacency_matrix = np.kron(np.eye(2), self.adjacency_matrix)
+        if not self.config.PN_projection:  # not only particle-conserving moves
+            self.big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(self.adjacency_matrix.shape[0]))
+            # on-site pariticle<->hole transitions
+
+        self.adjacency_list = [np.where(self.big_adjacency_matrix[:, i] > 0)[0] \
+                               for i in range(self.big_adjacency_matrix.shape[1])]
 
         Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
 
@@ -206,7 +216,6 @@ class wavefunction_singlet():
 
     def perform_MC_step(self, proposed_move = None, enforce = False):
         self.MC_step_index += 1
-        conserving_move = False
         n_attempts = 0
 
         if proposed_move == None:
@@ -227,7 +236,8 @@ class wavefunction_singlet():
         det_ratio = self.W_GF[empty_site, moved_site_idx] + \
                     np.sum([a[empty_site, 0] * b[moved_site_idx, 0] for a, b in zip(self.a_update_list, self.b_update_list)])
 
-        Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, moved_site, empty_site)
+        Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, \
+                                          self.total_fugacity, moved_site, empty_site)
 
         self.wf += time() - t
         if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
@@ -295,7 +305,7 @@ class wavefunction_singlet():
 
 # had to move it outside of the class to speed-up with numba (jitclass is hard!)
 @jit(nopython=True)
-def get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site):
+def get_Jastrow_ratio(Jastrow, occupancy, state, total_fugacity, moved_site, empty_site):
     if moved_site == empty_site:
         return 1.0
 
@@ -303,9 +313,12 @@ def get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site):
     delta_beta = +1 if empty_site < len(state) // 2 else -1
     alpha, beta = moved_site % (len(state) // 2), empty_site % (len(state) // 2)
 
-    return np.exp(-np.sum((delta_alpha * Jastrow[alpha, :] + delta_beta * Jastrow[beta, :]) * occupancy) - 
-                   0.5 * ((delta_alpha ** 2 * Jastrow[alpha, alpha] + delta_beta ** 2 * Jastrow[beta, beta]) + 
-                          delta_alpha * delta_beta * (Jastrow[alpha, beta] + Jastrow[beta, alpha])))
+    fugacity_factor = np.exp(-total_fugacity * (delta_alpha + delta_beta))
+
+    return np.exp(-np.sum((delta_alpha * Jastrow[alpha, :] + delta_beta * Jastrow[beta, :]) * occupancy) - \
+                   0.5 * ((delta_alpha ** 2 * Jastrow[alpha, alpha] + delta_beta ** 2 * Jastrow[beta, beta]) + \
+                          delta_alpha * delta_beta * (Jastrow[alpha, beta] + Jastrow[beta, alpha]))) * \
+           fugacity_factor
 
 @jit(nopython=True)
 def get_det_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
@@ -323,8 +336,8 @@ def get_det_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
 
 @jit(nopython=True)
 def get_wf_ratio(Jastrow, W_GF, place_in_string, state, occupancy, \
-                 moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
-    Jastrow_ratio = get_Jastrow_ratio(Jastrow, occupancy, state, moved_site, empty_site)
+                 total_fugacity, moved_site, empty_site):  # i -- moved site (d_i), j -- empty site (d^{\dag}_j)
+    Jastrow_ratio = get_Jastrow_ratio(Jastrow, occupancy, state, total_fugacity, moved_site, empty_site)
     det_ratio = get_det_ratio(Jastrow, W_GF, place_in_string, state, occupancy, moved_site, empty_site)
     return det_ratio * Jastrow_ratio
 
@@ -333,7 +346,7 @@ def density(place_in_string, index):
     return 1.0 if place_in_string[index] > -1 else 0.0
 
 @jit(nopython=True)
-def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupancy, i, j, k, l):
+def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupancy, total_fugacity, i, j, k, l):
     '''
         this is required for the correlators <\\Delta^{\\dag} \\Delta>
         computes the ratio <x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф> / <x|Ф> = 
@@ -347,24 +360,24 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
     ## have to explicitly work-around degenerate cases ##
     if i == j:
         n_i = density(place_in_string, i)
-        return 0.0 + 0.0j if n_i == 0 else get_wf_ratio(*state_packed, k, l)
+        return 0.0 + 0.0j if n_i == 0 else get_wf_ratio(*state_packed, total_fugacity, k, l)
 
     if j == k:
         n_j = density(place_in_string, j)
-        return 0.0 + 0.0j if n_j == 1 else get_wf_ratio(*state_packed, i, l)
+        return 0.0 + 0.0j if n_j == 1 else get_wf_ratio(*state_packed, total_fugacity, i, l)
 
     if l == i and l != k:
         n_l = density(place_in_string, l)
         delta_jk = 1.0 if j == k else 0.0
-        return 0.0 + 0.0j if n_l == 0 else delta_jk - get_wf_ratio(*state_packed, k, j)
+        return 0.0 + 0.0j if n_l == 0 else delta_jk - get_wf_ratio(*state_packed, total_fugacity, k, j)
 
     if l == k and l != i:
         n_l = density(place_in_string, l)
-        return 0.0 + 0.0j if n_l == 0 else get_wf_ratio(*state_packed, i, j)
+        return 0.0 + 0.0j if n_l == 0 else get_wf_ratio(*state_packed, total_fugacity, i, j)
 
     if l == k and l == i:
         n_i = density(place_in_string, i)
-        return 0.0 + 0.0j if n_i == 1 else get_wf_ratio(*state_packed, i, j)
+        return 0.0 + 0.0j if n_i == 1 else get_wf_ratio(*state_packed, total_fugacity, i, j)
 
     ## bus if everything is non-equal... ##
     delta_jk = 1.0 if j == k else 0.0
@@ -372,13 +385,13 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
                 get_det_ratio(*state_packed, i, l) * get_det_ratio(*state_packed, k, j)
     jastrow = 0.0
     if np.abs(ratio_det) > 1e-10:
-        jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, i, j)
+        jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, total_fugacity, i, j)
         delta_i = 1 if i < L else -1
         delta_j = 1 if j < L else -1
         occupancy[i % L] -= delta_i
         occupancy[j % L] += delta_j
 
-        jastrow *= get_Jastrow_ratio(Jastrow, occupancy, state, k, l)
+        jastrow *= get_Jastrow_ratio(Jastrow, occupancy, state, total_fugacity, k, l)
         occupancy[i % L] += delta_i
         occupancy[j % L] -= delta_j
     return jastrow * ratio_det
