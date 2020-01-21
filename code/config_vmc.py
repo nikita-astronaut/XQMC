@@ -60,4 +60,4 @@ class MC_parameters:
         self.visualisation = False; self.tests = False
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/test/'
-        self.load_parameters = False  # whether to load previous variational parameters from workdir
+        self.load_parameters = False; self.load_parameters_path = '/home/astronaut/Documents/DQMC_TBG/logs/test/'

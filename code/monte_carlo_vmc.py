@@ -40,8 +40,8 @@ def save_parameters(mu, sdw, cdw, gap, jastrow, local_workdir, step_no):
     params_dict = {'mu' : mu, 'sdw' : sdw, 'cdw' : cdw, 'gap' : gap, 'jastrow' : jastrow, 'step_no' : step_no}
     return pickle.dump(params_dict, open(os.path.join(local_workdir, 'last_opt_params.p'), "wb"))
 
-def load_parameters(local_workdir):
-    params_dict = pickle.load(open(os.path.join(local_workdir, 'last_opt_params.p'), "rb"))
+def load_parameters(filename):
+    params_dict = pickle.load(open(filename, "rb"))
     return params_dict['mu'], params_dict['sdw'], params_dict['cdw'], params_dict['gap'], params_dict['jastrow'], params_dict['step_no']
 
 # <<Borrowed>> from Tom
@@ -177,9 +177,13 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
     os.makedirs(local_workdir, exist_ok=True)
 
     obs_files = []
-    if config_vmc.load_parameters and os.path.isfile(os.path.join(local_workdir, 'last_opt_params.p')):
+    if config_vmc.load_parameters:
+        if config_vmc.load_parameters_path is not None:
+            filename = config_vmc.load_parameters_path
+        else:
+            filename = os.path.isfile(os.path.join(local_workdir, 'last_opt_params.p'))
         mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, \
-                      jastrow_parameters, last_step = load_parameters(local_workdir)
+                      jastrow_parameters, last_step = load_parameters(filename)
     else:
         gap_parameters = config_vmc.initial_gap_parameters
         jastrow_parameters = config_vmc.initial_jastrow_parameters
