@@ -11,7 +11,7 @@ class wavefunction_singlet():
                  var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):
         self.config = config
-        self.pairings_list_unwrapped = [models.apply_TBC(config, deepcopy(gap), inverse = False) \
+        self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
         self.var_params_gap = var_params_gap
         self.var_params_Jastrow = var_params_Jastrow
