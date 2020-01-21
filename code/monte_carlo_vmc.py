@@ -203,7 +203,7 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
 
     ### write log header only if we start from some random parameters ###
     if last_step == 0:
-        log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩")
+        log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩")
         for gap_name in pairings_names:
             log_file.write(" ⟨" + gap_name + "⟩")
         for jastrow in config_vmc.adjacency_list:
@@ -294,8 +294,10 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
         print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + \
               ', Jastrow =' + str(jastrow_parameters) + \
               ', SDW/CDW = ' + str([sdw_parameter, cdw_parameter]) + '\033[0m', flush = True)
-        log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e}" + " {:.7e}" * len(step) + "\n").format(n_step, np.mean(energies).real / vol,
-                        np.std(energies).real / np.sqrt(len(energies)) / vol, variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
+        log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e}" + " {:.7e}" * len(step) + "\n").format(n_step, \
+                        np.mean(energies).real / vol, np.std(energies).real / np.sqrt(len(energies)) / vol, \
+                        np.mean(densities).real / vol, np.std(densities).real / np.sqrt(len(densities)) / vol, \
+                        variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
                         gap, *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
         log_file.flush()
 
