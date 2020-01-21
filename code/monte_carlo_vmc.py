@@ -191,7 +191,7 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
     config_vmc.U = U
     config_vmc.V = V
     config_vmc.J = J
-    config_vmc.N_electrons = N_electrons
+    config_vmc.fugacity = fugacity
 
     H = config_vmc.hamiltonian(config_vmc)
  
