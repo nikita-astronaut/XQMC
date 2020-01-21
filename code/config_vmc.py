@@ -25,9 +25,9 @@ class MC_parameters:
 
         ### density VQMC parameters ###
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        self.N_electrons = np.array([0]) + self.total_dof // 2 # only applied if PN_projection = True
+        self.N_electrons = self.total_dof // 2 # only applied if PN_projection = True
         self.PN_projection = False
-        self.fugacity = 0.0  # if PN_projection = False, work in the Grand Canonial approach
+        self.fugacity = np.array([-0.2])  # if PN_projection = False, work in the Grand Canonial approach
 
 
         ### variational parameters settings ###

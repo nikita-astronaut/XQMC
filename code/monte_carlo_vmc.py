@@ -170,10 +170,10 @@ pairings_names = config_vmc.pairings_list_names
 U_list = deepcopy(config_vmc.U)
 V_list = deepcopy(config_vmc.V)
 J_list = deepcopy(config_vmc.J)
-N_electrons_list = deepcopy(config_vmc.N_electrons)
+fugacity_list = deepcopy(config_vmc.fugacity)
 
-for U, V, J, N_electrons in zip(U_list, V_list, J_list, N_electrons_list):
-    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_J_{:.2f}_{:d}'.format(U, V, J, N_electrons))  # add here all parameters that are being iterated
+for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
+    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}'.format(U, V, J, fugacity))  # add here all parameters that are being iterated
     os.makedirs(local_workdir, exist_ok=True)
 
     obs_files = []
