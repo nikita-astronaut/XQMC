@@ -19,8 +19,8 @@ for i, line in enumerate(lines):
     if 'self.fugacity =' in line:
         lines[i] = '        self.fugacity = np.array([{:.2f}])\n'.format(fugacity)
 
-config_name = os.path.join(path_to_configs, 'config_U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}.py'.format(U, V, J, fugacity))
-for i, s in enumerate(list(config_name)):
+config_name = list(os.path.join(path_to_configs, 'config_U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}.py'.format(U, V, J, fugacity)))
+for i, s in enumerate(config_name):
     if s == '.' and ''.join(config_name[i:]) != '.py':
         config_name[i] = '-'
 config_name = ''.join(config_name)
@@ -34,9 +34,9 @@ lines = [line for line in sbatch_file]
 
 for i, line in enumerate(lines):
     if '#SBATCH -o' in line:
-        lines[i] = '#SBATCH -o {:s}/output_U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}.out\n'.format(U, V, J, fugacity)
+        lines[i] = '#SBATCH -o {:s}/output_U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}.out\n'.format(path_to_logs, U, V, J, fugacity)
     if '#SBATCH -e' in line:
-        lines[i] = '#SBATCH -e {:s}/error_U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}.err\n'.format(U, V, J, fugacity)
+        lines[i] = '#SBATCH -e {:s}/error_U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}.err\n'.format(path_to_logs, U, V, J, fugacity)
     if '#SBATCH --job-name' in line:
         lines[i] = '#SBATCH --job-name U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}\n'.format(U, V, J, fugacity)
 
