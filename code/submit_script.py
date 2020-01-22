@@ -41,3 +41,9 @@ for i, line in enumerate(lines):
         pieces = line.split()
         pieces[-1] = config_name + '\n'
         lines[i] = ' '.join(pieces)
+sbatch_file.close()
+f = open(path_to_sbatch, 'w')
+[f.write(line) for line in lines]
+f.close()
+
+print(subprocess.run(['sbatch', path_to_sbatch]))
