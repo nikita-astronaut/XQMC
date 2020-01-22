@@ -181,7 +181,7 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
             loaded_from_external = True
             filename = config_vmc.load_parameters_path
         else:
-            filename = os.path.isfile(os.path.join(local_workdir, 'last_opt_params.p'))
+            filename = os.path.join(local_workdir, 'last_opt_params.p')
         mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, \
                       jastrow_parameters, last_step = load_parameters(filename)
     else:
@@ -245,8 +245,8 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
         # U_vecs.append(results[0][6])  # to keep track of the level occupations
         # initial_state_idx = perform_transition_analysis(Es, U_vecs, initial_state_idx, config_vmc)
         # min_labels = np.argsort(Es[-1])[:config_vmc.total_dof // 2]
-        gap = np.min([-results[i][7][-1][np.argsort(results[i][7][-1])[config_vmc.total_dof // 2 - 1]] + \
-                       results[i][7][-1][np.argsort(results[i][7][-1])[config_vmc.total_dof // 2]] for i in range(n_cpus)])
+        gap = np.min([-results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2 - 1]] + \
+                       results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(n_cpus)])
         # new_selected_states = initial_state_idx[min_labels]
         # if len(np.unique(np.concatenate([current_selected_states, new_selected_states]))) != len(current_selected_states):
         #    print('# !!! some of the levels dropped out of the set!!! #')
