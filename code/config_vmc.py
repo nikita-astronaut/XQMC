@@ -45,10 +45,10 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 45000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
+        self.MC_chain = 250000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.optimisation_steps = 1400; self.thermalization = 1300; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
-        self.correlation = self.N_electrons[0] * 3
+        self.correlation = self.N_electrons * 3
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
         self.opt_parameters = [1e-3, 1e-2, 1.003]  
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
@@ -59,5 +59,5 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False; self.tests = False
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/test/'
-        self.load_parameters = False; self.load_parameters_path = '/home/astronaut/Documents/DQMC_TBG/logs/test/'
+        self.workdir = '/home/cluster/niastr/data/DQMC_TBG/logs/new/'
+        self.load_parameters = True; self.load_parameters_path = '/home/cluster/niastr/data/DQMC_TBG/code/2.0_new/U_2.00_V_2.00_J_0.00_f_-0.20/last_opt_params.p'
