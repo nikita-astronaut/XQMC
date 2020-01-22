@@ -16,8 +16,8 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.U = np.array([2.]) # the force of on-site Coulomb repulsion in the units of t1
-        self.V = np.array([2.]) # the force of on-site Coulomb repulsion in the units of t1
+        self.U = np.array([2.])
+        self.V = np.array([2.])
         self.J = (self.U - self.V) / 2  # only used in 2-orbital models, set equal to J'
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
 
