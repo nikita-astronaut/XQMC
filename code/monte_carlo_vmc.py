@@ -101,11 +101,7 @@ if config_vmc.n_cpus == -1:
 print('performing simulation at', n_cpus, 'CPUs')
 
 
-def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, final_state = False):
-    twist = [1., 1.]
-    if config_vmc.BC_twist:
-        twist = np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2)  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
-
+def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist, final_state = False):
     config_vmc.twist = tuple(twist)
     hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
 
@@ -226,10 +222,18 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
     initial_state_idx = np.arange(config_vmc.total_dof)  # enumerates the number of states with respect to adiabatic evolution of the initial states (threads)
     current_selected_states = np.arange(config_vmc.total_dof // 2)  # labels of the threads that are now in the min-level set [better they do not change...]
 
+
+    ### generate twists once and for all (Sandro's suggestion) ###
+    twists = [1., 1.]
+    if config_vmc.BC_twist:
+        twists = [np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2) for _ in range(n_cpus)]  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
+    else:
+        twists = [[1., 1.] for _ in range(n_cpus)]
+
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, deepcopy(config_vmc), pairings_list, \
                                                                        (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
-                                                                       final_state = final_states[i]) for i in range(n_cpus))
+                                                                       twist = twists[i], final_state = final_states[i]) for i in range(n_cpus))
         ###### OCCUPATION LOGGING #####
         '''
         Es.append(results[0][7])
