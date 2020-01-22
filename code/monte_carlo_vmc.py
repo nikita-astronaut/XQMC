@@ -231,7 +231,7 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
                                                                        (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
                                                                        final_state = final_states[i]) for i in range(n_cpus))
         ###### OCCUPATION LOGGING #####
-        '''
+        
         Es.append(results[0][7])
         U_vecs.append(results[0][6])  # to keep track of the level occupations
         initial_state_idx = perform_transition_analysis(Es, U_vecs, initial_state_idx, config_vmc)
@@ -240,9 +240,9 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
         new_selected_states = initial_state_idx[min_labels]
         if len(np.unique(np.concatenate([current_selected_states, new_selected_states]))) != len(current_selected_states):
             print('# !!! some of the levels dropped out of the set!!! #')
-        levels_log_file.write(('{:d} ' * (len(new_selected_states) + 1)).format(n_step, *new_selected_states)); levels_log_file.write('\n')
-        levels_log_file.flush()
-        '''
+        # levels_log_file.write(('{:d} ' * (len(new_selected_states) + 1)).format(n_step, *new_selected_states)); levels_log_file.write('\n')
+        # levels_log_file.flush()
+        
         ###### END OCCUPATION LOGGING #####
 
         
