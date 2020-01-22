@@ -37,12 +37,14 @@ def remove_singularity(S):
     return S
 
 def save_parameters(mu, sdw, cdw, gap, jastrow, local_workdir, step_no):
-    params_dict = {'mu' : mu, 'sdw' : sdw, 'cdw' : cdw, 'gap' : gap, 'jastrow' : jastrow, 'step_no' : step_no}
+    params_dict = {'mu' : mu, 'sdw' : sdw, 'cdw' : cdw, \
+                   'gap' : gap, 'jastrow' : jastrow, 'step_no' : step_no}
     return pickle.dump(params_dict, open(os.path.join(local_workdir, 'last_opt_params.p'), "wb"))
 
 def load_parameters(filename):
     params_dict = pickle.load(open(filename, "rb"))
-    return params_dict['mu'], params_dict['sdw'], params_dict['cdw'], params_dict['gap'], params_dict['jastrow'], params_dict['step_no']
+    return params_dict['mu'], params_dict['sdw'], params_dict['cdw'], params_dict['gap'], \
+           params_dict['jastrow'], params_dict['step_no']
 
 # <<Borrowed>> from Tom
 def import_config(filename: str):
@@ -173,8 +175,10 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
     os.makedirs(local_workdir, exist_ok=True)
 
     obs_files = []
+    loaded_from_external = False
     if config_vmc.load_parameters:
         if config_vmc.load_parameters_path is not None:
+            loaded_from_external = True
             filename = config_vmc.load_parameters_path
         else:
             filename = os.path.isfile(os.path.join(local_workdir, 'last_opt_params.p'))
@@ -202,7 +206,7 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
 
 
     ### write log header only if we start from some random parameters ###
-    if last_step == 0:
+    if last_step == 0 or loaded_from_external:
         log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩")
         for gap_name in pairings_names:
             log_file.write(" ⟨" + gap_name + "⟩")
