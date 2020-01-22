@@ -20,9 +20,10 @@ for i, line in enumerate(lines):
         lines[i] = '        self.fugacity = np.array([{:.2f}])\n'.format(fugacity)
 
 config_name = os.path.join(path_to_configs, 'config_U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}.py'.format(U, V, J, fugacity))
-for i, s in enumerate(config_name):
-    if s == '.' and config_name[i:] != '.py':
+for i, s in enumerate(list(config_name)):
+    if s == '.' and ''.join(config_name[i:]) != '.py':
         config_name[i] = '-'
+config_name = ''.join(config_name)
 
 f = open(config_name, 'w')
 [f.write(line) for line in lines]
