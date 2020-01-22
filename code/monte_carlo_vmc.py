@@ -230,20 +230,22 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
     else:
         twists = [[1., 1.] for _ in range(n_cpus)]
 
+    force_abs_history = [10]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
                                                                        (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
                                                                        twist = twists[i], final_state = final_states[i]) for i in range(n_cpus))
         ###### OCCUPATION LOGGING #####
         
-        Es.append(results[0][7])
-        U_vecs.append(results[0][6])  # to keep track of the level occupations
-        initial_state_idx = perform_transition_analysis(Es, U_vecs, initial_state_idx, config_vmc)
-        min_labels = np.argsort(Es[-1])[:config_vmc.total_dof // 2]
-        gap = -Es[-1][np.argsort(Es[-1])[config_vmc.total_dof // 2 - 1]] + Es[-1][np.argsort(Es[-1])[config_vmc.total_dof // 2]]
-        new_selected_states = initial_state_idx[min_labels]
-        if len(np.unique(np.concatenate([current_selected_states, new_selected_states]))) != len(current_selected_states):
-            print('# !!! some of the levels dropped out of the set!!! #')
+        # Es.append(results[0][7])
+        # U_vecs.append(results[0][6])  # to keep track of the level occupations
+        # initial_state_idx = perform_transition_analysis(Es, U_vecs, initial_state_idx, config_vmc)
+        # min_labels = np.argsort(Es[-1])[:config_vmc.total_dof // 2]
+        gap = np.min([-results[i][7][-1][np.argsort(results[i][7][-1])[config_vmc.total_dof // 2 - 1]] + \
+                       results[i][7][-1][np.argsort(results[i][7][-1])[config_vmc.total_dof // 2]] for i in range(n_cpus)])
+        # new_selected_states = initial_state_idx[min_labels]
+        # if len(np.unique(np.concatenate([current_selected_states, new_selected_states]))) != len(current_selected_states):
+        #    print('# !!! some of the levels dropped out of the set!!! #')
         # levels_log_file.write(('{:d} ' * (len(new_selected_states) + 1)).format(n_step, *new_selected_states)); levels_log_file.write('\n')
         # levels_log_file.flush()
         
@@ -284,12 +286,16 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
         step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
         step = step_pc / np.sqrt(np.abs(np.diag(S_cov)))
 
-        if np.sqrt(np.sum(step ** 2)) / np.sqrt(np.sum(forces ** 2)) > 5:
-            step = forces
-            print('Too high enhancement due to S_cov matrix: switching to gradient descent for this step')
-
-        print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2))))
-        step = config_vmc.opt_parameters[1] * step 
+        print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
+                                                                      np.sqrt(np.sum(step ** 2))))
+        step_abs = np.sqrt(np.sum(step ** 2))
+        clip_length = np.min([10, len(force_abs_history)])
+        if step_abs > 2. * np.median(force_abs_history[-clip_length:]):
+            print('Warning! The force is too high -- this iteration will NOT be performed')
+            step = 0.0 * step
+        else:
+            force_abs_history.append(step_abs)
+            step = config_vmc.opt_parameters[1] * step 
 
         offset = 0
         mu_parameter += step[offset]; offset += 1
