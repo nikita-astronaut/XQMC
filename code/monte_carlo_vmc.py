@@ -227,7 +227,7 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
     current_selected_states = np.arange(config_vmc.total_dof // 2)  # labels of the threads that are now in the min-level set [better they do not change...]
 
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
-        results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, deepcopy(config_vmc), pairings_list, \
+        results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
                                                                        (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
                                                                        final_state = final_states[i]) for i in range(n_cpus))
         ###### OCCUPATION LOGGING #####
