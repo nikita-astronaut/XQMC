@@ -101,7 +101,7 @@ n_cpus = config_vmc.n_cpus
 if config_vmc.n_cpus == -1:
     n_cpus = n_cpus_max
 print('performing simulation at', n_cpus, 'CPUs')
-
+config_vmc.MC_chain = config_vmc.MC_chain // n_cpus  # the MC_chain contains the total required number of samples
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist, final_state = False):
     config_vmc.twist = tuple(twist)
@@ -114,10 +114,10 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist
         wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, True, final_state)
 
     if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
-        for MC_step in range(config_vmc.MC_chain * 2):
+        for MC_step in range(config_vmc.MC_thermalisation):
             wf.perform_MC_step()
     else:
-        for MC_step in range(config_vmc.MC_chain // 4):  # else thermalize a little bit
+        for MC_step in range(config_vmc.MC_thermalisation // 4):  # else thermalize a little bit
             wf.perform_MC_step()
 
 
@@ -200,7 +200,6 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
     H = config_vmc.hamiltonian(config_vmc)
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
-    levels_log_file = open(os.path.join(local_workdir, 'levels_log.dat'), 'w')
 
     final_states = [False] * n_cpus
 
@@ -239,47 +238,39 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
                                                                        (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
                                                                        twist = twists[i], final_state = final_states[i]) for i in range(n_cpus))
-        ###### OCCUPATION LOGGING #####
-        
-        # Es.append(results[0][7])
-        # U_vecs.append(results[0][6])  # to keep track of the level occupations
-        # initial_state_idx = perform_transition_analysis(Es, U_vecs, initial_state_idx, config_vmc)
-        # min_labels = np.argsort(Es[-1])[:config_vmc.total_dof // 2]
         gap = np.min([-results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2 - 1]] + \
                        results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(n_cpus)])
-        # new_selected_states = initial_state_idx[min_labels]
-        # if len(np.unique(np.concatenate([current_selected_states, new_selected_states]))) != len(current_selected_states):
-        #    print('# !!! some of the levels dropped out of the set!!! #')
-        # levels_log_file.write(('{:d} ' * (len(new_selected_states) + 1)).format(n_step, *new_selected_states)); levels_log_file.write('\n')
-        # levels_log_file.flush()
-        
-        ###### END OCCUPATION LOGGING #####
 
-        
-        energies = np.concatenate([np.array(x[0]) for x in results], axis = 0)
-        Os = np.concatenate([np.array(x[1]) for x in results], axis = 0)
+        vol = config_vmc.total_dof // 2
+        energies = [np.array(x[0]) for x in results]  # collection of all energy sets obtained from different threads
+        variances = [np.real((np.mean(np.abs(energies_theta) ** 2) - np.mean(energies_theta) ** 2) / vol) for energies_theta in energies]
+        mean_variance = np.mean(variances)
+
+        Os = [np.array(x[1]) for x in results]
+
         acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
         final_states = [x[3] for x in results]
-        vol = config_vmc.total_dof // 2
         densities = np.concatenate([np.array(x[8]) for x in results], axis = 0)
-
-        Os_mean = np.mean(Os, axis = 0)
-        forces = -2 * (np.einsum('i,ik->k', energies.conj(), Os) / len(energies) - np.mean(energies.conj()) * Os_mean).real
-
-        variance = np.real((np.mean(np.abs(energies) ** 2) - np.mean(energies) ** 2) / vol)
 
         print('estimating gradient on ', len(energies), 'samples', flush = True)
         print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
         print('\033[93m <n> / vol = ' + str(np.mean(densities) / vol) + '+/-' + str(np.std(densities) / np.sqrt(len(densities)) / vol) + '\033[0m', flush = True)
-        print('\033[93m σ^2 / t / vol = ' + str(variance) + '\033[0m', flush = True)
+        print('\033[93m σ^2 / t / vol = ' + str(mean_variance) + '\033[0m', flush = True)
         print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
 
 
-        ### SR STEP ###
-        Os_mean = np.repeat(Os_mean[np.newaxis, ...], len(Os), axis = 0)
-        S_cov = (np.einsum('nk,nl->kl', (Os - Os_mean).conj(), (Os - Os_mean)) / Os.shape[0]).real
+        Os_mean = [np.mean(Os_theta, axis = 0) for Os_theta in Os]
+        forces = np.array([-2 * (np.einsum('i,ik->k', energies_theta.conj(), Os_theta) / len(energies_theta) - np.mean(energies_theta.conj()) * Os_mean_theta).real for \
+                           energies_theta, Os_theta, Os_mean_theta in zip(energies, Os, Os_mean)])  # all forces calculated independently for every twist angle
+        forces = np.mean(forces, axis = 0)  # after calculation of the force independently for every twist angle, we average over all forces
 
-        S_cov = remove_singularity(S_cov)
+        ### SR STEP ###
+        Os_mean = [np.repeat(Os_mean_theta[np.newaxis, ...], len(Os_theta), axis = 0) for Os_mean_theta, Os_theta in zip(Os_mean, Os)]
+        S_cov = [(np.einsum('nk,nl->kl', (Os_theta - Os_mean_theta).conj(), (Os_theta - Os_mean_theta)) / Os_theta.shape[0]).real \
+                 for Os_mean_theta, Os_theta in zip(Os_mean, Os)]  # SR_matrix is computed independently for every twist angle theta
+
+        S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
+        S_cov = np.mean(S_cov, axis = 0)
 
         forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
         S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
@@ -317,7 +308,7 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
         log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e}" + " {:.7e}" * len(step) + "\n").format(n_step, \
                         np.mean(energies).real / vol, np.std(energies).real / np.sqrt(len(energies)) / vol, \
                         np.mean(densities).real / vol, np.std(densities).real / np.sqrt(len(densities)) / vol, \
-                        variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
+                        mean_variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
                         gap, *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
         log_file.flush()
 
@@ -360,5 +351,4 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
             file.write(("{:.6e} " * len(data)).format(*data)); file.write('\n')
             file.flush()
     log_file.close()
-    levels_log_file.close()
     [file.close() for file in obs_files]

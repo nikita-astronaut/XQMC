@@ -10,9 +10,10 @@ class MC_parameters:
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
         self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
-        self.twist = tuple([1., 1.])
+        self.twist = tuple([1., 1.]); self.num_twists = 576;
         self.model = models.model_hex_2orb_Koshino
         _, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)
+
 
 
         ### interaction parameters ###
@@ -30,6 +31,7 @@ class MC_parameters:
         self.fugacity = np.array([-0.2])  # if PN_projection = False, work in the Grand Canonial approach
 
 
+
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
         self.pairings_list = pairings.on_site_2orb_hex_real + pairings.NN_2orb_hex_real # !!! real ones must (!) come before the imaginary ones
@@ -45,7 +47,7 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 250000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
+        self.MC_chain = 1000000; self.MC_thermalisation = 40000;
         self.optimisation_steps = 1400; self.thermalization = 1300; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = self.N_electrons * 3
@@ -59,5 +61,5 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False; self.tests = False
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/cluster/niastr/data/DQMC_TBG/logs/new/'
-        self.load_parameters = True; self.load_parameters_path = '/home/cluster/niastr/data/DQMC_TBG/code/2.0_new/U_2.00_V_2.00_J_0.00_f_-0.20/last_opt_params.p'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/new/'
+        self.load_parameters = False; self.load_parameters_path = '/home/cluster/niastr/data/DQMC_TBG/code/2.0_new/U_2.00_V_2.00_J_0.00_f_-0.20/last_opt_params.p'
