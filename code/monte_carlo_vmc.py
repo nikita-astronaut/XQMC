@@ -36,14 +36,15 @@ def remove_singularity(S):
             S[i, i] = 1.0
     return S
 
-def save_parameters(mu, sdw, cdw, gap, jastrow, local_workdir, step_no):
-    params_dict = {'mu' : mu, 'sdw' : sdw, 'cdw' : cdw, \
+def save_parameters(mu_BCS, fugacity, sdw, cdw, gap, jastrow, local_workdir, step_no):
+    params_dict = {'mu' : mu_BCS, 'fugacity' : fugacity, 'sdw' : sdw, 'cdw' : cdw, \
                    'gap' : gap, 'jastrow' : jastrow, 'step_no' : step_no}
     return pickle.dump(params_dict, open(os.path.join(local_workdir, 'last_opt_params.p'), "wb"))
 
 def load_parameters(filename):
     params_dict = pickle.load(open(filename, "rb"))
-    return params_dict['mu'], params_dict['sdw'], params_dict['cdw'], params_dict['gap'], \
+    return params_dict['mu'], params_dict['fugacity'], params_dict['sdw'], \
+           params_dict['cdw'], params_dict['gap'], \
            params_dict['jastrow'], params_dict['step_no']
 
 # <<Borrowed>> from Tom
@@ -89,7 +90,7 @@ if config_vmc.visualisation:
 
 if config_vmc.tests:
     config_tests = deepcopy(config_vmc)
-    config_tests.U = config_tests.U[0]; config_tests.V = config_tests.V[0]; config_tests.N_electrons = config_tests.N_electrons[0];
+    config_tests.U = config_tests.U[0]; config_tests.V = config_tests.V[0];
     if tests.perform_all_tests(config_tests):
         print('\033[92m All tests passed successfully \033[0m')
     else:
@@ -168,10 +169,10 @@ pairings_names = config_vmc.pairings_list_names
 U_list = deepcopy(config_vmc.U)
 V_list = deepcopy(config_vmc.V)
 J_list = deepcopy(config_vmc.J)
-fugacity_list = deepcopy(config_vmc.fugacity)
+mu_list = deepcopy(config_vmc.mu)
 
-for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
-    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_J_{:.2f}_f_{:.2f}'.format(U, V, J, fugacity))  # add here all parameters that are being iterated
+for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
+    local_workdir = os.path.join(config_vmc.workdir, 'U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}'.format(U, V, J, mu))  # add here all parameters that are being iterated
     os.makedirs(local_workdir, exist_ok=True)
 
     obs_files = []
@@ -182,21 +183,21 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
             filename = config_vmc.load_parameters_path
         else:
             filename = os.path.join(local_workdir, 'last_opt_params.p')
-        mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, \
-                      jastrow_parameters, last_step = load_parameters(filename)
+        mu_parameter, fugacity_parameter, sdw_parameter, cdw_parameter, gap_parameters, \
+            jastrow_parameters, last_step = load_parameters(filename)
     else:
         gap_parameters = config_vmc.initial_gap_parameters
         jastrow_parameters = config_vmc.initial_jastrow_parameters
         mu_parameter = config_vmc.initial_mu_parameters
         sdw_parameter = config_vmc.initial_sdw_parameters
         cdw_parameter = config_vmc.initial_cdw_parameters
+        fugacity_parameter = config_vmc.initial_fugacity_parameter
         last_step = 0
 
     config_vmc.U = U
     config_vmc.V = V
     config_vmc.J = J
-    config_vmc.mu = fugacity
-    config.fugacity = 0.0  # TODO: get rid of this! (temporal solution)
+    config_vmc.mu = mu
 
     H = config_vmc.hamiltonian(config_vmc)
  
@@ -211,14 +212,17 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
         for gap_name in pairings_names:
             log_file.write(" ⟨" + gap_name + "⟩")
         for jastrow in config_vmc.adjacency_list:
-            log_file.write(" ⟨jastrow_" + str(jastrow[1]) + '-' + str(jastrow[2]) + '_' + str(round(jastrow[3], 2)) + "⟩")
+            log_file.write(" ⟨jastrow_" + str(jastrow[1]) + '-' + \
+                            str(jastrow[2]) + '_' + str(round(jastrow[3], 2)) + "⟩")
 
         for i in range(len(sdw_parameter)):
-            log_file.write(" ⟨sdw_" + str(i % config_vmc.n_orbitals) + '_' + str((i // config_vmc.n_orbitals) % config_vmc.n_sublattices) + "⟩")
+            log_file.write(" ⟨sdw_" + str(i % config_vmc.n_orbitals) + '_' + \
+                            str((i // config_vmc.n_orbitals) % config_vmc.n_sublattices) + "⟩")
         for i in range(len(cdw_parameter)):
-            log_file.write(" ⟨cdw_" + str(i % config_vmc.n_orbitals) + '_' + str((i // config_vmc.n_orbitals) % config_vmc.n_sublattices) + "⟩")
+            log_file.write(" ⟨cdw_" + str(i % config_vmc.n_orbitals) + '_' + \
+                            str((i // config_vmc.n_orbitals) % config_vmc.n_sublattices) + "⟩")
 
-        log_file.write(' ⟨mu_BCS⟩\n')
+        log_file.write(' ⟨mu_BCS⟩ ⟨fugacity⟩\n')
 
     ### keeping track of levels occupations ###
     Es = []
@@ -237,8 +241,8 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
     force_abs_history = [10]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
-                                                                       (mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
-                                                                       twist = twists[i], final_state = final_states[i]) for i in range(n_cpus))
+            (mu_parameter, fugacity_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
+             twist = twists[i], final_state = final_states[i]) for i in range(n_cpus))
         gap = np.min([-results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2 - 1]] + \
                        results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(n_cpus)])
 
@@ -295,22 +299,25 @@ for U, V, J, fugacity in zip(U_list, V_list, J_list, fugacity_list):
 
         offset = 0
         mu_parameter += step[offset]; offset += 1
+        fugacity_parameter += step[offset]; offset += 1
         sdw_parameter += step[offset:offset + len(sdw_parameter)]; offset += len(sdw_parameter)
         cdw_parameter += step[offset:offset + len(cdw_parameter)]; offset += len(cdw_parameter)
         gap_parameters += step[offset:offset + len(gap_parameters)]; offset += len(gap_parameters)
         jastrow_parameters += step[offset:]
-        save_parameters(mu_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters,
+        save_parameters(mu_parameter, fugacity_parameter, sdw_parameter, 
+                        cdw_parameter, gap_parameters, jastrow_parameters,
                         local_workdir, n_step)
 
 
-        print('\033[91m mu = ' + str(mu_parameter) + ', pairings =' + str(gap_parameters) + \
+        print('\033[91m mu_BCS = ' + str(mu_parameter) + 'fugacity = ' + str(fugacity_parameter) + \
+              ' pairings =' + str(gap_parameters) + \
               ', Jastrow =' + str(jastrow_parameters) + \
               ', SDW/CDW = ' + str([sdw_parameter, cdw_parameter]) + '\033[0m', flush = True)
-        log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e}" + " {:.7e}" * len(step) + "\n").format(n_step, \
+        log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e}" + " {:.7e} " * len(step) + "\n").format(n_step, \
                         np.mean(energies).real / vol, np.std(energies).real / np.sqrt(len(energies)) / vol, \
                         np.mean(densities).real / vol, np.std(densities).real / np.sqrt(len(densities)) / vol, \
                         mean_variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
-                        gap, *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter))
+                        gap, *gap_parameters, *jastrow_parameters, *sdw_parameter, *cdw_parameter, mu_parameter, fugacity_parameter))
         log_file.flush()
 
         ### END SR STEP ###
