@@ -8,7 +8,7 @@ class MC_parameters:
     def __init__(self):
     	### geometry and general settings ###
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.mu = 0.0
+        self.mu = np.array([-5.0])
         self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
         self.twist = tuple([1., 1.]); self.num_twists = 576;
         self.model = models.model_hex_2orb_Koshino
@@ -26,9 +26,8 @@ class MC_parameters:
 
         ### density VQMC parameters ###
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        self.N_electrons = self.total_dof // 2 # only applied if PN_projection = True
-        self.PN_projection = False
-        self.fugacity = np.array([-0.2])  # if PN_projection = False, work in the Grand Canonial approach
+        self.N_electrons = self.total_dof // 2 - 10 # if PN_projection = True, the density is fixed at this number
+        self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach
 
 
 
@@ -39,6 +38,7 @@ class MC_parameters:
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.adjacency_list, self.longest_distance = models.get_adjacency_list(self)
         self.initial_mu_parameters = -0.0
+        self.initial_fugacity_parameter = 0.03
         self.initial_gap_parameters = np.random.uniform(-0.005, 0.005, size = len(self.pairings_list))
         self.initial_jastrow_parameters = np.random.uniform(0.1, 0.15, size = len(self.adjacency_list))
         self.initial_sdw_parameters = np.random.uniform(-0.05, 0.05, size = self.n_orbitals * self.n_sublattices)
@@ -61,5 +61,5 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False; self.tests = False
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/new/'
+        self.workdir = '/home/astronaut/DQMC_TBG/logs/test_fugacity/'
         self.load_parameters = False; self.load_parameters_path = '/home/cluster/niastr/data/DQMC_TBG/code/2.0_new/U_2.00_V_2.00_J_0.00_f_-0.20/last_opt_params.p'

@@ -7,7 +7,8 @@ from numba import jit
 import scipy
 
 class wavefunction_singlet():
-    def __init__(self, config, pairings_list, var_mu, var_SDW, var_CDW, 
+    def __init__(self, config, pairings_list, var_mu, var_f, 
+                 var_SDW, var_CDW, 
                  var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):
         self.config = config
@@ -16,6 +17,7 @@ class wavefunction_singlet():
         self.var_params_gap = var_params_gap
         self.var_params_Jastrow = var_params_Jastrow
         self.var_mu = var_mu
+        self.var_f = var_f
         self.var_SDW = var_SDW
         self.var_CDW = var_CDW
 
@@ -36,12 +38,7 @@ class wavefunction_singlet():
         self.wf = 0.
 
         if self.config.PN_projection:
-            self.total_fugacity = 0.0
-        else:
-            self.total_fugacity = self.config.fugacity  # counted from the level of (1/N) np.sum(Jastrow)
-
-
-
+            self.var_f = 0.0
 
         while True:
             if self.with_previous_state:
@@ -94,15 +91,15 @@ class wavefunction_singlet():
                                for i in range(self.big_adjacency_matrix.shape[1])]
 
         ### random numbers for random moves ###
-        self.random_numbers_acceptance = np.random.random(size = int(1e+7))
-        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+7))
-        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(1e+7))
+        self.random_numbers_acceptance = np.random.random(size = int(2e+7))
+        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(2e+7))
+        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(2e+7))
 
         return
 
     def get_cur_Jastrow_factor(self):
-        return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy) - \
-                      self.total_fugacity * np.sum(self.occupancy))
+        return np.exp(-0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow, self.occupancy) + \
+                      self.var_f * np.sum(self.occupancy))
 
     def total_density(self):
         return np.sum(self.occupancy) + self.config.total_dof // 2
@@ -115,6 +112,9 @@ class wavefunction_singlet():
 
     def get_O_Jastrow(self, jastrow_index):
         return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index][0], self.occupancy)
+
+    def get_O_fugacity(self):
+        return np.sum(self.occupancy)
 
     def _construct_gap_V(self, gap):
         V = np.zeros((self.config.total_dof, self.config.total_dof)) * 1.0j  # (6.91) in S. Sorella book
@@ -158,11 +158,12 @@ class wavefunction_singlet():
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
         O_mu = [self.get_O_pairing(self.W_mu_derivative)]
+        O_fugacity = [self.get_O_fugacity()]
         O_pairing = [self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
         O_Jastrow = [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
         O_waves = [self.get_O_pairing(W_wave_derivative) for W_wave_derivative in self.W_waves_derivatives]
 
-        O = O_mu + O_waves + O_pairing + O_Jastrow
+        O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
 
         return np.array(O)
 
@@ -252,7 +253,7 @@ class wavefunction_singlet():
                     np.sum([a[empty_site, 0] * b[moved_site_idx, 0] for a, b in zip(self.a_update_list, self.b_update_list)])
 
         Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, \
-                                          self.total_fugacity, moved_site, empty_site)
+                                          self.var_f, moved_site, empty_site)
 
         self.wf += time() - t
         if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
@@ -328,7 +329,7 @@ def get_Jastrow_ratio(Jastrow, occupancy, state, total_fugacity, moved_site, emp
     delta_beta = +1 if empty_site < len(state) // 2 else -1
     alpha, beta = moved_site % (len(state) // 2), empty_site % (len(state) // 2)
 
-    fugacity_factor = np.exp(-total_fugacity * (delta_alpha + delta_beta))
+    fugacity_factor = np.exp(total_fugacity * (delta_alpha + delta_beta))
 
     return np.exp(-np.sum((delta_alpha * Jastrow[alpha, :] + delta_beta * Jastrow[beta, :]) * occupancy) - \
                    0.5 * ((delta_alpha ** 2 * Jastrow[alpha, alpha] + delta_beta ** 2 * Jastrow[beta, beta]) + \

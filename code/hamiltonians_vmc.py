@@ -52,7 +52,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
-        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.total_fugacity)
+        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)
 
         density = particles - holes
         E_loc -= self.config.mu * np.sum(density + 1)
@@ -65,8 +65,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             return E_loc
 
         # Hund terms (are not affected by the twisted BC):
-        E_loc += self.config.J * (get_E_J_Hund(self.orbitals, wf_state, wf.total_fugacity) + \
-                                  get_E_Jprime_Hund(self.orbitals, wf_state, wf.total_fugacity))
+        E_loc += self.config.J * (get_E_J_Hund(self.orbitals, wf_state, wf.var_f) + \
+                                  get_E_Jprime_Hund(self.orbitals, wf_state, wf.var_f))
         return E_loc
 
 
