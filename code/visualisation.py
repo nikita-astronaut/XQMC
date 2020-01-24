@@ -42,7 +42,7 @@ def plot_fermi_surface(config):
         R = models.R_square
         G = models.G_square
 
-    K = config.model(config, 0.0)[0]
+    K = config.model(config, 0.0, spin = +1.0)[0]
     k_vectors = []
     energies = []
     for kx in range(config.Ls):
@@ -54,7 +54,7 @@ def plot_fermi_surface(config):
             energies.append(np.sort(e_k))
     energies = np.array(energies).real
     k_vectors = np.array(k_vectors)
-    E_max = np.sort(np.array(energies).reshape(-1))[config.N_electrons[0] // 2]  # 2-spin degeneracy
+    E_max = np.sort(np.array(energies).reshape(-1))[config.N_electrons // 2]  # 2-spin degeneracy
 
     set_style()
     fig = plt.figure()
@@ -184,13 +184,13 @@ def plot_pairing(config, gap_expanded, name):
                 
                 textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
                 textshift = textshift / np.sqrt(np.sum(textshift ** 2) + 1e-5)
-                shiftval = 0.1 - (orbit1 * config.n_orbitals + orbit2) * 0.1 / 2
-                plt.text(*(r2 + shiftval * textshift + np.random.uniform(-0.05, 0.05, 2)), labelstring, zorder=10, fontsize=8)
+                shiftval = 0.2 - (orbit1 * config.n_orbitals + orbit2) * 0.1
+                plt.text(*(r2 + shiftval * textshift), labelstring, zorder=10, fontsize=8)
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')
-    plt.xlim([-1, 2])
-    plt.ylim([-1, 1])
+    plt.xlim([-0.5, 1.25])
+    plt.ylim([-0.75, 0.75])
     # plt.title(name + ' pairing')
     plt.savefig('../plots/' + name + '.pdf')
     plt.clf()

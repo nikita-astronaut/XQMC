@@ -238,7 +238,8 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
     else:
         twists = [[1., 1.] for _ in range(n_cpus)]
 
-    force_abs_history = [10]
+    force_SR_abs_history = [10]
+    force_abs_history = [100000]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
             (mu_parameter, fugacity_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
@@ -289,12 +290,14 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
         print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
                                                                       np.sqrt(np.sum(step ** 2))))
         step_abs = np.sqrt(np.sum(step ** 2))
+        force_abs = np.sqrt(np.sum(forces ** 2))
         clip_length = np.min([10, len(force_abs_history)])
-        if step_abs > 2. * np.median(force_abs_history[-clip_length:]):
+        if step_abs > 2. * np.median(force_SR_abs_history[-clip_length:]) or force_abs > 2. * np.median(force_abs_history[-clip_length:]):
             print('Warning! The force is too high -- this iteration will NOT be performed')
             step = 0.0 * step
         else:
-            force_abs_history.append(step_abs)
+            force_SR_abs_history.append(step_abs)
+            force_abs_history.append(force_abs)
             step = config_vmc.opt_parameters[1] * step 
 
         offset = 0
