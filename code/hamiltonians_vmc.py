@@ -23,7 +23,7 @@ class HubbardHamiltonian(object):
 class hamiltonian_Koshino(HubbardHamiltonian):
     def __init__(self, config):
         super().__init__(config)
-        self.edges_quadric, self.orbitals = self._get_interaction()
+        self.edges_quadric, self.x_orbital, self.y_orbital = self._get_interaction()
 
     def _get_interaction(self):
         # for V_{ij} n_i n_j density--density interactions
@@ -37,7 +37,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             edges_quadric[x, y] = self.config.V / 2.0
             edges_quadric[y, x] = self.config.V / 2.0
 
-        return edges_quadric, (x_orbit, y_orbit)
+        return edges_quadric, x_orbit, y_orbit
 
     def __call__(self, wf):
         '''
@@ -52,21 +52,21 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
-        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)
+        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term
 
-        density = particles - holes
-        E_loc -= self.config.mu * np.sum(density + 1)
-        # this sum runs in the real indices space (not 2--extended as above)
-        E_loc += np.einsum('i,ij,j', density, self.edges_quadric, density)
-        # on-site term U/2 \rho^2 = U n_up n_down + (U/2) (-n_up - n_down + 1)
-        # so, at half-filling the standart U n_up n_down and my U/2 \rho^2 must agree
+        density = particles - holes + 1
+        E_loc -= self.config.mu * np.sum(density)  # \mu--term
+        E_loc += self.config.U * np.sum(particles * (1 - holes))  # U--term
+        E_loc += self.config.V * np.sum(density[self.x_orbital] * density[self.y_orbital])
+        # the interaction term taken from https://arxiv.org/pdf/1809.06772.pdf, Eq. (2)
+        # to ensure the right coefficients for the Kanamori relation
 
         if self.config.J == 0:
             return E_loc
 
         # Hund terms (are not affected by the twisted BC):
-        E_loc += self.config.J * (get_E_J_Hund(self.orbitals, wf_state, wf.var_f) + \
-                                  get_E_Jprime_Hund(self.orbitals, wf_state, wf.var_f))
+        E_loc += self.config.J * (get_E_J_Hund(self.x_orbital, self.y_orbital, wf_state, wf.var_f) + \
+                                  get_E_Jprime_Hund(self.x_orbital, self.y_orbital, wf_state, wf.var_f))
         return E_loc
 
 
@@ -93,38 +93,35 @@ def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
     return E_loc
 
 @jit(nopython=True)
-def get_E_J_Hund(orbitals, wf_state, total_fugacity):
+def get_E_J_Hund(x_orbital, y_orbital, wf_state, total_fugacity):
     '''
-        E_hund = J \\sum_{i, s1, s2} c^{\\dag}_ixs1 c^{\\dag}_iys2 c_ixs2 c_iys1 = 
+        E_hund = J \\sum_{i, s1, s2} c^{\\dag}_ixs1 c_iys1 c^{\\dag}_iys2 c_ixs2  = 
 
-        1) s1 = s2 = \\up: J \\sum_{i} d^{\\dag}_ix d^{\\dag}_iy d_ix d_iy = -\\sum_i n_{ix} n_{iy}
-        2) s1 = \\up, s2 = \\down: \\sum_{i} d^{\\dag}_ix d_{iy + L} d^{\\dag}_{ix + L} d_iy = 
-                                =  \\sum_{i} F(ix, iy + L, ix + L, iy)
-        3) s1 = \\down, s2 = \\up: J \\sum_{i} d_{ix + L} d^{\\dag}_iy d_ix d^{\\dag}_{iy + L} = 
-                                   J \\sum_{i} F(iy, ix + L, iy + L, ix)
-        4) s1 = s2 = \\down: J \\sum_{i} d_{ix + L} d_{iy + L} d^{\\dag}_{ix + L} d^{\\dag}_{iy + L} = 
-                            = -J \\sum_i d_{ix + L} d^{\\dag}_{ix + L} d_{iy + L} d^{\\dag}_{iy + L} = 
-                            = -J \\sum_i (1 - n(ix + L)) (1 - n(iy + L))
+        1) s1 = s2 = \\up: J \\sum_{i} d^{\\dag}_ix d_iy d^{\\dag}_iy d_ix  = J \\sum_i n_{ix} (1 - n_{iy})
+        2) s1 = \\up, s2 = \\down: \\sum_{i} d^{\\dag}_ix d_iy d_{iy + L} d^{\\dag}_{ix + L} = 
+                                =  -\\sum_{i} F(ix, iy, ix + L, iy + L)
+        3) s1 = \\down, s2 = \\up: J \\sum_{i} d_{ix + L} d^{\\dag}_{iy + L} d^{\\dag}_iy d_ix  = 
+                                   -J \\sum_{i} F(iy + L, ix + L, iy, ix)
+        4) s1 = s2 = \\down: J \\sum_{i} d_{ix + L} d^{\\dag}_{iy + L} d_{iy + L} d^{\\dag}_{ix + L} = 
+                            = J \\sum_i (1 - n(ix + L)) n(iy + L)
     '''
-    x_orbital, y_orbital = orbitals
     L = len(wf_state[3]) // 2
     E_loc = 0.0 + 0.0j
 
     for x, y in zip(x_orbital, y_orbital):
-        E_loc += -density(wf_state[2], x) * density(wf_state[2], y)  # (1)
-        E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, x, y + L, x + L, y)  # (2)
-        E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, y, x + L, y + L, x)  # (3)
-        E_loc += -(1 - density(wf_state[2], x)) * (1 - density(wf_state[2], y))  # (4)
+        E_loc += density(wf_state[2], x) * (1 - density(wf_state[2], y))  # (1)
+        E_loc += -get_wf_ratio_double_exchange(*wf_state, total_fugacity, x, y, x + L, y + L)  # (2)
+        E_loc += -get_wf_ratio_double_exchange(*wf_state, total_fugacity, y + L, x + L, y, x)  # (3)
+        E_loc += (1 - density(wf_state[2], x + L)) * density(wf_state[2], y + L)  # (4)
     return E_loc
 
 @jit(nopython=True)
-def get_E_Jprime_Hund(orbitals, wf_state, total_fugacity):
+def get_E_Jprime_Hund(x_orbital, y_orbital, wf_state, total_fugacity):
     '''
         E_hund_prime = J \\sum_{i, o1 != o2} c^{\\dag}_io1up c^{\\dag}_io1down c_io2down c_io2up = 
                        J \\sum_{i, o1 != o2} d^{\\dag}_io1 d_{io1 + L} d^{\\dag}_{io2 + L} d_{i o2} =
                        J \\sum_{i, o1 != o2} F(io1, io1 + L, io2 + L, io2)
     '''
-    x_orbital, y_orbital = orbitals
     L = len(wf_state[3]) // 2
     E_loc = 0.0 + 0.0j
 
