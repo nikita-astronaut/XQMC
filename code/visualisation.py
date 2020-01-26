@@ -3,8 +3,9 @@ import models
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import pairings
-
+from numba import jit
 from copy import deepcopy
+import scipy
 
 def set_style():
     plt.rc('text', usetex = True)
@@ -13,23 +14,36 @@ def set_style():
     plt.grid(True, linestyle='--', alpha=0.5)
     return
 
-def K_FT(k, K, config, R):
+
+def K_FT(k, K, config, R, spin_dof = 1):
     L = config.Ls
-    n_internal = config.n_sublattices * config.n_orbitals
+    n_internal = config.n_sublattices * config.n_orbitals * spin_dof
     result = np.zeros((n_internal, n_internal)) * 1.0j
+    #result = np.zeros((n_internal // 2, n_internal // 2)) * 1.0j
     x1, y1 = 0, 0  # rely on translational invariance
-    for sublattice_orbit1 in range(n_internal):
-        sublattice1 = sublattice_orbit1 % config.n_sublattices
-        orbit1 = (sublattice_orbit1 // config.n_sublattices) % config.n_orbitals
-        first = models.to_linearized_index(x1, y1, sublattice1, orbit1, L, config.n_orbitals, config.n_sublattices)
+    for sublattice_orbit_spin1 in range(n_internal):
+        ### parse mega-index into components ###
+        spin1 = sublattice_orbit_spin1 % spin_dof
+        sublattice1 = (sublattice_orbit_spin1 // spin_dof) % config.n_sublattices
+        orbit1 = ((sublattice_orbit_spin1 // spin_dof) // config.n_sublattices) % config.n_orbitals
+
+        first = models.to_linearized_index(x1, y1, sublattice1, orbit1, L, \
+                                           config.n_orbitals, config.n_sublattices) + spin1 * (K.shape[0] // spin_dof)
+        
+
         for second in range(K.shape[0]):
-            orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), L, config.n_orbitals, config.n_sublattices)
+            spin2 = second // (K.shape[0] // spin_dof)
+            orbit2, sublattice2, x2, y2 = models.from_linearized_index(second % (K.shape[0] // spin_dof), L, \
+                                          config.n_orbitals, config.n_sublattices)
             element = K[first, second]
             r2_real = np.einsum('j,jk->k', np.array([x2 - x1, y2 - y1]), R)
 
             ft_factor = np.exp(1.0j * np.einsum('i,i', r2_real, k))
-            result[orbit1 + config.n_orbitals * sublattice1, \
-                   orbit2 + config.n_orbitals * sublattice2] += ft_factor * element
+            result[(orbit1 + config.n_orbitals * sublattice1) + spin1 * result.shape[0] // 2, \
+                   (orbit2 + config.n_orbitals * sublattice2) + spin2 * result.shape[0] // 2] += ft_factor * element
+            #if spin1 == 0 and spin2 == 0:
+            #    result[orbit1 + config.n_orbitals * sublattice1, \
+            #       orbit2 + config.n_orbitals * sublattice2] += ft_factor * element
     return result
 
 def plot_fermi_surface(config):
@@ -257,3 +271,108 @@ def plot_Jastrow(config, Jastrow, index):
     plt.savefig('../plots/jastrow_' + str(orbit1) + '-' + str(orbit2) + '_' + str(dist) + '.pdf')
     plt.clf()
     return
+
+
+### given kx, ky, returns the fourier transform of H_mean_field (2xn_orbitalsxn_sublattices)-dim matrix (spin included)
+def get_spectrum_K(HMF, config, k_real):
+    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+    
+    if geometry == 'hexagonal':
+        R = models.R_hexagonal
+        G = models.G_hexagonal
+    else:
+        R = models.R_square
+        G = models.G_square
+
+    Ls, n_orbitals, n_sublattices = config.Ls, config.n_orbitals, config.n_sublattices
+
+    HMF_fourier = K_FT(k_real, HMF, config, R, spin_dof = 2)
+
+    return np.linalg.eigh(HMF_fourier)
+
+def is_commensurate(L, k):
+    m_x = L * (np.sqrt(3) * k[0] + k[1]) / 2 / (2 * np.pi)
+    m_y = L * (np.sqrt(3) * k[0] - k[1]) / 2 / (2 * np.pi)
+
+    if np.abs(m_x - np.rint([m_x])[0]) < 0.03 and np.abs(m_y - np.rint([m_y])[0]) < 0.03:
+        print(m_x, m_y)
+        return True
+    return False
+
+def get_MFH(config):
+    print('vis start')
+    K_up = config.model(config, config.initial_mu_parameters, spin = +1.0)[0]
+    K_down = config.model(config, config.initial_mu_parameters, spin = -1.0)[0].T  # TODO: check this
+    #checkerboard = models.spatial_checkerboard(config.Ls)
+    print('K construction done')
+    Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, config.initial_gap_parameters)
+    print('Delta construction done')
+    def _construct_wave_V(config, orbital, sublattice, wave_type):
+        sublattice_matrix = np.zeros((config.n_sublattices, config.n_sublattices))
+        sublattice_matrix[sublattice, sublattice] = 1.
+
+        orbital_matrix = np.zeros((config.n_orbitals, config.n_orbitals))
+        orbital_matrix[orbital, orbital] = 1.            
+
+        dof_matrix = np.kron(np.kron(checkerboard, sublattice_matrix), orbital_matrix)
+
+        if wave_type == 'SDW':
+            return np.kron(np.eye(2), dof_matrix)
+        return np.kron(np.diag([1, -1]), dof_matrix)
+
+    T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
+    T[:config.total_dof // 2, config.total_dof // 2:] = Delta
+    T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+    
+    print('MHF construction done')
+    '''
+    for dof in range(config.n_orbitals * config.n_sublattices):
+        sublattice = dof % config.n_sublattices
+        orbital = (dof // config.n_sublattices) % config.n_orbitals
+
+        T += _construct_wave_V(config, orbital, sublattice, 'SDW') * config.initial_sdw_parameters[dof]
+        T += _construct_wave_V(config, orbital, sublattice, 'CDW') * config.initial_cdw_parameters[dof]
+    '''
+    return T
+
+
+def plot_MF_spectrum_profile(config):
+    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+    if geometry == 'square':
+        print('Not supported!')
+        exit(-1)
+
+    K_point = 2 * np.pi * np.array([2 / np.sqrt(3), 2.0 / 3.0]) / 2.
+    Gamma_point = 2 * np.pi * np.array([0., 0.]) / 2.
+    M_point = 2 * np.pi * np.array([2 / np.sqrt(3), 0]) / 2.
+    Kprime_point = 2 * np.pi * np.array([2 / np.sqrt(3), -2.0 / 3.0]) / 2.
+
+    k_real_list = [(1 - alpha) * K_point + alpha * Gamma_point for alpha in np.linspace(0, 1, 100)] + \
+                  [(1 - alpha) * Gamma_point + alpha * M_point for alpha in np.linspace(0, 1, 100)] + \
+                  [(1 - alpha) * M_point + alpha * Kprime_point for alpha in np.linspace(0, 1, 100)]
+
+    MFH = get_MFH(config)
+
+    energies = []
+    for k_real in k_real_list:
+        if not is_commensurate(config.Ls, k_real):
+            energies.append(np.zeros(8))
+            continue
+        E, v = get_spectrum_K(MFH, config, k_real)
+        adding = []
+        for i in range(v.shape[1]):
+            if np.sum(np.abs(v[:, i] ** 2)) > 0.5:
+                adding.append(E[i].real)
+        for i in range(v.shape[1]):
+            if np.sum(np.abs(v[:, i] ** 2)) < 0.5:
+                adding.append(E[i].real)
+        energies.append(np.array(adding))
+    energies = np.array(energies)
+
+    #energies = np.array([ if is_commensurate(config.Ls, k_real) else  ])
+    [plt.plot(np.where(np.abs(energies[:, i]) > 0.0)[0], energies[:, i][np.where(np.abs(energies[:, i]) > 0.0)[0]], ls = '--')\
+              for i in range(energies.shape[1])]
+    #plt.plot([0, 97], [0, 0], ls = '--', color = 'black')
+    #plt.xlim([0, 97])
+    plt.grid(True)
+    plt.show()
