@@ -11,7 +11,7 @@ class HubbardHamiltonian(object):
     def __init__(self, config):
         self.config = config
         K_matrix_up = self.config.model(self.config, 0.0, spin = +1.0)[0]
-        K_matrix_down = self.config.model(self.config, 0.0, spin = -1.0)[0]
+        K_matrix_down = self.config.model(self.config, 0.0, spin = -1.0)[0].T
         self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
 
     def _get_edges(self):
@@ -57,7 +57,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         density = particles - holes + 1
         E_loc -= self.config.mu * np.sum(density)  # \mu--term
         E_loc += self.config.U * np.sum(particles * (1 - holes))  # U--term
-        E_loc += self.config.V * np.sum(density[self.x_orbital] * density[self.y_orbital])
+        E_loc += self.config.V * np.sum((density[self.x_orbital] - 1) * (density[self.y_orbital] - 1))
         # the interaction term taken from https://arxiv.org/pdf/1809.06772.pdf, Eq. (2)
         # to ensure the right coefficients for the Kanamori relation
 

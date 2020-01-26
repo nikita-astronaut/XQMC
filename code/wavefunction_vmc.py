@@ -23,7 +23,7 @@ class wavefunction_singlet():
 
         ### mean-field Hamiltonian precomputed elements ###
         self.K_up = self.config.model(self.config, self.var_mu, spin = +1.0)[0]
-        self.K_down = self.config.model(self.config, self.var_mu, spin = -1.0)[0]
+        self.K_down = self.config.model(self.config, self.var_mu, spin = -1.0)[0].T
         self.Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         self.checkerboard = models.spatial_checkerboard(self.config.Ls)
         self.Jastrow_A = config.adjacency_list
@@ -91,9 +91,9 @@ class wavefunction_singlet():
                                for i in range(self.big_adjacency_matrix.shape[1])]
 
         ### random numbers for random moves ###
-        self.random_numbers_acceptance = np.random.random(size = int(2e+7))
-        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(2e+7))
-        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(2e+7))
+        self.random_numbers_acceptance = np.random.random(size = int(1e+7))
+        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+7))
+        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(1e+7))
 
         return
 
