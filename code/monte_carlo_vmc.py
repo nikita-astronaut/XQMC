@@ -108,15 +108,17 @@ print('performing simulation at', n_cpus, 'CPUs')
 num_twists = n_cpus
 if config_vmc.BC_twist:
     twists_per_cpu = config_vmc.min_num_twists // n_cpus
-    if config_vmc.min_num_twists % n_cpus > 0
+    if config_vmc.min_num_twists % n_cpus > 0:
         twists_per_cpu += 1
 
     num_twists = twists_per_cpu * n_cpus
     twists = [np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2) for _ in range(num_twists)]  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
 else:
     twists = [[1., 1.] for _ in range(num_twists)]
-config_vmc.MC_chain = config_vmc.MC_chain // num_twists # the MC_chain contains the total required number of samples
 
+print(n_cpus, num_twists, twists_per_cpu)
+config_vmc.MC_chain = config_vmc.MC_chain // num_twists # the MC_chain contains the total required number of samples
+config_vmc.MC_thermalisation = config_vmc.MC_thermalisation // num_twists
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist, final_state = False):
     config_vmc.twist = tuple(twist)
@@ -176,7 +178,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist
         acceptance.append(wf.perform_MC_step()[0])
         t_steps += time() - t
 
-    print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
+    # print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
     return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E, densities
 
 pairings_list = config_vmc.pairings_list
@@ -249,9 +251,13 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
     force_SR_abs_history = [10000]
     force_abs_history = [100000000]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
+        t = time()
         results = Parallel(n_jobs=num_twists)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
             (mu_parameter, fugacity_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
              twist = twists[i], final_state = final_states[i]) for i in range(num_twists))
+        
+        print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
+        t = time() 
         gap = np.min([-results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2 - 1]] + \
                        results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(num_twists)])
 
@@ -266,11 +272,11 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
         final_states = [x[3] for x in results]
         densities = np.concatenate([np.array(x[8]) for x in results], axis = 0)
 
-        print('estimating gradient on ', len(energies), 'samples', flush = True)
-        print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
-        print('\033[93m <n> / vol = ' + str(np.mean(densities) / vol) + '+/-' + str(np.std(densities) / np.sqrt(len(densities)) / vol) + '\033[0m', flush = True)
-        print('\033[93m σ^2 / t / vol = ' + str(mean_variance) + '\033[0m', flush = True)
-        print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
+        # print('estimating gradient on ', len(energies), 'samples', flush = True)
+        # print('\033[93m <E> / t / vol = ' + str(np.mean(energies) / vol) + '+/-' + str(np.std(energies) / np.sqrt(len(energies)) / vol) + '\033[0m', flush = True)
+        # print('\033[93m <n> / vol = ' + str(np.mean(densities) / vol) + '+/-' + str(np.std(densities) / np.sqrt(len(densities)) / vol) + '\033[0m', flush = True)
+        # print('\033[93m σ^2 / t / vol = ' + str(mean_variance) + '\033[0m', flush = True)
+        # print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
 
 
         Os_mean = [np.mean(Os_theta, axis = 0) for Os_theta in Os]
@@ -319,11 +325,12 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
                         cdw_parameter, gap_parameters, jastrow_parameters,
                         local_workdir, n_step)
 
-
+        '''
         print('\033[91m mu_BCS = ' + str(mu_parameter) + 'fugacity = ' + str(fugacity_parameter) + \
               ' pairings =' + str(gap_parameters) + \
               ', Jastrow =' + str(jastrow_parameters) + \
               ', SDW/CDW = ' + str([sdw_parameter, cdw_parameter]) + '\033[0m', flush = True)
+        '''
         log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e}" + " {:.7e} " * len(step) + "\n").format(n_step, \
                         np.mean(energies).real / vol, np.std(energies).real / np.sqrt(len(energies)) / vol, \
                         np.mean(densities).real / vol, np.std(densities).real / np.sqrt(len(densities)) / vol, \
@@ -369,5 +376,6 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
             current_written += data_size
             file.write(("{:.6e} " * len(data)).format(*data)); file.write('\n')
             file.flush()
+        print('SR and logging {:d} took {:f}'.format(n_step, time() - t))
     log_file.close()
     [file.close() for file in obs_files]
