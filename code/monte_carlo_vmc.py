@@ -134,7 +134,9 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist
     observables = []
     names = []
 
-    for MC_step in range(int(config_vmc.MC_chain * (config_vmc.opt_parameters[2] ** n_iter))):
+    precision_factor = 1. if config_vmc.opt_raw > n_iter else 4.
+
+    for MC_step in range(int(precision_factor * config_vmc.MC_chain * (config_vmc.opt_parameters[2] ** n_iter))):
         if MC_step % config_vmc.correlation == 0:
             t = time()
             wf.perform_explicit_GF_update()
@@ -238,8 +240,8 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
     else:
         twists = [[1., 1.] for _ in range(n_cpus)]
 
-    force_SR_abs_history = [10]
-    force_abs_history = [100000]
+    force_SR_abs_history = [10000]
+    force_abs_history = [100000000]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
             (mu_parameter, fugacity_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
@@ -291,8 +293,8 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
                                                                       np.sqrt(np.sum(step ** 2))))
         step_abs = np.sqrt(np.sum(step ** 2))
         force_abs = np.sqrt(np.sum(forces ** 2))
-        clip_length = np.min([10, len(force_abs_history)])
-        if step_abs > 2. * np.median(force_SR_abs_history[-clip_length:]) or force_abs > 2. * np.median(force_abs_history[-clip_length:]):
+        clip_length = np.min([20, len(force_abs_history)])
+        if step_abs > 3. * np.median(force_SR_abs_history[-clip_length:]) or force_abs > 3. * np.median(force_abs_history[-clip_length:]):
             print('Warning! The force is too high -- this iteration will NOT be performed')
             step = 0.0 * step
         else:
