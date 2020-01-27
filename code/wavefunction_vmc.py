@@ -91,9 +91,9 @@ class wavefunction_singlet():
                                for i in range(self.big_adjacency_matrix.shape[1])]
 
         ### random numbers for random moves ###
-        self.random_numbers_acceptance = np.random.random(size = int(1e+7))
-        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(1e+7))
-        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(1e+7))
+        self.random_numbers_acceptance = np.random.random(size = int(self.config.MC_chain * 4))
+        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(self.config.MC_chain * 4))
+        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(self.config.MC_chain * 4))
 
         return
 
