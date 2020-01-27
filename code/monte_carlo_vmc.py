@@ -102,7 +102,21 @@ n_cpus = config_vmc.n_cpus
 if config_vmc.n_cpus == -1:
     n_cpus = n_cpus_max
 print('performing simulation at', n_cpus, 'CPUs')
-config_vmc.MC_chain = config_vmc.MC_chain // n_cpus  # the MC_chain contains the total required number of samples
+
+
+### generate twists once and for all (Sandro's suggestion) ###
+num_twists = n_cpus
+if config_vmc.BC_twist:
+    twists_per_cpu = config_vmc.min_num_twists // n_cpus
+    if config_vmc.min_num_twists % n_cpus > 0
+        twists_per_cpu += 1
+
+    num_twists = twists_per_cpu * n_cpus
+    twists = [np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2) for _ in range(num_twists)]  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
+else:
+    twists = [[1., 1.] for _ in range(num_twists)]
+config_vmc.MC_chain = config_vmc.MC_chain // num_twists # the MC_chain contains the total required number of samples
+
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist, final_state = False):
     config_vmc.twist = tuple(twist)
@@ -203,7 +217,7 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
 
-    final_states = [False] * n_cpus
+    final_states = [False] * num_twists
 
 
     ### write log header only if we start from some random parameters ###
@@ -230,22 +244,14 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
     initial_state_idx = np.arange(config_vmc.total_dof)  # enumerates the number of states with respect to adiabatic evolution of the initial states (threads)
     current_selected_states = np.arange(config_vmc.total_dof // 2)  # labels of the threads that are now in the min-level set [better they do not change...]
 
-
-    ### generate twists once and for all (Sandro's suggestion) ###
-    twists = [1., 1.]
-    if config_vmc.BC_twist:
-        twists = [np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2) for _ in range(n_cpus)]  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
-    else:
-        twists = [[1., 1.] for _ in range(n_cpus)]
-
     force_SR_abs_history = [10]
     force_abs_history = [100000]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
-        results = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+        results = Parallel(n_jobs=num_twists)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
             (mu_parameter, fugacity_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
-             twist = twists[i], final_state = final_states[i]) for i in range(n_cpus))
+             twist = twists[i], final_state = final_states[i]) for i in range(num_twists))
         gap = np.min([-results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2 - 1]] + \
-                       results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(n_cpus)])
+                       results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(num_twists)])
 
         vol = config_vmc.total_dof // 2
         energies = [np.array(x[0]) for x in results]  # collection of all energy sets obtained from different threads
