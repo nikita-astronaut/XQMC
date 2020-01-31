@@ -7,8 +7,8 @@ Xpauli = np.array([[0, 1], [1, 0]])
 iYpauli = np.array([[0, 1], [-1, 0]])
 Zpauli = np.array([[1, 0], [0, -1]])
 
-sigma_1 = (Zpauli + 1.0j * Xpauli) / np.sqrt(2)
-sigma_2 = (Zpauli - 1.0j * Xpauli) / np.sqrt(2)
+sigma_1 = (Zpauli + 1.0j * Xpauli)
+sigma_2 = (Zpauli - 1.0j * Xpauli)
 
 delta_hex_AB, delta_hex_BA = [], []
 delta_square = []

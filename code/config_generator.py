@@ -10,8 +10,8 @@ main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self):
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = 40  # the number of time slices for the Suzuki-Trotter procedure
+        self.Ls = 8  # spatial size, the lattice will be of size Ls x Ls
+        self.Nt = 50  # the number of time slices for the Suzuki-Trotter procedure
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
         self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.V = V_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
@@ -25,7 +25,7 @@ class simulation_parameters:
         self.field = auxiliary_field.auxiliary_field_interorbital
         self.n_sublattices = 2
         self.start_type = 'hot'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
-        self.n_sweeps = 400  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
+        self.n_sweeps = 2000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 10  # every n-th configuration will be stored during generation
         self.save_path = './configurations/'  # where the configurations will be stored | they will have the name save_path/conf_genN.npy, where N is the generated number
         self.n_print_frequency = 3  # write to log every n_print_frequency spin flips

@@ -127,7 +127,7 @@ def perform_sweep(phi_field, n_sweep, switch = True):
 
 
     ### light observables ### (calculated always during calculator and generator stages)
-    observables_light = np.array(observables_light) / np.mean(obs_signs_light)
+    observables_light = np.array(observables_light)# / np.mean(obs_signs_light)  # this should be done at later postprocessing stages
     observables_light = np.concatenate([observables_light.mean(axis = 0)[:, np.newaxis], 
                                         observables_light.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
 
@@ -140,13 +140,11 @@ def perform_sweep(phi_field, n_sweep, switch = True):
 
     ### heavy observables ### (calculated only during the generator stage)
     if n_sweep >= phi_field.config.thermalization:
-        observables_heavy = np.array(observables_heavy) / np.mean(obs_signs_heavy)
+        observables_heavy = np.array(observables_heavy)# / np.mean(obs_signs_heavy)  # this should be done later
 
-        observables_heavy = np.concatenate([observables_heavy.mean(axis = 0)[:, np.newaxis], 
-                                            observables_heavy.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
+        observables_heavy = observables_heavy.mean(axis = 0)
 
-        observables_heavy = np.concatenate([np.array([np.mean(obs_signs_heavy), 
-                                np.std(obs_signs_heavy) / np.sqrt(len(obs_signs_heavy))]), observables_heavy], axis = 0)
+        observables_heavy = np.concatenate([np.array([np.mean(obs_signs_heavy)]), observables_heavy], axis = 0)
         names_heavy = ['⟨sign_obs_h⟩'] + names_heavy
     return phi_field, (observables_light, names_light), (observables_heavy, names_heavy)
 
@@ -191,8 +189,8 @@ if __name__ == "__main__":
 
             ### heavy logging ###
             if n_sweep == config.thermalization:
-                gap_file.write('step sign_obs dsign_obs ')
-                density_file.write('step sign_obs dsign_obs ')
+                gap_file.write('step sign_obs ')
+                density_file.write('step sign_obs ')
 
                 for obs_name in names_h[1:]:
                     # obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
@@ -211,7 +209,7 @@ if __name__ == "__main__":
             ### to files writing ###
             data_per_name_pairings = current_field.config.n_adj_pairings  # only mean, std is meaningless
             data_per_name_densities = current_field.config.n_adj_density  # only mean, std is meaningless
-            add_offset = 2
+            add_offset = 1
             current_written = 0
             data = obs_h[:add_offset]; density_file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))
             data = obs_h[:add_offset]; gap_file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))
