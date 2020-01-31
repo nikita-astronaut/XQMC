@@ -10,7 +10,7 @@ main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self):
-        self.Ls = 8  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
         self.Nt = 40  # the number of time slices for the Suzuki-Trotter procedure
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
         self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
@@ -18,9 +18,9 @@ class simulation_parameters:
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
         self.nu_V = None
         self.nu_U = None
-        self.BC_twist = False
+        self.BC_twist = False; self.twist = (1.0, 1.0)
         self.mu = np.array([0.05, 0.1, 0.15, 0.20, 0.25]) # (meV), chemical potential of the lattice
-        self.model = models.model_hex_2orb_Kashino
+        self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2
         self.field = auxiliary_field.auxiliary_field_interorbital
         self.n_sublattices = 2
@@ -36,8 +36,11 @@ class simulation_parameters:
         self.thermalization = 0  # after how many sweeps start computing observables
 
         pairings.obtain_all_pairings(self)
-        self.pairings_list = pairings.on_site_2orb_hex_real + pairings.on_site_2orb_hex_imag + \
-                             pairings.NN_2orb_hex_real + pairings.NN_2orb_hex_imag
+        self.pairings_list = pairings.on_site_2orb_hex_real + pairings.NN_2orb_hex_real
 
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
+        
+
+        self.n_adj_density = self.n_orbitals * (self.n_orbitals + 1) // 2 * 2
+        self.n_adj_pairings = self.n_orbitals * (self.n_orbitals + 1) // 2

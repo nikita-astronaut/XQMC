@@ -161,9 +161,9 @@ if __name__ == "__main__":
         
         config.nu_V = np.arccosh(np.exp(V / 2. * config.dt))
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
-        K_matrix = config.model(config, config.mu)[0]
-        K_operator = scipy.linalg.expm(config.dt * K_matrix)
-        K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
+        K_matrix = config.model(config, config.mu)[0].real
+        K_operator = scipy.linalg.expm(config.dt * K_matrix).real
+        K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
         phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix, gpu_avail)
         phi_field.copy_to_GPU()
 

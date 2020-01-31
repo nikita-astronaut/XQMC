@@ -82,10 +82,11 @@ class auxiliary_field_intraorbital:
         right = (u1.dot(um)).T
         # print(xp.sum(xp.abs(xp.linalg.inv(left) - left.T)))
         # print(xp.sum(xp.abs(xp.linalg.inv(right) - right.T)))
+        sign = np.sign(np.linalg.slogdet(cp.asnumpy(left))[0] * np.linalg.slogdet(cp.asnumpy(right))[0])
         if return_logdet:
             return left.dot((xp.diag(sm ** -1)).dot(right)), \
                    xp.sum(xp.log(sm ** -1)), \
-                   xp.sign(xp.linalg.det(left) * xp.linalg.det(right))
+                   sign#xp.sign(xp.linalg.slogdet(left)[0] * xp.linalg.slogdet(right)[0])
         return left.dot(xp.diag(sm ** -1)).dot(right)
 
     def refresh_all_decompositions(self):
