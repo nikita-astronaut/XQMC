@@ -19,7 +19,7 @@ class simulation_parameters:
         self.nu_V = None
         self.nu_U = None
         self.BC_twist = False; self.twist = (1.0, 1.0)
-        self.mu = np.array([0.05, 0.1, 0.15, 0.20, 0.25]) # (meV), chemical potential of the lattice
+        self.mu = np.array([-0.3]) # (meV), chemical potential of the lattice
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2
         self.field = auxiliary_field.auxiliary_field_interorbital

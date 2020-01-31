@@ -172,6 +172,9 @@ if __name__ == "__main__":
 
         obs_files = []
         log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
+        gap_file = open(os.path.join(local_workdir, 'gap_log.dat'), 'w')
+        density_file = open(os.path.join(local_workdir, 'density_log.dat'), 'w')
+
 
         for n_sweep in range(config.n_sweeps):
             accept_history = []
@@ -188,33 +191,42 @@ if __name__ == "__main__":
 
             ### heavy logging ###
             if n_sweep == config.thermalization:
+                gap_file.write('step sign_obs dsign_obs ')
+                density_file.write('step sign_obs dsign_obs ')
+
                 for obs_name in names_h[1:]:
-                    obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
+                    # obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
                 
                     if 'density' in obs_name:
                         adj_list = current_field.adj_list[:current_field.config.n_adj_density]  # on-site and nn
+                        for adj in adj_list:
+                            density_file.write("n({:.5e}/{:d}/{:d}) ".format(adj[3], adj[1], adj[2]));
                     else:
                         adj_list = current_field.adj_list[-current_field.config.n_adj_pairings:]  # only largest distance
-
-                    obs_files[-1].write('step sign_obs dsign_obs ')
-                    for adj in adj_list:
-                        obs_files[-1].write("f({:.5e}/{:d}/{:d}) df({:.5e}/{:d}/{:d}) ".format(adj[3], \
-                                            adj[1], adj[2], adj[3], adj[1], adj[2]));
-                    obs_files[-1].write('\n')
+                        for adj in adj_list:
+                            gap_file.write(obs_name + "({:d}/{:d}) ".format(adj[1], adj[2]));
+                gap_file.write('\n')
+                density_file.write('\n')
                 
             ### to files writing ###
-            data_per_name_pairings = current_field.config.n_adj_pairings * 2  # mean and std
-            data_per_name_densities = current_field.config.n_adj_density * 2  # mean and std
+            data_per_name_pairings = current_field.config.n_adj_pairings  # only mean, std is meaningless
+            data_per_name_densities = current_field.config.n_adj_density  # only mean, std is meaningless
             add_offset = 2
             current_written = 0
-            for file in obs_files:
-                data = obs_h[:add_offset]; file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))  # for sign and epoch no
+            data = obs_h[:add_offset]; density_file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))
+            data = obs_h[:add_offset]; gap_file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))
 
-                data_size = data_per_name_densities if 'density' in file.name else data_per_name_pairings
+            for obs_name in names_h[1:]:
+                #data = obs_h[:add_offset]; file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))  # for sign and epoch no
+                data_size = data_per_name_densities if 'density' in obs_name else data_per_name_pairings
 
                 data = obs_h[add_offset + current_written:add_offset + current_written + data_size]
                 current_written += data_size
-                file.write(("{:.6e} " * len(data)).format(*data)); file.write('\n')
-                file.flush()
+                if 'density' in obs_name:
+                    density_file.write(("{:.6e} " * len(data)).format(*data));
+                else:
+                    gap_file.write(("{:.6e} " * len(data)).format(*data));
+            gap_file.write('\n')
+            density_file.write('\n')
         log_file.close()
         [file.close() for file in obs_files]
