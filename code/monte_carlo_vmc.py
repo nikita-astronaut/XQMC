@@ -307,13 +307,16 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
         step_abs = np.sqrt(np.sum(step ** 2))
         force_abs = np.sqrt(np.sum(forces ** 2))
         clip_length = np.min([20, len(force_abs_history)])
+        clipped = False
         if step_abs > 3. * np.median(force_SR_abs_history[-clip_length:]) or force_abs > 3. * np.median(force_abs_history[-clip_length:]):
-            print('Warning! The force is too high -- this iteration will NOT be performed')
-            step = 0.0 * step
-        else:
+            print('Warning! The force is too high -- gradient is clipped!')
+            step = step / step_abs * 3. * np.median(force_SR_abs_history[-clip_length:])
+            force_abs = force_abs / step_abs * 3. * np.median(force_SR_abs_history[-clip_length:])
+            clipped = True
+        if not clipped:
             force_SR_abs_history.append(step_abs)
             force_abs_history.append(force_abs)
-            step = config_vmc.opt_parameters[1] * step 
+        step = config_vmc.opt_parameters[1] * step 
 
         offset = 0
         mu_parameter += step[offset]; offset += 1
