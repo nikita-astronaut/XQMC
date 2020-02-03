@@ -62,6 +62,7 @@ def test_explicit_factors_check(config):
 
 
 def test_numerical_derivative_check(config):
+    print(config.twist)
     dt = 1e-6
     success = True
     der_shift = 0

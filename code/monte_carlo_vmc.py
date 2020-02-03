@@ -84,9 +84,9 @@ with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target, \
 
 
 if config_vmc.visualisation:
+    visualisation.plot_all_pairings(config_vmc)
     visualisation.plot_MF_spectrum_profile(config_vmc)
     visualisation.plot_fermi_surface(config_vmc)
-    visualisation.plot_all_pairings(config_vmc)
     visualisation.plot_all_Jastrow(config_vmc)
 
 if config_vmc.tests:
@@ -291,16 +291,21 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
                  for Os_mean_theta, Os_theta in zip(Os_mean, Os)]  # SR_matrix is computed independently for every twist angle theta
 
         S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
+
+        print([np.sqrt(np.abs(np.diag(S_cov_theta))) for S_cov_theta in S_cov])
         S_cov = np.mean(S_cov, axis = 0)
 
-        forces_pc = forces / np.sqrt(np.abs(np.diag(S_cov)))  # below (6.52)
-        S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov))), S_cov, 1.0 / np.sqrt(np.abs(np.diag(S_cov))))  
+        diag = np.sqrt(np.abs(np.diag(S_cov)))
+
+        forces_pc = forces / diag  # below (6.52)
+        print(np.linalg.eig(S_cov)[0])
+        S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / diag, S_cov, 1.0 / diag)
         # (6.51, scale-invariant regularization)
         S_cov_pc += config_vmc.opt_parameters[0] * np.eye(S_cov_pc.shape[0])  # (6.54)
         S_cov_pc_inv = np.linalg.inv(S_cov_pc)
 
         step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
-        step = step_pc / np.sqrt(np.abs(np.diag(S_cov)))
+        step = step_pc / diag
 
         print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
                                                                       np.sqrt(np.sum(step ** 2))))

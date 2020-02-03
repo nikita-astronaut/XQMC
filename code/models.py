@@ -13,17 +13,32 @@ def diff_modulo(x, y, L, d):
         return (x - y + L) % L == d  # or (x - y + L) % L == L - d
     return (x - y + L) % L == L + d
 
-@jit(nopython=True)
 def lattice_to_physical(lattice, geometry):
     if geometry == 'square':
-        return lattice
+        return [lattice[0], lattice[1]]
 
-    x = lattice[0] * np.sqrt(3) + lattice[1] * np.sqrt(3) / 2.
-    y = lattice[1] * 3 / 2.
+    x = (lattice[0] + lattice[1]) * np.sqrt(3) / 2
+    y = (lattice[0] - lattice[1]) / 2
 
     if lattice[2] == 1:
-        y += 1.
-    return x, y
+        x += 1. / np.sqrt(3)
+    return [x, y]
+
+def physical_to_lattice(physical, geometry):
+    if geometry == 'square':
+        return [physical[0], physical[1], 0]
+
+    x, y = physical
+    lattice = [0, 0, 0]
+    if np.abs(int(np.rint(2 * x / np.sqrt(3))) - 2 * x / np.sqrt(3)) >= 1e-5:
+        lattice[2] = 1
+        x = x - 1. / np.sqrt(3)
+
+
+    lattice[1] = (x - np.sqrt(3) * y) / np.sqrt(3)
+    lattice[0] = (x + np.sqrt(3) * y) / np.sqrt(3)
+
+    return lattice
 
 @jit(nopython=True)
 def nearest_neighbor(r1, r2, L, geometry):
