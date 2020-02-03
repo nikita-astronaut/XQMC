@@ -120,7 +120,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     return _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = inverse), n_orbitals, n_sublattices
 
 
-def model_hex_2orb_Koshino(config, mu, spin):
+def model_hex_2orb_Koshino(config, mu, spin = +1.0):
     return _model_hex_2orb_Koshino(config.Ls, config.twist, mu, spin)
 
 

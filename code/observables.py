@@ -120,14 +120,18 @@ def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj)
     G_function_up = np.eye(current_G_function_up.shape[0]) - current_G_function_up
     G_function_down = np.eye(current_G_function_down.shape[0]) - current_G_function_down
 
+    counter = 0
+
+    n_bonds = np.sum(np.abs(gap) > 0) / gap.shape[0]
+
     result = 0.0 + 0.0j
     for i in range(gap.shape[0]):
         for k in np.where(adj[i, :] > 0)[0]:
+            counter += 1
             for j in np.where(np.abs(gap[i, :]) != 0.)[0]:
                 for l in np.where(np.abs(gap[k, :]) != 0.)[0]:
                     result += np.conj(gap[i, j]) * gap[k, l] * G_function_down[l, j] * G_function_up[k, i] * adj[i, k]
-
-    return np.real(result)
+    return np.real(result) / counter / n_bonds
     # return xp.einsum('ij,kl,lj,ki,ik', np.conj(gap), gap, xp.eye(G_function_down.shape[0]) - G_function_down,
     #                                    xp.eye(G_function_up.shape[0]) - G_function_up, adj)
 
@@ -151,7 +155,6 @@ def Coloumb_energy(phi):
 def compute_light_observables(phi):
     observables = [total_density(phi).item(), kinetic_energy(phi).item(), Coloumb_energy(phi), \
                    kinetic_energy(phi).item() + Coloumb_energy(phi)]
-
     names = ['⟨density⟩', '⟨E_K⟩', '⟨E_C⟩', '⟨E_T⟩']
     return observables, names
 
