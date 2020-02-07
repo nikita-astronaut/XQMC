@@ -54,14 +54,12 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         E_loc = 0.0 + 0.0j
         base_state = wf.state
-        particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
+        density = base_state[:len(base_state) // 2] - base_state[len(base_state) // 2:]
 
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term
 
-        density = particles - holes
-        # E_loc -= self.config.mu * np.sum(density + 1)  # \mu--term  # already in K--matrixes
         E_loc += 0.5 * self.config.U * np.sum(density ** 2)  # U--term
         E_loc += self.config.V * np.sum(density[self.x_orbital] * density[self.y_orbital])
         # the interaction term taken from https://arxiv.org/pdf/1809.06772.pdf, Eq. (2)
