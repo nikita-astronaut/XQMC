@@ -533,6 +533,6 @@ def obtain_all_pairings(config):
     NN_1orb_square_imag = construct_NN_1orb_square(config, real = False)
 
 
-    for n, pairing in enumerate(NN_2orb_hex_real +on_site_2orb_hex_real):
-        print(check_parity(config, pairing), n)
+    #for n, pairing in enumerate(NN_2orb_hex_real +on_site_2orb_hex_real):
+    #    print(check_parity(config, pairing), n)
     return
