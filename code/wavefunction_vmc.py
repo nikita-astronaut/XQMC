@@ -12,14 +12,8 @@ class wavefunction_singlet():
                  var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):
         self.config = config
-        
-        t = time()
-
-
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
-        print('gaps took', time() - t)
-        t = time()
         self.var_params_gap = var_params_gap
         self.var_params_Jastrow = var_params_Jastrow
         self.var_mu = var_mu
@@ -30,17 +24,14 @@ class wavefunction_singlet():
         ### mean-field Hamiltonian precomputed elements ###
         self.K_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False)  # self.config.model(self.config, self.var_mu, spin = +1.0)[0]
         self.K_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T  # self.config.model(self.config, self.var_mu, spin = -1.0)[0].T
-        
-        print('Ks took', time() - t)
-        t = time()
+        self.K_up += np.eye(self.K_up.shape[0]) * (self.config.mu - self.var_mu)
+        self.K_down += np.eye(self.K_down.shape[0]) * (self.config.mu - self.var_mu)
+
 
         self.Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         self.checkerboard = models.spatial_checkerboard(self.config.Ls)
         self.Jastrow_A = [j[0] for j in config.adjacency_list]
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
-        
-        print('Jastrow and Delta sum took', time() - t)
-        t = time()
 
         ### diagonalisation of the MF--Hamiltonian ###
         self.U_matrix = self._construct_U_matrix()
@@ -67,14 +58,8 @@ class wavefunction_singlet():
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
                 print('degenerate')
 
-        print('U matrix and conf took', time() - t)
-        t = time()
-
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
-
-        print('W_GF took', time() - t)
-        t = time()
 
         self.a_update_list = []
         self.b_update_list = []  # for delayed GF updates defined in (5.93 -- 5.97)
@@ -82,38 +67,25 @@ class wavefunction_singlet():
         self.current_ampl = self.get_cur_det() * self.get_cur_Jastrow_factor()
         self.current_det = self.get_cur_det()
 
-        print('Current det ampl took', time() - t)
-        t = time()
         ### pre-computed W-matrices for fast derivative computation ###
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
 
-        print('muW took', time() - t)
-        t = time()
+
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
-        print('pairingsW took', time() - t)
-        t = time()
         self.W_waves_derivatives = [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
                                     dof % self.config.n_sublattices, 'SDW')) \
                                     for dof in range(self.config.n_orbitals * self.config.n_sublattices)] + \
                                    [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
                                     dof % self.config.n_sublattices, 'CDW')) \
                                     for dof in range(self.config.n_orbitals * self.config.n_sublattices)]
-        print('wavesW took', time() - t)
-        t = time()
         ### allowed 1-particle moves ###
         self.adjacency_list = self.config.adjacency_transition_matrix 
-        
-        print('adjacency took', time() - t)
-        t = time()
 
 
         ### random numbers for random moves ###
         self.random_numbers_acceptance = np.random.random(size = int(self.config.MC_chain * 4))
         self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(self.config.MC_chain * 4))
         self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(self.config.MC_chain * 4))
-
-        print('RND took', time() - t)
-        t = time()
         return
 
     def get_cur_Jastrow_factor(self):
