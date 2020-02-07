@@ -149,29 +149,6 @@ class auxiliary_field_intraorbital:
                 M = self.la.diag(s).dot(v)
         return
 
-
-    ####### DEBUG ######
-    def get_G_no_optimisation(self, spin, time_slice):
-        M = self.la.eye(self.config.total_dof // 2)
-        current_U = self.la.eye(self.config.total_dof // 2)
-        slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
-        for nr, slice_idx in enumerate(reversed(slices)):
-            B = self.B_l(spin, slice_idx)
-            M = M.dot(B)
-            u, s, v = self.SVD(M)
-            # print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
-            current_U = current_U.dot(u)
-            M = self.la.diag(s).dot(v)
-        m = current_U.T.dot(v.T) + self.la.diag(s)
-        um, sm, vm = self.SVD(m)
-        return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1))
-
-    def get_assymetry_factor(self):
-        log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
-        log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
-        s_factor_log = self.config.nu_U * xp.sum(self.configuration[..., 0:2])  # in case of xy-yx pairings
-        return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
-
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
         M = xp.eye(self.config.total_dof // 2)
         
@@ -274,6 +251,29 @@ class auxiliary_field_intraorbital:
         self.current_G_function_down = B_wrap_down.dot(self.current_G_function_down.dot(B_wrap_down_inverse))
 
         return
+
+    ####### DEBUG ######
+    def get_G_no_optimisation(self, spin, time_slice):
+        M = self.la.eye(self.config.total_dof // 2)
+        current_U = self.la.eye(self.config.total_dof // 2)
+        slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
+        for nr, slice_idx in enumerate(reversed(slices)):
+            B = self.B_l(spin, slice_idx)
+            M = M.dot(B)
+            u, s, v = self.SVD(M)
+            # print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
+            current_U = current_U.dot(u)
+            M = self.la.diag(s).dot(v)
+        m = current_U.T.dot(v.T) + self.la.diag(s)
+        um, sm, vm = self.SVD(m)
+        return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1))
+
+    def get_assymetry_factor(self):
+        log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
+        log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
+        s_factor_log = self.config.nu_U * xp.sum(self.configuration[..., 0:2])  # in case of xy-yx pairings
+        return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
+    ####### END DEBUG ######
 
 
 class auxiliary_field_interorbital(auxiliary_field_intraorbital):

@@ -152,10 +152,10 @@ def perform_sweep(phi_field, n_sweep, switch = True):
 if __name__ == "__main__":
     print_greetings(config)
 
-    U_list = deepcopy(config.U); V_list = deepcopy(config.V); mu_list = deepcopy(config.mu)
+    U_list = deepcopy(config.U); V_list = deepcopy(config.V); mu_list = deepcopy(config.mu); Nt_list = deepcopy(config.Nt);
 
-    for U, V, mu in zip(U_list, V_list, mu_list):
-        config.U = U; config.V = V; config.mu = mu;
+    for U, V, mu, Nt in zip(U_list, V_list, mu_list, Nt_list):
+        config.U = U; config.V = V; config.mu = mu; config.Nt = int(Nt);
         
         config.nu_V = np.arccosh(np.exp(V / 2. * config.dt))
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
@@ -165,7 +165,7 @@ if __name__ == "__main__":
         phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix, gpu_avail)
         phi_field.copy_to_GPU()
 
-        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}'.format(U, V, mu))  # add here all parameters that are being iterated
+        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}'.format(U, V, mu, int(Nt)))  # add here all parameters that are being iterated
         os.makedirs(local_workdir, exist_ok=True)
 
         obs_files = []
@@ -205,7 +205,10 @@ if __name__ == "__main__":
                             gap_file.write(obs_name + "({:d}/{:d}) ".format(adj[1], adj[2]));
                 gap_file.write('\n')
                 density_file.write('\n')
-                
+            
+            if n_sweep < config.thermalization:
+                continue
+
             ### to files writing ###
             data_per_name_pairings = current_field.config.n_adj_pairings  # only mean, std is meaningless
             data_per_name_densities = current_field.config.n_adj_density  # only mean, std is meaningless
