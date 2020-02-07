@@ -36,8 +36,8 @@ class wavefunction_singlet():
 
         self.Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         self.checkerboard = models.spatial_checkerboard(self.config.Ls)
-        self.Jastrow_A = config.adjacency_list
-        self.Jastrow = np.sum(np.array([A[0] * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
+        self.Jastrow_A = [j[0] for j in config.adjacency_list]
+        self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
         
         print('Jastrow and Delta sum took', time() - t)
         t = time()
@@ -130,7 +130,7 @@ class wavefunction_singlet():
         return -np.einsum('ij,ji', W_k, self.W_GF_complete)  # (6.98) from S.Sorella book
 
     def get_O_Jastrow(self, jastrow_index):
-        return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index][0], self.occupancy)
+        return -0.5 * np.einsum('i,ij,j', self.occupancy, self.Jastrow_A[jastrow_index], self.occupancy)
 
     def get_O_fugacity(self):
         return np.sum(self.occupancy)
@@ -168,14 +168,14 @@ class wavefunction_singlet():
             O_i = \\partial{\\psi(x)}/ \\partial(w) / \\psi(x)
         '''
 
-        self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j  # TODO: this can be done ONCE for all gaps
+        self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
         O_mu = [self.get_O_pairing(self.W_mu_derivative)]
         O_fugacity = [self.get_O_fugacity()]
-        O_pairing = [self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
-        O_Jastrow = [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
-        O_waves = [self.get_O_pairing(W_wave_derivative) for W_wave_derivative in self.W_waves_derivatives]
+        O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete)  # ([self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
+        O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy)  # [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
+        O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete)  # [self.get_O_pairing(W_wave_derivative) for W_wave_derivative in self.W_waves_derivatives]
 
         O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
 
@@ -438,3 +438,28 @@ def jit_get_derivative(U_full, V, E, E_fermi):  # obtaining (6.99) from S. Sorel
                 Vdash_rescaled[alpha, beta] = Vdash[alpha, beta] / (E[alpha] - E[beta])
 
     return U_full.dot(Vdash_rescaled).dot(U_full.conj().T)  # (6.99) step
+
+
+@jit(nopython=True)
+def jit_get_O_pairing(W_k_derivatives, W_GF_complete):
+    derivatives = []
+    for k in range(len(W_k_derivatives)):
+        der = 0.0 + 0.0j
+        w = W_k_derivatives[k] 
+        for i in range(W_GF_complete.shape[1]):
+            for j in range(W_GF_complete.shape[0]):
+                der -= w[i, j] * W_GF_complete[j, i]
+        derivatives.append(der)
+    return derivatives
+
+@jit(nopython=True)
+def jit_get_O_jastrow(Jastrow_A, occupancy):
+    derivatives = []
+    for k in range(len(Jastrow_A)):
+        der = 0.0 + 0.0j
+        J = Jastrow_A[k]
+        for i in range(J.shape[0]):
+            for j in range(J.shape[1]):
+                der -= 0.5 * occupancy[i] * J[i, j] * occupancy[j]
+        derivatives.append(der)
+    return derivatives
