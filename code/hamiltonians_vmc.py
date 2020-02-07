@@ -5,15 +5,17 @@ from wavefunction_vmc import get_wf_ratio, density, get_wf_ratio_double_exchange
 from numba import jit
 from time import time
 import scipy
-
+from copy import deepcopy
 
 class HubbardHamiltonian(object):
     def __init__(self, config):
         self.config = config
-        K_matrix_up = self.config.model(self.config, 0.0, spin = +1.0)[0]
-        K_matrix_down = self.config.model(self.config, 0.0, spin = -1.0)[0].T
-        self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
+        K_matrix_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False)  # self.config.model(self.config, self.var_mu, spin = +1.0)[0]
+        K_matrix_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T  # self.config.model(self.config, self.var_mu, spin = -1.0)[0].T
+        # K_matrix_up = self.config.model(self.config, 0.0, spin = +1.0)[0]
+        # K_matrix_down = self.config.model(self.config, 0.0, spin = -1.0)[0].T
 
+        self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
     def _get_edges(self):
         raise NotImplementedError()
     def __call__(self, wf):
@@ -33,10 +35,14 @@ class hamiltonian_Koshino(HubbardHamiltonian):
                            np.arange(1, self.config.total_dof // 2, 2)
                            # x_orbit[i] and y_orbit[i] are the two orbitals residing on the same lattice site
 
+        edges_quadric[x_orbit, y_orbit] = self.config.V / 2.0
+        edges_quadric[y_orbit, x_orbit] = self.config.V / 2.0
+
+        '''
         for x, y in zip(x_orbit, y_orbit):
             edges_quadric[x, y] = self.config.V / 2.0
             edges_quadric[y, x] = self.config.V / 2.0
-
+        '''
         return edges_quadric, x_orbit, y_orbit
 
     def __call__(self, wf):
@@ -55,7 +61,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term
 
         density = particles - holes
-        E_loc -= self.config.mu * np.sum(density + 1)  # \mu--term
+        # E_loc -= self.config.mu * np.sum(density + 1)  # \mu--term  # already in K--matrixes
         E_loc += 0.5 * self.config.U * np.sum(density ** 2)  # U--term
         E_loc += self.config.V * np.sum(density[self.x_orbital] * density[self.y_orbital])
         # the interaction term taken from https://arxiv.org/pdf/1809.06772.pdf, Eq. (2)
@@ -87,6 +93,9 @@ def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
 
     for i in range(len(base_state)):
         for j in range(len(base_state)):
+            if i == j:
+                E_loc += edges_quadratic[i, i] * density(wf_state[2], i)
+                continue
             if not (base_state[i] == 1 and base_state[j] == 0):
                 continue
             E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)

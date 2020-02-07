@@ -6,15 +6,14 @@ import pairings
 
 class MC_parameters:
     def __init__(self):
+        print('initialisation of MC_parameters')
     	### geometry and general settings ###
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
         self.mu = np.array([-0.40])
         self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
-        self.twist = np.exp(0 * 1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2); self.min_num_twists = 18;
-        print(self.twist)
+        self.twist = [1, 1]; self.min_num_twists = 96; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
-        _, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)
-
+        self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
 
 
         ### interaction parameters ###
@@ -29,13 +28,14 @@ class MC_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.N_electrons = self.total_dof // 2 - 10 # if PN_projection = True, the density is fixed at this number
         self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach
+        self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0])
 
 
         ### other parameters ###
-        self.visualisation = True; self.tests = True
+        self.visualisation = False; self.tests = False
         self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/astronaut/DQMC_TBG/logs/test/'
-        self.load_parameters = True; self.load_parameters_path = '/home/astronaut/Documents/DQMC_TBG/logs/test/U_1.00_V_1.00_J_0.00_mu_-0.40/last_opt_params.p'
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/3/'
+        self.load_parameters = True; self.load_parameters_path = None#'/home/astronaut/Documents/DQMC_TBG/logs/test/U_1.00_V_1.00_J_0.00_mu_-0.40/last_opt_params.p'
 
 
         ### variational parameters settings ###
@@ -54,11 +54,11 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 3000000 // 2; self.MC_thermalisation = 20000; self.opt_raw = 1500;
-        self.optimisation_steps = 1400; self.thermalization = 1300; self.obs_calc_frequency = 20
+        self.MC_chain = 6000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
+        self.optimisation_steps = 14000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
-        self.correlation = self.N_electrons * 3
+        self.correlation = self.N_electrons * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-3, 1e-2, 1.003]  
+        self.opt_parameters = [1e-3, 2e-2, 1.001]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5

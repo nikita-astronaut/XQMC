@@ -523,16 +523,16 @@ def obtain_all_pairings(config):
     on_site_1orb_square_real = construct_on_site_1orb_square(config)
     NN_1orb_square_real = construct_NN_1orb_square(config)
 
-    on_site_2orb_hex_imag = construct_on_site_2orb_hex(config, real = False)
-    NN_2orb_hex_imag = construct_NN_2orb_hex(config, real = False)
+    # on_site_2orb_hex_imag = construct_on_site_2orb_hex(config, real = False)
+    # NN_2orb_hex_imag = construct_NN_2orb_hex(config, real = False)
 
-    on_site_1orb_hex_imag = construct_on_site_1orb_hex(config, real = False)
-    NN_1orb_hex_imag = construct_NN_1orb_hex(config, real = False)
+    # on_site_1orb_hex_imag = construct_on_site_1orb_hex(config, real = False)
+    # NN_1orb_hex_imag = construct_NN_1orb_hex(config, real = False)
 
-    on_site_1orb_square_imag = construct_on_site_1orb_square(config, real = False)
-    NN_1orb_square_imag = construct_NN_1orb_square(config, real = False)
+    # on_site_1orb_square_imag = construct_on_site_1orb_square(config, real = False)
+    # NN_1orb_square_imag = construct_NN_1orb_square(config, real = False)
 
 
-    for n, pairing in enumerate(NN_2orb_hex_real +on_site_2orb_hex_real):
-        print(check_parity(config, pairing), n)
+    # for n, pairing in enumerate(NN_2orb_hex_real +on_site_2orb_hex_real):
+    #     print(check_parity(config, pairing), n)
     return

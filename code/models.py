@@ -131,7 +131,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     K = K + K.conj().T
     K = K - mu * np.eye(K.shape[0])
 
-    inverse = False if spin == 1.0 else True
+    inverse = False if spin > 0 else True
     return _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = inverse), n_orbitals, n_sublattices
 
 
@@ -160,7 +160,7 @@ def _model_hex_1orb(Ls, twist, mu, spin):
     K = K + K.conj().T
     K = K - mu * np.eye(K.shape[0])
 
-    inverse = False if spin == 1.0 else True
+    inverse = False if spin > 0 else True
     return _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = inverse), n_orbitals, n_sublattices
 
 def model_hex_1orb(config, mu, spin):
@@ -237,19 +237,29 @@ def _model_square_1orb(Ls, twist, mu, spin):
 
     # K = K + K.conj().T # already counted
     K = K - mu * np.eye(K.shape[0])
-    inverse = False if spin == 1.0 else True
+    inverse = False if spin > 0 else True
     return _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = inverse), n_orbitals, n_sublattices
 
 
 def model_square_1orb(config, mu, spin):
     return _model_square_1orb(config.Ls, config.twist, mu, spin)
 
+@jit(nopython = True)
+def get_transition_matrix(PN_projection, K):
+    adjacency_matrix = np.abs(K) > 1e-6
+
+    big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
+    if not PN_projection:  # not only particle-conserving moves
+        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(adjacency_matrix.shape[0]))
+        # on-site pariticle<->hole transitions
+
+    adjacency_list = [np.where(big_adjacency_matrix[:, i] > 0)[0] \
+                      for i in range(big_adjacency_matrix.shape[1])]
+
+    return adjacency_list
 
 @jit(nopython=True)
 def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = False):  # inverse = True in the case of spin--down
-    '''
-        if config.BC_twist == True, we demand that if j >= L, c_{j} = -c_{j % L} (only in y--direction)
-    '''
     x_factor = twist[0] if not inverse else 1. / twist[0]
     y_factor = twist[1] if not inverse else 1. / twist[1]
     for first in range(K.shape[0]):

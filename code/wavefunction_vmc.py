@@ -12,8 +12,14 @@ class wavefunction_singlet():
                  var_params_gap, var_params_Jastrow, \
                  with_previous_state, previous_state):
         self.config = config
+        
+        t = time()
+
+
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
+        print('gaps took', time() - t)
+        t = time()
         self.var_params_gap = var_params_gap
         self.var_params_Jastrow = var_params_Jastrow
         self.var_mu = var_mu
@@ -22,13 +28,19 @@ class wavefunction_singlet():
         self.var_CDW = var_CDW
 
         ### mean-field Hamiltonian precomputed elements ###
-        self.K_up = self.config.model(self.config, self.var_mu, spin = +1.0)[0]
-        self.K_down = self.config.model(self.config, self.var_mu, spin = -1.0)[0].T
+        self.K_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False)  # self.config.model(self.config, self.var_mu, spin = +1.0)[0]
+        self.K_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T  # self.config.model(self.config, self.var_mu, spin = -1.0)[0].T
+        
+        print('Ks took', time() - t)
+        t = time()
+
         self.Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
         self.checkerboard = models.spatial_checkerboard(self.config.Ls)
         self.Jastrow_A = config.adjacency_list
         self.Jastrow = np.sum(np.array([A[0] * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
-
+        
+        print('Jastrow and Delta sum took', time() - t)
+        t = time()
 
         ### diagonalisation of the MF--Hamiltonian ###
         self.U_matrix = self._construct_U_matrix()
@@ -55,10 +67,14 @@ class wavefunction_singlet():
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
                 print('degenerate')
 
-
+        print('U matrix and conf took', time() - t)
+        t = time()
 
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
+
+        print('W_GF took', time() - t)
+        t = time()
 
         self.a_update_list = []
         self.b_update_list = []  # for delayed GF updates defined in (5.93 -- 5.97)
@@ -66,35 +82,38 @@ class wavefunction_singlet():
         self.current_ampl = self.get_cur_det() * self.get_cur_Jastrow_factor()
         self.current_det = self.get_cur_det()
 
-
-
+        print('Current det ampl took', time() - t)
+        t = time()
         ### pre-computed W-matrices for fast derivative computation ###
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
+
+        print('muW took', time() - t)
+        t = time()
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
-       
+        print('pairingsW took', time() - t)
+        t = time()
         self.W_waves_derivatives = [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
                                     dof % self.config.n_sublattices, 'SDW')) \
                                     for dof in range(self.config.n_orbitals * self.config.n_sublattices)] + \
                                    [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
                                     dof % self.config.n_sublattices, 'CDW')) \
                                     for dof in range(self.config.n_orbitals * self.config.n_sublattices)]
-        
-
+        print('wavesW took', time() - t)
+        t = time()
         ### allowed 1-particle moves ###
-        self.adjacency_matrix = np.abs(np.asarray(self.config.model(self.config, 0.0, spin = 1.0)[0])) > 1e-6
-        self.big_adjacency_matrix = np.kron(np.eye(2), self.adjacency_matrix)
-        if not self.config.PN_projection:  # not only particle-conserving moves
-            self.big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(self.adjacency_matrix.shape[0]))
-            # on-site pariticle<->hole transitions
+        self.adjacency_list = self.config.adjacency_transition_matrix 
+        
+        print('adjacency took', time() - t)
+        t = time()
 
-        self.adjacency_list = [np.where(self.big_adjacency_matrix[:, i] > 0)[0] \
-                               for i in range(self.big_adjacency_matrix.shape[1])]
 
         ### random numbers for random moves ###
         self.random_numbers_acceptance = np.random.random(size = int(self.config.MC_chain * 4))
         self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(self.config.MC_chain * 4))
         self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(self.config.MC_chain * 4))
 
+        print('RND took', time() - t)
+        t = time()
         return
 
     def get_cur_Jastrow_factor(self):
@@ -123,8 +142,10 @@ class wavefunction_singlet():
         return V
 
     def _construct_mu_V(self):
-        V = -np.diag([1.0] * (self.config.total_dof // 2) + [-1.0] * (self.config.total_dof // 2)) + 0.0j
-        return V
+        V = np.ones(self.config.total_dof) + 0.0j
+        V[:self.config.total_dof // 2] = -1.0
+
+        return np.diag(V)
 
     def _construct_wave_V(self, orbital, sublattice, wave_type):
         sublattice_matrix = np.zeros((self.config.n_sublattices, self.config.n_sublattices))
@@ -136,18 +157,11 @@ class wavefunction_singlet():
         dof_matrix = np.kron(np.kron(self.checkerboard, sublattice_matrix), orbital_matrix)
 
         if wave_type == 'SDW':
-            return np.kron(np.eye(2), dof_matrix)
-        return np.kron(np.diag([1, -1]), dof_matrix)
+            return np.kron(np.eye(2), dof_matrix) + 0.0j
+        return np.kron(np.diag([1, -1]), dof_matrix) + 0.0j
 
     def _get_derivative(self, V):  # obtaining (6.99) from S. Sorella book
-        Vdash = (self.U_full.conj().T).dot(V).dot(self.U_full)  # (6.94) in S. Sorella book
-        Vdash_rescaled = np.zeros(shape = Vdash.shape) * 1.0j  # (6.94) from S. Sorella book
-        for alpha in range(Vdash.shape[0]):
-            for beta in range(Vdash.shape[1]):
-                if self.E[alpha] > self.E_fermi and self.E[beta] <= self.E_fermi:
-                    Vdash_rescaled[alpha, beta] = Vdash[alpha, beta] / (self.E[alpha] - self.E[beta])
-        return self.U_full.dot(Vdash_rescaled).dot(self.U_full.conj().T)  # (6.99) step
-
+        return jit_get_derivative(self.U_full, V, self.E, self.E_fermi)
 
     def get_O(self):  # derivative over all variational parameters
         '''
@@ -190,7 +204,7 @@ class wavefunction_singlet():
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
-        self.U_full = deepcopy(U)
+        self.U_full = deepcopy(U).astype(np.complex128)
         self.E = E
 
         lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
@@ -411,3 +425,16 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
         occupancy[i % L] += delta_i
         occupancy[j % L] -= delta_j
     return jastrow * ratio_det
+
+
+@jit(nopython=True)
+def jit_get_derivative(U_full, V, E, E_fermi):  # obtaining (6.99) from S. Sorella book
+    Vdash = (U_full.conj().T).dot(V).dot(U_full)  # (6.94) in S. Sorella book
+    Vdash_rescaled = np.zeros(shape = Vdash.shape) * 1.0j  # (6.94) from S. Sorella book
+
+    for alpha in range(Vdash.shape[0]):
+        for beta in range(Vdash.shape[1]):
+            if E[alpha] > E_fermi and E[beta] <= E_fermi:
+                Vdash_rescaled[alpha, beta] = Vdash[alpha, beta] / (E[alpha] - E[beta])
+
+    return U_full.dot(Vdash_rescaled).dot(U_full.conj().T)  # (6.99) step

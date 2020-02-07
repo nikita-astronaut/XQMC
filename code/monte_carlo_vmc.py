@@ -15,6 +15,8 @@ import os
 import pickle
 import config_vmc as cv_module
 
+time_global = 0.0
+
 def perform_transition_analysis(Es, U_vecs, current_labels, config):
     if len(U_vecs) < 2:
         return current_labels
@@ -123,21 +125,21 @@ config_vmc.MC_thermalisation = config_vmc.MC_thermalisation // num_twists
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist, final_state = False):
     config_vmc.twist = tuple(twist)
+    t = time()    
     hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
-
-
+    print('H init', time() - t)
+    t = time()
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, False, None)
     else:
         wf = wavefunction_singlet(config_vmc, pairings_list, *opt_parameters, True, final_state)
-
+    print('WF init', time() - t)
     if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
         for MC_step in range(config_vmc.MC_thermalisation):
             wf.perform_MC_step()
     else:
         for MC_step in range(config_vmc.MC_thermalisation // 4):  # else thermalize a little bit
             wf.perform_MC_step()
-
 
     energies = []
     Os = []
@@ -152,7 +154,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist
     names = []
 
     precision_factor = 1. if config_vmc.opt_raw > n_iter else 4.
-
+    tc = time()
     for MC_step in range(int(precision_factor * config_vmc.MC_chain * (config_vmc.opt_parameters[2] ** n_iter))):
         if MC_step % config_vmc.correlation == 0:
             t = time()
@@ -178,8 +180,8 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, opt_parameters, twist
         t = time()
         acceptance.append(wf.perform_MC_step()[0])
         t_steps += time() - t
-
-    # print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
+    print('t_chain = ', time() - tc)
+    print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
     return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E, densities
 
 pairings_list = config_vmc.pairings_list
@@ -210,7 +212,7 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
         mu_parameter = config_vmc.initial_mu_parameters
         sdw_parameter = config_vmc.initial_sdw_parameters
         cdw_parameter = config_vmc.initial_cdw_parameters
-        fugacity_parameter = config_vmc.initial_fugacity_parameter
+        fugacity_parameter = config_vmc.initial_fugacity_parameters
         last_step = 0
 
     config_vmc.U = U
@@ -253,14 +255,16 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
     force_abs_history = [100000000]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         t = time()
+        time_global = time()
         results = Parallel(n_jobs=num_twists)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
             (mu_parameter, fugacity_parameter, sdw_parameter, cdw_parameter, gap_parameters, jastrow_parameters), \
              twist = twists[i], final_state = final_states[i]) for i in range(num_twists))
         
         print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
         t = time() 
-        gap = np.min([-results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2 - 1]] + \
-                       results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(num_twists)])
+        gaps = [-results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2 - 1]] + \
+                       results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(num_twists)]
+        gap = np.min(gaps)
 
         vol = config_vmc.total_dof // 2
         energies = [np.array(x[0]) for x in results]  # collection of all energy sets obtained from different threads
@@ -279,8 +283,11 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
         # print('\033[93m σ^2 / t / vol = ' + str(mean_variance) + '\033[0m', flush = True)
         # print('\033[92m acceptance =' + str(acceptance) + '\033[0m', flush = True)
 
-
         Os_mean = [np.mean(Os_theta, axis = 0) for Os_theta in Os]
+
+        #for g, Os_theta, theta in zip(gaps, Os_mean, twists):
+        #    print(g, theta[0].real, theta[0].imag, theta[1].real, theta[1].imag, np.max(np.abs(Os_theta)))
+
         forces = np.array([-2 * (np.einsum('i,ik->k', energies_theta.conj(), Os_theta) / len(energies_theta) - np.mean(energies_theta.conj()) * Os_mean_theta).real for \
                            energies_theta, Os_theta, Os_mean_theta in zip(energies, Os, Os_mean)])  # all forces calculated independently for every twist angle
         forces = np.mean(forces, axis = 0)  # after calculation of the force independently for every twist angle, we average over all forces
@@ -292,13 +299,13 @@ for U, V, J, mu in zip(U_list, V_list, J_list, mu_list):
 
         S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
 
-        print([np.sqrt(np.abs(np.diag(S_cov_theta))) for S_cov_theta in S_cov])
+        #print([np.max(np.sqrt(np.abs(np.diag(S_cov_theta)))) for S_cov_theta in S_cov])
         S_cov = np.mean(S_cov, axis = 0)
 
         diag = np.sqrt(np.abs(np.diag(S_cov)))
 
         forces_pc = forces / diag  # below (6.52)
-        print(np.linalg.eig(S_cov)[0])
+        # print(np.linalg.eig(S_cov)[0])
         S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / diag, S_cov, 1.0 / diag)
         # (6.51, scale-invariant regularization)
         S_cov_pc += config_vmc.opt_parameters[0] * np.eye(S_cov_pc.shape[0])  # (6.54)
