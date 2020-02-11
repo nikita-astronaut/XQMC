@@ -16,6 +16,7 @@ path_to_sbatch = sys.argv[3]
 path_to_logs = sys.argv[4]
 name = sys.argv[5]
 
+
 lines = [line for line in bare_config]
 for i, line in enumerate(lines):
     if 'self.U =' in line:
@@ -30,6 +31,8 @@ for i, line in enumerate(lines):
         lines[i] = '        self.Ne = {:d}\n'.format(Ne)
     if 'self.pairings_list = ' in line:
         lines[i] = '        ' + gaps + '\n'
+    if 'self.workdir = ' in line:
+        lines[i] = lines[i] + name + '/'
 
 config_name = list(os.path.join(path_to_configs, 'config_{s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.py'.format(name, U, V, J, mu, Ne)))
 for i, s in enumerate(config_name):
