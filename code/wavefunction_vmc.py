@@ -1,36 +1,32 @@
 import numpy as np
 from time import time
-import pairings
+from opt_parameters import pairings
 import models
 from copy import deepcopy
 from numba import jit
 import scipy
 
 class wavefunction_singlet():
-    def __init__(self, config, pairings_list, var_mu, var_f, 
-                 var_SDW, var_CDW, 
-                 var_params_gap, var_params_Jastrow, \
+    def __init__(self, config, pairings_list, parameters, \
                  with_previous_state, previous_state):
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
-        self.var_params_gap = var_params_gap
-        self.var_params_Jastrow = var_params_Jastrow
-        self.var_mu = var_mu
-        self.var_f = var_f
-        self.var_SDW = var_SDW
-        self.var_CDW = var_CDW
+
+
+        self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
+        self.var_f = self.var_f if not config.PN_projection else 0.
 
         ### mean-field Hamiltonian precomputed elements ###
-        self.K_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False)  # self.config.model(self.config, self.var_mu, spin = +1.0)[0]
-        self.K_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T  # self.config.model(self.config, self.var_mu, spin = -1.0)[0].T
-        self.K_up += np.eye(self.K_up.shape[0]) * (self.config.mu - self.var_mu)
-        self.K_down += np.eye(self.K_down.shape[0]) * (self.config.mu - self.var_mu)
+        self.K_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False) + \
+                    np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
+        self.K_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T + \
+                      np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
 
 
         self.Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
-        self.checkerboard = models.spatial_checkerboard(self.config.Ls)
-        self.Jastrow_A = [j[0] for j in config.adjacency_list]
+
+        self.Jastrow_A = [j[0] for j in config.jastrows_list]
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
 
         ### diagonalisation of the MF--Hamiltonian ###
@@ -39,9 +35,6 @@ class wavefunction_singlet():
         self.MC_step_index = 0
         self.update = 0.
         self.wf = 0.
-
-        if self.config.PN_projection:
-            self.var_f = 0.0
 
         while True:
             if self.with_previous_state:
@@ -72,12 +65,7 @@ class wavefunction_singlet():
 
 
         self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
-        self.W_waves_derivatives = [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
-                                    dof % self.config.n_sublattices, 'SDW')) \
-                                    for dof in range(self.config.n_orbitals * self.config.n_sublattices)] + \
-                                   [self._get_derivative(self._construct_wave_V((dof // self.config.n_sublattices) % self.config.n_orbitals, 
-                                    dof % self.config.n_sublattices, 'CDW')) \
-                                    for dof in range(self.config.n_orbitals * self.config.n_sublattices)]
+        self.W_waves_derivatives = [self._get_derivative(wave[0]) for wave in self.config.waves_list]
         ### allowed 1-particle moves ###
         self.adjacency_list = self.config.adjacency_transition_matrix 
 
@@ -119,18 +107,6 @@ class wavefunction_singlet():
 
         return np.diag(V)
 
-    def _construct_wave_V(self, orbital, sublattice, wave_type):
-        sublattice_matrix = np.zeros((self.config.n_sublattices, self.config.n_sublattices))
-        sublattice_matrix[sublattice, sublattice] = 1.
-
-        orbital_matrix = np.zeros((self.config.n_orbitals, self.config.n_orbitals))
-        orbital_matrix[orbital, orbital] = 1.            
-
-        dof_matrix = np.kron(np.kron(self.checkerboard, sublattice_matrix), orbital_matrix)
-
-        if wave_type == 'SDW':
-            return np.kron(np.eye(2), dof_matrix) + 0.0j
-        return np.kron(np.diag([1, -1]), dof_matrix) + 0.0j
 
     def _get_derivative(self, V):  # obtaining (6.99) from S. Sorella book
         return jit_get_derivative(self.U_full, V, self.E, self.E_fermi)
@@ -144,7 +120,7 @@ class wavefunction_singlet():
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
         O_mu = [self.get_O_pairing(self.W_mu_derivative)]
-        O_fugacity = [self.get_O_fugacity()]
+        O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete)  # ([self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy)  # [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
         O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete)  # [self.get_O_pairing(W_wave_derivative) for W_wave_derivative in self.W_waves_derivatives]
@@ -155,22 +131,14 @@ class wavefunction_singlet():
 
     def _construct_U_matrix(self):
         ## CONTRUCTION OF H_MF (mean field, denoted as T) ##
-        ## standard kinetic term (\mu included) ##
         T = scipy.linalg.block_diag(self.K_up, -self.K_down) + 0.0j
         ## various local pairing terms ##
         T[:self.config.total_dof // 2, self.config.total_dof // 2:] = self.Delta
         T[self.config.total_dof // 2:, :self.config.total_dof // 2] = self.Delta.conj().T
 
         ## SDW/CDW is the same for every orbital and sublattice ##
-
-        for dof in range(self.config.n_orbitals * self.config.n_sublattices):
-            sublattice = dof % self.config.n_sublattices
-            orbital = (dof // self.config.n_sublattices) % self.config.n_orbitals
-
-            T += self._construct_wave_V(orbital, sublattice, 'SDW') * self.var_SDW[dof]
-            T += self._construct_wave_V(orbital, sublattice, 'CDW') * self.var_CDW[dof]
-            #  delta_cdw_i \sum_xy (-1)^{x + y} [n_up_i(x, y) + n_down_i(x, y)] = \sum_xy (-1)^{x + y} [n_i(x, y) - n_i(x + L, y + L)]
-            #  delta_sdw_i \sum_xy (-1)^{x + y} [n_up_i(x, y) - n_down_i(x, y)] = \sum_xy (-1)^{x + y} [n_i(x, y) + n_i(x + L, y + L)]
+        for wave, coeff in zip(self.config.waves_list, self.var_waves):
+            T += wave[0] * coeff
 
 
         E, U = np.linalg.eigh(T)
@@ -199,7 +167,7 @@ class wavefunction_singlet():
         return self.U_matrix.dot(U_tilde_inv)
 
     def _generate_configuration(self):
-        doping = (self.config.total_dof // 2 - self.config.N_electrons) // 2  # k
+        doping = (self.config.total_dof // 2 - self.config.Ne) // 2  # k
         occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
                                                     size = self.config.total_dof // 4 - doping, replace = False)
         occupied_sites_holes = np.random.choice(np.arange(self.config.total_dof // 2, self.config.total_dof), 

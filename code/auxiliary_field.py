@@ -14,7 +14,7 @@ except ImportError:
     pass
 
 
-class auxiliary_field_intraorbital:
+class AuxiliaryFieldIntraorbital:
     def __init__(self, config, K, K_inverse, K_matrix, gpu_avail):
         self.gpu_avail = gpu_avail
         self.la = np
@@ -252,6 +252,34 @@ class auxiliary_field_intraorbital:
 
         return
 
+    def get_nonequal_time_GFs(self, spin):
+        '''
+            for different values of time, returns in the order \tau = N_t (N_t == 0), N_t - 1, N_t - 2, ... 1
+            G(0, \\tau) = [G_0(0), -G_0(0) B_{Nt - 1}, -G_0(0) B_{Nt - 1} B_{Nt - 2}, ... ]
+        '''
+
+        current_GF = self.current_G_function_up if spin > 0 else self.current_G_function_down
+
+        GFs = [1. * current_GF]
+        current_U = self.la.eye(self.config.total_dof // 2)
+
+        slices = list(range(1, self.config.Nt))
+        for nr, slice_idx in enumerate(reversed(slices)):
+            B = self.B_l(spin, slice_idx)
+            current_GF = current_GF.dot(B)
+            GFs.append(-1.0 * current_U.dot(current_GF))
+            if nr % self.config.s_refresh == self.config.s_refresh - 1:
+                u, s, v = self.SVD(current_GF)
+                # print('refresh', nr)
+                # print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
+                # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-11))
+                # print(xp.max(xp.abs(xp.eye(self.config.total_dof // 2) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
+                
+                current_U = current_U.dot(u)
+                current_GF = self.la.diag(s).dot(v)
+        return GFs
+
+
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice):
         M = self.la.eye(self.config.total_dof // 2)
@@ -276,7 +304,7 @@ class auxiliary_field_intraorbital:
     ####### END DEBUG ######
 
 
-class auxiliary_field_interorbital(auxiliary_field_intraorbital):
+class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
     def __init__(self, config, K, K_inverse, K_matrix, gpu_avail):
         super().__init__(config, K, K_inverse, K_matrix, gpu_avail)
         return

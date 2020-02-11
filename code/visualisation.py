@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import models
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
-import pairings
+from opt_parameters import pairings
 from numba import jit
 from copy import deepcopy
 import scipy
@@ -181,6 +181,26 @@ def plot_pairing(config, gap_expanded, name):
                     if np.abs(value + 1.0j * np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
                         labelstring = '$-i \\omega^*$'
 
+                    if np.abs(value - 1.0j) < 1e-7:
+                        labelstring = '$i$'
+                    if np.abs(value + 1.0j) < 1e-7:
+                        labelstring = '$-i$'
+
+                    if np.abs(value - 1.0) < 1e-7:
+                        labelstring = '$1$'
+                    if np.abs(value + 1.0) < 1e-7:
+                        labelstring = '$-1$'
+
+                    if np.abs(value - 1.0j * np.sqrt(3)) < 1e-7:
+                        labelstring = '$i\\sqrt{3}$'
+                    if np.abs(value + 1.0j * np.sqrt(3)) < 1e-7:
+                        labelstring = '$-i\\sqrt{3}$'
+
+                    if np.abs(value - np.sqrt(3)) < 1e-7:
+                        labelstring = '$\\sqrt{3}$'
+                    if np.abs(value + np.sqrt(3)) < 1e-7:
+                        labelstring = '$-\\sqrt{3}$'
+
                 labelstring = '(' + str(orbit1) + '-' + str(orbit2) + '), ' + labelstring
 
 
@@ -211,14 +231,14 @@ def plot_pairing(config, gap_expanded, name):
     return
 
 def plot_all_Jastrow(config):
-    for index, jastrow in enumerate(models.get_adjacency_list(config)[0]):
+    for index, jastrow in enumerate(config.jastrows_list):
         plot_Jastrow(config, jastrow, index)
     return
 
 def plot_Jastrow(config, Jastrow, index):
     geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
 
-    pairing, orbit1, orbit2, dist = Jastrow
+    pairing, name = Jastrow
 
     if geometry == 'hexagonal':
         R = models.R_hexagonal
@@ -238,7 +258,7 @@ def plot_Jastrow(config, Jastrow, index):
 
                 if pairing[first, second] == 0:
                     continue
-                value = config.initial_jastrow_parameters[index]
+                value = 1.
 
                 labelstring = str(value)
                 labelstring = '(' + str(orbit1) + '-' + str(orbit2) + '), ' + labelstring + ' ' + str(index)
@@ -267,8 +287,8 @@ def plot_Jastrow(config, Jastrow, index):
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')
-    plt.title('jastrow-' + str(orbit1) + '-' + str(orbit2) + ' , $r = ' + str(dist) + '$')
-    plt.savefig('../plots/jastrow_' + str(orbit1) + '-' + str(orbit2) + '_' + str(dist) + '.pdf')
+    plt.title(name)
+    plt.savefig('../plots/' + name + '.pdf')
     plt.clf()
     return
 
@@ -300,13 +320,11 @@ def is_commensurate(L, k):
     return False
 
 def get_MFH(config):
-    print('vis start')
-    K_up = config.model(config, config.initial_mu_parameters, spin = +1.0)[0]
-    K_down = config.model(config, config.initial_mu_parameters, spin = -1.0)[0].T  # TODO: check this
-    #checkerboard = models.spatial_checkerboard(config.Ls)
-    print('K construction done')
+    K_up = config.model(config, config.mu, spin = +1.0)[0]
+    K_down = config.model(config, config.mu, spin = -1.0)[0].T  # TODO: check this
     Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, config.initial_gap_parameters)
-    print('Delta construction done')
+
+
     def _construct_wave_V(config, orbital, sublattice, wave_type):
         sublattice_matrix = np.zeros((config.n_sublattices, config.n_sublattices))
         sublattice_matrix[sublattice, sublattice] = 1.
@@ -320,19 +338,10 @@ def get_MFH(config):
             return np.kron(np.eye(2), dof_matrix)
         return np.kron(np.diag([1, -1]), dof_matrix)
 
+
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
-    
-    print('MHF construction done')
-    '''
-    for dof in range(config.n_orbitals * config.n_sublattices):
-        sublattice = dof % config.n_sublattices
-        orbital = (dof // config.n_sublattices) % config.n_orbitals
-
-        T += _construct_wave_V(config, orbital, sublattice, 'SDW') * config.initial_sdw_parameters[dof]
-        T += _construct_wave_V(config, orbital, sublattice, 'CDW') * config.initial_cdw_parameters[dof]
-    '''
     return T
 
 

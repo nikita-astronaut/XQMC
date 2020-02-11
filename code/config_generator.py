@@ -22,7 +22,7 @@ class simulation_parameters:
         self.mu = np.concatenate([np.ones(9) * 0.0, np.ones(9) * (-0.10), np.ones(9) * (-0.20), np.ones(9) * (-0.3)]) # (meV), chemical potential of the lattice
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2
-        self.field = auxiliary_field.auxiliary_field_interorbital
+        self.field = auxiliary_field.AuxiliaryFieldInterorbital
         self.n_sublattices = 2
         self.start_type = 'hot'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
         self.n_sweeps = 500  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)

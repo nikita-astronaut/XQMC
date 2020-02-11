@@ -11,7 +11,54 @@ try:
 except ImportError:
     pass
 
+class Observables:
+    def __init__(self, phi):
+        self.config = phi.config
+        self.D1_dict = {}; self.D2_dict = {}; self.C_dict = {}
+        
+        for gap_name in phi.config.pairings_list_names:
+            D1_dict[gap_name] = []; D2_dict[gap_name] = []; C_dict[gap_name] = []
 
+        self.pairing_corr_dict = {}
+        for gap_name in phi.config.pairings_list_names:
+            adj_list = phi.adj_list[-phi.config.n_adj_pairings:]  # only largest distance
+            for adj in adj_list:
+                self.pairing_corr_dict[gap_name + "_({:d}/{:d})".format(adj[1], adj[2])] = []
+
+        self.density_corr_list = {}
+        adj_list = phi.adj_list[:phi.config.n_adj_density]  # only largest distance
+        for adj in adj_list:
+            self.density_corr_list["nupndown_({:d}/{:d})".format(adj[1], adj[2])] = []
+
+        self.light_observables_list = {
+            '⟨density⟩' : [], 
+            '⟨E_K⟩' : [], 
+            '⟨E_C⟩' : [],
+            '⟨E_T⟩' : []
+        }
+
+        self.heavy_signs_history = []
+        self.light_signs_history = []
+
+        self.ratio_history = []
+        self.acceptance_history = []
+        self.sign_history = []
+
+    def update_history(ratio, accepted, sign):
+        self.ratio_history.append(ratio)
+        self.acceptance_history.append(accepted)
+        self.sign_history.append(sign)
+
+    def measure_light_observables(self, phi, current_det_sign):
+        self.light_signs_history.append(current_det_sign)
+        k = kinetic_energy(phi).item()
+        C = Coloumb_energy(phi)
+        density = total_density(phi).item()
+        self.light_observables_list['⟨density⟩'].append(density)
+        self.light_observables_list['⟨E_K⟩'].append(k)
+        self.light_observables_list['⟨E_C⟩'].append(C)
+        self.light_observables_list['⟨E_T⟩'].append(k + C)
+        
 
 def get_B_sublattice_mask(config):
     return xp.asarray(1.0 * np.array([models.from_linearized_index(index, config.Ls, config.n_orbitals)[1] for index in range(config.n_sublattices * config.n_orbitals * config.Ls ** 2)]))
@@ -132,8 +179,38 @@ def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj)
                 for l in np.where(np.abs(gap[k, :]) != 0.)[0]:
                     result += np.conj(gap[i, j]) * gap[k, l] * G_function_down[l, j] * G_function_up[k, i] * adj[i, k]
     return np.real(result) / counter / n_bonds
-    # return xp.einsum('ij,kl,lj,ki,ik', np.conj(gap), gap, xp.eye(G_function_down.shape[0]) - G_function_down,
-    #                                    xp.eye(G_function_up.shape[0]) - G_function_up, adj)
+
+@jit(nopython=True)
+def corr_fix_tau(G_up, G_down, gap):
+    D_1 = np.zeros((G_up.shape[0], G_up.shape[1])) + 0.0j
+    D_2 = np.zeros(D_1.shape) + 0.0j
+    C = np.zeros(D_1.shape) + 0.0j
+
+    for i in range(gap.shape[0]):
+        for k in range(gap.shape[0]):
+            D_2[i, k] = G_up[i, k]
+            for j in np.where(gap[i, :] != 0.0)[0]:
+                for l in np.where(gap[k, :] != 0.0)[0]:
+                    D_1[i, k] += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l]
+                    С[i, k] += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l] * G_up[i, k]
+    return D_1, D_2, C
+
+
+def susceptibility_local(phi, gap):    
+    GFs_up = phi.get_nonequal_time_GFs(+1.0)
+    GFs_down = phi.get_nonequal_time_GFs(-1.0)
+
+    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)))
+    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)))
+    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)))
+
+    for i in range(len(GFs_up)):
+        D1, D2, C = corr_fix_tau(GFs_up[i], GFs_down[i], gap)
+        D_1_total[..., i] = D1; D_2_total[..., i] = D2; C_total[..., i] = C
+    
+    norm = np.sum(np.abs(gap) > 0)
+    return np.sum(D_1_total) / norm, np.sum(D_2_total) / norm, np.sum(C_total) / norm
+
 
 def Coloumb_energy(phi):
     G_function_up = phi.current_G_function_up
@@ -151,12 +228,6 @@ def Coloumb_energy(phi):
                                                       / G_function_up.shape[0]
 
     return energy_coloumb
-
-def compute_light_observables(phi):
-    observables = [total_density(phi).item(), kinetic_energy(phi).item(), Coloumb_energy(phi), \
-                   kinetic_energy(phi).item() + Coloumb_energy(phi)]
-    names = ['⟨density⟩', '⟨E_K⟩', '⟨E_C⟩', '⟨E_T⟩']
-    return observables, names
 
 def compute_heavy_observables(phi):
     adj_list_density = phi.adj_list[:phi.config.n_adj_density]  # on-site and nn

@@ -20,14 +20,9 @@ import scipy.linalg
 from copy import deepcopy
 import scipy.sparse as scs
 from time import time
-import auxiliary_field
 import observables as obs_methods
 from config_generator import simulation_parameters
 
-
-accept_history = []
-sign_history = []
-ratio_history = []
 
 config = simulation_parameters()
 def print_greetings(config):
@@ -36,17 +31,13 @@ def print_greetings(config):
     print('# sweep ⟨r⟩ d⟨r⟩ ⟨acc⟩ d⟨acc⟩ ⟨sign⟩ d⟨sign⟩ ⟨n⟩ d⟨n⟩ ⟨E_K⟩ d⟨E_K⟩ ⟨E_C⟩ d⟨E_C⟩ ⟨E_T⟩ d⟨E_T⟩')
     return
 
-def perform_sweep(phi_field, n_sweep, switch = True):
-    global accept_history, sign_history, ratio_history
+def perform_sweep(phi_field, observables, n_sweep, switch = True):
     if switch:
         phi_field.copy_to_GPU()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
 
     GF_checked = False
-    observables_light = []; obs_signs_light = []; names_light = []
-    observables_heavy = []; obs_signs_heavy = []; names_heavy = []
-    
 
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
@@ -75,8 +66,7 @@ def perform_sweep(phi_field, n_sweep, switch = True):
             o_index = sp_index % n_fields
 
 
-            sign_history.append(current_det_sign.item())
-
+            sign = current_det_sign.item()
             ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o_index) * \
                     phi_field.get_det_ratio(-1, site_idx, time_slice, o_index)
 
@@ -85,10 +75,9 @@ def perform_sweep(phi_field, n_sweep, switch = True):
             if lamb < np.min([1, np.abs(ratio)]):
                 current_det_log += np.log(np.abs(ratio))
 
-                ratio_history.append(np.log(np.abs(ratio)))
-
+                ratio = np.log(np.abs(ratio))
                 current_det_sign *= np.sign(ratio)
-                accept_history.append(+1)
+                accepted = 1.0
 
                 phi_field.update_G_seq(+1, site_idx, time_slice, o_index)
                 phi_field.update_G_seq(-1, site_idx, time_slice, o_index)
@@ -109,19 +98,18 @@ def perform_sweep(phi_field, n_sweep, switch = True):
                         print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
                 
             else:
-                accept_history.append(0)
-                ratio_history.append(0)
+                ratio = 0
+                accepted = 0
+            observables.update_history(ratio, accepted, sign)
 
         ### light observables ### (calculated always during calculator and generator stages)
-        obs, names_light = obs_methods.compute_light_observables(phi_field)
-        observables_light.append(np.array(obs) * current_det_sign.item())  # the sign is included into observables (reweighting)
-        obs_signs_light.append(current_det_sign.item())
+        observables.compute_light_observables(phi_field, current_det_sign.item())
 
         ### heavy observables ### (calculated only during the generator stage)
         if n_sweep >= phi_field.config.thermalization:
-            obs, names_heavy = obs_methods.compute_heavy_observables(phi_field)
-            observables_heavy.append(np.array(obs) * current_det_sign.item())  # the sign is included into observables (reweighting)
-            obs_signs_heavy.append(current_det_sign.item())
+            observables.compute_heavy_observables(phi_field, current_det_sign.item())
+
+    ############## CONTINUE FROM HERE ###################
 
     cut = np.min([phi_field.config.n_smoothing, len(ratio_history)])
 
@@ -165,6 +153,7 @@ if __name__ == "__main__":
         phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix, gpu_avail)
         phi_field.copy_to_GPU()
 
+        observables = obs_methods.Observables(phi_field)
         local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}'.format(U, V, mu, int(Nt)))  # add here all parameters that are being iterated
         os.makedirs(local_workdir, exist_ok=True)
 
@@ -173,12 +162,10 @@ if __name__ == "__main__":
         gap_file = open(os.path.join(local_workdir, 'gap_log.dat'), 'w')
         density_file = open(os.path.join(local_workdir, 'density_log.dat'), 'w')
 
-
         for n_sweep in range(config.n_sweeps):
             accept_history = []
-            current_field, light, heavy = perform_sweep(phi_field, n_sweep)
+            phi_field, observables = perform_sweep(phi_field, observables, n_sweep)
 
-            obs_l, names_l = light; obs_h, names_h = heavy
             ### light logging ###
             if n_sweep == 0:
                 log_file.write('step ' + ('{:s} d{:s} ' * len(names_l)).format(*[x for pair in zip(names_l, names_l) for x in pair])); log_file.write('\n')
@@ -196,11 +183,11 @@ if __name__ == "__main__":
                     # obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
                 
                     if 'density' in obs_name:
-                        adj_list = current_field.adj_list[:current_field.config.n_adj_density]  # on-site and nn
+                        adj_list = phi_field.adj_list[:phi_field.config.n_adj_density]  # on-site and nn
                         for adj in adj_list:
                             density_file.write("n({:.5e}/{:d}/{:d}) ".format(adj[3], adj[1], adj[2]));
                     else:
-                        adj_list = current_field.adj_list[-current_field.config.n_adj_pairings:]  # only largest distance
+                        adj_list = phi_field.adj_list[-phi_field.config.n_adj_pairings:]  # only largest distance
                         for adj in adj_list:
                             gap_file.write(obs_name + "({:d}/{:d}) ".format(adj[1], adj[2]));
                 gap_file.write('\n')
@@ -210,8 +197,8 @@ if __name__ == "__main__":
                 continue
 
             ### to files writing ###
-            data_per_name_pairings = current_field.config.n_adj_pairings  # only mean, std is meaningless
-            data_per_name_densities = current_field.config.n_adj_density  # only mean, std is meaningless
+            data_per_name_pairings = phi_field.config.n_adj_pairings  # only mean, std is meaningless
+            data_per_name_densities = phi_field.config.n_adj_density  # only mean, std is meaningless
             add_offset = 1
             current_written = 0
             data = obs_h[:add_offset]; density_file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))

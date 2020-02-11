@@ -1,5 +1,5 @@
 import wavefunction_vmc as wf_vmc
-import pairings
+import opt_parameters.pairings
 import numpy as np
 from numba import jit
 import models

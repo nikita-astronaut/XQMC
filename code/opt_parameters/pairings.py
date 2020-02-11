@@ -125,7 +125,7 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
                 Delta[first, second] = sigma_l1l2[sublattice1, sublattice2] * \
                                        sigma_o1o2[orbit1, orbit2] * \
                                        delta_s1s2[space1, space2]
-    return Delta
+    return Delta + 0.0j
 
 def combine_product_terms(config, pairing):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
@@ -154,28 +154,9 @@ def construct_on_site_2orb_hex(config, real = True):
         factor = 1.0j
         addstring = 'j'
 
-    onsite = construct_onsite_delta(config)
-    on_site = []
-
-    on_site.append([(Ipauli, Ipauli, onsite, 1), factor, addstring + 'σ_0⊗σ_0⊗δ'])  # A1 0
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in on_site[-1:]])
-
-    on_site.append([(Zpauli, iYpauli, onsite, 1), factor, addstring + 'σ_z⊗jσ_y⊗δ'])  # A1 1
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in on_site[-1:]])
-    on_site.append([(Ipauli, iYpauli, onsite, 1), factor, addstring + 'σ_0⊗jσ_y⊗δ'])  # A2 2
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in on_site[-1:]])
-    on_site.append([(Zpauli, Ipauli, onsite, 1), factor, addstring + 'σ_z⊗σ_0⊗δ'])  # A2 3
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in on_site[-1:]])
-
-    on_site.append([(Ipauli, Xpauli, onsite, 1.0), factor, addstring + 'σ_0⊗σ_x⊗δ']); on_site.append([(Ipauli, Zpauli, onsite, 1.0), factor, addstring + 'σ_0⊗σ_z⊗δ'])  # E 4-5
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in on_site[-2:]])
-
-    on_site.append([(Zpauli, Xpauli, onsite, 1.0), factor, addstring + 'σ_z⊗σ_x⊗δ']); on_site.append([(Zpauli, Zpauli, onsite, 1.0), factor, addstring + 'σ_z⊗σ_z⊗δ'])  # E 6-7
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in on_site[-2:]])
-
     return on_site
 
-def construct_NN_2orb_hex(config, real = True):
+def construct_2orb_hex(config, real = True):
     '''
     each element of the result is the tensor--decomposed gap in the sublattice x orbitals x neighbors space
     the 2D--irreps go in pairs written in the single line -- one MUST include them both into the total gap
@@ -193,7 +174,7 @@ def construct_NN_2orb_hex(config, real = True):
     global delta_hex_AB, delta_hex_BA
     delta_hex_AB = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
     delta_hex_BA = [delta.T for delta in delta_hex_AB]
-
+    onsite = construct_onsite_delta(config)
 
     v1_AB = construct_vi_hex(1, delta_hex_AB)
     v2_AB = construct_vi_hex(2, delta_hex_AB)
@@ -207,70 +188,54 @@ def construct_NN_2orb_hex(config, real = True):
     v2 = (v2_AB, v2_BA)
     v3 = (v3_AB, v3_BA)
 
-    # print(np.unique(v1), np.unique(v2), np.unique(v3))
-    NN = []
+    A1_N = [
+        [(Ipauli, Ipauli, onsite, 1), factor, addstring + 'S_0xS_0xδ'],
+        [(Zpauli, iYpauli, onsite, 1), factor, addstring + 'S_zxjS_yxδ'],
+    ]
+    [check_irrep_properties(config, A1_N[i:i + 1]) for i in range(len(A1_N))]
 
-    NN.append([(Xpauli, Ipauli, v1, 1.0), factor, addstring + 'σ_x⊗σ_0⊗v_1'])  # A1 (A1 x A1 x A1) 0
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-1:]])
+    A1_NN = [
+        [(Xpauli, Ipauli, v1, 1.0), factor, addstring + '(S_x)xS_0xv_1'],
+        [(iYpauli, iYpauli, v1, 1.0), factor, addstring + '(iS_y)x(iS_y)xv_1'],
+        [(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor, addstring + '[(S_x)xS_1xv_2+(S_x)xS_2xv_3]'],
+        [(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iS_y)xS_1xv_2-(iS_y)xS_2xv_3]'],
+    ]
+    [check_irrep_properties(config, A1_NN[i:i + 1]) for i in range(len(A1_NN))]
+    
 
+    A2_N = [
+        [(Ipauli, iYpauli, onsite, 1), factor, addstring + 'S_0xjS_yxδ'],
+        [(Zpauli, Ipauli, onsite, 1), factor, addstring + 'S_zxS_0xδ'],
+    ]
+    [check_irrep_properties(config, A2_N[i:i + 1]) for i in range(len(A2_N))]
 
-    NN.append([(iYpauli, iYpauli, v1, 1.0), factor, addstring + '(iσ_y)⊗(iσ_y)⊗v_1'])  # A1 (A2 x A2 x A1) 1 
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-1:]])
+    A2_NN = [
+        [(Xpauli, iYpauli, v1, 1.0), factor, addstring + '(S_x)x(iS_y)xv_1'],
+        [(iYpauli, Ipauli, v1, 1.0), factor, addstring + '(iS_y)xS_0xv_1'],
+        [(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor, addstring + '[(S_x)xS_1xv_2-(S_x)xS_2xv_3]'],
+        [(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor, addstring + '[(iS_y)xS_1xv_2+(iS_y)xS_2xv_3]'],
+    ]
+    [check_irrep_properties(config, A2_NN[i:i + 1]) for i in range(len(A2_NN))]
 
-    NN.append([(Xpauli, iYpauli, v1, 1.0), factor, addstring + 'σ_x⊗(iσ_y)⊗v_1'])  # A2 (A2 x A1 x A1) 2
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-1:]])
+    E_N = [
+        [(Ipauli, Xpauli, onsite, 1.0), factor, addstring + 'S_0x(S_x)xδ'], [(Ipauli, Zpauli, onsite, 1.0), factor, addstring + 'S_0xS_zxδ'],
+        [(Zpauli, Xpauli, onsite, 1.0), factor, addstring + 'S_zx(S_x)xδ'], [(Zpauli, Zpauli, onsite, 1.0), factor, addstring + 'S_zxS_zxδ'],
+    ]
+    [check_irrep_properties(config, E_N[2 * i:2 * i + 2]) for i in range(len(E_N) // 2)]
 
+    E_NN = [
+        [(Xpauli, Xpauli, v1, 1.0), factor, addstring + '(S_x)x(S_x)xv_1'], [(Xpauli, Zpauli, v1, 1.0), factor, addstring + '(S_x)xS_zxv_1'],
+        [(iYpauli, Xpauli, v1, 1.0), factor, addstring + '(iS_y)x(S_x)xv_1'], [(iYpauli, Zpauli, v1, 1.0), factor, addstring + '(iS_y)xS_zxv_1'],
+        [(Xpauli, Ipauli, v2, 1.0), factor, addstring + '(S_x)xS_0xv_2'], [(Xpauli, Ipauli, v3, 1.0), factor, addstring + '(S_x)xS_0xv_3'],
+        [(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iS_y)xS_0xv_2'], [(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iS_y)xS_0xv_3'],
+        [(Xpauli, iYpauli, v2, 1.0), factor, addstring + '(S_x)x(iS_y)xv_2'], [(Xpauli, iYpauli, v3, 1.0), factor, addstring + '(S_x)x(iS_y)xv_3'],
+        [(iYpauli, iYpauli, v2, 1.0), factor, addstring + '(iS_y)x(iS_y)xv_2'], [(iYpauli, iYpauli, v3, 1.0), factor, addstring + '(iS_y)x(iS_y)xv_3'],
+        [(Xpauli, sigma_1, v3, 1.0), factor, addstring + '(S_x)xS_1xv_3'], [(Xpauli, sigma_2, v2, 1.0), factor, addstring + '(S_x)xS_2xv_2'],
+        [(iYpauli, sigma_1, v3, 1.0), factor, addstring + '(iS_y)xS_1xv_3'], [(iYpauli, sigma_2, v2, 1.0), factor, addstring + '(iS_y)xS_2xv_2'],
+    ]
+    [check_irrep_properties(config, E_NN[2 * i:2 * i + 2]) for i in range(len(E_NN) // 2)]
 
-    NN.append([(iYpauli, Ipauli, v1, 1.0), factor, addstring + '(iσ_y)⊗σ_0⊗v_1'])  # A2 (A1 x A2 x A1) 3
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-1:]])
-
-
-    NN.append([(Xpauli, Xpauli, v1, 1.0), factor, addstring + 'σ_x⊗σ_x⊗v_1']); NN.append([(Xpauli, Zpauli, v1, 1.0), factor, addstring + 'σ_x⊗σ_z⊗v_1'])  # E (A1 x E x A1) 4-5
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-2:]])
-
-
-    NN.append([(iYpauli, Xpauli, v1, 1.0), factor, addstring + '(iσ_y)⊗σ_x⊗v_1']); NN.append([(iYpauli, Zpauli, v1, 1.0), factor, addstring + '(iσ_y)⊗σ_z⊗v_1'])  # E (A2 x E x A1) 6-7
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-2:]])
-
-    NN.append([(Xpauli, Ipauli, v2, 1.0), factor, addstring + 'σ_x⊗σ_0⊗v_2']); NN.append([(Xpauli, Ipauli, v3, 1.0), factor, addstring + 'σ_x⊗σ_0⊗v_3'])  # E (A1 x A1 x E) 8-9
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-2:]])
-
-
-    NN.append([(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iσ_y)⊗σ_0⊗v_2']); NN.append([(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iσ_y)⊗σ_0⊗v_3'])  # E (A2 x A1 x E) 10-11
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-2:]])
-
-
-    NN.append([(Xpauli, iYpauli, v2, 1.0), factor, addstring + 'σ_x⊗(iσ_y)⊗v_2']); NN.append([(Xpauli, iYpauli, v3, 1.0), factor, addstring + 'σ_x⊗(iσ_y)⊗v_3'])  # E (A1 x A2 x E) 12-13
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-2:]])
-
-
-    NN.append([(iYpauli, iYpauli, v2, 1.0), factor, addstring + '(iσ_y)⊗(iσ_y)⊗v_2']); NN.append([(iYpauli, iYpauli, v3, 1.0), factor, addstring + '(iσ_y)⊗(iσ_y)⊗v_3'])  # E (A2 x A2 x E) 14-15
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-2:]])
-
-    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor, addstring + '[σ_x⊗σ_1⊗v_2+σ_x⊗σ_2⊗v_3]'])  # A1 (A1 x E x E) 16
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-1:]])
-
-    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iσ_y)⊗σ_1⊗v_2-(iσ_y)⊗σ_2⊗v_3]'])  # A1 (A2 x E x E) 17
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-1:]])
-
-
-    NN.append([(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor, addstring + '[σ_x⊗σ_1⊗v_2-σ_x⊗σ_2⊗v_3]'])  # A2 (A1 x E x E) 18
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-1:]])
-
-
-    NN.append([(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor, addstring + '[(iσ_y)⊗σ_1⊗v_2+(iσ_y)⊗σ_2⊗v_3]'])  # A2 (A2 x E x E) 19
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-1:]])
-
-
-    NN.append([(Xpauli, sigma_1, v3, 1.0), factor, addstring + 'σ_x⊗σ_1⊗v_3']); NN.append([(Xpauli, sigma_2, v2, 1.0), factor, addstring + 'σ_x⊗σ_2⊗v_2'])  # E (A1 x E x E) 20-21
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-2:]])
-
-
-    NN.append([(iYpauli, sigma_1, v3, 1.0), factor, addstring + '(iσ_y)⊗σ_1⊗v_3']); NN.append([(iYpauli, sigma_2, v2, 1.0), factor, addstring + '(iσ_y)⊗σ_2⊗v_2'])  # E (A2 x E x E) 22-23
-    check_irrep_properties(config, [combine_product_terms(config, gap) for gap in NN[-2:]])
-
-
-    return NN
+    return A1_N, A1_NN, A2_N, A2_NN, E_N, E_NN
 
 
 def construct_on_site_1orb_hex(config, real = True):
@@ -282,8 +247,8 @@ def construct_on_site_1orb_hex(config, real = True):
 
     onsite = construct_onsite_delta(config)
     on_site = []
-    on_site.append([(Ipauli, identity, onsite, 1), factor, addstring + 'σ_0⊗I⊗δ'])  # A1 0
-    on_site.append([(Zpauli, identity, onsite, 1), factor, addstring + 'σ_z⊗I⊗δ'])  # A2 1
+    on_site.append([(Ipauli, identity, onsite, 1), factor, addstring + 'S_0xIxδ'])  # A1 0
+    on_site.append([(Zpauli, identity, onsite, 1), factor, addstring + 'S_zxIxδ'])  # A2 1
 
     return on_site
 
@@ -314,11 +279,11 @@ def construct_NN_1orb_hex(config, real = True):
 
     NN = []
 
-    NN.append([(Xpauli, identity, v1, 1.0), factor, addstring + 'σ_x⊗I⊗v_1'])  # A1 (A1 x A1 x A1) 0
-    NN.append([(iYpauli, identity, v1, 1.0), factor, addstring + '(iσ_y)⊗I⊗v_1'])  # B2 (A1 x A2 x A1) 1
+    NN.append([(Xpauli, identity, v1, 1.0), factor, addstring + '(S_x)xIxv_1'])  # A1 (A1 x A1 x A1) 0
+    NN.append([(iYpauli, identity, v1, 1.0), factor, addstring + '(iS_y)xIxv_1'])  # B2 (A1 x A2 x A1) 1
 
-    NN.append([(Xpauli, identity, v2, 1.0), factor, addstring + 'σ_x⊗I⊗v_2']); NN.append([(Xpauli, identity, v3, 1.0), factor, addstring + 'σ_x⊗I⊗v_3'])  # E1 (A1 x A1 x E) 2-3
-    NN.append([(iYpauli, identity, v2, 1.0), factor, addstring + '(iσ_y)⊗I⊗v_2']); NN.append([(iYpauli, identity, v3, 1.0), factor, addstring + '(iσ_y)⊗I⊗v_3'])  # E2 (A2 x A1 x E) 4-5
+    NN.append([(Xpauli, identity, v2, 1.0), factor, addstring + '(S_x)xIxv_2']); NN.append([(Xpauli, identity, v3, 1.0), factor, addstring + '(S_x)xIxv_3'])  # E1 (A1 x A1 x E) 2-3
+    NN.append([(iYpauli, identity, v2, 1.0), factor, addstring + '(iS_y)xIxv_2']); NN.append([(iYpauli, identity, v3, 1.0), factor, addstring + '(iS_y)xIxv_3'])  # E2 (A2 x A1 x E) 4-5
     return NN
 
 
@@ -331,7 +296,7 @@ def construct_on_site_1orb_square(config, real = True):
 
     onsite = construct_onsite_delta(config)
     on_site = []
-    on_site.append([(identity, identity, onsite, 1), factor, addstring + 'I⊗I⊗δ'])  # A1 0
+    on_site.append([(identity, identity, onsite, 1), factor, addstring + 'IxIxδ'])  # A1 0
 
     return on_site
 
@@ -353,10 +318,10 @@ def construct_NN_1orb_square(config, real = True):
 
     NN = []
 
-    NN.append([(identity, identity, v1, 1.0), factor, addstring + 'I⊗I⊗v_1'])  # A1 (A1 x A1 x A1) 0
-    NN.append([(identity, identity, v4, 1.0), factor, addstring + 'I⊗I⊗v_4'])  # B2 (A1 x A1 x A2) 1
+    NN.append([(identity, identity, v1, 1.0), factor, addstring + 'IxIxv_1'])  # A1 (A1 x A1 x A1) 0
+    NN.append([(identity, identity, v4, 1.0), factor, addstring + 'IxIxv_4'])  # B2 (A1 x A1 x A2) 1
 
-    NN.append([(identity, identity, v2, 1.0), factor, addstring + 'I⊗I⊗v_2']); NN.append([(identity, identity, v3, 1.0), factor, addstring + 'I⊗I⊗v_3'])  # E (A1 x A1 x E) 2-3
+    NN.append([(identity, identity, v2, 1.0), factor, addstring + 'IxIxv_2']); NN.append([(identity, identity, v3, 1.0), factor, addstring + 'IxIxv_3'])  # E (A1 x A1 x E) 2-3
     return NN
 
 
@@ -385,7 +350,7 @@ def get_C2y_symmetry_map(config):
         mapping[preindex, index] += coefficient
 
     assert np.sum(np.abs(mapping.dot(mapping) - np.eye(mapping.shape[0]))) < 1e-5  # C_2y^2 = I
-    return mapping
+    return mapping + 0.0j
 
 def get_C3z_symmetry_map(config):
     assert config.n_orbitals == 2 and config.n_sublattices == 2
@@ -415,124 +380,76 @@ def get_C3z_symmetry_map(config):
             index = models.to_linearized_index(x_image, y_image, sublattice_image, orbit_image, config.Ls, config.n_orbitals, config.n_sublattices)
             mapping[preindex, index] += coefficient
     assert np.sum(np.abs(mapping.dot(mapping).dot(mapping) - np.eye(mapping.shape[0]))) < 1e-5  # C_3z^3 = I
-    return mapping
+    return mapping + 0.0j
 
 
 def check_irrep_properties(config, irrep):
     if not config.tests:
         return
     assert config.n_orbitals == 2 and config.n_sublattices == 2
+    for irr in irrep:
+        print(check_parity(config, irr))
     C2y = get_C2y_symmetry_map(config)
     C3z = get_C3z_symmetry_map(config)
 
     def norm_sc(b, a):
         return np.sum(a * b.conj()) / np.sum(np.abs(b ** 2))
+    def in_close(a, array):
+        return np.any(np.abs(array - a) < 1e-5)
 
-    for gap in irrep:
+
+    for irr in irrep:
+        gap = combine_product_terms(config, irr)
         gap_image = (C2y).dot(gap).dot(C2y.T)
 
-        
-        for first in range(gap_image.shape[0]):
-            for second in range(gap_image.shape[1]):
-                orbit1, sublattice1, x1, y1 = models.from_linearized_index(deepcopy(first), \
-                                                     config.Ls, config.n_orbitals, config.n_sublattices)
-                orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), \
-                                                     config.Ls, config.n_orbitals, config.n_sublattices)
-                space1 = (x1 * config.Ls + y1) * config.n_sublattices + sublattice1
-                space2 = (x2 * config.Ls + y2) * config.n_sublattices + sublattice2
-
-                #if gap[first, second] != 0.0:
-                #    print(orbit1, sublattice1, x1, y1 , orbit2, sublattice2, x2, y2, gap[first, second], gap_image[first, second])
-        
-        print('C_2y check going')
         norm = np.sum(np.abs(gap_image ** 2))
-        print('<a|a> =', norm)
 
         gap_image = gap_image.flatten()
-        for gap_decompose in irrep:
+        for irr_decompose in irrep:
+            gap_decompose = combine_product_terms(config, irr_decompose)
             coeff = norm_sc(gap_decompose.flatten(), gap_image)
             gap_image = gap_image - gap_decompose.flatten() * coeff
-            print('<a|b> =', coeff)
             norm = np.sum(np.abs(gap_image ** 2))
-            print('<a|a> =', norm)
             if np.sum(np.abs(gap_image ** 2)) < 1e-5:
                 break
         assert norm < 1e-5
 
-    for gap in irrep:
-        print('C_3z check going')
+    for irr in irrep:
+        gap = combine_product_terms(config, irr)
         gap_image = (C3z).dot(gap).dot(C3z.T)
         norm = np.sum(np.abs(gap_image ** 2))
-        print('<a|a> =', norm)
 
         gap_image = gap_image.flatten()
-        for gap_decompose in irrep:
+        for irr_decompose in irrep:
+            gap_decompose = combine_product_terms(config, irr_decompose)
             coeff = norm_sc(gap_decompose.flatten(), gap_image.flatten())
             gap_image = gap_image - gap_decompose.flatten() * coeff
-            print('<a|b> =', coeff)
             norm = np.sum(np.abs(gap_image ** 2))
-            print('<a|a> =', norm)
         assert norm < 1e-5
-    print('passed')
+    print('test passed'); print([gap[-1] for gap in irrep])
 
 def check_parity(config, pairing):
     gap = combine_product_terms(config, pairing)
-    #check_irrep_properties(config, [gap])
-    print(np.sum(np.abs(gap)) / config.Ls ** 2 / config.n_sublattices)
-    # print(np.unique(gap))
+    # print(np.sum(np.abs(gap)) / config.Ls ** 2 / config.n_sublattices)
     if np.allclose(gap + gap.T, 0):
         return 'triplet'
     elif np.allclose(gap - gap.T, 0):
         return 'singlet'
-    return 'WTF is this shit?!'
+    print('Non parity-symmetric pairing' + gap[-1] + 'appeared the set')
+    exit(-1)
 
-
-on_site_2orb_hex_real = None
-NN_2orb_hex_real = None
-
-on_site_1orb_hex_real = None
-NN_1orb_hex_real = None
-
-on_site_1orb_square_real = None
-NN_1orb_square_real = None
-
-on_site_2orb_hex_imag = None
-NN_2orb_hex_imag = None
-
-on_site_1orb_hex_imag = None
-NN_1orb_hex_imag = None
-
-on_site_1orb_square_imag = None
-NN_1orb_square_imag = None
+twoorb_hex_A1_N = None
+twoorb_hex_A2_N = None
+twoorb_hex_E_N = None
+twoorb_hex_A1_NN = None
+twoorb_hex_A2_NN = None
+twoorb_hex_E_NN = None
 
 def obtain_all_pairings(config):
-    global on_site_2orb_hex_imag, NN_2orb_hex_imag, \
-           on_site_1orb_hex_imag, NN_1orb_hex_imag, \
-           on_site_1orb_square_imag, NN_1orb_square_imag
-    global on_site_2orb_hex_real, NN_2orb_hex_real, \
-           on_site_1orb_hex_real, NN_1orb_hex_real, \
-           on_site_1orb_square_real, NN_1orb_square_real
-
-    
-    NN_2orb_hex_real = construct_NN_2orb_hex(config)
-    on_site_2orb_hex_real = construct_on_site_2orb_hex(config)
-
-    on_site_1orb_hex_real = construct_on_site_1orb_hex(config)
-    NN_1orb_hex_real = construct_NN_1orb_hex(config)
-
-    on_site_1orb_square_real = construct_on_site_1orb_square(config)
-    NN_1orb_square_real = construct_NN_1orb_square(config)
-
-    # on_site_2orb_hex_imag = construct_on_site_2orb_hex(config, real = False)
-    # NN_2orb_hex_imag = construct_NN_2orb_hex(config, real = False)
-
-    # on_site_1orb_hex_imag = construct_on_site_1orb_hex(config, real = False)
-    # NN_1orb_hex_imag = construct_NN_1orb_hex(config, real = False)
-
-    # on_site_1orb_square_imag = construct_on_site_1orb_square(config, real = False)
-    # NN_1orb_square_imag = construct_NN_1orb_square(config, real = False)
-
-
-    # for n, pairing in enumerate(NN_2orb_hex_real +on_site_2orb_hex_real):
-    #     print(check_parity(config, pairing), n)
-    return
+    global twoorb_hex_A1_N, twoorb_hex_A2_N, twoorb_hex_E_N, \
+           twoorb_hex_A1_NN, twoorb_hex_A2_NN, twoorb_hex_E_NN
+    if config.n_orbitals == 2:
+        twoorb_hex_A1_N, twoorb_hex_A2_N, twoorb_hex_E_N, \
+        twoorb_hex_A1_NN, twoorb_hex_A2_NN, twoorb_hex_E_NN = construct_2orb_hex(config, real = True)
+        return
+    raise NotImplementedError()
