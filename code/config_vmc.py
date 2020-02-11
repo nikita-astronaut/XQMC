@@ -41,8 +41,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_A1_N + pairings.twoorb_hex_A2_N + pairings.twoorb_hex_E_N + \
-                             pairings.twoorb_hex_A1_NN + pairings.twoorb_hex_A2_NN + pairings.twoorb_hex_E_NN  # !!! real ones must (!) come before the imaginary ones
+        self.pairings_list = pairings.twoorb_hex_A1_N + pairings.twoorb_hex_A2_N + pairings.twoorb_hex_E_N + pairings.twoorb_hex_A1_NN + pairings.twoorb_hex_A2_NN + pairings.twoorb_hex_E_NN
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
 
