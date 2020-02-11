@@ -32,7 +32,7 @@ class MC_parameters:
 
 
         ### other parameters ###
-        self.visualisation = False; self.tests = True
+        self.visualisation = False; self.tests = False
         self.n_cpus = 4  # the number of processors to use | -1 -- take as many as available
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/3/'
         self.load_parameters = False; self.load_parameters_path = None#'/home/astronaut/Documents/DQMC_TBG/logs/test/U_1.00_V_1.00_J_0.00_mu_-0.40/last_opt_params.p'
@@ -55,7 +55,7 @@ class MC_parameters:
 
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
-        self.waves_list = waves.SDW_2orb + waves.CDW_2orb
+        self.waves_list = [] #waves.SDW_2orb + waves.CDW_2orb
         self.waves_list_names = [w[-1] for w in self.waves_list]
 
 
@@ -77,7 +77,7 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.05, 0.05, size = self.layout[2]),  # waves
-            np.random.uniform(-0.005, 0.005, size = self.layout[3]),  # gaps
+            np.random.uniform(-0.001, 0.001, size = self.layout[3]),  # gaps
             np.random.uniform(0.5, 1.0, size = self.layout[4]),  # jastrows
         ])
 

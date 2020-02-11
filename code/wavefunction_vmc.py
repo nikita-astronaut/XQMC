@@ -121,9 +121,9 @@ class wavefunction_singlet():
 
         O_mu = [self.get_O_pairing(self.W_mu_derivative)]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
-        O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete)  # ([self.get_O_pairing(self.W_k_derivatives[pairing_index]) for pairing_index in range(len(self.pairings_list_unwrapped))]
-        O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy)  # [self.get_O_Jastrow(jastrow_index) for jastrow_index in range(len(self.var_params_Jastrow))]
-        O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete)  # [self.get_O_pairing(W_wave_derivative) for W_wave_derivative in self.W_waves_derivatives]
+        O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete) if len(self.W_k_derivatives) > 0 else []
+        O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy)
+        O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete) if len(self.W_waves_derivatives) > 0 else []
 
         O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
 

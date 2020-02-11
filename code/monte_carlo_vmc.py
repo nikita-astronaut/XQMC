@@ -120,6 +120,8 @@ def print_model_summary(config_vmc):
     print('Gap parameters: ', config_vmc.pairings_list_names)
     print('Waves parameters: ', [wave[-1] for wave in config_vmc.waves_list])
     print('Jastrow parameters: ', [jastrow[-1] for jastrow in config_vmc.jastrows_list])
+
+    print('Total number of optimized parameters: ', np.sum(config_vmc.layout))
     return
 
 def write_intermediate_log(log_file, n_step, vol, energies, densities, mean_variance, acceptance, forces, step, gap, parameters):
