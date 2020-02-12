@@ -28,7 +28,7 @@ config = simulation_parameters()
 def print_greetings(config):
     # print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
     #      "lattice = {:d}^2 x {:d}".format(config.start_type, 1.0 / config.dt / config.Nt, config.mu, config.Ls, config.Nt))
-    print('# sweep ⟨r⟩ d⟨r⟩ ⟨acc⟩ d⟨acc⟩ ⟨sign⟩ d⟨sign⟩ ⟨n⟩ d⟨n⟩ ⟨E_K⟩ d⟨E_K⟩ ⟨E_C⟩ d⟨E_C⟩ ⟨E_T⟩ d⟨E_T⟩')
+    print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩')
     return
 
 def perform_sweep(phi_field, observables, n_sweep, switch = True):
@@ -101,40 +101,12 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 ratio = 0
                 accepted = 0
             observables.update_history(ratio, accepted, sign)
+        observables.measure_light_observables(phi_field, current_det_sign.item())
 
-        ### light observables ### (calculated always during calculator and generator stages)
-        observables.compute_light_observables(phi_field, current_det_sign.item())
-
-        ### heavy observables ### (calculated only during the generator stage)
         if n_sweep >= phi_field.config.thermalization:
-            observables.compute_heavy_observables(phi_field, current_det_sign.item())
+            observables.measure_heavy_observables(phi_field, current_det_sign.item())
 
-    ############## CONTINUE FROM HERE ###################
-
-    cut = np.min([phi_field.config.n_smoothing, len(ratio_history)])
-
-
-    ### light observables ### (calculated always during calculator and generator stages)
-    observables_light = np.array(observables_light)# / np.mean(obs_signs_light)  # this should be done at later postprocessing stages
-    observables_light = np.concatenate([observables_light.mean(axis = 0)[:, np.newaxis], 
-                                        observables_light.std(axis = 0)[:, np.newaxis]], axis = 1).reshape(-1)
-
-    obs_light_extra = [np.mean(ratio_history[-cut:]), np.std(ratio_history[-cut:]) / np.sqrt(cut),
-                       np.mean(accept_history[-cut:]), np.std(accept_history[-cut:]) / np.sqrt(cut),
-                       np.mean(sign_history[-cut:]), np.std(sign_history[-cut:]) / np.sqrt(cut), 
-                       np.mean(obs_signs_light), np.std(obs_signs_light) / np.sqrt(len(obs_signs_light))]
-    observables_light = np.concatenate([np.array(obs_light_extra), observables_light], axis = 0)
-    names_light = ['⟨ratio⟩', '⟨acc⟩', '⟨sign_gen⟩', '⟨sign_obs_l⟩'] + names_light
-
-    ### heavy observables ### (calculated only during the generator stage)
-    if n_sweep >= phi_field.config.thermalization:
-        observables_heavy = np.array(observables_heavy)# / np.mean(obs_signs_heavy)  # this should be done later
-
-        observables_heavy = observables_heavy.mean(axis = 0)
-
-        observables_heavy = np.concatenate([np.array([np.mean(obs_signs_heavy)]), observables_heavy], axis = 0)
-        names_heavy = ['⟨sign_obs_h⟩'] + names_heavy
-    return phi_field, (observables_light, names_light), (observables_heavy, names_heavy)
+    return phi_field, observables
 
 
 if __name__ == "__main__":
@@ -153,68 +125,18 @@ if __name__ == "__main__":
         phi_field = config.field(config, K_operator, K_operator_inverse, K_matrix, gpu_avail)
         phi_field.copy_to_GPU()
 
-        observables = obs_methods.Observables(phi_field)
-        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}'.format(U, V, mu, int(Nt)))  # add here all parameters that are being iterated
+        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}'.format(U, V, mu, int(Nt)))
         os.makedirs(local_workdir, exist_ok=True)
 
+        observables = obs_methods.Observables(phi_field, local_workdir)
+
         obs_files = []
-        log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'w')
-        gap_file = open(os.path.join(local_workdir, 'gap_log.dat'), 'w')
-        density_file = open(os.path.join(local_workdir, 'density_log.dat'), 'w')
+        
 
         for n_sweep in range(config.n_sweeps):
             accept_history = []
             phi_field, observables = perform_sweep(phi_field, observables, n_sweep)
+            observables.write_light_observables(phi_field.config, n_sweep)
 
-            ### light logging ###
-            if n_sweep == 0:
-                log_file.write('step ' + ('{:s} d{:s} ' * len(names_l)).format(*[x for pair in zip(names_l, names_l) for x in pair])); log_file.write('\n')
-            log_file.write(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l)); log_file.write('\n')
-            print(('{:d} ' + '{:.5f} ' * len(obs_l)).format(n_sweep, *obs_l))
-            log_file.flush()
-
-
-            ### heavy logging ###
-            if n_sweep == config.thermalization:
-                gap_file.write('step sign_obs ')
-                density_file.write('step sign_obs ')
-
-                for obs_name in names_h[1:]:
-                    # obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'w'))
-                
-                    if 'density' in obs_name:
-                        adj_list = phi_field.adj_list[:phi_field.config.n_adj_density]  # on-site and nn
-                        for adj in adj_list:
-                            density_file.write("n({:.5e}/{:d}/{:d}) ".format(adj[3], adj[1], adj[2]));
-                    else:
-                        adj_list = phi_field.adj_list[-phi_field.config.n_adj_pairings:]  # only largest distance
-                        for adj in adj_list:
-                            gap_file.write(obs_name + "({:d}/{:d}) ".format(adj[1], adj[2]));
-                gap_file.write('\n')
-                density_file.write('\n')
-            
-            if n_sweep < config.thermalization:
-                continue
-
-            ### to files writing ###
-            data_per_name_pairings = phi_field.config.n_adj_pairings  # only mean, std is meaningless
-            data_per_name_densities = phi_field.config.n_adj_density  # only mean, std is meaningless
-            add_offset = 1
-            current_written = 0
-            data = obs_h[:add_offset]; density_file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))
-            data = obs_h[:add_offset]; gap_file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))
-
-            for obs_name in names_h[1:]:
-                #data = obs_h[:add_offset]; file.write(('{:d} ' + '{:.6e} ' * add_offset).format(n_sweep, *data))  # for sign and epoch no
-                data_size = data_per_name_densities if 'density' in obs_name else data_per_name_pairings
-
-                data = obs_h[add_offset + current_written:add_offset + current_written + data_size]
-                current_written += data_size
-                if 'density' in obs_name:
-                    density_file.write(("{:.6e} " * len(data)).format(*data));
-                else:
-                    gap_file.write(("{:.6e} " * len(data)).format(*data));
-            gap_file.write('\n')
-            density_file.write('\n')
-        log_file.close()
-        [file.close() for file in obs_files]
+            if n_sweep > config.thermalization:
+                observables.write_heavy_observables(phi_field.config, n_sweep)

@@ -21,7 +21,7 @@ class AuxiliaryFieldIntraorbital:
         self.cpu = True
 
         self.config = config
-        self.adj_list = models.get_adjacency_list(self.config)[0]
+        self.adj_list = config.adj_list
         self._get_initial_field_configuration()
         self.K = K
         self.K_inverse = K_inverse
