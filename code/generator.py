@@ -25,11 +25,6 @@ from config_generator import simulation_parameters
 
 
 config = simulation_parameters()
-def print_greetings(config):
-    # print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
-    #      "lattice = {:d}^2 x {:d}".format(config.start_type, 1.0 / config.dt / config.Nt, config.mu, config.Ls, config.Nt))
-    print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩')
-    return
 
 def perform_sweep(phi_field, observables, n_sweep, switch = True):
     if switch:
@@ -68,15 +63,17 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
 
             sign = current_det_sign.item()
             ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o_index) * \
-                    phi_field.get_det_ratio(-1, site_idx, time_slice, o_index)
-
+                    phi_field.get_det_ratio(-1, site_idx, time_slice, o_index) + 1e-11
             lamb = np.random.uniform(0, 1)
 
             if lamb < np.min([1, np.abs(ratio)]):
                 current_det_log += np.log(np.abs(ratio))
 
-                ratio = np.log(np.abs(ratio))
                 current_det_sign *= np.sign(ratio)
+                ratio = np.log(np.abs(ratio))
+
+                # print(current_det_sign, ratio, np.sign(ratio))
+
                 accepted = 1.0
 
                 phi_field.update_G_seq(+1, site_idx, time_slice, o_index)
@@ -90,13 +87,11 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                     G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
                     d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                     d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
+                    
                     GF_checked = True
 
-                    if np.abs(d_gf_up) < 1e-8 and np.abs(d_gf_down) < 1e-8:
-                        print('\033[92m GF test passed successfully \033[0m')
-                    else:
+                    if np.abs(d_gf_up) > 1e-8 or np.abs(d_gf_down) > 1e-8:
                         print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
-                
             else:
                 ratio = 0
                 accepted = 0
@@ -110,8 +105,6 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
 
 
 if __name__ == "__main__":
-    print_greetings(config)
-
     U_list = deepcopy(config.U); V_list = deepcopy(config.V); mu_list = deepcopy(config.mu); Nt_list = deepcopy(config.Nt);
 
     for U, V, mu, Nt in zip(U_list, V_list, mu_list, Nt_list):
@@ -119,6 +112,7 @@ if __name__ == "__main__":
         
         config.nu_V = np.arccosh(np.exp(V / 2. * config.dt))
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
+
         K_matrix = config.model(config, config.mu)[0].real
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
@@ -129,13 +123,12 @@ if __name__ == "__main__":
         os.makedirs(local_workdir, exist_ok=True)
 
         observables = obs_methods.Observables(phi_field, local_workdir)
-
-        obs_files = []
-        
+        observables.print_greerings()
 
         for n_sweep in range(config.n_sweeps):
             accept_history = []
             phi_field, observables = perform_sweep(phi_field, observables, n_sweep)
+            observables.print_std_logs(n_sweep)
             observables.write_light_observables(phi_field.config, n_sweep)
 
             if n_sweep > config.thermalization:

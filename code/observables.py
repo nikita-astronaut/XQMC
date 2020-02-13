@@ -95,6 +95,26 @@ class Observables:
 
         return
 
+    def print_greerings(self):
+        print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
+              "lattice = {:d}^2 x {:d}".format(self.config.start_type, 1.0 / self.config.dt / self.config.Nt, \
+                                               self.config.mu, self.config.Ls, self.config.Nt))
+        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩')
+        return
+
+    def print_std_logs(self, n_sweep):
+        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f}".format(
+            n_sweep, 
+            np.mean(self.ratio_history),
+            np.mean(self.acceptance_history),
+            np.mean(self.sign_history),
+            np.mean(self.light_observables_list['⟨density⟩']),
+            np.mean(self.light_observables_list['⟨E_K⟩']),
+            np.mean(self.light_observables_list['⟨E_C⟩']),
+            np.mean(self.light_observables_list['⟨E_T⟩']),
+        ))
+        return
+
     def measure_light_observables(self, phi, current_det_sign):
         self.light_signs_history.append(current_det_sign)
 
