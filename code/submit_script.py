@@ -29,9 +29,11 @@ for i, line in enumerate(lines):
     if 'self.Ne = ' in line:
         lines[i] = '        self.Ne = {:d}\n'.format(Ne)
     if 'self.pairings_list = ' in line:
-        lines[i] = '        ' + gaps + '\n'
+        lines[i] = '        self.pairings_list = ' + gaps + '\n'
+    if 'self.workdir =' in line:
+        lines[i] = line[:-2] + name + '/\'\n'
 
-config_name = list(os.path.join(path_to_configs, 'config_{s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.py'.format(name, U, V, J, mu, Ne)))
+config_name = list(os.path.join(path_to_configs, 'config_{:s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.py'.format(name, U, V, J, mu, Ne)))
 for i, s in enumerate(config_name):
     if s == '.' and ''.join(config_name[i:]) != '.py':
         config_name[i] = '-'
@@ -46,11 +48,11 @@ lines = [line for line in sbatch_file]
 
 for i, line in enumerate(lines):
     if '#SBATCH -o' in line:
-        lines[i] = '#SBATCH -o {:s}/output_{s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.out\n'.format(path_to_logs, name, U, V, J, mu, Ne)
+        lines[i] = '#SBATCH -o {:s}/output_{:s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.out\n'.format(path_to_logs, name, U, V, J, mu, Ne)
     if '#SBATCH -e' in line:
-        lines[i] = '#SBATCH -e {:s}/error_{s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.err\n'.format(path_to_logs, name, U, V, J, mu, Ne)
+        lines[i] = '#SBATCH -e {:s}/error_{:s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.err\n'.format(path_to_logs, name, U, V, J, mu, Ne)
     if '#SBATCH --job-name' in line:
-        lines[i] = '#SBATCH --job-name U_{s}_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}\n'.format(name, U, V, J, mu, Ne)
+        lines[i] = '#SBATCH --job-name U_{:s}_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}\n'.format(name, U, V, J, mu, Ne)
 
     if 'python' in line:
         pieces = line.split()
