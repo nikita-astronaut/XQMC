@@ -21,7 +21,7 @@ class AuxiliaryFieldIntraorbital:
         self.cpu = True
 
         self.config = config
-        self.adj_list = models.get_adjacency_list(self.config)[0]
+        self.adj_list = config.adj_list
         self._get_initial_field_configuration()
         self.K = K
         self.K_inverse = K_inverse
@@ -137,7 +137,7 @@ class AuxiliaryFieldIntraorbital:
                 # cupy and scipy, on contrary, use gesvd and must be used as the GPU and CPU backends, respectively
                 
                 # print('refresh', nr)
-                # print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
+               #  print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
                 # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-11))
                 # print(xp.max(xp.abs(xp.eye(self.config.total_dof // 2) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
                 
@@ -297,9 +297,11 @@ class AuxiliaryFieldIntraorbital:
         return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1))
 
     def get_assymetry_factor(self):
-        log_det_up, sign_up = self.get_current_G_function(+1, return_logdet = True)[1:]
-        log_det_down, sign_down = self.get_current_G_function(-1, return_logdet = True)[1:]
-        s_factor_log = self.config.nu_U * xp.sum(self.configuration[..., 0:2])  # in case of xy-yx pairings
+        G_up = self.get_G_no_optimisation(+1, 0)[0]
+        G_down = self.get_G_no_optimisation(-1, 0)[0]
+        sign_up, log_det_up = np.linalg.slogdet(G_up)
+        sign_down, log_det_down = np.linalg.slogdet(G_down)
+        s_factor_log = self.config.nu_U * xp.sum(self.configuration[..., 1:3])  # in case of xy-yx pairings
         return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
     ####### END DEBUG ######
 

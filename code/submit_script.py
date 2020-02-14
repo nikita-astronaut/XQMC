@@ -16,6 +16,7 @@ path_to_sbatch = sys.argv[3]
 path_to_logs = sys.argv[4]
 name = sys.argv[5]
 
+
 lines = [line for line in bare_config]
 for i, line in enumerate(lines):
     if 'self.U =' in line:

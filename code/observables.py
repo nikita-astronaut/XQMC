@@ -3,6 +3,7 @@ import models
 from time import time
 import auxiliary_field
 from numba import jit
+import os
 
 xp = np  # by default the code is executed on the CPU
 try:
@@ -12,24 +13,73 @@ except ImportError:
     pass
 
 class Observables:
-    def __init__(self, phi):
-        self.config = phi.config
-        self.D1_dict = {}; self.D2_dict = {}; self.C_dict = {}
+    def __init__(self, phi, local_workdir):
+        self.config = phi.config 
+        self.local_workdir = local_workdir
         
-        for gap_name in phi.config.pairings_list_names:
-            D1_dict[gap_name] = []; D2_dict[gap_name] = []; C_dict[gap_name] = []
+        self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), 'w')
+        self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), 'w')
+        self.density_file = open(os.path.join(self.local_workdir, 'density_log.dat'), 'w')
 
-        self.pairing_corr_dict = {}
-        for gap_name in phi.config.pairings_list_names:
-            adj_list = phi.adj_list[-phi.config.n_adj_pairings:]  # only largest distance
-            for adj in adj_list:
-                self.pairing_corr_dict[gap_name + "_({:d}/{:d})".format(adj[1], adj[2])] = []
+        self.refresh_light_logs()
+        self.refresh_heavy_logs()
+
+        self.init_light_log_file()
+        self.init_heavy_logs_files()
+        return
+        
+    def init_light_log_file(self):
+        self.log_file.write('n_sweep ' + '⟨ratio⟩ ' + '⟨acc⟩ ' + '⟨sign_gen⟩ ' + '⟨sign_obs_l⟩ ' + \
+                                         '⟨density⟩ ' + '⟨E_K⟩ ' + '⟨E_C⟩ ' + '⟨E_T⟩\n')
+        return
+
+    def init_heavy_logs_files(self):
+        self.gap_file.write('step sign_obs ')
+        self.density_file.write('step sign_obs ')
+
+        for key, _ in self.density_corr_list.items():
+            self.density_file.write(key + ' ')
+        for key, _ in self.gap_observables_list.items():
+            if 'corr' in key or 'chi' in key:
+                self.gap_file.write(key + ' ')
+
+        self.gap_file.write('\n')
+        self.density_file.write('\n')
+        return
+
+    def update_history(self, ratio, accepted, sign):
+        self.ratio_history.append(ratio)
+        self.acceptance_history.append(accepted)
+        self.sign_history.append(sign)
+
+    def refresh_heavy_logs(self):
+        self.density_file.flush()
+        self.gap_file.flush()
 
         self.density_corr_list = {}
-        adj_list = phi.adj_list[:phi.config.n_adj_density]  # only largest distance
-        for adj in adj_list:
-            self.density_corr_list["nupndown_({:d}/{:d})".format(adj[1], adj[2])] = []
+        self.gap_observables_list = {}
 
+        adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
+
+        chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt)
+        for gap_name in self.config.pairings_list_names:
+            self.gap_observables_list[gap_name + '_D1'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D1
+            self.gap_observables_list[gap_name + '_D2'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D2
+            self.gap_observables_list[gap_name + '_C'] = np.zeros(chi_shape) + 0.0j  # susceptibility part C
+
+            self.gap_observables_list[gap_name + '_chi'] = []
+            self.gap_observables_list[gap_name + '_corr'] = []  # large-distance correlation function averaged over orbitals
+
+        density_adj_list = self.config.adj_list[:self.config.n_adj_density]  # only smallest distance
+        for adj in adj_list:
+            self.density_corr_list["n_up_n_down_({:d}/{:d}/{:.2f})".format(*adj[1:])] = []
+
+        self.heavy_signs_history = []
+
+        return
+
+    def refresh_light_logs(self):
+        self.log_file.flush()
         self.light_observables_list = {
             '⟨density⟩' : [], 
             '⟨E_K⟩' : [], 
@@ -37,28 +87,103 @@ class Observables:
             '⟨E_T⟩' : []
         }
 
-        self.heavy_signs_history = []
         self.light_signs_history = []
 
         self.ratio_history = []
         self.acceptance_history = []
         self.sign_history = []
 
-    def update_history(ratio, accepted, sign):
-        self.ratio_history.append(ratio)
-        self.acceptance_history.append(accepted)
-        self.sign_history.append(sign)
+        return
+
+    def print_greerings(self):
+        print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
+              "lattice = {:d}^2 x {:d}".format(self.config.start_type, 1.0 / self.config.dt / self.config.Nt, \
+                                               self.config.mu, self.config.Ls, self.config.Nt))
+        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩')
+        return
+
+    def print_std_logs(self, n_sweep):
+        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f}".format(
+            n_sweep, 
+            np.mean(self.ratio_history),
+            np.mean(self.acceptance_history),
+            np.mean(self.sign_history),
+            np.mean(self.light_observables_list['⟨density⟩']),
+            np.mean(self.light_observables_list['⟨E_K⟩']),
+            np.mean(self.light_observables_list['⟨E_C⟩']),
+            np.mean(self.light_observables_list['⟨E_T⟩']),
+        ))
+        return
 
     def measure_light_observables(self, phi, current_det_sign):
         self.light_signs_history.append(current_det_sign)
+
         k = kinetic_energy(phi).item()
         C = Coloumb_energy(phi)
         density = total_density(phi).item()
+
         self.light_observables_list['⟨density⟩'].append(density)
         self.light_observables_list['⟨E_K⟩'].append(k)
         self.light_observables_list['⟨E_C⟩'].append(C)
         self.light_observables_list['⟨E_T⟩'].append(k + C)
-        
+        return
+
+    def signs_avg(self, array, signs):
+        return np.mean(np.array(array) * signs)
+
+    def write_light_observables(self, config, n_sweep):
+        signs = np.array(self.light_signs_history)
+
+        data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), np.mean(self.sign_history),
+                np.mean(self.light_signs_history)] + [self.signs_avg(val, signs) for _, val in self.light_observables_list.items()]
+
+        self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
+        self.refresh_light_logs()
+        return
+
+
+    def measure_heavy_observables(self, phi, current_det_sign):
+        self.heavy_signs_history.append(current_det_sign)
+
+        adj_list_density = self.config.adj_list[:self.config.n_adj_density]  # on-site and nn
+        adj_list_pairings = self.config.adj_list[-self.config.n_adj_pairings:]  # only largest distance
+
+        for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+            D1, D2, C = susceptibility_local(phi, pairing_unwrapped)
+            self.gap_observables_list[gap_name + '_D1'] += D1 * current_det_sign
+            self.gap_observables_list[gap_name + '_D2'] += D2 * current_det_sign
+            self.gap_observables_list[gap_name + '_C'] += C * current_det_sign
+
+            averaged_correlator = 0.0 + 0.0j
+            for adj in adj_list_pairings:
+                averaged_correlator += gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
+                                                          pairing_unwrapped, adj[0])
+            self.gap_observables_list[gap_name + '_corr'].append(averaged_correlator.real / len(adj_list_pairings))
+
+
+        for adj in adj_list_density:
+            self.density_corr_list["n_up_n_down_({:d}/{:d}/{:.2f})".format(*adj[1:])].append(n_up_n_down_correlator(phi, adj[0]).item())
+    
+        return
+
+
+    def write_heavy_observables(self, config, n_sweep):
+        signs = np.array(self.heavy_signs_history)
+        density_data = [n_sweep, np.mean(signs)] + [self.signs_avg(val, signs) for _, val in self.density_corr_list.items()]
+
+        gap_data = [n_sweep, np.mean(signs)]
+
+        for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+            chi = np.sum(self.gap_observables_list[gap_name + '_C'] - self.gap_observables_list[gap_name + '_D1'] * self.gap_observables_list[gap_name + '_D2']).real
+            gap_data.append(chi / (config.total_dof // 2))
+            gap_data.append(self.signs_avg(self.gap_observables_list[gap_name + '_corr'], signs))
+
+
+        self.density_file.write(("{:d} " + "{:.6f} " * (len(density_data) - 1) + '\n').format(n_sweep, *density_data[1:]))
+        self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))
+        self.refresh_heavy_logs()
+
+        return
 
 def get_B_sublattice_mask(config):
     return xp.asarray(1.0 * np.array([models.from_linearized_index(index, config.Ls, config.n_orbitals)[1] for index in range(config.n_sublattices * config.n_orbitals * config.Ls ** 2)]))
@@ -182,17 +307,21 @@ def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj)
 
 @jit(nopython=True)
 def corr_fix_tau(G_up, G_down, gap):
-    D_1 = np.zeros((G_up.shape[0], G_up.shape[1])) + 0.0j
-    D_2 = np.zeros(D_1.shape) + 0.0j
-    C = np.zeros(D_1.shape) + 0.0j
+    D_1 = np.zeros(G_up.shape, dtype = np.complex128)
+    D_2 = np.zeros(G_up.shape, dtype = np.complex128)
+    C = np.zeros(G_up.shape, dtype = np.complex128)
 
     for i in range(gap.shape[0]):
         for k in range(gap.shape[0]):
             D_2[i, k] = G_up[i, k]
+            c_accumulant = 0.0 + 0.0j
+            d1_accumulant = 0.0 + 0.0j
             for j in np.where(gap[i, :] != 0.0)[0]:
                 for l in np.where(gap[k, :] != 0.0)[0]:
-                    D_1[i, k] += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l]
-                    С[i, k] += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l] * G_up[i, k]
+                    d1_accumulant += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l]
+                    c_accumulant += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l] * G_up[i, k]
+            C[i, k] = c_accumulant
+            D_1[i, k] = d1_accumulant
     return D_1, D_2, C
 
 
@@ -200,9 +329,9 @@ def susceptibility_local(phi, gap):
     GFs_up = phi.get_nonequal_time_GFs(+1.0)
     GFs_down = phi.get_nonequal_time_GFs(-1.0)
 
-    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)))
-    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)))
-    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)))
+    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
+    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
+    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
 
     for i in range(len(GFs_up)):
         D1, D2, C = corr_fix_tau(GFs_up[i], GFs_down[i], gap)
@@ -228,18 +357,3 @@ def Coloumb_energy(phi):
                                                       / G_function_up.shape[0]
 
     return energy_coloumb
-
-def compute_heavy_observables(phi):
-    adj_list_density = phi.adj_list[:phi.config.n_adj_density]  # on-site and nn
-    adj_list_pairings = phi.adj_list[-phi.config.n_adj_pairings:]  # only largest distance
-    observables = []
-    names = ['⟨nupndown⟩_density'] + ['⟨' + p + '⟩_pairing' for p in phi.config.pairings_list_names]
-
-    for adj in adj_list_density:
-        observables.append(n_up_n_down_correlator(phi, adj[0]).item())
-
-    for pairing_unwrapped in phi.config.pairings_list_unwrapped:
-        for n, adj in enumerate(adj_list_pairings):
-            observables.append(gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
-                                                  pairing_unwrapped, adj[0]))
-    return observables, names
