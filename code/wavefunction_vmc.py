@@ -16,6 +16,7 @@ class wavefunction_singlet():
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
         self.var_f = self.var_f if not config.PN_projection else 0.
+        self.var_mu = self.var_mu if not config.PN_projection else 0.
 
         ### mean-field Hamiltonian precomputed elements ###
         self.K_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False) + \
@@ -119,7 +120,7 @@ class wavefunction_singlet():
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
-        O_mu = [self.get_O_pairing(self.W_mu_derivative)]
+        O_mu = [self.get_O_pairing(self.W_mu_derivative)] if not self.config.PN_projection else []
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy)

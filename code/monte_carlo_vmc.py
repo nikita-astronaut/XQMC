@@ -89,7 +89,8 @@ def make_SR_step(Os, energies, config_vmc):
 def write_initial_logs(log_file, config_vmc):
     log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩ ")
 
-    log_file.write('⟨mu_BCS⟩ ⟨fugacity⟩ ' if not config_vmc.PN_projection else '⟨mu_BCS⟩ ')
+    if not config_vmc.PN_projection:
+        log_file.write('⟨mu_BCS⟩ ⟨fugacity⟩ ')
 
     for wave in config_vmc.waves_list:
         log_file.write(wave[-1] + ' ')

@@ -65,18 +65,19 @@ def test_numerical_derivative_check(config):
     der_shift = 0
 
     print('chemical potential derivative check...')
-    np.random.seed(11)
-    delta = np.zeros(len(config.initial_parameters)); delta[der_shift] += 1
-    wf_1 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters - delta * dt / 2, False, None)
-    np.random.seed(11)
-    wf_2 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters + delta * dt / 2, False, None)
+    if not config.PN_projection:
+        np.random.seed(11)
+        delta = np.zeros(len(config.initial_parameters)); delta[der_shift] += 1
+        wf_1 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters - delta * dt / 2, False, None)
+        np.random.seed(11)
+        wf_2 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters + delta * dt / 2, False, None)
 
-    if compare_derivatives_numerically(wf_1, wf_2, der_shift, dt):
-        print('Passed')
-    else:
-        print('Failed!')
-        success = False
-    der_shift += config.layout[0]
+        if compare_derivatives_numerically(wf_1, wf_2, der_shift, dt):
+            print('Passed')
+        else:
+            print('Failed!')
+            success = False
+        der_shift += config.layout[0]
 
 
     print('fugacity derivative check...')
