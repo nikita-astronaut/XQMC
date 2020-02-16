@@ -37,7 +37,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
-
+            current_det_sign = current_det_sign.item()
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             if switch:
                 phi_field.copy_to_GPU()
@@ -46,6 +46,8 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             phi_field.refresh_G_functions()
             
             current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
+            current_det_sign = current_det_sign.item()
+
         phi_field.wrap_up(time_slice)
         if switch:
             phi_field.copy_to_CPU()
@@ -60,8 +62,6 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             site_idx = sp_index // n_fields
             o_index = sp_index % n_fields
 
-
-            sign = current_det_sign.item()
             ratio = phi_field.get_det_ratio(+1, site_idx, time_slice, o_index) * \
                     phi_field.get_det_ratio(-1, site_idx, time_slice, o_index) + 1e-11
             lamb = np.random.uniform(0, 1)
@@ -95,12 +95,11 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             else:
                 ratio = 0
                 accepted = 0
-            observables.update_history(ratio, accepted, sign)
+            observables.update_history(ratio, accepted, current_det_sign)
         observables.measure_light_observables(phi_field, current_det_sign.item())
 
-        if n_sweep >= phi_field.config.thermalization:
-            observables.measure_heavy_observables(phi_field, current_det_sign.item())
-
+    if n_sweep >= phi_field.config.thermalization:
+        observables.measure_heavy_observables(phi_field, current_det_sign.item())
     return phi_field, observables
 
 

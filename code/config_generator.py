@@ -3,9 +3,9 @@ import numpy as np
 import auxiliary_field
 from opt_parameters import pairings
 
-dt_in_inv_t1 = 0.2
+dt_in_inv_t1 = 0.1
 U_in_t1 = np.array([1.5])
-V_in_t1 = np.array([0.0])
+V_in_t1 = np.array([1.5])
 main_hopping = 1.0
 
 class simulation_parameters:
@@ -25,7 +25,7 @@ class simulation_parameters:
         self.field = auxiliary_field.AuxiliaryFieldInterorbital
         self.n_sublattices = 2
         self.start_type = 'hot'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
-        self.n_sweeps = 500  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
+        self.n_sweeps = 5000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 10  # every n-th configuration will be stored during generation
         self.save_path = './configurations/'  # where the configurations will be stored | they will have the name save_path/conf_genN.npy, where N is the generated number
         self.n_print_frequency = 3  # write to log every n_print_frequency spin flips
@@ -33,12 +33,12 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/3/'
-        self.thermalization = 1000  # after how many sweeps start computing observables
+        self.thermalization = 300  # after how many sweeps start computing observables
         self.tests = False
         self.adj_list = models.get_adjacency_list(self)[0]
 
         pairings.obtain_all_pairings(self)
-        self.pairings_list = pairings.twoorb_hex_A1_N[0:1]# + pairings.twoorb_hex_A2_N + pairings.twoorb_hex_E_N + pairings.twoorb_hex_A1_NN + pairings.twoorb_hex_A2_NN + pairings.twoorb_hex_E_NN
+        self.pairings_list = pairings.twoorb_hex_A1_N # + pairings.twoorb_hex_A2_N + pairings.twoorb_hex_E_N + pairings.twoorb_hex_A1_NN + pairings.twoorb_hex_A2_NN + pairings.twoorb_hex_E_NN
 
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]

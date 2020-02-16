@@ -260,20 +260,21 @@ class AuxiliaryFieldIntraorbital:
 
         current_GF = self.current_G_function_up if spin > 0 else self.current_G_function_down
 
-        GFs = [1. * current_GF]
+        GFs = [1. * cp.asnumpy(current_GF)]
         current_U = self.la.eye(self.config.total_dof // 2)
 
         slices = list(range(1, self.config.Nt))
         for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
             current_GF = current_GF.dot(B)
-            GFs.append(-1.0 * current_U.dot(current_GF))
+            GFs.append(-1.0 * cp.asnumpy(current_U.dot(current_GF)))
             if nr % self.config.s_refresh == self.config.s_refresh - 1:
                 u, s, v = self.SVD(current_GF)
-                # print('refresh', nr)
+                #print('refresh', nr)
+                #print(type(current_GF), type(v), type(s), type(u))
                 # print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
                 # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-11))
-                # print(xp.max(xp.abs(xp.eye(self.config.total_dof // 2) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
+                # print(self.la.max(self.la.abs(self.la.eye(self.config.total_dof // 2) - (v.T).dot(self.la.diag(s**-1).dot(u.T)).dot(current_GF))), self.la.max(current_GF))
                 
                 current_U = current_U.dot(u)
                 current_GF = self.la.diag(s).dot(v)

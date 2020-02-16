@@ -44,7 +44,7 @@ def test_explicit_factors_check(config):
         wf.perform_explicit_GF_update()
         det_final = wf.get_cur_det()
         Jastrow_final = wf.get_cur_Jastrow_factor()
-        if not np.isclose(ddet, det_final / det_initial, atol = 1e-10, rtol = 1e-10):
+        if not np.isclose(ddet, det_final / det_initial, atol = 1e-8, rtol = 1e-8):
             print('Det ratio failed:', ddet, det_final / det_initial, moved_site, empty_site)
             success = False
 
@@ -77,7 +77,7 @@ def test_numerical_derivative_check(config):
         else:
             print('Failed!')
             success = False
-        der_shift += config.layout[0]
+    der_shift += config.layout[0]
 
 
     print('fugacity derivative check...')
