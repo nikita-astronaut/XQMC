@@ -91,6 +91,8 @@ def write_initial_logs(log_file, config_vmc):
 
     if not config_vmc.PN_projection:
         log_file.write('⟨mu_BCS⟩ ⟨fugacity⟩ ')
+    else:
+        log_file.write('⟨mu_BCS⟩ ')
 
     for wave in config_vmc.waves_list:
         log_file.write(wave[-1] + ' ')
@@ -121,6 +123,8 @@ def print_model_summary(config_vmc):
     print('Gap parameters: ', config_vmc.pairings_list_names)
     print('Waves parameters: ', [wave[-1] for wave in config_vmc.waves_list])
     print('Jastrow parameters: ', [jastrow[-1] for jastrow in config_vmc.jastrows_list])
+
+    print('mu_BCS initial guess {:.3f}'.format(config_vmc.initial_parameters[0]))
 
     print('Total number of optimized parameters: ', np.sum(config_vmc.layout))
     return
