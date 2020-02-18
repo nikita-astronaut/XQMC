@@ -188,26 +188,38 @@ def construct_2orb_hex(config, real = True):
     v2 = (v2_AB, v2_BA)
     v3 = (v3_AB, v3_BA)
 
-    A1_N = [
+    A1_N_singlet = [
         [(Ipauli, Ipauli, onsite, 1), factor, addstring + 'S_0xS_0xδ'],
+    ]
+    [check_irrep_properties(config, A1_N_singlet[i:i + 1]) for i in range(len(A1_N_singlet))]
+
+    A1_N_triplet = [
         [(Zpauli, iYpauli, onsite, 1), factor, addstring + 'S_zxjS_yxδ'],
     ]
-    [check_irrep_properties(config, A1_N[i:i + 1]) for i in range(len(A1_N))]
+    [check_irrep_properties(config, A1_N_triplet[i:i + 1]) for i in range(len(A1_N_triplet))]
 
-    A1_NN = [
+    A1_NN_singlet = [
         [(Xpauli, Ipauli, v1, 1.0), factor, addstring + '(S_x)xS_0xv_1'],
         [(iYpauli, iYpauli, v1, 1.0), factor, addstring + '(iS_y)x(iS_y)xv_1'],
         [(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor, addstring + '[(S_x)xS_1xv_2+(S_x)xS_2xv_3]'],
+    ]
+    [check_irrep_properties(config, A1_NN_singlet[i:i + 1]) for i in range(len(A1_NN_singlet))]
+    
+    A1_NN_triplet = [
         [(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iS_y)xS_1xv_2-(iS_y)xS_2xv_3]'],
     ]
-    [check_irrep_properties(config, A1_NN[i:i + 1]) for i in range(len(A1_NN))]
-    
+    [check_irrep_properties(config, A1_NN_triplet[i:i + 1]) for i in range(len(A1_NN_triplet))]
 
-    A2_N = [
-        [(Ipauli, iYpauli, onsite, 1), factor, addstring + 'S_0xjS_yxδ'],
+
+    A2_N_singlet = [
         [(Zpauli, Ipauli, onsite, 1), factor, addstring + 'S_zxS_0xδ'],
     ]
-    [check_irrep_properties(config, A2_N[i:i + 1]) for i in range(len(A2_N))]
+    [check_irrep_properties(config, A2_N_singlet[i:i + 1]) for i in range(len(A2_N_singlet))]
+
+    A2_N_triplet = [
+        [(Ipauli, iYpauli, onsite, 1), factor, addstring + 'S_0xjS_yxδ'],
+    ]
+    [check_irrep_properties(config, A2_N_triplet[i:i + 1]) for i in range(len(A2_N_triplet))]
 
     A2_NN = [
         [(Xpauli, iYpauli, v1, 1.0), factor, addstring + '(S_x)x(iS_y)xv_1'],
