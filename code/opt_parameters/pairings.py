@@ -235,7 +235,7 @@ def construct_2orb_hex(config, real = True):
     ]
     [check_irrep_properties(config, E_NN[2 * i:2 * i + 2]) for i in range(len(E_NN) // 2)]
 
-    return A1_N, A1_NN, A2_N, A2_NN, E_N, E_NN
+    return A1_N, A2_N, E_N, A1_NN, A2_NN, E_NN
 
 
 def construct_on_site_1orb_hex(config, real = True):
