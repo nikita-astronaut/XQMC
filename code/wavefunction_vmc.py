@@ -16,16 +16,12 @@ class wavefunction_singlet():
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
         self.var_f = self.var_f if not config.PN_projection else 0.
-        self.var_mu = self.var_mu if not config.PN_projection else 0.
 
         ### mean-field Hamiltonian precomputed elements ###
         self.K_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False) + \
                     np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
         self.K_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T + \
                       np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
-
-
-        self.Delta = pairings.get_total_pairing_upwrapped(self.config, self.pairings_list_unwrapped, self.var_params_gap)
 
         self.Jastrow_A = [j[0] for j in config.jastrows_list]
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
@@ -120,7 +116,7 @@ class wavefunction_singlet():
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
-        O_mu = [self.get_O_pairing(self.W_mu_derivative)] if not self.config.PN_projection else []
+        O_mu = [self.get_O_pairing(self.W_mu_derivative)]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy)
@@ -131,17 +127,8 @@ class wavefunction_singlet():
         return np.array(O)
 
     def _construct_U_matrix(self):
-        ## CONTRUCTION OF H_MF (mean field, denoted as T) ##
-        T = scipy.linalg.block_diag(self.K_up, -self.K_down) + 0.0j
-        ## various local pairing terms ##
-        T[:self.config.total_dof // 2, self.config.total_dof // 2:] = self.Delta
-        T[self.config.total_dof // 2:, :self.config.total_dof // 2] = self.Delta.conj().T
-
-        ## SDW/CDW is the same for every orbital and sublattice ##
-        for wave, coeff in zip(self.config.waves_list, self.var_waves):
-            T += wave[0] * coeff
-
-
+        T = construct_HMF(self.config, self.K_up, self.K_down, \
+                          self.pairings_list_unwrapped, self.var_params_gap, self.var_waves)
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
@@ -404,3 +391,17 @@ def jit_get_O_jastrow(Jastrow_A, occupancy):
                 der -= 0.5 * occupancy[i] * J[i, j] * occupancy[j]
         derivatives.append(der)
     return derivatives
+
+def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
+                  var_waves):
+    Delta = pairings.get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params_gap)
+    T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
+
+    ## various local pairing terms ##
+    T[:config.total_dof // 2, config.total_dof // 2:] = Delta
+    T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+
+    ## SDW/CDW is the same for every orbital and sublattice ##
+    for wave, coeff in zip(config.waves_list, var_waves):
+        T += wave[0] * coeff
+    return T

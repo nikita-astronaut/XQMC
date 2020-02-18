@@ -1,6 +1,7 @@
 import numpy as np
 from wavefunction_vmc import wavefunction_singlet, get_wf_ratio, get_det_ratio, get_wf_ratio_double_exchange
 from copy import deepcopy
+from time import time
 
 def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     der_numerically = 2 * (np.abs(wf_2.current_ampl) - np.abs(wf_1.current_ampl)) / dt / (np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl))
@@ -60,23 +61,24 @@ def test_explicit_factors_check(config):
 
 def test_numerical_derivative_check(config):
     print(config.twist)
-    dt = 1e-6
+    dt = 1e-7
     success = True
     der_shift = 0
 
     print('chemical potential derivative check...')
-    if not config.PN_projection:
-        np.random.seed(11)
-        delta = np.zeros(len(config.initial_parameters)); delta[der_shift] += 1
-        wf_1 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters - delta * dt / 2, False, None)
-        np.random.seed(11)
-        wf_2 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters + delta * dt / 2, False, None)
+    np.random.seed(11)
 
-        if compare_derivatives_numerically(wf_1, wf_2, der_shift, dt):
-            print('Passed')
-        else:
-            print('Failed!')
-            success = False
+    delta = np.zeros(len(config.initial_parameters)); delta[der_shift] += 1
+    wf_1 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters - delta * dt / 2, False, None)
+
+    np.random.seed(11)
+    wf_2 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters + delta * dt / 2, False, None)
+
+    if compare_derivatives_numerically(wf_1, wf_2, der_shift, dt):
+        print('Passed')
+    else:
+        print('Failed!')
+        success = False
     der_shift += config.layout[0]
 
 
