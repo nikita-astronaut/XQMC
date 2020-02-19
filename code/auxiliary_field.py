@@ -149,6 +149,23 @@ class AuxiliaryFieldIntraorbital:
                 M = self.la.diag(s).dot(v)
         return
 
+    def _get_left_partial_SVD_decompositions(self, spin):
+        decompositions = []
+        M = self.la.eye(self.config.total_dof // 2)
+        current_V = self.la.eye(self.config.total_dof // 2)
+
+        slices = list(range(1, self.config.Nt))
+        for nr, slice_idx in enumerate(slices):
+            B = self.B_l(spin, slice_idx)
+            M = B.dot(M)
+            if nr % self.config.s_refresh == self.config.s_refresh - 1:
+                u, s, v = self.SVD(M)
+                
+                current_V = v.dot(current_V)
+                decompositions.append((u, s, current_V))
+                M = u.dot(self.la.diag(s))
+        return decompositions
+
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
         M = xp.eye(self.config.total_dof // 2)
         
@@ -251,12 +268,8 @@ class AuxiliaryFieldIntraorbital:
         self.current_G_function_down = B_wrap_down.dot(self.current_G_function_down.dot(B_wrap_down_inverse))
 
         return
-
+    '''
     def get_nonequal_time_GFs(self, spin):
-        '''
-            for different values of time, returns in the order \tau = N_t (N_t == 0), N_t - 1, N_t - 2, ... 1
-            G(0, \\tau) = [G_0(0), -G_0(0) B_{Nt - 1}, -G_0(0) B_{Nt - 1} B_{Nt - 2}, ... ]
-        '''
 
         current_GF = self.current_G_function_up if spin > 0 else self.current_G_function_down
 
@@ -268,18 +281,81 @@ class AuxiliaryFieldIntraorbital:
             B = self.B_l(spin, slice_idx)
             current_GF = current_GF.dot(B)
             GFs.append(-1.0 * cp.asnumpy(current_U.dot(current_GF)))
-            if nr % self.config.s_refresh == self.config.s_refresh - 1:
+            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == 0:
                 u, s, v = self.SVD(current_GF)
                 #print('refresh', nr)
                 #print(type(current_GF), type(v), type(s), type(u))
                 # print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
                 # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-11))
-                # print(self.la.max(self.la.abs(self.la.eye(self.config.total_dof // 2) - (v.T).dot(self.la.diag(s**-1).dot(u.T)).dot(current_GF))), self.la.max(current_GF))
-                
+
+                #print(self.la.linalg.norm(current_GF - u.dot(self.la.diag(s).dot(v))) / self.la.linalg.norm(current_GF), self.la.max(current_GF))
+                #print(s.max(), s.min())
+                #print(nr, self.la.linalg.norm(current_GF))
                 current_U = current_U.dot(u)
+
                 current_GF = self.la.diag(s).dot(v)
         return GFs
+    '''
 
+    def compute_B_chain(self, spin, tmax, tmin):
+        if tmax > tmin:
+            #  then product is B_tau B_tau-1 ... B_1 --> B_tau .. B_tau-s LEFT(tau // s)
+            index_decomp = tmax // self.config.s_refresh
+            print(tmax, tmin, index_decomp, len(self.left_decompositions_up))
+            tmin += index_decomp * self.config.s_refresh
+            u, s, v0 = self.left_decompositions_up[index_decomp - 1] if spin > 0 else self.left_decompositions_down[index_decomp - 1]
+            chain = u.dot(self.la.diag(s))
+
+            for i in range(tmin, tmax + 1):
+                chain = self.B_l(spin, i).dot(chain)
+
+            u, s, v = self.SVD(chain)
+            return u, s, v.dot(v0)
+
+        index_decomp = (self.config.Nt - tmin - 1) // self.config.s_refresh
+        print(index_decomp, len(self.partial_SVD_decompositions_up))
+        u, s, v0 = self.partial_SVD_decompositions_up[index_decomp - 1] if spin > 0 else self.partial_SVD_decompositions_down[index_decomp - 1]
+
+        chain = u.dot(self.la.diag(s))
+
+        max_index = self.config.Nt - 1 - index_decomp * self.config.s_refresh
+        u0, s, v = self.SVD(self.B_l(spin, 0).dot(chain))
+        v = v.dot(v0)
+        chain = self.la.diag(s).dot(v)
+
+        for i in list(reversed(range(tmin, max_index + 1))):
+            chain = chain.dot(self.B_l(spin, i))
+
+        u, s, v = self.SVD(chain)
+        return u0.dot(u), s, v
+
+    def get_nonequal_time_GFs(self, spin):
+        current_GF = self.get_G_no_optimisation(spin, 0)[0]
+        self.refresh_all_decompositions()
+        self.left_decompositions_up = self._get_left_partial_SVD_decompositions(+1.0)
+        self.left_decompositions_down = self._get_left_partial_SVD_decompositions(-1.0)
+        print(len(self.left_decompositions_up))
+        GFs = [1. * cp.asnumpy(current_GF)]
+
+        for tau in range(1, self.config.Nt):
+            B = self.B_l(spin, tau)
+            if tau % self.config.s_refresh != 0:
+                current_GF = B.dot(current_GF)  # just wrap-up / wrap-down
+            else:  # recompute GF from scratch
+                u1, s1, v1 = self.compute_B_chain(spin, tau, 1)
+                u2, s2, v2 = self.compute_B_chain(spin, 0, tau + 1)
+                
+                if tau > self.config.Nt // 2:
+                    m = self.la.diag(s1**-1) + (v1.dot(u2)).dot(self.la.diag(s2)).dot(v2.dot(u1))
+                    um, sm, vm = self.SVD(m)
+                    current_GF = (u1.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(v1))
+                else:
+                    m = self.la.diag(s2) + (u2.T.dot(v1.T)).dot(self.la.diag(s1**-1)).dot(u1.T.dot(v2.T))
+                    um, sm, vm = self.SVD(m)
+                    current_GF = (v2.T.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(u2.T))
+
+            GFs.append(1.0 * cp.asnumpy(current_GF))
+        return GFs
 
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice):

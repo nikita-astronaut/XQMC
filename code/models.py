@@ -163,7 +163,7 @@ def _model_hex_1orb(Ls, twist, mu, spin):
     inverse = False if spin > 0 else True
     return _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = inverse), n_orbitals, n_sublattices
 
-def model_hex_1orb(config, mu, spin):
+def model_hex_1orb(config, mu, spin = +1.0):
     return _model_hex_1orb(config.Ls, config.twist, mu, spin)
 
 
@@ -241,7 +241,7 @@ def _model_square_1orb(Ls, twist, mu, spin):
     return _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = inverse), n_orbitals, n_sublattices
 
 
-def model_square_1orb(config, mu, spin):
+def model_square_1orb(config, mu, spin = +1.0):
     return _model_square_1orb(config.Ls, config.twist, mu, spin)
 
 @jit(nopython = True)

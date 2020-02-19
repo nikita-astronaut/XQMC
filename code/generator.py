@@ -85,6 +85,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 if not GF_checked:
                     G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                     G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+
                     d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                     d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
                     
