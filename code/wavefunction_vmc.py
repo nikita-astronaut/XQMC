@@ -116,7 +116,7 @@ class wavefunction_singlet():
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
-        O_mu = [self.get_O_pairing(self.W_mu_derivative)]
+        O_mu = [self.get_O_pairing(self.W_mu_derivative) if self.config.optimize_mu_BCS else 0.0]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy)
@@ -141,6 +141,12 @@ class wavefunction_singlet():
 
         U = U[:, lowest_energy_states]  # select only occupied orbitals
         self.E_fermi = np.max(self.E[lowest_energy_states])
+
+        print('mu_BCS - E_max_occupied=', -self.E_fermi + self.var_mu)
+        print('E_min_unoccupied - mu_BCS =', np.min(self.E[rest_states]) - self.var_mu)
+
+        print('E_max_occupied =', self.E_fermi)
+        print('E_min_unoccupied =', np.min(self.E[rest_states]))
 
         if E[rest_states].min() - self.E_fermi < 1e-14:
             print('open shell configuration, consider different pairing or filling!')

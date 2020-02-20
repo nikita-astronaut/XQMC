@@ -49,7 +49,7 @@ def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
     return step, forces, force_SR_abs_history, force_abs_history
 
 
-def make_SR_step(Os, energies, config_vmc):
+def make_SR_step(Os, energies, config_vmc, twists, gaps):
     def remove_singularity(S):
         for i in range(S.shape[0]):
             if S[i, i] < 1e-4:
@@ -67,21 +67,38 @@ def make_SR_step(Os, energies, config_vmc):
     Os_mean = [np.repeat(Os_mean_theta[np.newaxis, ...], len(Os_theta), axis = 0) for Os_mean_theta, Os_theta in zip(Os_mean, Os)]
     S_cov = [(np.einsum('nk,nl->kl', (Os_theta - Os_mean_theta).conj(), (Os_theta - Os_mean_theta)) / Os_theta.shape[0]).real \
              for Os_mean_theta, Os_theta in zip(Os_mean, Os)]  # SR_matrix is computed independently for every twist angle theta
-
+    
+    for s, t, gap, in zip(S_cov, twists, gaps):
+        s_new = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(s))), s, 1.0 / np.sqrt(np.abs(np.diag(s))))
+        # l, _ = np.linalg.eigh(s_new)
+        print(np.sqrt(np.abs(s[1, 1])), t[0].real, t[0].imag, t[1].real, t[1].imag, gap)
+    
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
+    
     S_cov = np.mean(S_cov, axis = 0)
     diag = np.sqrt(np.abs(np.diag(S_cov)))
 
+
     forces_pc = forces / diag  # below (6.52)
     S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / diag, S_cov, 1.0 / diag)
+
     # (6.51, scale-invariant regularization)
     S_cov_pc += config_vmc.opt_parameters[0] * np.eye(S_cov_pc.shape[0])  # (6.54)
     S_cov_pc_inv = np.linalg.inv(S_cov_pc)
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
     step = step_pc / diag
+    '''
+    forces_pc = [forces_theta / np.sqrt(np.abs(np.diag(S_cov_theta))) for forces_theta, S_cov_theta in zip(forces, S_cov)]
+    S_cov_pc = [np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov_theta))), S_cov_theta, 1.0 / np.sqrt(np.abs(np.diag(S_cov_theta)))) \
+                + config_vmc.opt_parameters[0] * np.eye(S_cov_theta.shape[0]) for S_cov_theta in S_cov]
+    S_cov_pc_inv = [np.linalg.inv(S_cov_pc_theta) for S_cov_pc_theta in S_cov_pc]
+    step_pc = [S_cov_pc_inv_theta.dot(forces_pc_theta) for S_cov_pc_inv_theta, forces_pc_theta in zip(S_cov_pc_inv, forces_pc)]
+    step = [step_pc_theta / np.sqrt(np.abs(np.diag(S_cov_theta))) for step_pc_theta, S_cov_theta in zip(step_pc, S_cov)]
+    step = np.mean(step, axis = 0)
+    '''
 
-    print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
+    print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(np.mean(forces, axis = 0) ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
     return step, forces
 
@@ -375,7 +392,7 @@ if __name__ == "__main__":
             extract_MC_data(results, config_vmc, num_twists)
     
         ### gradient step ###
-        step, forces = make_SR_step(Os, energies, config_vmc)
+        step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps)
         step, forces, force_SR_abs_history, force_abs_history = \
             clip_forces(step, forces, force_SR_abs_history, force_abs_history)
         parameters += config_vmc.opt_parameters[1] * step
