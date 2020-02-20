@@ -26,6 +26,8 @@ class Observables:
 
         self.init_light_log_file()
         self.init_heavy_logs_files()
+
+        self.data_gfs = []
         return
         
     def init_light_log_file(self):
@@ -154,6 +156,15 @@ class Observables:
         phi.copy_to_GPU()
         GFs_up = phi.get_nonequal_time_GFs(+1.0)
         GFs_down = phi.get_nonequal_time_GFs(-1.0)
+
+        new_data = []
+        for gf_up, gf_down in zip(GFs_up, GFs_down):
+            new_data.append((np.trace(gf_up) / gf_up.shape[0] + np.trace(gf_down) / gf_down.shape[0]) / 2.)
+        self.data_gfs.append(new_data.copy())
+
+        for e in np.array(self.data_gfs).mean(axis = 0):
+            print(e)
+
         phi.copy_to_CPU()
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             D1, D2, C = susceptibility_local(phi, pairing_unwrapped, GFs_up, GFs_down)
@@ -189,7 +200,7 @@ class Observables:
             chi = np.sum(self.gap_observables_list[gap_name + '_C'] / self.num_chi_samples - \
                          (self.gap_observables_list[gap_name + '_D1'] / self.num_chi_samples) * \
                          (self.gap_observables_list[gap_name + '_D2'] / self.num_chi_samples)).real
-            print(chi, gap_name, flush = True)
+
             gap_data.append(chi) # norm already accounted
             gap_data.append(self.signs_avg(self.gap_observables_list[gap_name + '_corr'], signs))
 
