@@ -38,10 +38,10 @@ def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
     force_abs = np.sqrt(np.sum(forces ** 2))
     clip_length = np.min([20, len(force_abs_history)])
     clipped = False
-    if step_abs > 3. * np.median(force_SR_abs_history[-clip_length:]) or force_abs > 3. * np.median(force_abs_history[-clip_length:]):
+    if step_abs > 10. * np.median(force_SR_abs_history[-clip_length:]) or force_abs > 10. * np.median(force_abs_history[-clip_length:]):
         print('Warning! The force is too high -- gradient is clipped!')
-        step = step / step_abs * 3. * np.median(force_SR_abs_history[-clip_length:])
-        force_abs = force_abs / step_abs * 3. * np.median(force_SR_abs_history[-clip_length:])
+        step = step / step_abs * 10. * np.median(force_SR_abs_history[-clip_length:])
+        force_abs = force_abs / step_abs * 10. * np.median(force_SR_abs_history[-clip_length:])
         clipped = True
     if not clipped:
         force_SR_abs_history.append(step_abs)
