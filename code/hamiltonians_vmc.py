@@ -10,10 +10,8 @@ from copy import deepcopy
 class HubbardHamiltonian(object):
     def __init__(self, config):
         self.config = config
-        K_matrix_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False)  # self.config.model(self.config, self.var_mu, spin = +1.0)[0]
-        K_matrix_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T  # self.config.model(self.config, self.var_mu, spin = -1.0)[0].T
-        # K_matrix_up = self.config.model(self.config, 0.0, spin = +1.0)[0]
-        # K_matrix_down = self.config.model(self.config, 0.0, spin = -1.0)[0].T
+        K_matrix_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False)
+        K_matrix_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T
 
         self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
     def _get_edges(self):
@@ -59,9 +57,9 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term
-
-        E_loc += 0.5 * self.config.U * np.sum(density ** 2)  # U--term
-        E_loc += self.config.V * np.sum(density[self.x_orbital] * density[self.y_orbital])
+        E_loc += get_E_C_Koshino(density, self.config.total_dof // 2, self.config.U, self.config.V)
+        # E_loc += 0.5 * self.config.U * np.sum(density ** 2)  # U--term
+        # E_loc += self.config.V * np.sum(density[self.x_orbital] * density[self.y_orbital])
         # the interaction term taken from https://arxiv.org/pdf/1809.06772.pdf, Eq. (2)
         # to ensure the right coefficients for the Kanamori relation
 
@@ -98,6 +96,15 @@ def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
                 continue
             E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)
     return E_loc
+
+@jit(nopython=True)
+def get_E_C_Koshino(density, size, U, V):
+    result_U = 0.5 * U * np.sum(density ** 2)
+    result_V = 0.0
+    for i in np.arange(0, size, 2):
+        result_V += density[i] * density[i + 1]
+    result_V *= V
+    return result_U + result_V
 
 @jit(nopython=True)
 def get_E_J_Hund(x_orbital, y_orbital, wf_state, total_fugacity):

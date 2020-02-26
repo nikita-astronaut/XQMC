@@ -231,7 +231,13 @@ def import_config(filename: str):
     module = importlib.import_module(module_name)
     sys.path.pop(0)
     return module
-
+'''
+def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twists, final_states):
+    res = []
+    for twist, final_state in zip(twists, final_states):
+        res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state))
+    return res
+'''
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state = False):
     config_vmc.twist = tuple(twist)
@@ -273,7 +279,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, fi
 
             t = time()
             energies.append(hamiltonian(wf))
-            densities.append(wf.total_density())
+            densities.append(0)#wf.total_density())
             t_energies += time() - t
 
             t = time()
@@ -337,10 +343,16 @@ if __name__ == "__main__":
             twists_per_cpu += 1
 
         num_twists = twists_per_cpu * n_cpus
-        twists = [np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2) for _ in range(num_twists)]  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
+        twists = []
+        L = int(np.sqrt(num_twists))
+        for i_x in range(L):
+            for i_y in range(L):
+                
+                twists.append([np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_x / L)), np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_y / L))])
+                # twists = [np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2) for _ in range(num_twists)]  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
     else:
         twists = [[1., 1.] for _ in range(num_twists)]
-
+    print('Number of twists: {:d}, number of jobs {:d}'.format(len(twists), num_twists))
 
     config_vmc.MC_chain = config_vmc.MC_chain // num_twists # the MC_chain contains the total required number of samples
     config_vmc.MC_thermalisation = config_vmc.MC_thermalisation // num_twists
@@ -363,9 +375,13 @@ if __name__ == "__main__":
         if config_vmc.load_parameters_path is not None:
             loaded_from_external = True
             filename = config_vmc.load_parameters_path
-        else:
+            parameters, last_step = load_parameters(filename)
+        elif os.path.isfile(os.path.join(local_workdir, 'last_opt_params.p')):
             filename = os.path.join(local_workdir, 'last_opt_params.p')
-        parameters, last_step = load_parameters(filename)
+            parameters, last_step = load_parameters(filename)
+        else:
+            parameters = config_vmc.initial_parameters
+            last_step = 0
     else:
         parameters = config_vmc.initial_parameters
         last_step = 0
@@ -382,9 +398,16 @@ if __name__ == "__main__":
     force_abs_history = [100000000]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         t = time()
+        '''
+        results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+            parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
+            final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
+        results = []
+        for r in results_batched:
+            results = results + r
+        '''
         results = Parallel(n_jobs=num_twists)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
             parameters, twist = twists[i], final_state = final_states[i]) for i in range(num_twists))
-        
         print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
         t = time() 
         ### MC chains data extraction ###
