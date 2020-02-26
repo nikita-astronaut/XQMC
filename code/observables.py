@@ -20,6 +20,7 @@ class Observables:
         self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), 'w')
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), 'w')
         self.density_file = open(os.path.join(self.local_workdir, 'density_log.dat'), 'w')
+        self.corr_file = open(os.path.join(self.local_workdir, 'corr_log.dat'), 'w')
 
         self.refresh_light_logs()
         self.refresh_heavy_logs()
@@ -38,15 +39,20 @@ class Observables:
     def init_heavy_logs_files(self):
         self.gap_file.write('step sign_obs ')
         self.density_file.write('step sign_obs ')
+        self.corr_file.write('name step sign_obs ')
 
         for key, _ in self.density_corr_list.items():
             self.density_file.write(key + ' ')
         for key, _ in self.gap_observables_list.items():
-            if 'corr' in key or 'chi' in key:
+            if 'chi' in key:
                 self.gap_file.write(key + ' ')
+        for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
+            r = self.config.adj_list[r_index][-1]
+            self.corr_file.write('{:2f} '.format(r))
 
         self.gap_file.write('\n')
         self.density_file.write('\n')
+        self.corr_file.write('\n')
         return
 
     def update_history(self, ratio, accepted, sign):
@@ -74,7 +80,10 @@ class Observables:
 
             self.gap_observables_list[gap_name + '_chi'] = []
             self.gap_observables_list[gap_name + '_chi_total'] = []
-            self.gap_observables_list[gap_name + '_corr'] = []  # large-distance correlation function averaged over orbitals
+
+            for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
+                r = self.config.adj_list[r_index][-1]
+                self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)] = []  # large-distance correlation function averaged over orbitals
 
         density_adj_list = self.config.adj_list[:self.config.n_adj_density]  # only smallest distance
         for adj in adj_list:
@@ -158,22 +167,11 @@ class Observables:
         self.heavy_signs_history.append(current_det_sign)
 
         adj_list_density = self.config.adj_list[:self.config.n_adj_density]  # on-site and nn
-        adj_list_pairings = self.config.adj_list[-self.config.n_adj_pairings:]  # only largest distance
         phi.copy_to_GPU()
         GFs_up = phi.get_nonequal_time_GFs(+1.0)
         GFs_down = phi.get_nonequal_time_GFs(-1.0)
         phi.copy_to_CPU()
-        '''
-        new_data = []
-        A = self.config.adj_list[2][0]
-        print(A, np.sum())
-        for gf_up, gf_down in zip(GFs_up, GFs_down):
-            new_data.append(np.einsum('ij,ji', gf_up + gf_down, A) / 2. / np.sum(A))
-        self.data_gfs.append(new_data.copy())
 
-        for e in np.array(self.data_gfs).mean(axis = 0):
-            print(e)
-        '''
 
         self.num_chi_samples += 1
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
@@ -182,15 +180,18 @@ class Observables:
             self.gap_observables_list[gap_name + '_D2'] += D2 * current_det_sign
             self.gap_observables_list[gap_name + '_C'] += C * current_det_sign
 
-            averaged_correlator = 0.0 + 0.0j
-            c_total = 0
-            for adj in adj_list_pairings:
-                value, c = gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
-                                                          pairing_unwrapped, adj[0])
-                c_total += c
-                averaged_correlator += value
-            averaged_correlator /= c_total
-            self.gap_observables_list[gap_name + '_corr'].append(averaged_correlator.real / len(adj_list_pairings))
+
+            for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
+                averaged_correlator = 0.0 + 0.0j
+                c_total = 0
+                r = self.config.adj_list[r_index][-1]
+                for adj in self.config.adj_list[r_index:r_index + self.config.n_adj_pairings]:
+                    value, c = gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
+                                                  pairing_unwrapped, adj[0])
+                    c_total += c
+                    averaged_correlator += value
+                averaged_correlator /= c_total
+                self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)].append(averaged_correlator.real)
 
 
         for adj in adj_list_density:
@@ -214,14 +215,20 @@ class Observables:
                   self.gap_observables_list[gap_name + '_D2'].max() / self.num_chi_samples, self.num_chi_samples)
             gap_data.append(chi) # norm already accounted
             gap_data.append(chi_total)
-            gap_data.append(self.signs_avg(self.gap_observables_list[gap_name + '_corr'], signs))
 
+            corr_data = [n_sweep, np.mean(signs)]
+            for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
+                r = self.config.adj_list[r_index][-1]
+                corr_data.append(self.signs_avg(self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)], signs))
+            self.corr_file.write(gap_name + (" {:d} " + "{:.6f} " * (len(corr_data) - 1) + '\n').format(n_sweep, *corr_data[1:]))
 
         self.density_file.write(("{:d} " + "{:.6f} " * (len(density_data) - 1) + '\n').format(n_sweep, *density_data[1:]))
         self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))
 
         self.density_file.flush()
         self.gap_file.flush()
+        self.corr_file.flush()
+
         self.refresh_heavy_logs(keep_susceptibility = True)
 
         return
@@ -343,7 +350,7 @@ def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj)
             counter += 1
             for j in np.where(np.abs(gap[i, :]) != 0.)[0]:
                 for l in np.where(np.abs(gap[k, :]) != 0.)[0]:
-                    result += np.conj(gap[i, j]) * gap[k, l] * G_function_down[l, j] * G_function_up[k, i] * adj[i, k]
+                    result += np.conj(gap[i, j]) * gap[k, l] * G_function_down[l, j] * G_function_up[k, i]
     return np.real(result) / n_bonds, counter
 
 @jit(nopython=True)
