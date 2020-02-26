@@ -73,6 +73,7 @@ class Observables:
                 self.num_chi_samples = 0
 
             self.gap_observables_list[gap_name + '_chi'] = []
+            self.gap_observables_list[gap_name + '_chi_total'] = []
             self.gap_observables_list[gap_name + '_corr'] = []  # large-distance correlation function averaged over orbitals
 
         density_adj_list = self.config.adj_list[:self.config.n_adj_density]  # only smallest distance
@@ -136,6 +137,11 @@ class Observables:
     def signs_avg(self, array, signs):
         return np.mean(np.array(array) * signs)
 
+
+    def signs_std(self, array, signs):
+        return (np.std(np.array(array) * signs) / np.mean(signs) - \
+               np.std(signs) * np.mean(np.array(array) * signs) / np.mean(signs) ** 2) / np.sqrt(len(signs))
+
     def write_light_observables(self, config, n_sweep):
         signs = np.array(self.light_signs_history)
 
@@ -156,22 +162,25 @@ class Observables:
         phi.copy_to_GPU()
         GFs_up = phi.get_nonequal_time_GFs(+1.0)
         GFs_down = phi.get_nonequal_time_GFs(-1.0)
-
+        phi.copy_to_CPU()
+        '''
         new_data = []
+        A = self.config.adj_list[2][0]
+        print(A, np.sum())
         for gf_up, gf_down in zip(GFs_up, GFs_down):
-            new_data.append((np.trace(gf_up) / gf_up.shape[0] + np.trace(gf_down) / gf_down.shape[0]) / 2.)
+            new_data.append(np.einsum('ij,ji', gf_up + gf_down, A) / 2. / np.sum(A))
         self.data_gfs.append(new_data.copy())
 
         for e in np.array(self.data_gfs).mean(axis = 0):
             print(e)
+        '''
 
-        phi.copy_to_CPU()
+        self.num_chi_samples += 1
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             D1, D2, C = susceptibility_local(phi, pairing_unwrapped, GFs_up, GFs_down)
             self.gap_observables_list[gap_name + '_D1'] += D1 * current_det_sign
             self.gap_observables_list[gap_name + '_D2'] += D2 * current_det_sign
             self.gap_observables_list[gap_name + '_C'] += C * current_det_sign
-            self.num_chi_samples += 1
 
             averaged_correlator = 0.0 + 0.0j
             c_total = 0
@@ -197,11 +206,14 @@ class Observables:
         gap_data = [n_sweep, np.mean(signs)]
 
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            chi = np.sum(self.gap_observables_list[gap_name + '_C'] / self.num_chi_samples - \
-                         (self.gap_observables_list[gap_name + '_D1'] / self.num_chi_samples) * \
-                         (self.gap_observables_list[gap_name + '_D2'] / self.num_chi_samples)).real
-
+            chi = np.sum(self.gap_observables_list[gap_name + '_C'] / self.num_chi_samples / np.mean(signs) - \
+                         (self.gap_observables_list[gap_name + '_D1'] / self.num_chi_samples / np.mean(signs)) * \
+                         (self.gap_observables_list[gap_name + '_D2'] / self.num_chi_samples / np.mean(signs))).real
+            chi_total = np.sum(self.gap_observables_list[gap_name + '_C'] / self.num_chi_samples / np.mean(signs)).real
+            print(self.gap_observables_list[gap_name + '_C'].max() / self.num_chi_samples, self.gap_observables_list[gap_name + '_D1'].max() / self.num_chi_samples, \
+                  self.gap_observables_list[gap_name + '_D2'].max() / self.num_chi_samples, self.num_chi_samples)
             gap_data.append(chi) # norm already accounted
+            gap_data.append(chi_total)
             gap_data.append(self.signs_avg(self.gap_observables_list[gap_name + '_corr'], signs))
 
 
@@ -343,14 +355,12 @@ def corr_fix_tau(G_up, G_down, gap):
     for i in range(gap.shape[0]):
         for k in range(gap.shape[0]):
             D_2[i, k] = G_up[i, k]
-            c_accumulant = 0.0 + 0.0j
-            d1_accumulant = 0.0 + 0.0j
+            cumulant = 0.0 + 0.0j
             for j in np.where(gap[i, :] != 0.0)[0]:
                 for l in np.where(gap[k, :] != 0.0)[0]:
-                    d1_accumulant += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l]
-                    c_accumulant += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l] * G_up[i, k]
-            C[i, k] = c_accumulant
-            D_1[i, k] = d1_accumulant
+                    cumulant += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l]
+            C[i, k] = cumulant * G_up[i, k]
+            D_1[i, k] = cumulant
     return D_1, D_2, C
 
 
@@ -363,7 +373,7 @@ def susceptibility_local(phi, gap, GFs_up, GFs_down):
         D1, D2, C = corr_fix_tau(GFs_up[i], GFs_down[i], gap)
         D_1_total[..., i] = D1; D_2_total[..., i] = D2; C_total[..., i] = C
     
-    norm = np.sum(np.abs(gap) > 0) * C_total.shape[2]
+    norm = np.sum(np.abs(gap) > 0)
     return D_1_total / np.sqrt(norm), D_2_total / np.sqrt(norm), C_total / norm
 
 

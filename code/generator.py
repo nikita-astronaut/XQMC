@@ -99,7 +99,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             observables.update_history(ratio, accepted, current_det_sign)
         observables.measure_light_observables(phi_field, current_det_sign.item())
 
-    if n_sweep >= phi_field.config.thermalization:
+    if n_sweep >= phi_field.config.thermalization and n_sweep % phi_field.config.n_print_frequency == 0:
         observables.measure_heavy_observables(phi_field, current_det_sign.item())
     return phi_field, observables
 
@@ -131,5 +131,5 @@ if __name__ == "__main__":
             observables.print_std_logs(n_sweep)
             observables.write_light_observables(phi_field.config, n_sweep)
 
-            if n_sweep > config.thermalization:
+            if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
                 observables.write_heavy_observables(phi_field.config, n_sweep)

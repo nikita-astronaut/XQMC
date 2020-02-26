@@ -301,9 +301,9 @@ class AuxiliaryFieldIntraorbital:
         if tmax > tmin:
             #  then product is B_tau B_tau-1 ... B_1 --> B_tau .. B_tau-s LEFT(tau // s)
             index_decomp = tmax // self.config.s_refresh
-            print(tmax, tmin, index_decomp, len(self.left_decompositions_up))
             tmin += index_decomp * self.config.s_refresh
-            u, s, v0 = self.left_decompositions_up[index_decomp - 1] if spin > 0 else self.left_decompositions_down[index_decomp - 1]
+
+            u, s, v0 = self.left_decompositions[index_decomp - 1]
             chain = u.dot(self.la.diag(s))
 
             for i in range(tmin, tmax + 1):
@@ -313,9 +313,10 @@ class AuxiliaryFieldIntraorbital:
             return u, s, v.dot(v0)
 
         index_decomp = (self.config.Nt - tmin - 1) // self.config.s_refresh
-        print(index_decomp, len(self.partial_SVD_decompositions_up))
-        u, s, v0 = self.partial_SVD_decompositions_up[index_decomp - 1] if spin > 0 else self.partial_SVD_decompositions_down[index_decomp - 1]
-
+        if index_decomp > 0:
+            u, s, v0 = self.partial_SVD_decompositions_up[index_decomp - 1] if spin > 0 else self.partial_SVD_decompositions_down[index_decomp - 1]
+        else:
+            u, s, v0 = self.la.eye(self.config.total_dof // 2), self.la.diag(self.la.eye(self.config.total_dof // 2)), self.la.eye(self.config.total_dof // 2)
         chain = u.dot(self.la.diag(s))
 
         max_index = self.config.Nt - 1 - index_decomp * self.config.s_refresh
@@ -332,19 +333,17 @@ class AuxiliaryFieldIntraorbital:
     def get_nonequal_time_GFs(self, spin):
         current_GF = self.get_G_no_optimisation(spin, 0)[0]
         self.refresh_all_decompositions()
-        self.left_decompositions_up = self._get_left_partial_SVD_decompositions(+1.0)
-        self.left_decompositions_down = self._get_left_partial_SVD_decompositions(-1.0)
-        print(len(self.left_decompositions_up))
+        self.left_decompositions = self._get_left_partial_SVD_decompositions(spin)
         GFs = [1. * cp.asnumpy(current_GF)]
 
         for tau in range(1, self.config.Nt):
             B = self.B_l(spin, tau)
+
             if tau % self.config.s_refresh != 0:
                 current_GF = B.dot(current_GF)  # just wrap-up / wrap-down
             else:  # recompute GF from scratch
                 u1, s1, v1 = self.compute_B_chain(spin, tau, 1)
                 u2, s2, v2 = self.compute_B_chain(spin, 0, tau + 1)
-                
                 if tau > self.config.Nt // 2:
                     m = self.la.diag(s1**-1) + (v1.dot(u2)).dot(self.la.diag(s2)).dot(v2.dot(u1))
                     um, sm, vm = self.SVD(m)
@@ -355,7 +354,7 @@ class AuxiliaryFieldIntraorbital:
                     current_GF = (v2.T.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(u2.T))
 
             GFs.append(1.0 * cp.asnumpy(current_GF))
-        return GFs
+        return np.array(GFs)
 
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice):
