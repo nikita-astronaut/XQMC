@@ -68,9 +68,14 @@ class wavefunction_singlet():
 
 
         ### random numbers for random moves ###
-        self.random_numbers_acceptance = np.random.random(size = int(self.config.MC_chain * 4))
-        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = int(self.config.MC_chain * 4))
-        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = int(self.config.MC_chain * 4))
+        self._rnd_size = 1000
+        self._refresh_rnd()
+        return
+
+    def _refresh_rnd(self):
+        self.random_numbers_acceptance = np.random.random(size = self._rnd_size)
+        self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = self._rnd_size)
+        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = self._rnd_size)
         return
 
     def get_cur_Jastrow_factor(self):
@@ -182,11 +187,13 @@ class wavefunction_singlet():
 
     def perform_MC_step(self, proposed_move = None, enforce = False):
         self.MC_step_index += 1
+        if self.MC_step_index % self._rnd_size == 0:
+            self._refresh_rnd()        
 
         if proposed_move == None:
-            moved_site_idx = self.random_numbers_move[self.MC_step_index]
+            moved_site_idx = self.random_numbers_move[self.MC_step_index % self._rnd_size]
             moved_site = self.occupied_sites[moved_site_idx]
-            empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index]]
+            empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index % self._rnd_size]]
         else:  # only in testmode
             moved_site, empty_site = proposed_move
             moved_site_idx = self.place_in_string[moved_site]
@@ -204,7 +211,7 @@ class wavefunction_singlet():
                                           self.var_f, moved_site, empty_site)
 
         self.wf += time() - t
-        if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index]:
+        if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index % self._rnd_size]:
             return False, 1, 1, moved_site, empty_site
 
         t = time()
