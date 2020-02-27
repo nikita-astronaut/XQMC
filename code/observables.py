@@ -4,6 +4,7 @@ from time import time
 import auxiliary_field
 from numba import jit
 import os
+from collections import OrderedDict
 
 xp = np  # by default the code is executed on the CPU
 try:
@@ -64,9 +65,9 @@ class Observables:
         self.density_file.flush()
         self.gap_file.flush()
 
-        self.density_corr_list = {}
+        self.density_corr_list = OrderedDict()
         if not keep_susceptibility:
-            self.gap_observables_list = {}
+            self.gap_observables_list = OrderedDict()
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
@@ -95,12 +96,12 @@ class Observables:
 
     def refresh_light_logs(self):
         self.log_file.flush()
-        self.light_observables_list = {
+        self.light_observables_list = OrderedDict({
             '⟨density⟩' : [], 
             '⟨E_K⟩' : [], 
             '⟨E_C⟩' : [],
             '⟨E_T⟩' : []
-        }
+        })
 
         self.light_signs_history = []
 
