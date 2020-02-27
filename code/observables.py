@@ -349,36 +349,13 @@ def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj)
     n_bonds = np.sum(np.abs(gap) > 0) / gap.shape[0]
 
     return np.sum((G_function_up * adj_complex.T).dot(np.conj(gap)).dot(G_function_down.T) * gap) / n_bonds, counter
-    '''
-    result = 0.0 + 0.0j
 
-    for i in range(gap.shape[0]):
-        for k in np.where(adj[i, :] > 0)[0]:
-            counter += 1
-            for j in np.where(np.abs(gap[i, :]) != 0.)[0]:
-                for l in np.where(np.abs(gap[k, :]) != 0.)[0]:
-                    result += np.conj(gap[i, j]) * gap[k, l] * G_function_down[l, j] * G_function_up[k, i]
-    return np.real(result) / n_bonds, counter
-    '''
 
 @jit(nopython=True)
 def corr_fix_tau(G_up, G_down, gap):
     D_1 = np.conj(gap).dot(G_down).dot(gap.T)
     C = G_up * D_1
     return D_1, G_up, C
-    '''
-    for i in range(gap.shape[0]):
-        for k in range(gap.shape[0]):
-            D_2[i, k] = G_up[i, k]
-            cumulant = 0.0 + 0.0j
-            for j in np.where(gap[i, :] != 0.0)[0]:
-                for l in np.where(gap[k, :] != 0.0)[0]:
-                    cumulant += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l]
-            C[i, k] = cumulant * G_up[i, k]
-            D_1[i, k] = cumulant
-    '''
-
-    
 
 
 def susceptibility_local(phi, gap, GFs_up, GFs_down): 
