@@ -183,14 +183,11 @@ class Observables:
 
         self.num_chi_samples += 1
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            t = time()
             D1, D2, C = susceptibility_local(phi, pairing_unwrapped, GFs_up, GFs_down)
             self.gap_observables_list[gap_name + '_D1'] += D1 * current_det_sign
             self.gap_observables_list[gap_name + '_D2'] += D2 * current_det_sign
             self.gap_observables_list[gap_name + '_C'] += C * current_det_sign
-            print(t - time(), 'D1D2C')
 
-            t = time()
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
                 averaged_correlator = 0.0 + 0.0j
                 c_total = 0
@@ -202,7 +199,6 @@ class Observables:
                 averaged_correlator, c_total = gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
                                                                   pairing_unwrapped, adj)
                 self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)].append(averaged_correlator.real / c_total)
-            print(t - time(), 'all corrs')
 
         for adj in adj_list_density:
             self.density_corr_list["n_up_n_down_({:d}/{:d}/{:.2f})".format(*adj[1:])].append(n_up_n_down_correlator(phi, adj[0]).item())
