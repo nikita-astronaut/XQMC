@@ -157,6 +157,8 @@ class Observables:
         data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), np.mean(self.sign_history),
                 np.mean(self.light_signs_history)] + [self.signs_avg(val, signs) for _, val in self.light_observables_list.items()]
 
+        # print(len(self.light_observables_list['⟨density⟩']), len(signs), np.mean(self.light_observables_list['⟨density⟩']), np.mean(signs), np.mean(np.array(self.light_observables_list['⟨density⟩']) * signs))
+
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
         self.log_file.flush()
         self.refresh_light_logs()
@@ -211,8 +213,6 @@ class Observables:
                          (self.gap_observables_list[gap_name + '_D1'] / self.num_chi_samples / np.mean(signs)) * \
                          (self.gap_observables_list[gap_name + '_D2'] / self.num_chi_samples / np.mean(signs))).real
             chi_total = np.sum(self.gap_observables_list[gap_name + '_C'] / self.num_chi_samples / np.mean(signs)).real
-            print(self.gap_observables_list[gap_name + '_C'].max() / self.num_chi_samples, self.gap_observables_list[gap_name + '_D1'].max() / self.num_chi_samples, \
-                  self.gap_observables_list[gap_name + '_D2'].max() / self.num_chi_samples, self.num_chi_samples)
             gap_data.append(chi) # norm already accounted
             gap_data.append(chi_total)
 

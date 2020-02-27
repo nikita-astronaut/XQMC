@@ -21,10 +21,41 @@ from copy import deepcopy
 import scipy.sparse as scs
 from time import time
 import observables as obs_methods
-from config_generator import simulation_parameters
+import config_generator as cv_module
+import sys
+import os
+import importlib
 
+# <<Borrowed>> from Tom
+def import_config(filename: str):
+    import importlib
 
-config = simulation_parameters()
+    module_name, extension = os.path.splitext(os.path.basename(filename))
+    module_dir = os.path.dirname(filename)
+    if extension != ".py":
+        raise ValueError(
+            "Could not import the module from {!r}: not a Python source file.".format(
+                filename
+            )
+        )
+    if not os.path.exists(filename):
+        raise ValueError(
+            "Could not import the module from {!r}: no such file or directory".format(
+                filename
+            )
+        )
+    sys.path.insert(0, module_dir)
+    module = importlib.import_module(module_name)
+    sys.path.pop(0)
+    return module
+
+config_dqmc_file = import_config(sys.argv[1])
+config_dqmc_import = config_dqmc_file.simulation_parameters()
+
+config = cv_module.simulation_parameters()
+config.__dict__ = config_dqmc_import.__dict__.copy()
+
+# print_model_summary(config_vmc)
 
 def perform_sweep(phi_field, observables, n_sweep, switch = True):
     if switch:
@@ -120,8 +151,12 @@ if __name__ == "__main__":
         phi_field.copy_to_GPU()
 
         local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}'.format(U, V, mu, int(Nt)))
+
         os.makedirs(local_workdir, exist_ok=True)
 
+        with open(os.path.join(local_workdir, 'config.py'), 'w') as target, open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
+            target.write(source.read())
+        
         observables = obs_methods.Observables(phi_field, local_workdir)
         observables.print_greerings()
 
