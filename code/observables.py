@@ -5,6 +5,7 @@ import auxiliary_field
 from numba import jit
 import os
 from collections import OrderedDict
+from joblib import Parallel, delayed
 
 xp = np  # by default the code is executed on the CPU
 try:
@@ -168,6 +169,8 @@ class Observables:
         return
 
 
+
+
     def measure_heavy_observables(self, phi, current_det_sign):
         self.heavy_signs_history.append(current_det_sign)
 
@@ -180,24 +183,26 @@ class Observables:
 
         self.num_chi_samples += 1
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+            t = time()
             D1, D2, C = susceptibility_local(phi, pairing_unwrapped, GFs_up, GFs_down)
             self.gap_observables_list[gap_name + '_D1'] += D1 * current_det_sign
             self.gap_observables_list[gap_name + '_D2'] += D2 * current_det_sign
             self.gap_observables_list[gap_name + '_C'] += C * current_det_sign
+            print(t - time(), 'D1D2C')
 
-
+            t = time()
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
                 averaged_correlator = 0.0 + 0.0j
                 c_total = 0
                 r = self.config.adj_list[r_index][-1]
-                for adj in self.config.adj_list[r_index:r_index + self.config.n_adj_pairings]:
-                    value, c = gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
-                                                  pairing_unwrapped, adj[0])
-                    c_total += c
-                    averaged_correlator += value
-                averaged_correlator /= c_total
-                self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)].append(averaged_correlator.real)
+                adj = np.zeros(self.config.adj_list[r_index][0].shape)
+                for adj_o1o2 in self.config.adj_list[r_index:r_index + self.config.n_adj_pairings]:
+                    adj += adj_o1o2[0]
 
+                averaged_correlator, c_total = gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
+                                                                  pairing_unwrapped, adj)
+                self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)].append(averaged_correlator.real / c_total)
+            print(t - time(), 'all corrs')
 
         for adj in adj_list_density:
             self.density_corr_list["n_up_n_down_({:d}/{:d}/{:.2f})".format(*adj[1:])].append(n_up_n_down_correlator(phi, adj[0]).item())
@@ -336,18 +341,21 @@ def kinetic_energy(phi):
 def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj):
     '''
         ⟨\\Delta^{\\dag} \\Delta⟩ = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
-                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} [\\delta_{jl} - G^{down}(l, j)] [\\delta_{ik} - G^{up}_{k, i}]
+                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} G^{down}(l, j) G^{up}_{k, i}
                                   (i ~ j | k ~ l)_{delta}, (i ~ k)_{adj}
     '''
 
-    G_function_up = current_G_function_up
-    G_function_down = current_G_function_down
+    G_function_up = current_G_function_up + 0.0j
+    G_function_down = current_G_function_down + 0.0j
+    adj_complex = adj + 0.0j
 
-    counter = 0
-
+    counter = np.sum(adj > 0)
     n_bonds = np.sum(np.abs(gap) > 0) / gap.shape[0]
 
+    return np.sum((G_function_up * adj_complex.T).dot(np.conj(gap)).dot(G_function_down.T) * gap) / n_bonds, counter
+    '''
     result = 0.0 + 0.0j
+
     for i in range(gap.shape[0]):
         for k in np.where(adj[i, :] > 0)[0]:
             counter += 1
@@ -355,13 +363,14 @@ def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj)
                 for l in np.where(np.abs(gap[k, :]) != 0.)[0]:
                     result += np.conj(gap[i, j]) * gap[k, l] * G_function_down[l, j] * G_function_up[k, i]
     return np.real(result) / n_bonds, counter
+    '''
 
 @jit(nopython=True)
 def corr_fix_tau(G_up, G_down, gap):
-    D_1 = np.zeros(G_up.shape, dtype = np.complex128)
-    D_2 = np.zeros(G_up.shape, dtype = np.complex128)
-    C = np.zeros(G_up.shape, dtype = np.complex128)
-
+    D_1 = np.conj(gap).dot(G_down).dot(gap.T)
+    C = G_up * D_1
+    return D_1, G_up, C
+    '''
     for i in range(gap.shape[0]):
         for k in range(gap.shape[0]):
             D_2[i, k] = G_up[i, k]
@@ -371,7 +380,9 @@ def corr_fix_tau(G_up, G_down, gap):
                     cumulant += np.conj(gap[i, j]) * gap[k, l] * G_down[j, l]
             C[i, k] = cumulant * G_up[i, k]
             D_1[i, k] = cumulant
-    return D_1, D_2, C
+    '''
+
+    
 
 
 def susceptibility_local(phi, gap, GFs_up, GFs_down): 
@@ -380,7 +391,7 @@ def susceptibility_local(phi, gap, GFs_up, GFs_down):
     C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
 
     for i in range(len(GFs_up)):
-        D1, D2, C = corr_fix_tau(GFs_up[i], GFs_down[i], gap)
+        D1, D2, C = corr_fix_tau(GFs_up[i] + 0.0j, GFs_down[i] + 0.0j, gap)  # 0.0j for jit complex
         D_1_total[..., i] = D1; D_2_total[..., i] = D2; C_total[..., i] = C
     
     norm = np.sum(np.abs(gap) > 0)
