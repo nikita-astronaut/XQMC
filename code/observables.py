@@ -33,8 +33,10 @@ class Observables:
         return
         
     def init_light_log_file(self):
-        self.log_file.write('n_sweep ' + '⟨ratio⟩ ' + '⟨acc⟩ ' + '⟨sign_gen⟩ ' + '⟨sign_obs_l⟩ ' + \
-                                         '⟨density⟩ ' + '⟨E_K⟩ ' + '⟨E_C⟩ ' + '⟨E_T⟩\n')
+        self.log_file.write('n_sweep ' + '⟨ratio⟩ ' + '⟨acc⟩ ' + '⟨sign_gen⟩ ' + '⟨sign_obs_l⟩ ')
+        for key, _ in self.light_observables_list.items():
+            self.log_file.write(key + ' ')
+        self.log_file.write('\n')
         return
 
     def init_heavy_logs_files(self):
