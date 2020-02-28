@@ -5,7 +5,6 @@ import auxiliary_field
 from numba import jit
 import os
 from collections import OrderedDict
-from joblib import Parallel, delayed
 
 xp = np  # by default the code is executed on the CPU
 try:
@@ -74,7 +73,7 @@ class Observables:
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
-        chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt)
+        chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt // 2)
         for gap_name in self.config.pairings_list_names:
             if not keep_susceptibility:
                 self.gap_observables_list[gap_name + '_D1'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D1
@@ -217,8 +216,8 @@ class Observables:
                          (self.gap_observables_list[gap_name + '_D1'] / self.num_chi_samples / np.mean(signs)) * \
                          (self.gap_observables_list[gap_name + '_D2'] / self.num_chi_samples / np.mean(signs))).real
             chi_total = np.sum(self.gap_observables_list[gap_name + '_C'] / self.num_chi_samples / np.mean(signs)).real
-            gap_data.append(chi) # norm already accounted
-            gap_data.append(chi_total)
+            gap_data.append(2 * chi) # norm already accounted
+            gap_data.append(2 * chi_total)
 
             corr_data = [n_sweep, np.mean(signs)]
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
@@ -359,11 +358,11 @@ def corr_fix_tau(G_up, G_down, gap):
 
 
 def susceptibility_local(phi, gap, GFs_up, GFs_down): 
-    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
-    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
-    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
+    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
+    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
+    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
 
-    for i in range(len(GFs_up)):
+    for i in range(len(GFs_up) // 2):
         D1, D2, C = corr_fix_tau(GFs_up[i] + 0.0j, GFs_down[i] + 0.0j, gap)  # 0.0j for jit complex
         D_1_total[..., i] = D1; D_2_total[..., i] = D2; C_total[..., i] = C
     
