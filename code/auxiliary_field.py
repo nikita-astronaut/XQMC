@@ -4,6 +4,7 @@ import time
 import scipy
 import models
 from copy import deepcopy
+import os
 
 xp = np
 
@@ -15,17 +16,20 @@ except ImportError:
 
 
 class AuxiliaryFieldIntraorbital:
-    def __init__(self, config, K, K_inverse, K_matrix, gpu_avail):
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, gpu_avail):
         self.gpu_avail = gpu_avail
         self.la = np
         self.cpu = True
 
         self.config = config
         self.adj_list = config.adj_list
+        self.conf_path = os.path.join(local_workdir, 'last_conf.npy')
         self._get_initial_field_configuration()
+
         self.K = K
         self.K_inverse = K_inverse
         self.K_matrix = K_matrix
+
         self.partial_SVD_decompositions_up = []
         self.partial_SVD_decompositions_down = []
         self.current_lhs_SVD_up = []
@@ -44,6 +48,7 @@ class AuxiliaryFieldIntraorbital:
         self.log_det_down = 0
         self.sign_det_down = 0
         
+
         self.refresh_checkpoints = [0]
         t = self.config.Nt % self.config.s_refresh
         if t == 0:
@@ -173,8 +178,8 @@ class AuxiliaryFieldIntraorbital:
             M = self.B_l(spin, time_slice, inverse = False).dot(M)
         return self.SVD(M)
 
-    def _load_configuration(self, path):
-        return np.load(start_type)
+    def _load_configuration(self):
+        return np.load(self.conf_path)
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
@@ -183,11 +188,16 @@ class AuxiliaryFieldIntraorbital:
         if self.config.start_type == 'hot':
             self.configuration = xp.asarray(np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
             return
-        self.configuration = xp.asarray(self._load_configuration(start_type))
+
+        if os.path.isfile(self.conf_path):
+            self.configuration = xp.asarray(self._load_configuration())
+            return
+        self.configuration = xp.asarray(np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)  # hot anyway
+
         return
 
-    def save_configuration(self, path):
-        return np.save(path, self.configuration)
+    def save_configuration(self):
+        return np.save(self.conf_path, self.configuration)
 
     def B_l(self, spin, l, inverse = False):
         if not inverse:
@@ -226,7 +236,7 @@ class AuxiliaryFieldIntraorbital:
             self.current_G_function_up = G
         else:
             self.current_G_function_down = G
-        
+      
         return
 
     def update_field(self, sp_index, time_slice, *args):
@@ -383,8 +393,8 @@ class AuxiliaryFieldIntraorbital:
 
 
 class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
-    def __init__(self, config, K, K_inverse, K_matrix, gpu_avail):
-        super().__init__(config, K, K_inverse, K_matrix, gpu_avail)
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, gpu_avail):
+        super().__init__(config, K, K_inverse, K_matrix, local_workdir, gpu_avail)
         return
 
     def _V_from_configuration(self, s, sign, spin):
@@ -397,8 +407,13 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
             self.configuration = np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
-        if self.config.start_type == 'hot':
+        elif self.config.start_type == 'hot':
             self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
+        else:
+            if os.path.isfile(self.conf_path):
+                self.configuration = self._load_configuration()
+            else:
+                self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
 
         self.V_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
         self.Vinv_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
