@@ -62,23 +62,21 @@ class Observables:
         self.acceptance_history.append(accepted)
         self.sign_history.append(sign)
 
-    def refresh_heavy_logs(self, keep_susceptibility = False):
+    def refresh_heavy_logs(self):
         self.density_file.flush()
         self.gap_file.flush()
 
         self.density_corr_list = OrderedDict()
-        if not keep_susceptibility:
-            self.gap_observables_list = OrderedDict()
+        self.gap_observables_list = OrderedDict()
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
         chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt // 2)
         for gap_name in self.config.pairings_list_names:
-            if not keep_susceptibility:
-                self.gap_observables_list[gap_name + '_D1'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D1
-                self.gap_observables_list[gap_name + '_D2'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D2
-                self.gap_observables_list[gap_name + '_C'] = np.zeros(chi_shape) + 0.0j  # susceptibility part C
-                self.num_chi_samples = 0
+            self.gap_observables_list[gap_name + '_D1'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D1
+            self.gap_observables_list[gap_name + '_D2'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D2
+            self.gap_observables_list[gap_name + '_C'] = np.zeros(chi_shape) + 0.0j  # susceptibility part C
+            self.num_chi_samples = 0
 
             self.gap_observables_list[gap_name + '_chi'] = []
             self.gap_observables_list[gap_name + '_chi_total'] = []
@@ -206,7 +204,7 @@ class Observables:
 
     def write_heavy_observables(self, config, n_sweep):
         signs = np.array(self.heavy_signs_history)
-        density_data = [n_sweep, np.mean(signs)] + [self.signs_avg(val, signs) for _, val in self.density_corr_list.items()]
+        density_data = [n_sweep, np.mean(signs)] + [self.signs_avg(val, signs) / np.mean(signs) for _, val in self.density_corr_list.items()]
 
         gap_data = [n_sweep, np.mean(signs)]
 
@@ -221,7 +219,7 @@ class Observables:
             corr_data = [n_sweep, np.mean(signs)]
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
                 r = self.config.adj_list[r_index][-1]
-                corr_data.append(self.signs_avg(self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)], signs))
+                corr_data.append(self.signs_avg(self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)], signs) / np.mean(signs))
             self.corr_file.write(gap_name + (" {:d} " + "{:.6f} " * (len(corr_data) - 1) + '\n').format(n_sweep, *corr_data[1:]))
 
         self.density_file.write(("{:d} " + "{:.6f} " * (len(density_data) - 1) + '\n').format(n_sweep, *density_data[1:]))
@@ -230,8 +228,6 @@ class Observables:
         self.density_file.flush()
         self.gap_file.flush()
         self.corr_file.flush()
-
-        self.refresh_heavy_logs(keep_susceptibility = True)
 
         return
 
