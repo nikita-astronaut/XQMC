@@ -16,11 +16,13 @@ class Observables:
     def __init__(self, phi, local_workdir):
         self.config = phi.config 
         self.local_workdir = local_workdir
+
+        open_mode = 'a' if phi.config.start_type == 'presaved' else 'w'
         
-        self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), 'w')
-        self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), 'w')
-        self.density_file = open(os.path.join(self.local_workdir, 'density_log.dat'), 'w')
-        self.corr_file = open(os.path.join(self.local_workdir, 'corr_log.dat'), 'w')
+        self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), open_mode)
+        self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
+        self.density_file = open(os.path.join(self.local_workdir, 'density_log.dat'), open_mode)
+        self.corr_file = open(os.path.join(self.local_workdir, 'corr_log.dat'), open_mode)
 
         self.refresh_light_logs()
         self.refresh_heavy_logs()
