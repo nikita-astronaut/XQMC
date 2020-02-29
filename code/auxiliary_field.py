@@ -136,7 +136,7 @@ class AuxiliaryFieldIntraorbital:
                 # cupy and scipy, on contrary, use gesvd and must be used as the GPU and CPU backends, respectively
                 
                 
-                print(self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M))
+                # print(self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M))
                 current_U = current_U.dot(u)
                 if spin == +1:
                     self.partial_SVD_decompositions_up.append((current_U, s, v))
