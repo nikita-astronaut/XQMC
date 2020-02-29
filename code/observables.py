@@ -6,10 +6,9 @@ from numba import jit
 import os
 from collections import OrderedDict
 
-xp = np  # by default the code is executed on the CPU
+
 try:
     import cupy as cp
-    xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
 except ImportError:
     pass
 
@@ -241,12 +240,12 @@ class Observables:
 def get_B_sublattice_mask(config):
     return xp.asarray(1.0 * np.array([models.from_linearized_index(index, config.Ls, config.n_orbitals)[1] for index in range(config.n_sublattices * config.n_orbitals * config.Ls ** 2)]))
 
-def density_spin(phi_field, spin):
+def density_spin(phi, spin):
     if spin == +1:
-        G_function = phi_field.current_G_function_up
+        G_function = phi.current_G_function_up
     else:
-        G_function = phi_field.current_G_function_down
-    return xp.trace(G_function) / (phi_field.config.total_dof // 2)
+        G_function = phi.current_G_function_down
+    return phi.la.trace(G_function) / (phi.config.total_dof // 2)
 
 def total_density(phi_field):
     return density_spin(phi_field, +1) + density_spin(phi_field, -1)
@@ -326,13 +325,13 @@ def n_up_n_down_correlator(phi, adj):
     G_function_up = phi.current_G_function_up
     G_function_down = phi.current_G_function_down
 
-    return xp.einsum('i,j,ij', xp.diag(G_function_up), xp.diag(G_function_down), adj) / xp.sum(adj)
+    return phi.la.einsum('i,j,ij', phi.la.diag(G_function_up), phi.la.diag(G_function_down), adj) / phi.la.sum(adj)
 
 def kinetic_energy(phi):
     G_function_up = phi.current_G_function_up
     G_function_down = phi.current_G_function_down
 
-    return xp.einsum('ij,ij', phi.K_matrix, G_function_up + G_function_down) / G_function_up.shape[0]
+    return phi.la.einsum('ij,ij', phi.K_matrix, G_function_up + G_function_down) / G_function_up.shape[0]
 
 @jit(nopython=True)
 def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj):
@@ -376,15 +375,15 @@ def Coloumb_energy(phi):
     G_function_up = phi.current_G_function_up
     G_function_down = phi.current_G_function_down
 
-    energy_coloumb = (phi.config.U / 2.) * xp.sum((xp.diag(G_function_up) + xp.diag(G_function_down) - 1.) ** 2).item() \
+    energy_coloumb = (phi.config.U / 2.) * phi.la.sum((phi.la.diag(G_function_up) + phi.la.diag(G_function_down) - 1.) ** 2).item() \
                      / G_function_up.shape[0]
     if phi.config.n_orbitals == 1:
         return energy_coloumb
 
-    orbital_1 = xp.arange(0, G_function_up.shape[0], 2)
-    orbital_2 = xp.arange(1, G_function_up.shape[0], 2)
-    energy_coloumb += phi.config.V * xp.einsum('i,i', (xp.diag(G_function_up)[orbital_1] + xp.diag(G_function_down)[orbital_1] - 1),
-                                                      (xp.diag(G_function_up)[orbital_2] + xp.diag(G_function_down)[orbital_2] - 1)).item() \
+    orbital_1 = phi.la.arange(0, G_function_up.shape[0], 2)
+    orbital_2 = phi.la.arange(1, G_function_up.shape[0], 2)
+    energy_coloumb += phi.config.V * phi.la.einsum('i,i', (phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] - 1),
+                                                      (phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 1)).item() \
                                                       / G_function_up.shape[0]
 
     return energy_coloumb

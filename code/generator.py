@@ -2,20 +2,6 @@ import numpy as np
 import os
 import itertools
 
-xp = np  # by default the code is executed on the CPU
-cp = np
-
-gpu_avail = False
-
-try:
-    import cupy as cp
-    xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
-    gpu_avail = True
-except ImportError:
-    print('No CuPy found in the system, running on a CPU')
-
-# gpu_avail = False
-
 import scipy.linalg
 from copy import deepcopy
 import scipy.sparse as scs
@@ -151,7 +137,7 @@ if __name__ == "__main__":
         os.makedirs(local_workdir, exist_ok=True)
 
         phi_field = config.field(config, K_operator, K_operator_inverse, \
-                                 K_matrix, local_workdir, gpu_avail)
+                                 K_matrix, local_workdir)
         phi_field.copy_to_GPU()
 
         with open(os.path.join(local_workdir, 'config.py'), 'w') as target, open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)

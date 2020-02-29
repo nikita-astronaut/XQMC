@@ -4,14 +4,15 @@ import auxiliary_field
 from opt_parameters import pairings
 
 dt_in_inv_t1 = 0.1
-U_in_t1 = np.array([3.])
-V_in_t1 = np.array([0.00])
+U_in_t1 = np.array([4.0])
+V_in_t1 = np.array([0.0])
 main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self):
+        self.gpu = False
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([20])  # the number of time slices for the Suzuki-Trotter procedure
+        self.Nt = np.array([60])  # the number of time slices for the Suzuki-Trotter procedure
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
         self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.V = V_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
@@ -19,7 +20,7 @@ class simulation_parameters:
         self.nu_V = None
         self.nu_U = None
         self.BC_twist = False; self.twist = (1.0, 1.0)
-        self.mu = np.array([-0.3]) # (meV), chemical potential of the lattice
+        self.mu = np.array([0.0]) # (meV), chemical potential of the lattice
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2
         self.field = auxiliary_field.AuxiliaryFieldInterorbital
@@ -33,7 +34,7 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 8
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/3/'
-        self.thermalization = 200  # after how many sweeps start computing observables
+        self.thermalization = 0  # after how many sweeps start computing observables
         self.tests = False
         self.adj_list = models.get_adjacency_list(self)[0]
 

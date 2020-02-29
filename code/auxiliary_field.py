@@ -5,19 +5,14 @@ import scipy
 import models
 from copy import deepcopy
 import os
-
-xp = np
-
 try:
     import cupy as cp
-    xp = cp  # if the cp is imported, the code MAY run on GPU if the one is available
 except ImportError:
     pass
 
-
 class AuxiliaryFieldIntraorbital:
-    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, gpu_avail):
-        self.gpu_avail = gpu_avail
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir):
+        self.gpu_avail = config.gpu
         self.la = np
         self.cpu = True
 
@@ -80,19 +75,18 @@ class AuxiliaryFieldIntraorbital:
         #print(svd_lhs)
         u2, s2, v2 = svd_rhs
         m = v1.dot(u2)
-        middle_mat = (u1.T).dot(v2.T) + xp.diag(s1).dot(m).dot(xp.diag(s2))
+        middle_mat = (u1.T).dot(v2.T) + self.la.diag(s1).dot(m).dot(self.la.diag(s2))
         um, sm, vm = self.SVD(middle_mat)
 
         left = (vm.dot(v2)).T
         right = (u1.dot(um)).T
-        # print(xp.sum(xp.abs(xp.linalg.inv(left) - left.T)))
-        # print(xp.sum(xp.abs(xp.linalg.inv(right) - right.T)))
-        sign = np.sign(np.linalg.slogdet(cp.asnumpy(left))[0] * np.linalg.slogdet(cp.asnumpy(right))[0])
+        
+        sign = np.sign(np.linalg.slogdet(self.to_numpy(left))[0] * np.linalg.slogdet(self.to_numpy(right))[0])
         if return_logdet:
-            return left.dot((xp.diag(sm ** -1)).dot(right)), \
-                   xp.sum(xp.log(sm ** -1)), \
-                   sign#xp.sign(xp.linalg.slogdet(left)[0] * xp.linalg.slogdet(right)[0])
-        return left.dot(xp.diag(sm ** -1)).dot(right)
+            return left.dot((self.la.diag(sm ** -1)).dot(right)), \
+                   self.la.sum(self.la.log(sm ** -1)), \
+                   sign
+        return left.dot(self.la.diag(sm ** -1)).dot(right)
 
     def refresh_all_decompositions(self):
         self.partial_SVD_decompositions_up = []
@@ -108,7 +102,7 @@ class AuxiliaryFieldIntraorbital:
         u1, s1, v1 = svd1
         u2, s2, v2 = svd2
         m = v1.dot(u2)
-        middle_mat = xp.diag(s1).dot(m).dot(xp.diag(s2))
+        middle_mat = self.la.diag(s1).dot(m).dot(self.la.diag(s2))
         um, sm, vm = self.SVD(middle_mat)
         return u1.dot(um), sm, vm.dot(v2)
 
@@ -141,11 +135,8 @@ class AuxiliaryFieldIntraorbital:
                 # numpy uses gesdd and thus can not be osed in this calculation
                 # cupy and scipy, on contrary, use gesvd and must be used as the GPU and CPU backends, respectively
                 
-                # print('refresh', nr)
-               #  print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
-                # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-11))
-                # print(xp.max(xp.abs(xp.eye(self.config.total_dof // 2) - (v.T).dot(xp.diag(s**-1).dot(u.T)).dot(M))), xp.max(M))
                 
+                print(self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M))
                 current_U = current_U.dot(u)
                 if spin == +1:
                     self.partial_SVD_decompositions_up.append((current_U, s, v))
@@ -172,7 +163,7 @@ class AuxiliaryFieldIntraorbital:
         return decompositions
 
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
-        M = xp.eye(self.config.total_dof // 2)
+        M = self.la.eye(self.config.total_dof // 2)
         
         for time_slice in range(tmin, tmax):
             M = self.B_l(spin, time_slice, inverse = False).dot(M)
@@ -183,16 +174,16 @@ class AuxiliaryFieldIntraorbital:
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
-            self.configuration = xp.asarray(np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
+            self.configuration = self.la.asarray(np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
             return
         if self.config.start_type == 'hot':
-            self.configuration = xp.asarray(np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
+            self.configuration = self.la.asarray(np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
             return
 
         if os.path.isfile(self.conf_path):
-            self.configuration = xp.asarray(self._load_configuration())
+            self.configuration = self.la.asarray(self._load_configuration())
             return
-        self.configuration = xp.asarray(np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)  # hot anyway
+        self.configuration = self.la.asarray(np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)  # hot anyway
 
         return
 
@@ -242,6 +233,12 @@ class AuxiliaryFieldIntraorbital:
     def update_field(self, sp_index, time_slice, *args):
         self.configuration[time_slice, sp_index] *= -1
         return
+
+    def to_numpy(self, array):
+        if self.cpu:
+            return array
+        return cp.asnumpy(array)
+
 
     def copy_to_CPU(self):
         if not self.gpu_avail:
@@ -344,7 +341,7 @@ class AuxiliaryFieldIntraorbital:
         current_GF = self.get_G_no_optimisation(spin, 0)[0]
         self.refresh_all_decompositions()
         self.left_decompositions = self._get_left_partial_SVD_decompositions(spin)
-        GFs = [1. * cp.asnumpy(current_GF)]
+        GFs = [1. * self.to_numpy(current_GF)]
 
         for tau in range(1, self.config.Nt):
             B = self.B_l(spin, tau)
@@ -363,7 +360,7 @@ class AuxiliaryFieldIntraorbital:
                     um, sm, vm = self.SVD(m)
                     current_GF = (v2.T.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(u2.T))
 
-            GFs.append(1.0 * cp.asnumpy(current_GF))
+            GFs.append(1.0 * self.to_numpy(current_GF))
         return np.array(GFs)
 
     ####### DEBUG ######
@@ -387,14 +384,14 @@ class AuxiliaryFieldIntraorbital:
         G_down = self.get_G_no_optimisation(-1, 0)[0]
         sign_up, log_det_up = np.linalg.slogdet(G_up)
         sign_down, log_det_down = np.linalg.slogdet(G_down)
-        s_factor_log = self.config.nu_U * xp.sum(self.configuration[..., 1:3])  # in case of xy-yx pairings
+        s_factor_log = self.config.nu_U * self.la.sum(self.configuration[..., 1:3])  # in case of xy-yx pairings
         return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
     ####### END DEBUG ######
 
 
 class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
-    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, gpu_avail):
-        super().__init__(config, K, K_inverse, K_matrix, local_workdir, gpu_avail)
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir):
+        super().__init__(config, K, K_inverse, K_matrix, local_workdir)
         return
 
     def _V_from_configuration(self, s, sign, spin):
