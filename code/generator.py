@@ -51,25 +51,17 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
     else:
         sp_index_range = phi_field.config.total_dof // 4 * 3
         n_fields = 3
-    t_dec = 0
     lambdas = np.random.uniform(0, 1, size = phi_field.config.Nt * sp_index_range)
     if switch:
         phi_field.copy_to_GPU()
-    t = time()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
-    t_dec += time() - t
     GF_checked = False
 
-    t_ratio = 0
-    t_update = 0
-    t_update_field = 0
-    t_wrap = 0
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
-        t = time()
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             if switch:
                 phi_field.copy_to_GPU()
@@ -79,10 +71,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             
             current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
-        t_dec += time() - t
-        t = time()
         phi_field.wrap_up(time_slice)
-        t_wrap += time() - t
         if switch:
             phi_field.copy_to_CPU()
 
@@ -90,13 +79,10 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             site_idx = sp_index // n_fields
             o_index = sp_index % n_fields
 
-            t = time()
             phi_field.compute_deltas(site_idx, time_slice, o_index)
             ratio = auxiliary_field.get_det_ratio(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
                     auxiliary_field.get_det_ratio(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
-            t = time()
             lamb = lambdas[sp_index + time_slice * sp_index_range]
-            t_ratio += time() - t
             if lamb < np.min([1, np.abs(ratio)]):
                 current_det_log += np.log(np.abs(ratio))
 
@@ -106,14 +92,10 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 # print(current_det_sign, ratio, np.sign(ratio))
 
                 accepted = 1.0
-                t = time()
                 phi_field.update_G_seq(site_idx)
-                t_update += time() - t
-                t = time()
                 phi_field.update_field(site_idx, time_slice, o_index)
-                t_update_field += time() - t
                  
-                if False:#not GF_checked:
+                if not GF_checked:
                     G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                     G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
 
@@ -132,7 +114,6 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
 
     if n_sweep >= phi_field.config.thermalization and n_sweep % phi_field.config.n_print_frequency == 0:
         observables.measure_heavy_observables(phi_field, current_det_sign.item())
-    print(t_ratio, t_update, t_update_field, t_wrap, t_dec)
     return phi_field, observables
 
 
