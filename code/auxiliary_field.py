@@ -4,6 +4,7 @@ import time
 import scipy
 import models
 from copy import deepcopy
+from numba import jit
 import os
 try:
     import cupy as cp
@@ -265,7 +266,7 @@ class AuxiliaryFieldIntraorbital:
         return self
 
 
-    def wrap_up(self, time_slice, gpu = False):
+    def wrap_up(self, time_slice):
         B_wrap_up = self.B_l(+1, time_slice, inverse = False)
         B_wrap_up_inverse = self.B_l(+1, time_slice, inverse = True)
         B_wrap_down = self.B_l(-1, time_slice, inverse = False)
@@ -439,17 +440,13 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
 
     def update_field(self, sp_index, time_slice, o_index):
         self.configuration[time_slice, sp_index, o_index] *= -1
+        s = self.configuration[time_slice, sp_index, ...]
         sx = sp_index * 2
         sy = sp_index * 2 + 1
-        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
-            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0, +1.0))
-        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = \
-            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0, +1.0))
-
-        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
-            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], +1.0, -1.0))
-        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
-            self.la.asarray(self._V_from_configuration(self.configuration[time_slice, sp_index, ...], -1.0, -1.0))
+        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration(s, +1.0, +1.0, self.config.nu_U, self.config.nu_V)
+        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration(s, -1.0, +1.0, self.config.nu_U, self.config.nu_V)
+        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration(s, +1.0, -1.0, self.config.nu_U, self.config.nu_V)
+        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration(s, -1.0, -1.0, self.config.nu_U, self.config.nu_V)
         return
 
     def B_l(self, spin, l, inverse = False):
@@ -462,62 +459,18 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
             return self.K_inverse.dot(self.Vinv_up[l, ...])
         return self.K_inverse.dot(self.Vinv_down[l, ...])
 
+    def compute_deltas(self, sp_index, time_slice, o_index):
+    	self.Delta_up = self.la.asarray(self.get_delta(+1., sp_index, time_slice, o_index))
+    	self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice, o_index))
+    	return
+
     def get_delta(self, spin, sp_index, time_slice, o_index):  # sign change proposal is made at (time_slice, sp_index, o_index)
-        local_configuration = self.configuration[time_slice, sp_index, :]
-        local_configuration_proposed = deepcopy(self.configuration[time_slice, sp_index, :])
-        local_configuration_proposed[o_index] *= -1
+        return get_delta_intraorbital(self.configuration[time_slice, sp_index, :], \
+                                      o_index, spin, self.config.nu_U, self.config.nu_V)
 
-        local_V = self._V_from_configuration(local_configuration, -1.0, spin)  # already stored in self.V or self.Vinv
-        local_V_proposed = self._V_from_configuration(local_configuration_proposed, 1.0, spin)
-        return local_V_proposed.dot(local_V) - np.eye(2)
-
-    def get_det_ratio(self, spin, sp_index, time_slice, o_index):
-        Delta = self.get_delta(spin, sp_index, time_slice, o_index)
-        sx = sp_index * 2
-        sy = sp_index * 2 + 1
-
-        if spin == +1:
-            self.Delta_up = self.la.asarray(Delta)
-            G = self.current_G_function_up
-        else:
-            self.Delta_down = self.la.asarray(Delta)
-            G = self.current_G_function_down
-        if self.cpu:
-            return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - G[sx : sy + 1, sx : sy + 1]))
-        return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - cp.asnumpy(G[sx : sy + 1, sx : sy + 1])))
-
-    def update_G_seq(self, spin, sp_index, time_slice, o_index):
-        if spin == +1:
-            Delta = self.Delta_up
-            G = self.current_G_function_up
-        else:
-            Delta = self.Delta_down
-            G = self.current_G_function_down
-
-        sx = sp_index * 2
-        sy = sp_index * 2 + 1
-
-        update_matrix = self.la.zeros((2, self.config.total_dof // 2))  # keep only two nontrivial rows here
-        update_matrix[:, sx:sy + 1] = self.la.eye(2) + Delta
-        update_matrix -= self.la.einsum('ij,jk->ik', Delta, G[sx:sy + 1, :])
-        det = self.la.linalg.det(update_matrix[:, sx : sy + 1])
-
-        inverse_update_matrix = self.la.zeros((2, self.config.total_dof // 2))  # keep only two nontrivial rows here
-
-        inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sy] - update_matrix[1, :] * update_matrix[0, sy]) / det  # my vectorized det :))
-        inverse_update_matrix[1, :] = (update_matrix[0, :] * update_matrix[1, sx] - update_matrix[1, :] * update_matrix[0, sx]) / det
-
-        inverse_update_matrix[0, sx] = update_matrix[1, sy] / det - 1
-        inverse_update_matrix[1, sx] = -update_matrix[1, sx] / det
-        inverse_update_matrix[0, sy] = -update_matrix[0, sy] / det
-        inverse_update_matrix[1, sy] = update_matrix[0, sx] / det - 1
-
-        G = G + self.la.einsum('ij,jk->ik', G[:, sx : sy + 1], inverse_update_matrix)
-        if spin == +1:
-            self.current_G_function_up = G
-        else:
-            self.current_G_function_down = G
-
+    def update_G_seq(self, sp_index):
+        self.current_G_function_up = _update_G_seq(self.current_G_function_up, self.Delta_up, sp_index, self.config.total_dof)
+        self.current_G_function_down = _update_G_seq(self.current_G_function_down, self.Delta_down, sp_index, self.config.total_dof)
         return
 
     def copy_to_CPU(self):
@@ -540,3 +493,57 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         self.Vinv_down = cp.asarray(self.Vinv_down)
         self.configuration = cp.asnumpy(self.configuration)
         return
+
+
+@jit(nopython=True)
+def _V_from_configuration(s, sign, spin, nu_U, nu_V):
+    if spin > 0:
+        V = nu_V * sign * np.array([-s[0], s[0]]) + nu_U * sign * np.array([s[2], s[1]])
+    else:
+        V = nu_V * sign * np.array([-s[0], s[0]]) + nu_U * sign * np.array([-s[2], -s[1]])
+    return np.diag(np.exp(V))
+
+
+@jit(nopython = True)
+def get_delta_intraorbital(local_configuration, o_index, spin, nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
+    local_configuration_proposed = 1. * local_configuration
+    local_configuration_proposed[o_index] *= -1
+
+    local_V = _V_from_configuration(local_configuration, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
+    local_V_proposed = _V_from_configuration(local_configuration_proposed, 1.0, spin, nu_U, nu_V)
+    return local_V_proposed.dot(local_V) - np.eye(2)
+
+@jit(nopython=True)
+def get_det_ratio(sp_index, Delta, G):
+    sx = sp_index * 2
+    sy = sp_index * 2 + 1
+
+    return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - G[sx : sy + 1, sx : sy + 1]))
+
+@jit(nopython=True)	
+def _update_G_seq(G, Delta, sp_index, total_dof):
+    sx = sp_index * 2
+    sy = sp_index * 2 + 1
+    G_sliced_right = G[:, sx : sy + 1]
+    G_sliced_left = G[sx:sy + 1, :]
+
+    update_matrix = np.zeros((2, total_dof // 2))  # keep only two nontrivial rows here
+    update_matrix[:, sx:sy + 1] = np.eye(2) + Delta
+    update_matrix -= np.dot(Delta, G_sliced_left)
+    det = np.linalg.det(update_matrix[:, sx:sy + 1])
+
+    inverse_update_matrix = np.zeros((2, total_dof // 2))  # keep only two nontrivial rows here
+
+    inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sy] - \
+                                    update_matrix[1, :] * update_matrix[0, sy]) / det  # my vectorized det :))
+    inverse_update_matrix[1, :] = (update_matrix[0, :] * update_matrix[1, sx] - \
+    	                           update_matrix[1, :] * update_matrix[0, sx]) / det
+
+    inverse_update_matrix[0, sx] = update_matrix[1, sy] / det - 1
+    inverse_update_matrix[1, sx] = -update_matrix[1, sx] / det
+    inverse_update_matrix[0, sy] = -update_matrix[0, sy] / det
+    inverse_update_matrix[1, sy] = update_matrix[0, sx] / det - 1
+
+    G = G + np.dot(G_sliced_right, inverse_update_matrix)
+    return G
+    
