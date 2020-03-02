@@ -291,3 +291,7 @@ def spatial_checkerboard(Ls):
             lin_index = x * Ls + y
             checkerboard[lin_index] = (-1) ** (x + y)
     return np.diag(checkerboard)
+
+
+def spatial_uniform(Ls):
+    return np.ones(Ls ** 2)
