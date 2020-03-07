@@ -9,8 +9,8 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
-        self.BC_twist = False  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
-        self.twist = [1, 1]; self.min_num_twists = 96; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
+        self.twist = [1, 1]; self.min_num_twists = 144; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
@@ -37,10 +37,10 @@ class MC_parameters:
 
 
         ### other parameters ###
-        self.visualisation = False; self.tests = False
-        self.n_cpus = -1  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/10/'
-        self.load_parameters = False; self.load_parameters_path = None#'/home/astronaut/Documents/DQMC_TBG/logs/test/U_1.00_V_1.00_J_0.00_mu_-0.40/last_opt_params.p'
+        self.visualisation = False; self.tests = True
+        self.n_cpus = 24  # the number of processors to use | -1 -- take as many as available
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/25/'
+        self.load_parameters = True; self.load_parameters_path = None#'/home/astronaut/Documents/DQMC_TBG/logs/test/U_1.00_V_1.00_J_0.00_mu_-0.40/last_opt_params.p'
 
 
 
@@ -53,26 +53,26 @@ class MC_parameters:
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
-        self.jastrows_list = jastrow.jastrow_long_range_2orb_degenerate
+        self.jastrows_list = jastrow.jastrow_long_range_2orb_nondegenerate[:-1]  # remove one jastrow (norm renormalization if PN is conserved)
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
 
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
-        self.waves_list = [] #waves.SDW_2orb + waves.CDW_2orb
+        self.waves_list = waves.SDW_2orb[:-1] + waves.CDW_2orb[:-1]  # remove one of CDW/SDW from optimisation (mu_BCS renormalization, spin conservation)
         self.waves_list_names = [w[-1] for w in self.waves_list]
 
 
         ### optimisation parameters ###
-        self.MC_chain = 6000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
-        self.optimisation_steps = 14000; self.thermalization = 13000; self.obs_calc_frequency = 20
+        self.MC_chain = 1500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
+        self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
-        self.correlation = self.Ne * 2
+        self.correlation = self.Ne
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-4, 3e-2, 1.001]
+        self.opt_parameters = [1e-4, 6e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5
-
+        self.generator_mode = True
 
         ## initial values definition and layout ###
         self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -80,16 +80,18 @@ class MC_parameters:
         self.initial_parameters = np.concatenate([
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
-            np.random.uniform(-0.05, 0.05, size = self.layout[2]),  # waves
-            np.random.uniform(-0.03, 0.03, size = self.layout[3]),  # gaps
-            np.random.uniform(0.3, 0.4, size = self.layout[4]),  # jastrows
+            np.random.uniform(-0.001, 0.001, size = self.layout[2]),  # waves
+            np.random.uniform(-0.001, 0.001, size = self.layout[3]),  # gaps
+            np.random.uniform(0.0, 0.2, size = self.layout[4]),  # jastrows
         ])
-        self.initial_parameters[-self.layout[4]] = 1. + self.U / 3.
+        self.initial_parameters[-self.layout[4]] = 0.7 + self.U / 3.
         self.initial_parameters[0] = self.select_initial_muBCS()
         print('mu_BCS was set to {:.5f}'.format(self.initial_parameters[0]))
 
-    def select_initial_muBCS(self):
-        mu, _, waves, gap, _ = self.unpack_parameters(self.initial_parameters)
+    def select_initial_muBCS(self, parameters = []):
+        if len(parameters) == 0:
+            parameters = self.initial_parameters
+        _, _, waves, gap, _ = self.unpack_parameters(parameters)
         T = wfv.construct_HMF(self, self.K_0, self.K_0.T, self.pairings_list_unwrapped, gap, waves)
 
         E, U = np.linalg.eigh(T); assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
