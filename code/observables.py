@@ -30,7 +30,10 @@ class Observables:
         self.init_light_log_file()
         self.init_heavy_logs_files()
 
-        self.data_gfs = []
+        self.gfs_data = []
+        self.gfs_equal_data = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2))
+        self.num_equal = 0
+        self.global_average_sign = []
         return
         
     def init_light_log_file(self):
@@ -74,11 +77,12 @@ class Observables:
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
         chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt // 2)
+
+        self.num_chi_samples = 0
         for gap_name in self.config.pairings_list_names:
             self.gap_observables_list[gap_name + '_D1'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D1
             self.gap_observables_list[gap_name + '_D2'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D2
             self.gap_observables_list[gap_name + '_C'] = np.zeros(chi_shape) + 0.0j  # susceptibility part C
-            self.num_chi_samples = 0
 
             self.gap_observables_list[gap_name + '_chi'] = []
             self.gap_observables_list[gap_name + '_chi_total'] = []
@@ -124,7 +128,7 @@ class Observables:
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
-            np.mean(self.sign_history),
+            np.mean(self.global_average_sign),
             np.mean(self.light_observables_list['⟨density⟩']),
             np.mean(self.light_observables_list['⟨E_K⟩']),
             np.mean(self.light_observables_list['⟨E_C⟩']),
@@ -134,6 +138,11 @@ class Observables:
 
     def measure_light_observables(self, phi, current_det_sign):
         self.light_signs_history.append(current_det_sign)
+        self.gfs_equal_data += (phi.current_G_function_up + phi.current_G_function_down) / 2.
+        
+        # print(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)), '!!!')
+        assert np.abs(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)) - 18.) < 1e-8
+        self.num_equal += 1
 
         k = kinetic_energy(phi).item()
         C = Coloumb_energy(phi)
@@ -163,21 +172,36 @@ class Observables:
 
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
         self.log_file.flush()
+        self.global_average_sign.append(np.mean(signs))
         self.refresh_light_logs()
         return
-
-
-
 
     def measure_heavy_observables(self, phi, current_det_sign):
         self.heavy_signs_history.append(current_det_sign)
 
         adj_list_density = self.config.adj_list[:self.config.n_adj_density]  # on-site and nn
         phi.copy_to_GPU()
-        GFs_up = phi.get_nonequal_time_GFs(+1.0)
-        GFs_down = phi.get_nonequal_time_GFs(-1.0)
+        phi.refresh_all_decompositions()
+        phi.refresh_G_functions()
+        phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]
+        phi.current_G_function_down = phi.get_G_no_optimisation(-1, -1)[0]
+        G_up0 = phi.current_G_function_up
+        G_down0 = phi.current_G_function_down
+        GFs_up = phi.get_nonequal_time_GFs(+1.0, G_up0)
+        GFs_down = phi.get_nonequal_time_GFs(-1.0, G_down0)
         phi.copy_to_CPU()
 
+        adj = self.config.adj_list[0][0]
+        gfs_up = np.array([np.sum(gf_up * adj * current_det_sign) / np.sum(adj) for gf_up in GFs_up])
+        gfs_down = np.array([np.sum(gf_down * adj * current_det_sign) / np.sum(adj) for gf_down in GFs_down])
+        
+        self.gfs_data.append((gfs_up + gfs_down) / 2.)
+        print((gfs_up[0] + gfs_down[0]) / 2., np.mean(np.diag(G_up0 + G_down0)) / 2.)
+        for i in range(len(GFs_up)):
+            print(np.array(self.gfs_data)[:, i].mean() / np.mean(self.heavy_signs_history), i)
+
+        for adj in self.config.adj_list:
+            print(np.sum(self.gfs_equal_data * adj[0]) / np.sum(adj[0]) / self.num_equal, adj[3], np.sum(adj[0]))
 
         self.num_chi_samples += 1
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):

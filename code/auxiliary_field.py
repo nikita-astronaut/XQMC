@@ -43,7 +43,6 @@ class AuxiliaryFieldIntraorbital:
         self.sign_det_up = 0
         self.log_det_down = 0
         self.sign_det_down = 0
-        
 
         self.refresh_checkpoints = [0]
         t = self.config.Nt % self.config.s_refresh
@@ -73,18 +72,18 @@ class AuxiliaryFieldIntraorbital:
             svd_rhs = self.partial_SVD_decompositions_down[-1]
             svd_lhs = self.current_lhs_SVD_down
         u1, s1, v1 = svd_lhs
-        #print(svd_lhs)
         u2, s2, v2 = svd_rhs
         m = v1.dot(u2)
-        middle_mat = (u1.T).dot(v2.T) + self.la.diag(s1).dot(m).dot(self.la.diag(s2))
+        middle_mat = (u1.T).dot(v2.T) + (self.la.diag(s1).dot(m)).dot(self.la.diag(s2))
         um, sm, vm = self.SVD(middle_mat)
 
         left = (vm.dot(v2)).T
         right = (u1.dot(um)).T
         
         sign = np.sign(np.linalg.slogdet(self.to_numpy(left))[0] * np.linalg.slogdet(self.to_numpy(right))[0])
+        # assert np.allclose((left.dot(self.la.diag(sm ** -1))).dot(right), np.linalg.inv(np.eye(len(s1)) + u1.dot(np.diag(s1)).dot(v1).dot(u2).dot(np.diag(s2)).dot(v2)))
         if return_logdet:
-            return left.dot((self.la.diag(sm ** -1)).dot(right)), \
+            return (left.dot(self.la.diag(sm ** -1))).dot(right), \
                    self.la.sum(self.la.log(sm ** -1)), \
                    sign
         return left.dot(self.la.diag(sm ** -1)).dot(right)
@@ -95,8 +94,8 @@ class AuxiliaryFieldIntraorbital:
         self._get_partial_SVD_decompositions(spin = +1)
         self._get_partial_SVD_decompositions(spin = -1)
 
-        self.current_lhs_SVD_up = list(self.SVD(self.la.diag(self.la.ones(self.config.total_dof // 2))))
-        self.current_lhs_SVD_down = list(self.SVD(self.la.diag(self.la.ones(self.config.total_dof // 2))));
+        self.current_lhs_SVD_up = self.SVD(self.la.eye(self.config.total_dof // 2))
+        self.current_lhs_SVD_down = self.SVD(self.la.eye(self.config.total_dof // 2))
         return
 
     def _product_svds(self, svd1, svd2):
@@ -130,14 +129,8 @@ class AuxiliaryFieldIntraorbital:
             M = M.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
                 u, s, v = self.SVD(M)  # this is a VERY tricky point
-                # there are two possible lapack drivers: gesdd and gesvd. the former ises the divide-and-conquer approach and is faster,
-                # while the latter performs QR decomposition and is MUCH MORE PRECISE. As small T and large U this is CRUCIAL
-                # otherwise the SVD decomposition is a complete mess.
-                # numpy uses gesdd and thus can not be osed in this calculation
-                # cupy and scipy, on contrary, use gesvd and must be used as the GPU and CPU backends, respectively
                 
-                
-                # print(self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M))
+                assert self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M) < 1e-13
                 current_U = current_U.dot(u)
                 if spin == +1:
                     self.partial_SVD_decompositions_up.append((current_U, s, v))
@@ -151,7 +144,7 @@ class AuxiliaryFieldIntraorbital:
         M = self.la.eye(self.config.total_dof // 2)
         current_V = self.la.eye(self.config.total_dof // 2)
 
-        slices = list(range(1, self.config.Nt))
+        slices = list(range(0, self.config.Nt))
         for nr, slice_idx in enumerate(slices):
             B = self.B_l(spin, slice_idx)
             M = B.dot(M)
@@ -161,6 +154,23 @@ class AuxiliaryFieldIntraorbital:
                 current_V = v.dot(current_V)
                 decompositions.append((u, s, current_V))
                 M = u.dot(self.la.diag(s))
+        return decompositions
+
+    def _get_right_partial_SVD_decompositions(self, spin):
+        decompositions = []
+        M = self.la.eye(self.config.total_dof // 2)
+        current_U = self.la.eye(self.config.total_dof // 2)
+
+        slices = list(range(0, self.config.Nt))
+        for nr, slice_idx in enumerate(reversed(slices)):
+            B = self.B_l(spin, slice_idx)
+            M = M.dot(B)
+            if nr % self.config.s_refresh == self.config.s_refresh - 1:
+                u, s, v = self.SVD(M)
+
+                current_U = current_U.dot(u)
+                decompositions.append((current_U, s, v))
+                M = self.la.diag(s).dot(v)
         return decompositions
 
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
@@ -199,36 +209,17 @@ class AuxiliaryFieldIntraorbital:
         V = self.la.diag(self.la.exp(-spin * self.config.nu_U * self.configuration[l, ...]))
         return self.K_inverse.dot(V)
 
-    def get_delta(self, spin, time_slice, sp_index):
-        return self.la.exp(-2 * spin * self.configuration[time_slice, sp_index] * self.config.nu_U) - 1.
+    def compute_deltas(self, sp_index, time_slice, *args):
+        self.Delta_up = self.la.asarray(self.get_delta(+1., sp_index, time_slice))
+        self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice))
+        return
 
-    def get_det_ratio(self, spin, sp_index, time_slice, *args):
-        Delta = self.get_delta(spin, time_slice, sp_index)
-        if spin == +1:
-            G = self.current_G_function_up
-        else:
-            G = self.current_G_function_down
-        return 1. + Delta * (1. - G[sp_index, sp_index])
+    def get_delta(self, spin, sp_index, time_slice):  # sign change proposal is made at (time_slice, sp_index, o_index)
+        return get_delta_intraorbital(self.configuration[time_slice, sp_index], spin, self.config.nu_U)
 
-    def update_G_seq(self, spin, sp_index, time_slice, *args):
-        Delta = self.get_delta(spin, time_slice, sp_index)
-
-        if spin == +1:
-            G = self.current_G_function_up
-        else:
-            G = self.current_G_function_down
-        update_matrix = Delta * (self.la.eye(self.config.total_dof // 2) - G)[sp_index, :]
-        update_matrix[sp_index] += 1.
-        det_update_matrix = update_matrix[sp_index]
-        update_matrix_inv = -update_matrix / det_update_matrix
-        update_matrix_inv[sp_index] = 1. / det_update_matrix - 1.
-        G = G + self.la.einsum('i,k->ik', G[:, sp_index], update_matrix_inv)
-
-        if spin == +1:
-            self.current_G_function_up = G
-        else:
-            self.current_G_function_down = G
-      
+    def update_G_seq(self, sp_index, *args):
+        self.current_G_function_up = _update_G_seq_intra(self.current_G_function_up, self.Delta_up, sp_index, self.config.total_dof)
+        self.current_G_function_down = _update_G_seq_intra(self.current_G_function_down, self.Delta_down, sp_index, self.config.total_dof)
         return
 
     def update_field(self, sp_index, time_slice, *args):
@@ -306,52 +297,43 @@ class AuxiliaryFieldIntraorbital:
     '''
 
     def compute_B_chain(self, spin, tmax, tmin):
-        if tmax > tmin:
-            #  then product is B_tau B_tau-1 ... B_1 --> B_tau .. B_tau-s LEFT(tau // s)
-            index_decomp = tmax // self.config.s_refresh
-            tmin += index_decomp * self.config.s_refresh
+        if tmax == self.config.Nt:
+            index_decomp = (tmax - tmin) // self.config.s_refresh
+            tmax -= index_decomp * self.config.s_refresh
 
-            u, s, v0 = self.left_decompositions[index_decomp - 1]
-            chain = u.dot(self.la.diag(s))
+            current_U, s, v = self.right_decompositions[index_decomp - 1]
+            chain = self.la.diag(s).dot(v)
 
-            for i in range(tmin, tmax + 1):
-                chain = self.B_l(spin, i).dot(chain)
+            for i in reversed(range(tmin, tmax)):
+                chain = chain.dot(self.B_l(spin, i))
 
             u, s, v = self.SVD(chain)
-            return u, s, v.dot(v0)
-
-        index_decomp = (self.config.Nt - tmin - 1) // self.config.s_refresh
-        if index_decomp > 0:
-            u, s, v0 = self.partial_SVD_decompositions_up[index_decomp - 1] if spin > 0 else self.partial_SVD_decompositions_down[index_decomp - 1]
-        else:
-            u, s, v0 = self.la.eye(self.config.total_dof // 2), self.la.diag(self.la.eye(self.config.total_dof // 2)), self.la.eye(self.config.total_dof // 2)
+            return current_U.dot(u), s, v
+        index_decomp = (tmax - tmin) // self.config.s_refresh
+        tmin += index_decomp * self.config.s_refresh
+        u, s, current_V = self.left_decompositions[index_decomp - 1]
         chain = u.dot(self.la.diag(s))
 
-        max_index = self.config.Nt - 1 - index_decomp * self.config.s_refresh
-        u0, s, v = self.SVD(self.B_l(spin, 0).dot(chain))
-        v = v.dot(v0)
-        chain = self.la.diag(s).dot(v)
-
-        for i in list(reversed(range(tmin, max_index + 1))):
-            chain = chain.dot(self.B_l(spin, i))
+        for i in range(tmin, tmax):
+            chain = self.B_l(spin, i).dot(chain)
 
         u, s, v = self.SVD(chain)
-        return u0.dot(u), s, v
+        return u, s, v.dot(current_V)
 
-    def get_nonequal_time_GFs(self, spin):
-        current_GF = self.get_G_no_optimisation(spin, 0)[0]
-        self.refresh_all_decompositions()
+    def get_nonequal_time_GFs(self, spin, GF_0):
+        current_GF = 1. * GF_0.copy()
         self.left_decompositions = self._get_left_partial_SVD_decompositions(spin)
+        self.right_decompositions = self._get_right_partial_SVD_decompositions(spin)
         GFs = [1. * self.to_numpy(current_GF)]
 
         for tau in range(1, self.config.Nt):
-            B = self.B_l(spin, tau)
+            B = self.B_l(spin, tau - 1)
 
             if tau % self.config.s_refresh != 0:
                 current_GF = B.dot(current_GF)  # just wrap-up / wrap-down
             else:  # recompute GF from scratch
-                u1, s1, v1 = self.compute_B_chain(spin, tau, 1)
-                u2, s2, v2 = self.compute_B_chain(spin, 0, tau + 1)
+                u1, s1, v1 = self.compute_B_chain(spin, tau, 0)  # tau - 1 | ... | 0
+                u2, s2, v2 = self.compute_B_chain(spin, self.config.Nt, tau)  # 
                 if tau > self.config.Nt // 2:
                     m = self.la.diag(s1**-1) + (v1.dot(u2)).dot(self.la.diag(s2)).dot(v2.dot(u1))
                     um, sm, vm = self.SVD(m)
@@ -378,7 +360,8 @@ class AuxiliaryFieldIntraorbital:
             M = self.la.diag(s).dot(v)
         m = current_U.T.dot(v.T) + self.la.diag(s)
         um, sm, vm = self.SVD(m)
-        return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1))
+        return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1)), \
+               np.sign(np.linalg.det(((vm.dot(v)).T)) * np.linalg.det((current_U.dot(um)).T))
 
     def get_assymetry_factor(self):
         G_up = self.get_G_no_optimisation(+1, 0)[0]
@@ -465,12 +448,12 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
     	return
 
     def get_delta(self, spin, sp_index, time_slice, o_index):  # sign change proposal is made at (time_slice, sp_index, o_index)
-        return get_delta_intraorbital(self.configuration[time_slice, sp_index, :], \
+        return get_delta_interorbital(self.configuration[time_slice, sp_index, :], \
                                       o_index, spin, self.config.nu_U, self.config.nu_V)
 
     def update_G_seq(self, sp_index):
-        self.current_G_function_up = _update_G_seq(self.current_G_function_up, self.Delta_up, sp_index, self.config.total_dof)
-        self.current_G_function_down = _update_G_seq(self.current_G_function_down, self.Delta_down, sp_index, self.config.total_dof)
+        self.current_G_function_up = _update_G_seq_inter(self.current_G_function_up, self.Delta_up, sp_index, self.config.total_dof)
+        self.current_G_function_down = _update_G_seq_inter(self.current_G_function_down, self.Delta_down, sp_index, self.config.total_dof)
         return
 
     def copy_to_CPU(self):
@@ -505,7 +488,7 @@ def _V_from_configuration(s, sign, spin, nu_U, nu_V):
 
 
 @jit(nopython = True)
-def get_delta_intraorbital(local_configuration, o_index, spin, nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
+def get_delta_interorbital(local_configuration, o_index, spin, nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
     local_configuration_proposed = 1. * local_configuration
     local_configuration_proposed[o_index] *= -1
 
@@ -514,14 +497,22 @@ def get_delta_intraorbital(local_configuration, o_index, spin, nu_U, nu_V):  # s
     return local_V_proposed.dot(local_V) - np.eye(2)
 
 @jit(nopython=True)
-def get_det_ratio(sp_index, Delta, G):
+def get_delta_intraorbital(s, spin, nu_U):
+    return np.exp(-2 * spin * s * nu_U) - 1.
+
+@jit(nopython=True)
+def get_det_ratio_inter(sp_index, Delta, G):
     sx = sp_index * 2
     sy = sp_index * 2 + 1
 
     return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - G[sx : sy + 1, sx : sy + 1]))
 
+@jit(nopython=True)
+def get_det_ratio_intra(sp_index, Delta, G):
+    return 1. + Delta * (1. - G[sp_index, sp_index])
+
 @jit(nopython=True)	
-def _update_G_seq(G, Delta, sp_index, total_dof):
+def _update_G_seq_inter(G, Delta, sp_index, total_dof):
     sx = sp_index * 2
     sy = sp_index * 2 + 1
     G_sliced_right = G[:, sx : sy + 1]
@@ -546,4 +537,13 @@ def _update_G_seq(G, Delta, sp_index, total_dof):
 
     G = G + np.dot(G_sliced_right, inverse_update_matrix)
     return G
-    
+
+def _update_G_seq_intra(G, Delta, sp_index, total_dof):
+    update_matrix = Delta * (np.eye(total_dof // 2) - G)[sp_index, :]
+    update_matrix[sp_index] += 1.
+    det_update_matrix = update_matrix[sp_index]
+    update_matrix_inv = -update_matrix / det_update_matrix
+    update_matrix_inv[sp_index] = 1. / det_update_matrix - 1.
+    G = G + np.outer(G[:, sp_index], update_matrix_inv)
+
+    return G
