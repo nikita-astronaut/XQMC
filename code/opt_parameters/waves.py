@@ -2,7 +2,10 @@ import numpy as np
 import models
 
 def construct_wave_V(config, orbital, sublattice, wave_type):
-    pattern = models.spatial_uniform(config.Ls)
+    if config.n_sublattices == 2:
+        pattern = models.spatial_uniform(config.Ls)
+    else:
+        pattern = models.spatial_checkerboard(config.Ls)
 
     sublattice_matrix = np.zeros((config.n_sublattices, config.n_sublattices))
     sublattice_matrix[sublattice, sublattice] = 1.

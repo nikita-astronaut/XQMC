@@ -12,9 +12,10 @@ class wavefunction_singlet():
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
-
+        self.nogaps = len(self.pairings_list_unwrapped) == 0        
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
+
         self.var_f = self.var_f if not config.PN_projection else 0.
 
         ### mean-field Hamiltonian precomputed elements ###
@@ -46,7 +47,7 @@ class wavefunction_singlet():
                 break
             else:
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
-                print('degenerate')
+                print('degenerate: will retry the wave function initialisation', flush = True)
 
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
@@ -111,7 +112,7 @@ class wavefunction_singlet():
 
 
     def _get_derivative(self, V):  # obtaining (6.99) from S. Sorella book
-        return jit_get_derivative(self.U_full, V, self.E, self.E_fermi)
+        return jit_get_derivative(self.U_full, V, self.E, self.occupied_levels)
 
     def get_O(self):  # derivative over all variational parameters
         '''
@@ -140,12 +141,26 @@ class wavefunction_singlet():
         self.U_full = deepcopy(U).astype(np.complex128)
         self.E = E
 
-        lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
-        rest_states = np.setdiff1d(np.arange(len(self.E)), lowest_energy_states)
+        if self.nogaps:
+            self.particle_orbitals = np.array([np.abs(np.sum(np.abs(U[:U.shape[0] // 2, i]) ** 2) - 1) < 1e-4 for i in range(U.shape[1])])
+            print('there are {:d} particle orbitals and {:d} hole orbitals'.format(np.sum(self.particle_orbitals), len(self.particle_orbitals) - np.sum(self.particle_orbitals)), flush = True)
+            k = (self.config.total_dof // 2 - self.config.Ne) // 2
+            # occupy exactly Ne/2 + k particles and Ne/2 - k holes
+            E_tmp = 1. * E.copy()
+            E_tmp[~self.particle_orbitals] = np.inf
+            lowest_energy_particles = np.argsort(E_tmp)[:self.config.total_dof // 4 - k]
+            E_tmp = 1. * E.copy()
+            E_tmp[self.particle_orbitals] = np.inf
+            lowest_energy_holes = np.argsort(E_tmp)[:self.config.total_dof // 4 + k]
+            self.lowest_energy_states = np.concatenate([lowest_energy_holes, lowest_energy_particles])
+        else:
+            self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
+        rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
+        U = U[:, self.lowest_energy_states]  # select only occupied orbitals
+        self.E_fermi = np.max(self.E[self.lowest_energy_states])
 
-
-        U = U[:, lowest_energy_states]  # select only occupied orbitals
-        self.E_fermi = np.max(self.E[lowest_energy_states])
+        self.occupied_levels = np.zeros(len(E), dtype=bool)
+        self.occupied_levels[self.lowest_energy_states] = True
 
         print('mu_BCS - E_max_occupied=', -self.E_fermi + self.var_mu)
         print('E_min_unoccupied - mu_BCS =', np.min(self.E[rest_states]) - self.var_mu)
@@ -153,8 +168,8 @@ class wavefunction_singlet():
         print('E_max_occupied =', self.E_fermi)
         print('E_min_unoccupied =', np.min(self.E[rest_states]))
 
-        if E[rest_states].min() - self.E_fermi < 1e-14:
-            print('open shell configuration, consider different pairing or filling!')
+        if E[rest_states].min() - self.E_fermi < 1e-14 and not self.nogaps:
+            print('open shell configuration, consider different pairing or filling!', flush = True)
         return U 
 
     def _construct_U_tilde_matrix(self):
@@ -369,13 +384,13 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
 
 
 @jit(nopython=True)
-def jit_get_derivative(U_full, V, E, E_fermi):  # obtaining (6.99) from S. Sorella book
+def jit_get_derivative(U_full, V, E, occupation):  # obtaining (6.99) from S. Sorella book
     Vdash = (U_full.conj().T).dot(V).dot(U_full)  # (6.94) in S. Sorella book
     Vdash_rescaled = np.zeros(shape = Vdash.shape) * 1.0j  # (6.94) from S. Sorella book
 
     for alpha in range(Vdash.shape[0]):
         for beta in range(Vdash.shape[1]):
-            if E[alpha] > E_fermi and E[beta] <= E_fermi:
+            if not occupation[alpha] and occupation[beta]:
                 Vdash_rescaled[alpha, beta] = Vdash[alpha, beta] / (E[alpha] - E[beta])
 
     return U_full.dot(Vdash_rescaled).dot(U_full.conj().T)  # (6.99) step
