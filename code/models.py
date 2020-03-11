@@ -294,4 +294,4 @@ def spatial_checkerboard(Ls):
 
 
 def spatial_uniform(Ls):
-    return np.ones(Ls ** 2)
+    return np.diag(np.ones(Ls ** 2))

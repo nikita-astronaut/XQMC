@@ -67,12 +67,12 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
     Os_mean = [np.repeat(Os_mean_theta[np.newaxis, ...], len(Os_theta), axis = 0) for Os_mean_theta, Os_theta in zip(Os_mean, Os)]
     S_cov = [(np.einsum('nk,nl->kl', (Os_theta - Os_mean_theta).conj(), (Os_theta - Os_mean_theta)) / Os_theta.shape[0]).real \
              for Os_mean_theta, Os_theta in zip(Os_mean, Os)]  # SR_matrix is computed independently for every twist angle theta
-    
+    '''    
     for s, t, gap, in zip(S_cov, twists, gaps):
         s_new = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(s))), s, 1.0 / np.sqrt(np.abs(np.diag(s))))
         # l, _ = np.linalg.eigh(s_new)
         print(np.sqrt(np.abs(s[1, 1])), t[0].real, t[0].imag, t[1].real, t[1].imag, gap)
-    
+    '''
     for S_cov_theta, twist in zip(S_cov, twists):
         eigvals, eigvecs = np.linalg.eigh(S_cov_theta)
         for val, vec in zip(eigvals, eigvecs.T):
@@ -305,8 +305,8 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
         t = time()
         acceptance.append(wf.perform_MC_step()[0])
         t_steps += time() - t
-    # print('t_chain = ', time() - tc, flush = True)
-    # print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist, flush = True)
+    print('t_chain = ', time() - tc, flush = True)
+    print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist, flush = True)
     return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E, densities
 
 if __name__ == "__main__":
@@ -431,7 +431,9 @@ if __name__ == "__main__":
                 clip_forces(step, forces, force_SR_abs_history, force_abs_history)
             write_intermediate_log(log_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, parameters)  # write parameters before step not to lose the initial values
-            parameters += config_vmc.opt_parameters[1] * step
+
+            step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
+            parameters += config_vmc.opt_parameters[1] * step  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)
         ### END SR STEP ###
 
