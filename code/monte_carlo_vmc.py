@@ -396,7 +396,7 @@ if __name__ == "__main__":
     else:
         parameters = config_vmc.initial_parameters
         last_step = 0
-    parameters[0] = config_vmc.select_initial_muBCS(parameters = parameters) # FIXME: add flag for this (correct mu_BCS on relaunch) ??
+    # parameters[0] = config_vmc.select_initial_muBCS(parameters = parameters) # FIXME: add flag for this (correct mu_BCS on relaunch) ??
 
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
@@ -436,7 +436,15 @@ if __name__ == "__main__":
                                    mean_variance, acceptance, forces, step, gap, parameters)  # write parameters before step not to lose the initial values
 
             step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
-            parameters += config_vmc.opt_parameters[1] * step  # lr better be ~0.01..0.1
+
+            mask = np.ones(len(step))
+            if n_step < 100:  # jastrows have not converged yet
+                mask = np.zeros(len(step))
+                mask[-config_vmc.layout[4]:] = 1.
+
+            parameters += config_vmc.opt_parameters[1] * step * mask  # lr better be ~0.01..0.1
+            if config_vmc.layout[3] == 1:  # only one pairing == working in the condensation energy regime
+                parameters[np.sum(config_vmc.layout[:3])] = 1e-4
             save_parameters(parameters, n_step)
         ### END SR STEP ###
 

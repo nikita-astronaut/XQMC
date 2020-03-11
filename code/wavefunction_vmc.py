@@ -59,6 +59,8 @@ class wavefunction_singlet():
         self.current_det = self.get_cur_det()
 
         ### pre-computed W-matrices for fast derivative computation ###
+        self.Z = jit_get_Z_factor(self.E, self.occupied_levels)
+
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
 
 
@@ -112,7 +114,7 @@ class wavefunction_singlet():
 
 
     def _get_derivative(self, V):  # obtaining (6.99) from S. Sorella book
-        return jit_get_derivative(self.U_full, V, self.E, self.occupied_levels)
+        return jit_get_derivative(self.U_full, V, self.Z)
 
     def get_O(self):  # derivative over all variational parameters
         '''
@@ -384,17 +386,19 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
 
 
 @jit(nopython=True)
-def jit_get_derivative(U_full, V, E, occupation):  # obtaining (6.99) from S. Sorella book
+def jit_get_derivative(U_full, V, Z):  # obtaining (6.99) from S. Sorella book
     Vdash = (U_full.conj().T).dot(V).dot(U_full)  # (6.94) in S. Sorella book
-    Vdash_rescaled = np.zeros(shape = Vdash.shape) * 1.0j  # (6.94) from S. Sorella book
+    # (6.94) from S. Sorella book
+    return U_full.dot(Vdash * Z).dot(U_full.conj().T)  # (6.99) step
 
-    for alpha in range(Vdash.shape[0]):
-        for beta in range(Vdash.shape[1]):
+@jit(nopython=True)
+def jit_get_Z_factor(E, occupation):
+    Z = np.zeros((len(occupation), len(occupation))) + 0.0j
+    for alpha in range(E.shape[0]):
+        for beta in range(E.shape[0]):
             if not occupation[alpha] and occupation[beta]:
-                Vdash_rescaled[alpha, beta] = Vdash[alpha, beta] / (E[alpha] - E[beta])
-
-    return U_full.dot(Vdash_rescaled).dot(U_full.conj().T)  # (6.99) step
-
+                Z[alpha, beta] = 1. / (E[alpha] - E[beta])
+    return Z
 
 @jit(nopython=True)
 def jit_get_O_pairing(W_k_derivatives, W_GF_complete):
