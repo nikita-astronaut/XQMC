@@ -89,6 +89,9 @@ def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
 
     for i in range(len(base_state)):
         for j in range(len(base_state)):
+            if edges_quadratic[i, j] == 0:
+                continue
+
             if i == j:
                 E_loc += edges_quadratic[i, i] * density(wf_state[2], i)
                 continue

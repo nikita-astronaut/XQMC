@@ -69,7 +69,7 @@ class wavefunction_singlet():
 
 
         ### random numbers for random moves ###
-        self._rnd_size = 1000
+        self._rnd_size = 10000
         self._refresh_rnd()
         return
 
@@ -125,7 +125,7 @@ class wavefunction_singlet():
         O_mu = [self.get_O_pairing(self.W_mu_derivative) if self.config.optimize_mu_BCS else 0.0]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete) if len(self.W_k_derivatives) > 0 else []
-        O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy)
+        O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
         O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete) if len(self.W_waves_derivatives) > 0 else []
 
         O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
@@ -162,11 +162,11 @@ class wavefunction_singlet():
         self.occupied_levels = np.zeros(len(E), dtype=bool)
         self.occupied_levels[self.lowest_energy_states] = True
 
-        print('mu_BCS - E_max_occupied=', -self.E_fermi + self.var_mu)
-        print('E_min_unoccupied - mu_BCS =', np.min(self.E[rest_states]) - self.var_mu)
+        # print('mu_BCS - E_max_occupied=', -self.E_fermi + self.var_mu)
+        # print('E_min_unoccupied - mu_BCS =', np.min(self.E[rest_states]) - self.var_mu)
 
-        print('E_max_occupied =', self.E_fermi)
-        print('E_min_unoccupied =', np.min(self.E[rest_states]))
+        # print('E_max_occupied =', self.E_fermi)
+        # print('E_min_unoccupied =', np.min(self.E[rest_states]))
 
         if E[rest_states].min() - self.E_fermi < 1e-14 and not self.nogaps:
             print('open shell configuration, consider different pairing or filling!', flush = True)
@@ -400,24 +400,23 @@ def jit_get_derivative(U_full, V, E, occupation):  # obtaining (6.99) from S. So
 def jit_get_O_pairing(W_k_derivatives, W_GF_complete):
     derivatives = []
     for k in range(len(W_k_derivatives)):
+        # derivatives.append(-1.0 * np.sum(W_k_derivatives[k] * W_GF_complete.T))
+        
         der = 0.0 + 0.0j
         w = W_k_derivatives[k] 
         for i in range(W_GF_complete.shape[1]):
-            for j in range(W_GF_complete.shape[0]):
-                der -= w[i, j] * W_GF_complete[j, i]
+            der -= np.dot(w[i],  W_GF_complete[:, i])
+            #for j in range(W_GF_complete.shape[0]):
+            #    der -= w[i, j] * W_GF_complete[j, i]
         derivatives.append(der)
+        
     return derivatives
 
 @jit(nopython=True)
 def jit_get_O_jastrow(Jastrow_A, occupancy):
     derivatives = []
     for k in range(len(Jastrow_A)):
-        der = 0.0 + 0.0j
-        J = Jastrow_A[k]
-        for i in range(J.shape[0]):
-            for j in range(J.shape[1]):
-                der -= 0.5 * occupancy[i] * J[i, j] * occupancy[j]
-        derivatives.append(der)
+        derivatives.append(-0.5 * occupancy.dot(Jastrow_A[k].dot(occupancy)))
     return derivatives
 
 def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,

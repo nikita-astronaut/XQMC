@@ -10,7 +10,7 @@ class MC_parameters:
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
         self.BC_twist = True  # whether to apply the BC--twise method (PBC in x direction and APBC in y direction)
-        self.twist = [1, 1]; self.min_num_twists = 144; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = [1, 1]; self.min_num_twists = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
@@ -37,10 +37,10 @@ class MC_parameters:
 
 
         ### other parameters ###
-        self.visualisation = False; self.tests = True
-        self.n_cpus = 24  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/25/'
-        self.load_parameters = True; self.load_parameters_path = None#'/home/astronaut/Documents/DQMC_TBG/logs/test/U_1.00_V_1.00_J_0.00_mu_-0.40/last_opt_params.p'
+        self.visualisation = False; self.tests = False
+        self.n_cpus = 4  # the number of processors to use | -1 -- take as many as available
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/25/'
+        self.load_parameters = False; self.load_parameters_path = None#'/home/astronaut/Documents/DQMC_TBG/logs/test/U_1.00_V_1.00_J_0.00_mu_-0.40/last_opt_params.p'
 
 
 
@@ -64,14 +64,14 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 1500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
+        self.MC_chain = 4800000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
-        self.correlation = self.Ne
+        self.correlation = 5 * (self.total_dof // 2)
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
         self.opt_parameters = [1e-4, 6e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
-        self.n_delayed_updates = 5
+        self.n_delayed_updates = 3
         self.generator_mode = True
 
         ## initial values definition and layout ###

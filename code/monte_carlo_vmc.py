@@ -76,7 +76,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
     for S_cov_theta, twist in zip(S_cov, twists):
         eigvals, eigvecs = np.linalg.eigh(S_cov_theta)
         for val, vec in zip(eigvals, eigvecs.T):
-            if np.abs(val) < 1e-3:
+            if np.abs(val) < 1e-6:
                 print('redundant parameter?', twist, val, vec)
 
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
@@ -252,25 +252,28 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
   
     hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
 
-
+    '''
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)
     else:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, True, final_state)
-
+    '''
+    wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)  # always start with bare configuration
+    t_steps = 0
+    t = time()
     if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
         for MC_step in range(config_vmc.MC_thermalisation):
             wf.perform_MC_step()
     else:
         for MC_step in range(config_vmc.MC_thermalisation // 4):  # else thermalize a little bit
             wf.perform_MC_step()
+    t_steps += time() - t
 
     energies = []
     Os = []
     acceptance = []
     densities = []
     t_energies = 0
-    t_steps = 0
     t_forces = 0
     t_observables = 0
     t_update = 0
@@ -283,7 +286,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
         if MC_step % config_vmc.correlation == 0:
             t = time()
             wf.perform_explicit_GF_update()
-            t_update += time() - t
+            t_steps += time() - t
 
             t = time()
             energies.append(hamiltonian(wf))
