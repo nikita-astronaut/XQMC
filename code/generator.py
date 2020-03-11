@@ -75,10 +75,10 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
         phi_field.wrap_up(time_slice)
         if switch:
             phi_field.copy_to_CPU()
-        if time_slice == 0:
-            phi_field.current_G_function_up, phi_field.log_det_up, phi_field.sign_det_up = phi_field.get_G_no_optimisation(+1, 0)
-            phi_field.current_G_function_down, phi_field.log_det_down, phi_field.sign_det_down = phi_field.get_G_no_optimisation(-1, 0)
-            current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
+        #if time_slice == 0:
+        #    phi_field.current_G_function_up, phi_field.log_det_up, phi_field.sign_det_up = phi_field.get_G_no_optimisation(+1, 0)
+        #    phi_field.current_G_function_down, phi_field.log_det_down, phi_field.sign_det_down = phi_field.get_G_no_optimisation(-1, 0)
+        #    current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
         #print('first measurement in loop {:d}'.format(time_slice))
         #observables.measure_light_observables(phi_field, current_det_sign)
         for sp_index in range(sp_index_range):

@@ -76,7 +76,7 @@ class Observables:
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
-        chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt // 2)
+        chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt)
 
         self.num_chi_samples = 0
         for gap_name in self.config.pairings_list_names:
@@ -141,7 +141,7 @@ class Observables:
         self.gfs_equal_data += (phi.current_G_function_up + phi.current_G_function_down) / 2.
         
         # print(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)), '!!!')
-        assert np.abs(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)) - 18.) < 1e-8
+        assert np.abs(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)) - 18.) < 1e-6
         self.num_equal += 1
 
         k = kinetic_energy(phi).item()
@@ -181,8 +181,8 @@ class Observables:
 
         adj_list_density = self.config.adj_list[:self.config.n_adj_density]  # on-site and nn
         phi.copy_to_GPU()
-        phi.refresh_all_decompositions()
-        phi.refresh_G_functions()
+        # phi.refresh_all_decompositions()
+        # phi.refresh_G_functions()
         phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]
         phi.current_G_function_down = phi.get_G_no_optimisation(-1, -1)[0]
         G_up0 = phi.current_G_function_up
@@ -273,8 +273,8 @@ def total_density(phi_field):
 # this is currently only valid for the Sorella simplest model
 def kinetic_energy(phi_field, K_matrix):
     A = np.abs(K_matrix) > 1e-6
-    G_function_up = phi_field.get_current_G_function(+1.0)
-    G_function_down = phi_field.get_current_G_function(-1.0)
+    G_function_up = phi_field.current_G_function_up
+    G_function_down = phi_field.current_G_function_down
 
     K_mean = phi_field.config.main_hopping * xp.einsum('ij,ji', G_function_up + G_function_down, A) / (phi_field.config.total_dof // 2)
     return K_mean
@@ -379,11 +379,11 @@ def corr_fix_tau(G_up, G_down, gap):
 
 
 def susceptibility_local(phi, gap, GFs_up, GFs_down): 
-    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
-    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
-    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
+    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
+    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
+    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
 
-    for i in range(len(GFs_up) // 2):
+    for i in range(len(GFs_up)):
         D1, D2, C = corr_fix_tau(GFs_up[i] + 0.0j, GFs_down[i] + 0.0j, gap)  # 0.0j for jit complex
         D_1_total[..., i] = D1; D_2_total[..., i] = D2; C_total[..., i] = C
     

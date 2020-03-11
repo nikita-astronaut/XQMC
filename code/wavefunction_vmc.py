@@ -24,7 +24,7 @@ class wavefunction_singlet():
         self.K_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T + \
                       np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
 
-        self.Jastrow_A = [j[0] for j in config.jastrows_list]
+        self.Jastrow_A = np.array([j[0] for j in config.jastrows_list])
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
 
         ### diagonalisation of the MF--Hamiltonian ###
@@ -64,8 +64,8 @@ class wavefunction_singlet():
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
 
 
-        self.W_k_derivatives = [self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped]
-        self.W_waves_derivatives = [self._get_derivative(wave[0]) for wave in self.config.waves_list]
+        self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
+        self.W_waves_derivatives = np.array([self._get_derivative(wave[0]) for wave in self.config.waves_list])
         ### allowed 1-particle moves ###
         self.adjacency_list = self.config.adjacency_transition_matrix 
 
@@ -126,9 +126,9 @@ class wavefunction_singlet():
 
         O_mu = [self.get_O_pairing(self.W_mu_derivative) if self.config.optimize_mu_BCS else 0.0]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
-        O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete) if len(self.W_k_derivatives) > 0 else []
+        O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
-        O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete) if len(self.W_waves_derivatives) > 0 else []
+        O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
 
         O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
 
@@ -409,7 +409,7 @@ def jit_get_O_pairing(W_k_derivatives, W_GF_complete):
         der = 0.0 + 0.0j
         w = W_k_derivatives[k] 
         for i in range(W_GF_complete.shape[1]):
-            der -= np.dot(w[i],  W_GF_complete[:, i])
+            der -= np.sum(w[i] * W_GF_complete[i])
             #for j in range(W_GF_complete.shape[0]):
             #    der -= w[i, j] * W_GF_complete[j, i]
         derivatives.append(der)

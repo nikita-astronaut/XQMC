@@ -75,18 +75,22 @@ class AuxiliaryFieldIntraorbital:
         u2, s2, v2 = svd_rhs
         m = v1.dot(u2)
         middle_mat = (u1.T).dot(v2.T) + (self.la.diag(s1).dot(m)).dot(self.la.diag(s2))
-        um, sm, vm = self.SVD(middle_mat)
+        inv = self.la.linalg.inv(middle_mat)
+        #um, sm, vm = self.SVD(middle_mat)  # FIXME!!! (try with just self.linglg.inv ?)
 
-        left = (vm.dot(v2)).T
-        right = (u1.dot(um)).T
-        
-        sign = np.sign(np.linalg.slogdet(self.to_numpy(left))[0] * np.linalg.slogdet(self.to_numpy(right))[0])
+        #left = (vm.dot(v2)).T
+        #right = (u1.dot(um)).T
+        s, ld = np.linalg.slogdet(inv)
+        # sign = np.sign(np.linalg.slogdet(self.to_numpy(left))[0] * np.linalg.slogdet(self.to_numpy(right))[0] * s)
+        sign = np.sign(np.linalg.slogdet(self.to_numpy(v2.T))[0] * np.linalg.slogdet(self.to_numpy(u1.T))[0] * s)
         # assert np.allclose((left.dot(self.la.diag(sm ** -1))).dot(right), np.linalg.inv(np.eye(len(s1)) + u1.dot(np.diag(s1)).dot(v1).dot(u2).dot(np.diag(s2)).dot(v2)))
         if return_logdet:
-            return (left.dot(self.la.diag(sm ** -1))).dot(right), \
-                   self.la.sum(self.la.log(sm ** -1)), \
-                   sign
-        return left.dot(self.la.diag(sm ** -1)).dot(right)
+            return v2.T.dot(inv).dot(u1.T), ld, sign
+            #return (left.dot(self.la.diag(sm ** -1))).dot(right), \
+            #       self.la.sum(self.la.log(sm ** -1)), \
+            #       sign
+        return v2.T.dot(inv).dot(u1.T)
+        #return left.dot(self.la.diag(sm ** -1)).dot(right)
 
     def refresh_all_decompositions(self):
         self.partial_SVD_decompositions_up = []
@@ -326,9 +330,17 @@ class AuxiliaryFieldIntraorbital:
         self.right_decompositions = self._get_right_partial_SVD_decompositions(spin)
         GFs = [1. * self.to_numpy(current_GF)]
 
+        # u, s, current_V = self.get_G_no_optimisation(spin, -1, return_udv = True)
+        #G = u.dot(s)
         for tau in range(1, self.config.Nt):
             B = self.B_l(spin, tau - 1)
-
+            #G = B.dot(G)
+            #GFs.append(G.dot(current_V))
+            #if tau % self.config.s_refresh == 0:
+            #    u, s, v = self.SVD(G)
+            #    current_V = v.dot(current_V)
+            #    G = u.dot(self.la.diag(s))
+            
             if tau % self.config.s_refresh != 0:
                 current_GF = B.dot(current_GF)  # just wrap-up / wrap-down
             else:  # recompute GF from scratch
@@ -337,17 +349,19 @@ class AuxiliaryFieldIntraorbital:
                 if tau > self.config.Nt // 2:
                     m = self.la.diag(s1**-1) + (v1.dot(u2)).dot(self.la.diag(s2)).dot(v2.dot(u1))
                     um, sm, vm = self.SVD(m)
-                    current_GF = (u1.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(v1))
+                    #current_GF = (u1.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(v1))
+                    current_GF = u1.dot(self.la.linalg.inv(m)).dot(v1)
                 else:
                     m = self.la.diag(s2) + (u2.T.dot(v1.T)).dot(self.la.diag(s1**-1)).dot(u1.T.dot(v2.T))
                     um, sm, vm = self.SVD(m)
-                    current_GF = (v2.T.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(u2.T))
-
+                    current_GF = (v2.T).dot(self.la.linalg.inv(m)).dot(u2.T)
+                    #current_GF = (v2.T.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(u2.T))
+            
             GFs.append(1.0 * self.to_numpy(current_GF))
         return np.array(GFs)
 
     ####### DEBUG ######
-    def get_G_no_optimisation(self, spin, time_slice):
+    def get_G_no_optimisation(self, spin, time_slice, return_udv = False):
         M = self.la.eye(self.config.total_dof // 2)
         current_U = self.la.eye(self.config.total_dof // 2)
         slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
@@ -360,6 +374,9 @@ class AuxiliaryFieldIntraorbital:
             M = self.la.diag(s).dot(v)
         m = current_U.T.dot(v.T) + self.la.diag(s)
         um, sm, vm = self.SVD(m)
+
+        if return_udv:
+            return (vm.dot(v)).T, self.la.diag(sm ** -1), (current_U.dot(um)).T
         return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1)), \
                np.sign(np.linalg.det(((vm.dot(v)).T)) * np.linalg.det((current_U.dot(um)).T))
 
