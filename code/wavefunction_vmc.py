@@ -73,6 +73,10 @@ class wavefunction_singlet():
         ### random numbers for random moves ###
         self._rnd_size = 10000
         self._refresh_rnd()
+
+        self.accepted = 0
+        self.rejected_filled = 0
+        self.rejected_factor = 0
         return
 
     def _refresh_rnd(self):
@@ -218,6 +222,7 @@ class wavefunction_singlet():
                 return False, 1, moved_site, empty_site
 
         if empty_site not in self.empty_sites:
+            self.rejected_filled += 1
             return False, 1, 1, moved_site, empty_site
 
         t = time()
@@ -229,8 +234,9 @@ class wavefunction_singlet():
 
         self.wf += time() - t
         if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index % self._rnd_size]:
+            self.rejected_factor += 1
             return False, 1, 1, moved_site, empty_site
-
+        self.accepted += 1
         t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
         self.current_det *= det_ratio
