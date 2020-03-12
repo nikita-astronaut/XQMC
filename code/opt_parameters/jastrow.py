@@ -37,6 +37,7 @@ def get_jastrow(config, orb_degenerate = False, max_distance = np.inf):
             continue
         current_real_matrix += adj[0]
         if ((idx + 1) % n_per_dist) == 0:
+            print(adj[1], adj[2])
             jastrow_list.append([deepcopy(current_real_matrix), 'jastrow-same-same-{:.2f}'.format(adj[-1])])
             current_real_matrix = np.zeros(adjacency_list[0][0].shape)
 

@@ -75,6 +75,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
     '''
     for S_cov_theta, twist in zip(S_cov, twists):
         eigvals, eigvecs = np.linalg.eigh(S_cov_theta)
+        print(np.diag(S_cov_theta))
         for val, vec in zip(eigvals, eigvecs.T):
             if np.abs(val) < 1e-6:
                 print('redundant parameter?', twist, val, vec)
@@ -243,7 +244,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twists, f
     for twist, final_state in zip(twists, final_states):
         t = time()
         res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state))
-        print('one chain takes =', time() - t, flush = True)
+        print('one chain takes =', time() - t)
     return res
 
 
@@ -308,8 +309,8 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
         t = time()
         acceptance.append(wf.perform_MC_step()[0])
         t_steps += time() - t
-    print('t_chain = ', time() - tc, flush = True)
-    print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist, flush = True)
+    print('t_chain = ', time() - tc)
+    print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
     return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E, densities
 
 if __name__ == "__main__":
@@ -418,7 +419,7 @@ if __name__ == "__main__":
         results = []
         for r in results_batched:
             results = results + r
-        print('MC chain generation {:d} took {:f}'.format(n_step, time() - t), flush = True)
+        print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
         t = time() 
         ### MC chains data extraction ###
         gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities = \
