@@ -346,16 +346,34 @@ class AuxiliaryFieldIntraorbital:
             else:  # recompute GF from scratch
                 u1, s1, v1 = self.compute_B_chain(spin, tau, 0)  # tau - 1 | ... | 0
                 u2, s2, v2 = self.compute_B_chain(spin, self.config.Nt, tau)  # 
-                if tau > self.config.Nt // 2:
-                    m = self.la.diag(s1**-1) + (v1.dot(u2)).dot(self.la.diag(s2)).dot(v2.dot(u1))
-                    um, sm, vm = self.SVD(m)
-                    #current_GF = (u1.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(v1))
-                    current_GF = u1.dot(self.la.linalg.inv(m)).dot(v1)
+                s1_min = 1.0 * s1; s1_max = 1.0 * s1
+                s1_min[s1_min > 1.] = 1.
+                s1_max[s1_max < 1.] = 1.
+
+                s2_min = 1.0 * s2; s2_max = 1.0 * s2
+                s2_min[s2_min > 1.] = 1.
+                s2_max[s2_max < 1.] = 1.
+                if tau < self.config.Nt // 2:
+                    m = self.la.diag(s1_max ** -1).dot(u1.T).dot(v2.T).dot(self.la.diag(s2_max ** -1)) + \
+                        self.la.diag(s1_min).dot(v1).dot(u2).dot(self.la.diag(s2_min))
+                    current_GF = (v2.T).dot(self.la.diag(s2_max ** -1)).dot(self.la.linalg.inv(m)).dot(self.la.diag(s1_min)).dot(v1)
+                    #assert np.allclose(self.la.linalg.inv(m).dot(m), np.eye(m.shape[0]))
+                    #m = self.la.diag(s1**-1) + (v1.dot(u2)).dot(self.la.diag(s2)).dot(v2.dot(u1))
+                    # um, sm, vm = self.SVD(m)
+                    # = (u1.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(v1))
+                    #check = u1.dot(self.la.linalg.inv(m)).dot(v1)
+                    #print(self.la.linalg.norm(current_GF - check) / self.la.linalg.norm(check), '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                    #print(self.la.linalg.norm(check), self.la.linalg.norm(current_GF))
                 else:
-                    m = self.la.diag(s2) + (u2.T.dot(v1.T)).dot(self.la.diag(s1**-1)).dot(u1.T.dot(v2.T))
-                    um, sm, vm = self.SVD(m)
-                    current_GF = (v2.T).dot(self.la.linalg.inv(m)).dot(u2.T)
-                    #current_GF = (v2.T.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(u2.T))
+                    m = self.la.diag(s1_max ** -1).dot(u1.T).dot(v2.T).dot(self.la.diag(s2_max ** -1)) + \
+                        self.la.diag(s1_min).dot(v1).dot(u2).dot(self.la.diag(s2_min))
+                    current_GF = (v2.T).dot(self.la.diag(s2_max ** -1)).dot(self.la.linalg.inv(m)).dot(self.la.diag(s1_min)).dot(v1)
+                    #m = self.la.diag(s2) + (u2.T.dot(v1.T)).dot(self.la.diag(s1**-1)).dot(u1.T.dot(v2.T))
+                    # um, sm, vm = self.SVD(m)
+                    #check = (v2.T).dot(self.la.linalg.inv(m)).dot(u2.T)
+                    #check = (v2.T.dot(vm.T)).dot(self.la.diag(sm**-1)).dot(um.T.dot(u2.T))
+                    #print(self.la.linalg.norm(current_GF - check) / self.la.linalg.norm(check), '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (2)')
+                    #print(self.la.linalg.norm(check), self.la.linalg.norm(current_GF))
             
             GFs.append(1.0 * self.to_numpy(current_GF))
         return np.array(GFs)
