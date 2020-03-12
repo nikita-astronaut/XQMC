@@ -22,11 +22,23 @@ def get_jastrow(config, orb_degenerate = False, max_distance = np.inf):
                 jastrow_list.append([deepcopy(current_real_matrix), 'jastrow-deg-deg-{:.2f}'.format(adj[-1])])
                 current_real_matrix = np.zeros(adjacency_list[0][0].shape)
         return jastrow_list
+    
+    for idx, adj in enumerate(adjacency_list):
+        if adj[-1] > max_distance:
+            break
+        if adj[1] == adj[2]:
+            continue
+        jastrow_list.append([adj[0], 'jastrow-{:d}-{:d}-{:.2f}'.format(*adj[1:])])
 
     for idx, adj in enumerate(adjacency_list):
         if adj[-1] > max_distance:
             break
-        jastrow_list.append([adj[0], 'jastrow-{:d}-{:d}-{:.2f}'.format(*adj[1:])])
+        if adj[1] != adj[2]:
+            continue
+        current_real_matrix += adj[0]
+        if ((idx + 1) % n_per_dist) == 0:
+            jastrow_list.append([deepcopy(current_real_matrix), 'jastrow-same-same-{:.2f}'.format(adj[-1])])
+            current_real_matrix = np.zeros(adjacency_list[0][0].shape)
 
     return jastrow_list
 
