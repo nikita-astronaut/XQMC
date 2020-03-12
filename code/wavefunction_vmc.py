@@ -52,8 +52,10 @@ class wavefunction_singlet():
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
 
-        self.a_update_list = []
-        self.b_update_list = []  # for delayed GF updates defined in (5.93 -- 5.97)
+        self.a_update_list = np.zeros((self.W_GF.shape[0], self.config.n_delayed_updates), dtype=np.complex128)
+        self.b_update_list = np.zeros((self.W_GF.shape[1], self.config.n_delayed_updates), dtype=np.complex128)
+        self.n_stored_updates = 0
+        # for delayed GF updates defined in (5.93 -- 5.97)
 
         self.current_ampl = self.get_cur_det() * self.get_cur_Jastrow_factor()
         self.current_det = self.get_cur_det()
@@ -221,9 +223,8 @@ class wavefunction_singlet():
             return False, 1, 1, moved_site, empty_site
 
         t = time()
-        det_ratio = self.W_GF[empty_site, moved_site_idx] + \
-                    np.sum([a[empty_site, 0] * b[moved_site_idx, 0] for a, b in zip(self.a_update_list, self.b_update_list)])
-
+        det_ratio = self.W_GF[empty_site, moved_site_idx] + np.dot(self.a_update_list[empty_site, :self.n_stored_updates],
+                                                                   self.b_update_list[moved_site_idx, :self.n_stored_updates])
         Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, \
                                           self.var_f, moved_site, empty_site)
 
@@ -250,42 +251,26 @@ class wavefunction_singlet():
         self.state[empty_site] = 1
         self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
 
-        a_new = 1. * self.W_GF[:, moved_site_idx]
-        if len(self.a_update_list) > 0:
-            a_new += np.sum(np.array([a[:, 0] * b[moved_site_idx, 0] \
-                            for a, b in zip(self.a_update_list, self.b_update_list)]), axis = 0)  # (5.94)
+        a_new, b_new = _jit_delayed_update(self.a_update_list, self.b_update_list, self.n_stored_updates, \
+                                           self.W_GF, empty_site, moved_site_idx)
+        self.a_update_list[..., self.n_stored_updates] = a_new
+        self.b_update_list[..., self.n_stored_updates] = b_new
+        self.n_stored_updates += 1
 
-        delta = np.zeros(self.W_GF.shape[1])
-        delta[moved_site_idx] = 1
-
-        b_new = 1. * self.W_GF[empty_site, :]
-        W_Kl = self.W_GF[empty_site, moved_site_idx]
-        if len(self.a_update_list) > 0:
-            b_new += np.sum(np.array([a[empty_site, 0] * b[:, 0] \
-                                      for a, b in zip(self.a_update_list, self.b_update_list)]), axis = 0)  # (5.95)
-            W_Kl += np.sum(np.array([a[empty_site, 0] * b[moved_site_idx, 0] \
-                                     for a, b in zip(self.a_update_list, self.b_update_list)]))  # (5.95)
-        b_new = -(b_new - delta) / W_Kl  # (5.95)
-
-        self.a_update_list.append(a_new[..., np.newaxis])
-        self.b_update_list.append(b_new[..., np.newaxis])
-
-        if len(self.a_update_list) == self.config.n_delayed_updates:
+        if self.n_stored_updates == self.config.n_delayed_updates:
             self.perform_explicit_GF_update()
 
         self.update += time() - t 
         return True, det_ratio, Jastrow_ratio, moved_site, empty_site
 
     def perform_explicit_GF_update(self):
-        if len(self.a_update_list) == 0:
+        if self.n_stored_updates == 0:
             return
-        A = np.concatenate(self.a_update_list, axis = 1)
-        B = np.concatenate(self.b_update_list, axis = 1)
+        self.W_GF += self.a_update_list[..., :self.n_stored_updates].dot(self.b_update_list[..., :self.n_stored_updates].T)  # (5.97)
 
-        self.W_GF += A.dot(B.T)  # (5.97)
-        self.a_update_list = []
-        self.b_update_list = []
-
+        self.a_update_list *= 0.0j
+        self.b_update_list *= 0.0j
+        self.n_stored_updates = 0
         return
 
     def get_state(self):
@@ -410,8 +395,6 @@ def jit_get_O_pairing(W_k_derivatives, W_GF_complete):
         w = W_k_derivatives[k] 
         for i in range(W_GF_complete.shape[1]):
             der -= np.sum(w[i] * W_GF_complete[i])
-            #for j in range(W_GF_complete.shape[0]):
-            #    der -= w[i, j] * W_GF_complete[j, i]
         derivatives.append(der)
         
     return derivatives
@@ -436,3 +419,23 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
     for wave, coeff in zip(config.waves_list, var_waves):
         T += wave[0] * coeff
     return T
+
+@jit(nopython = True)
+def _jit_delayed_update(a_update_list, b_update_list, n_stored_updates, \
+                        W_GF, empty_site, moved_site_idx):
+    a_new = 1. * W_GF[:, moved_site_idx]
+    if n_stored_updates > 0: # (5.94)
+        a_new += a_update_list[..., :n_stored_updates].dot(b_update_list[moved_site_idx, :n_stored_updates])
+
+    delta = np.zeros(W_GF.shape[1])
+    delta[moved_site_idx] = 1
+
+    b_new = 1. * W_GF[empty_site, :]
+    W_Kl = W_GF[empty_site, moved_site_idx]
+    if n_stored_updates > 0:  # (5.95)
+        b_new += b_update_list[..., :n_stored_updates].dot(a_update_list[empty_site, :n_stored_updates])
+        W_Kl += np.dot(a_update_list[empty_site, :n_stored_updates],
+                       b_update_list[moved_site_idx, :n_stored_updates]) # (5.95)
+    b_new = -(b_new - delta) / W_Kl  # (5.95)
+
+    return a_new, b_new
