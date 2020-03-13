@@ -141,7 +141,7 @@ class Observables:
         self.gfs_equal_data += (phi.current_G_function_up + phi.current_G_function_down) / 2.
         
         # print(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)), '!!!')
-        assert np.abs(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)) - 18.) < 1e-6
+        # assert np.abs(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)) - 18.) < 1e-4
         self.num_equal += 1
 
         k = kinetic_energy(phi).item()
