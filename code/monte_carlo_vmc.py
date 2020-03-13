@@ -32,7 +32,6 @@ def extract_MC_data(results, config_vmc, num_twists):
     return gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities
 
 
-
 def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
     step_abs = np.sqrt(np.sum(step ** 2))
     force_abs = np.sqrt(np.sum(forces ** 2))
@@ -95,16 +94,6 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
     step = step_pc / diag
-    '''
-    forces_pc = [forces_theta / np.sqrt(np.abs(np.diag(S_cov_theta))) for forces_theta, S_cov_theta in zip(forces, S_cov)]
-    S_cov_pc = [np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov_theta))), S_cov_theta, 1.0 / np.sqrt(np.abs(np.diag(S_cov_theta)))) \
-                + config_vmc.opt_parameters[0] * np.eye(S_cov_theta.shape[0]) for S_cov_theta in S_cov]
-    S_cov_pc_inv = [np.linalg.inv(S_cov_pc_theta) for S_cov_pc_theta in S_cov_pc]
-    step_pc = [S_cov_pc_inv_theta.dot(forces_pc_theta) for S_cov_pc_inv_theta, forces_pc_theta in zip(S_cov_pc_inv, forces_pc)]
-    step = [step_pc_theta / np.sqrt(np.abs(np.diag(S_cov_theta))) for step_pc_theta, S_cov_theta in zip(step_pc, S_cov)]
-    step = np.mean(step, axis = 0)
-    '''
-
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(np.mean(forces, axis = 0) ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
     return step, forces
@@ -362,7 +351,9 @@ if __name__ == "__main__":
             for i_y in range(L):                
                 twists.append([np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_x / L)), np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_y / L))])
     else:
-        num_twists = 1; twists_per_cpu = -1; twists = [config_vmc.twist]
+        num_twists = 1; twists_per_cpu = -1;
+        if config_vmc.n_sublattices == 2:
+            twists = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * 0.1904)]  # Baldereschi mean k-point
 
     print('Number of twists: {:d}, number of jobs {:d}, twists per cpu {:d}'.format(len(twists), num_twists, twists_per_cpu))
 
@@ -420,7 +411,11 @@ if __name__ == "__main__":
             results = []
             for r in results_batched:
                 results = results + r
-        
+        else:
+            results = _get_MC_chain_result(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+                                           parameters, twists, final_state = final_states[0])
+
+            results = [results]
         print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
         t = time() 
         ### MC chains data extraction ###

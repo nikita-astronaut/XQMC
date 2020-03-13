@@ -15,17 +15,19 @@ class wavefunction_singlet():
         self.nogaps = len(self.pairings_list_unwrapped) == 0        
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
-
         self.var_f = self.var_f if not config.PN_projection else 0.
+
 
         ### mean-field Hamiltonian precomputed elements ###
         self.K_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False) + \
-                    np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
+                        np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
         self.K_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T + \
-                      np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
+                          np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
+
 
         self.Jastrow_A = np.array([j[0] for j in config.jastrows_list])
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
+
 
         ### diagonalisation of the MF--Hamiltonian ###
         self.U_matrix = self._construct_U_matrix()
