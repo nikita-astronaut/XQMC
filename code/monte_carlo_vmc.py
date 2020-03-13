@@ -32,7 +32,6 @@ def extract_MC_data(results, config_vmc, num_twists):
     return gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities
 
 
-
 def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
     step_abs = np.sqrt(np.sum(step ** 2))
     force_abs = np.sqrt(np.sum(forces ** 2))
@@ -78,7 +77,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
         print(np.diag(S_cov_theta))
         for val, vec in zip(eigvals, eigvecs.T):
             if np.abs(val) < 1e-6:
-                print('redundant parameter?', twist, val, vec)
+                print('redundant parameter?', twist, val, vec, flush = True)
 
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     
@@ -95,16 +94,6 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
 
     step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
     step = step_pc / diag
-    '''
-    forces_pc = [forces_theta / np.sqrt(np.abs(np.diag(S_cov_theta))) for forces_theta, S_cov_theta in zip(forces, S_cov)]
-    S_cov_pc = [np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(S_cov_theta))), S_cov_theta, 1.0 / np.sqrt(np.abs(np.diag(S_cov_theta)))) \
-                + config_vmc.opt_parameters[0] * np.eye(S_cov_theta.shape[0]) for S_cov_theta in S_cov]
-    S_cov_pc_inv = [np.linalg.inv(S_cov_pc_theta) for S_cov_pc_theta in S_cov_pc]
-    step_pc = [S_cov_pc_inv_theta.dot(forces_pc_theta) for S_cov_pc_inv_theta, forces_pc_theta in zip(S_cov_pc_inv, forces_pc)]
-    step = [step_pc_theta / np.sqrt(np.abs(np.diag(S_cov_theta))) for step_pc_theta, S_cov_theta in zip(step_pc, S_cov)]
-    step = np.mean(step, axis = 0)
-    '''
-
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(np.mean(forces, axis = 0) ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
     return step, forces
@@ -139,7 +128,8 @@ def print_model_summary(config_vmc):
         config_vmc.MC_chain, config_vmc.opt_parameters[1], config_vmc.opt_parameters[0])
     )
     print('Work with periodic BC' if not config_vmc.BC_twist \
-     else 'Work with twisted BC, n_thetas = {:d}'.format(config_vmc.min_num_twists))
+     else 'Work with twisted BC, n_chains = {:d}'.format(config_vmc.n_chains))
+    print('Mesh of k-points: {:s}'.format(config_vmc.twist_mesh))
 
     print('Work in Grand Canonical Approach' if not config_vmc.PN_projection \
      else 'Work in Canonical Approach at <n> = {:.2f}'.format(config_vmc.Ne / config_vmc.total_dof * 2))
@@ -253,20 +243,20 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
   
     hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
 
-    '''
+    
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)
     else:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, True, final_state)
-    '''
-    wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)  # always start with bare configuration
+    
+    # wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)  # always start with bare configuration
     t_steps = 0
     t = time()
     if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
         for MC_step in range(config_vmc.MC_thermalisation):
             wf.perform_MC_step()
     else:
-        for MC_step in range(config_vmc.MC_thermalisation // 4):  # else thermalize a little bit
+        for MC_step in range(config_vmc.MC_thermalisation):  # else thermalize a little bit
             wf.perform_MC_step()
     t_steps += time() - t
 
@@ -311,6 +301,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
         t_steps += time() - t
     print('t_chain = ', time() - tc)
     print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
+    print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor), flush = True)
     return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E, densities
 
 if __name__ == "__main__":
@@ -348,25 +339,29 @@ if __name__ == "__main__":
 
 
     ### generate twists once and for all (Sandro's suggestion) ###
-    num_twists = n_cpus
-    if config_vmc.BC_twist:
-        twists_per_cpu = config_vmc.min_num_twists // n_cpus
-        if config_vmc.min_num_twists % n_cpus > 0:
-            twists_per_cpu += 1
-
-        num_twists = twists_per_cpu * n_cpus
+ 
+    if config_vmc.twist_mesh == 'Baldereschi':
+        print('Working with the Baldereschi mesh')
+        if config_vmc.n_sublattices == 2:
+            twists = [[np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * 0.1904)] for _ in range(config_vmc.n_chains)]
+        if config_vmc.n_sublattices == 1:
+            twists = [[1., 1.] for _ in range(config_vmc.n_chains)] # FIXME
+        twists_per_cpu = config_vmc.n_chains / n_cpus
+    elif config_vmc.twist_mesh == 'PBC':
+        twists = [[1., 1.] for _ in range(config_vmc.n_chains)]
+    else:    
+        twists_per_cpu = config_vmc.n_chains // n_cpus
+        assert twists_per_cpu * n_cpus == config_vmc.n_chains
+        
         twists = []
-        L = int(np.sqrt(num_twists))
+        L = int(np.sqrt(config_vmc.n_chains))
         for i_x in range(L):
-            for i_y in range(L):
-                
+            for i_y in range(L):                
                 twists.append([np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_x / L)), np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_y / L))])
-                # twists = [np.exp(1.0j * np.random.uniform(0, 1, size = 2) * np.pi * 2) for _ in range(num_twists)]  # np.exp(i \theta_x), np.exp(i \theta_y) for spin--up
-    else:
-        twists = [[1., 1.] for _ in range(num_twists)]
-    print('Number of twists: {:d}, number of jobs {:d}, twists per cpu {:d}'.format(len(twists), num_twists, twists_per_cpu))
 
-    config_vmc.MC_chain = config_vmc.MC_chain // num_twists # the MC_chain contains the total required number of samples
+    print('Number of twists: {:d}, number of chains {:d}, twists per cpu {:2f}'.format(len(twists), config_vmc.n_chains, twists_per_cpu))
+
+    config_vmc.MC_chain = config_vmc.MC_chain // config_vmc.n_chains # the MC_chain contains the total required number of samples
     config_vmc.MC_thermalisation = config_vmc.MC_thermalisation
 
     pairings_list = config_vmc.pairings_list
@@ -401,7 +396,7 @@ if __name__ == "__main__":
 
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
-    final_states = [False] * num_twists
+    final_states = [False] * config_vmc.n_chains
 
 
     ### write log header only if we start from some random parameters ###
@@ -413,17 +408,21 @@ if __name__ == "__main__":
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         t = time()
         
-        results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
-            parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
-            final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
-        results = []
-        for r in results_batched:
-            results = results + r
+        if twists_per_cpu > 1:
+            results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+                parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
+                final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
+            results = []
+            for r in results_batched:
+                results = results + r
+        else:
+            results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+                parameters, twists[i], final_states[i]) for i in range(config_vmc.n_chains))
         print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
         t = time() 
         ### MC chains data extraction ###
         gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities = \
-            extract_MC_data(results, config_vmc, num_twists)
+            extract_MC_data(results, config_vmc, config_vmc.n_chains)
         energies_merged = np.concatenate(energies) 
         print('energy = {:.5f} +/- {:.5f}'.format(energies_merged.mean(), energies_merged.std() / np.sqrt(len(energies_merged))))
 

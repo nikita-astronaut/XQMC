@@ -270,23 +270,7 @@ def construct_2orb_hex(config, real = True):
     return A1_N_singlet, A1_N_triplet, A2_N_singlet, A2_N_triplet, E_N_singlet, \
            A1_NN_singlet, A1_NN_triplet, A2_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet 
 
-
-def construct_on_site_1orb_hex(config, real = True):
-    factor = 1.0
-    addstring = ''
-    if not real:
-        factor = 1.0j
-        addstring = 'j'
-
-    onsite = construct_onsite_delta(config)
-    on_site = []
-    on_site.append([(Ipauli, identity, onsite, 1), factor, addstring + 'S_0xIxδ'])  # A1 0
-    on_site.append([(Zpauli, identity, onsite, 1), factor, addstring + 'S_zxIxδ'])  # A2 1
-
-    return on_site
-
-
-def construct_NN_1orb_hex(config, real = True):
+def construct_1orb_hex(config, real = True):
     factor = 1.0
     addstring = ''
     if not real:
@@ -309,15 +293,46 @@ def construct_NN_1orb_hex(config, real = True):
     v1 = (v1_AB, v1_BA)
     v2 = (v2_AB, v2_BA)
     v3 = (v3_AB, v3_BA)
+    onsite = construct_onsite_delta(config)
 
-    NN = []
+    A1_N_singlet = [
+        [(Ipauli, identity, onsite, 1), factor, addstring + 'S_0xIxδ'],
+    ]
+    print('Testing the A1_N_singlet properties')
+    [check_irrep_properties(config, A1_N_singlet[i:i + 1]) for i in range(len(A1_N_singlet))]
 
-    NN.append([(Xpauli, identity, v1, 1.0), factor, addstring + '(S_x)xIxv_1'])  # A1 (A1 x A1 x A1) 0
-    NN.append([(iYpauli, identity, v1, 1.0), factor, addstring + '(iS_y)xIxv_1'])  # B2 (A1 x A2 x A1) 1
+    A2_N_triplet = [
+        [(Zpauli, identity, onsite, 1), factor, addstring + 'S_zxIxδ'],
+    ]
+    print('Testing the A2_N_triplet properties')
+    [check_irrep_properties(config, A2_N_triplet[i:i + 1]) for i in range(len(A2_N_triplet))]
 
-    NN.append([(Xpauli, identity, v2, 1.0), factor, addstring + '(S_x)xIxv_2']); NN.append([(Xpauli, identity, v3, 1.0), factor, addstring + '(S_x)xIxv_3'])  # E1 (A1 x A1 x E) 2-3
-    NN.append([(iYpauli, identity, v2, 1.0), factor, addstring + '(iS_y)xIxv_2']); NN.append([(iYpauli, identity, v3, 1.0), factor, addstring + '(iS_y)xIxv_3'])  # E2 (A2 x A1 x E) 4-5
-    return NN
+    A1_NN_singlet = [
+        [(Xpauli, identity, v1, 1.0), factor, addstring + '(S_x)xIxv_1'],
+    ]
+    print('Testing the A1_NN_singlet properties')
+    [check_irrep_properties(config, A1_NN_singlet[i:i + 1]) for i in range(len(A1_NN_singlet))]
+
+    A2_NN_triplet = [
+        [(iYpauli, identity, v1, 1.0), factor, addstring + '(iS_y)xIxv_1'],
+    ]
+    print('Testing the A2_NN_triplet properties')
+    [check_irrep_properties(config, A2_NN_triplet[i:i + 1]) for i in range(len(A2_NN_triplet))]
+
+    E_NN_singlet = [
+        [(Xpauli, identity, v2, 1.0), factor, addstring + '(S_x)xIxv_2'],
+        [(Xpauli, identity, v3, 1.0), factor, addstring + '(S_x)xIxv_3']
+    ]
+    print('Testing the E_NN_singlet properties')
+    [check_irrep_properties(config, E_NN_singlet[i:i + 1]) for i in range(len(E_NN_singlet))]
+
+    E_NN_triplet = [
+        [(iYpauli, identity, v2, 1.0), factor, addstring + '(iS_y)xIxv_2'],
+        [(iYpauli, identity, v3, 1.0), factor, addstring + '(iS_y)xIxv_3']
+    ]
+    print('Testing the E_NN_triplet properties')
+    [check_irrep_properties(config, E_NN_triplet[i:i + 1]) for i in range(len(E_NN_triplet))]
+    return A1_N_singet, A2_N_triplet, A1_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet
 
 
 def construct_on_site_1orb_square(config, real = True):
@@ -491,9 +506,13 @@ def obtain_all_pairings(config):
     global twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
            twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet
-    if config.n_orbitals == 2:
+    if config.n_orbitals == 2 and config.n_sublattices == 2:
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
             twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
             twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet = construct_2orb_hex(config, real = True)
+        return
+    if config.n_orbitals == 1 and config.n_sublattices == 2:
+        oneorb_A1_N_singet, oneorb_A2_N_triplet, oneorb_A1_NN_singlet, oneorb_A2_NN_triplet, \
+            oneorb_E_NN_singlet, oneorb_E_NN_triplet = construct_1orb_hex(config, real = True)
         return
     return []
