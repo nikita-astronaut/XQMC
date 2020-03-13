@@ -201,7 +201,7 @@ def get_adjacency_list(config):
             _, sublattice2, x2, y2 = from_linearized_index(second, config.Ls, 1, config.n_sublattices)
             
             r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)  # always 0 in the square case
-            r2s = get_bc_copies([1.0 * x2, 1.0 * y2], R, config.Ls, sublattice2)
+            r2s = get_bc_copies(np.array([1.0 * x2, 1.0 * y2]), R, config.Ls, sublattice2)
             A[first, second] = np.min(np.array([np.sum((r1 - r2) ** 2) for r2 in r2s]))
 
     A_rounded = A.round(decimals = 10)
@@ -291,3 +291,7 @@ def spatial_checkerboard(Ls):
             lin_index = x * Ls + y
             checkerboard[lin_index] = (-1) ** (x + y)
     return np.diag(checkerboard)
+
+
+def spatial_uniform(Ls):
+    return np.diag(np.ones(Ls ** 2))

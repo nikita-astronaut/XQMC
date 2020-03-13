@@ -52,11 +52,11 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         E_loc = 0.0 + 0.0j
         base_state = wf.state
-        density = base_state[:len(base_state) // 2] - base_state[len(base_state) // 2:]
+        density = base_state[:len(base_state) // 2] - base_state[len(base_state) // 2:]  # TODO: move that to T_C_Koshino
 
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
-        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term
+        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
         E_loc += get_E_C_Koshino(density, self.config.total_dof // 2, self.config.U, self.config.V)
         # E_loc += 0.5 * self.config.U * np.sum(density ** 2)  # U--term
         # E_loc += self.config.V * np.sum(density[self.x_orbital] * density[self.y_orbital])
@@ -89,6 +89,9 @@ def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
 
     for i in range(len(base_state)):
         for j in range(len(base_state)):
+            if edges_quadratic[i, j] == 0:
+                continue
+
             if i == j:
                 E_loc += edges_quadratic[i, i] * density(wf_state[2], i)
                 continue

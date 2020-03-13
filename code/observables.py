@@ -5,7 +5,7 @@ import auxiliary_field
 from numba import jit
 import os
 from collections import OrderedDict
-
+from opt_parameters import waves
 
 try:
     import cupy as cp
@@ -30,7 +30,11 @@ class Observables:
         self.init_light_log_file()
         self.init_heavy_logs_files()
 
-        self.data_gfs = []
+        self.gfs_data = []
+        self.gfs_equal_data = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2))
+        self.num_equal = 0
+        self.global_average_sign = []
+
         return
         
     def init_light_log_file(self):
@@ -73,12 +77,13 @@ class Observables:
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
-        chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt // 2)
+        chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt)
+
+        self.num_chi_samples = 0
         for gap_name in self.config.pairings_list_names:
             self.gap_observables_list[gap_name + '_D1'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D1
             self.gap_observables_list[gap_name + '_D2'] = np.zeros(chi_shape) + 0.0j  # susceptibility part D2
             self.gap_observables_list[gap_name + '_C'] = np.zeros(chi_shape) + 0.0j  # susceptibility part C
-            self.num_chi_samples = 0
 
             self.gap_observables_list[gap_name + '_chi'] = []
             self.gap_observables_list[gap_name + '_chi_total'] = []
@@ -96,13 +101,20 @@ class Observables:
         return
 
     def refresh_light_logs(self):
+        self.names_waves = []
+
+        if self.config.n_orbitals == 2 and self.config.n_sublattices == 2:
+            self.names_waves = ['⟨SDW_l⟩', '⟨SDW_o⟩', '⟨SDW_lo⟩', '⟨CDW_l⟩', '⟨CDW_o⟩', '⟨CDW_lo⟩']
+
         self.log_file.flush()
         self.light_observables_list = OrderedDict({
             '⟨density⟩' : [], 
             '⟨E_K⟩' : [], 
             '⟨E_C⟩' : [],
-            '⟨E_T⟩' : []
+            '⟨E_T⟩' : [],
         })
+        for name in self.names_waves:
+            self.light_observables_list[name] = []
 
         self.light_signs_history = []
 
@@ -124,7 +136,7 @@ class Observables:
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
-            np.mean(self.sign_history),
+            np.mean(self.global_average_sign),
             np.mean(self.light_observables_list['⟨density⟩']),
             np.mean(self.light_observables_list['⟨E_K⟩']),
             np.mean(self.light_observables_list['⟨E_C⟩']),
@@ -134,15 +146,26 @@ class Observables:
 
     def measure_light_observables(self, phi, current_det_sign):
         self.light_signs_history.append(current_det_sign)
+        self.gfs_equal_data += (phi.current_G_function_up + phi.current_G_function_down) / 2.
+        
+        # print(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)), '!!!')
+        # assert np.abs(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)) - 18.) < 1e-4
+        self.num_equal += 1
 
         k = kinetic_energy(phi).item()
         C = Coloumb_energy(phi)
         density = total_density(phi).item()
 
+        if self.config.n_orbitals == 2 and self.config.n_sublattices == 2:
+            waves = waves_twoorb_hex(phi)
+
         self.light_observables_list['⟨density⟩'].append(density)
         self.light_observables_list['⟨E_K⟩'].append(k)
         self.light_observables_list['⟨E_C⟩'].append(C)
         self.light_observables_list['⟨E_T⟩'].append(k + C)
+        for name, wave in zip(self.names_waves, waves):
+            self.light_observables_list[name].append(wave)
+
         return
 
     def signs_avg(self, array, signs):
@@ -163,21 +186,36 @@ class Observables:
 
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
         self.log_file.flush()
+        self.global_average_sign.append(np.mean(signs))
         self.refresh_light_logs()
         return
-
-
-
 
     def measure_heavy_observables(self, phi, current_det_sign):
         self.heavy_signs_history.append(current_det_sign)
 
         adj_list_density = self.config.adj_list[:self.config.n_adj_density]  # on-site and nn
         phi.copy_to_GPU()
-        GFs_up = phi.get_nonequal_time_GFs(+1.0)
-        GFs_down = phi.get_nonequal_time_GFs(-1.0)
+        # phi.refresh_all_decompositions()
+        # phi.refresh_G_functions()
+        phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]
+        phi.current_G_function_down = phi.get_G_no_optimisation(-1, -1)[0]
+        G_up0 = phi.current_G_function_up
+        G_down0 = phi.current_G_function_down
+        GFs_up = phi.get_nonequal_time_GFs(+1.0, G_up0)
+        GFs_down = phi.get_nonequal_time_GFs(-1.0, G_down0)
         phi.copy_to_CPU()
 
+        adj = self.config.adj_list[0][0]
+        gfs_up = np.array([np.sum(gf_up * adj * current_det_sign) / np.sum(adj) for gf_up in GFs_up])
+        gfs_down = np.array([np.sum(gf_down * adj * current_det_sign) / np.sum(adj) for gf_down in GFs_down])
+        
+        self.gfs_data.append((gfs_up + gfs_down) / 2.)
+        print((gfs_up[0] + gfs_down[0]) / 2., np.mean(np.diag(G_up0 + G_down0)) / 2.)
+        for i in range(len(GFs_up)):
+            print(np.array(self.gfs_data)[:, i].mean() / np.mean(self.heavy_signs_history), i)
+
+        for adj in self.config.adj_list:
+            print(np.sum(self.gfs_equal_data * adj[0]) / np.sum(adj[0]) / self.num_equal, adj[3], np.sum(adj[0]))
 
         self.num_chi_samples += 1
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
@@ -188,15 +226,13 @@ class Observables:
 
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
                 averaged_correlator = 0.0 + 0.0j
-                c_total = 0
                 r = self.config.adj_list[r_index][-1]
                 adj = np.zeros(self.config.adj_list[r_index][0].shape)
                 for adj_o1o2 in self.config.adj_list[r_index:r_index + self.config.n_adj_pairings]:
-                    adj += adj_o1o2[0]
-
-                averaged_correlator, c_total = gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
-                                                                  pairing_unwrapped, adj)
-                self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)].append(averaged_correlator.real / c_total)
+                    corr, c = gap_gap_correlator(phi.current_G_function_up, phi.current_G_function_down, \
+                                                                      pairing_unwrapped, adj_o1o2[0])
+                    averaged_correlator += np.abs(corr) / c
+                self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)].append(averaged_correlator.real)
 
         for adj in adj_list_density:
             self.density_corr_list["n_up_n_down_({:d}/{:d}/{:.2f})".format(*adj[1:])].append(n_up_n_down_correlator(phi, adj[0]).item())
@@ -249,8 +285,8 @@ def total_density(phi_field):
 # this is currently only valid for the Sorella simplest model
 def kinetic_energy(phi_field, K_matrix):
     A = np.abs(K_matrix) > 1e-6
-    G_function_up = phi_field.get_current_G_function(+1.0)
-    G_function_down = phi_field.get_current_G_function(-1.0)
+    G_function_up = phi_field.current_G_function_up
+    G_function_down = phi_field.current_G_function_down
 
     K_mean = phi_field.config.main_hopping * xp.einsum('ij,ji', G_function_up + G_function_down, A) / (phi_field.config.total_dof // 2)
     return K_mean
@@ -336,7 +372,6 @@ def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj)
                                   = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} G^{down}(l, j) G^{up}_{k, i}
                                   (i ~ j | k ~ l)_{delta}, (i ~ k)_{adj}
     '''
-
     G_function_up = current_G_function_up + 0.0j
     G_function_down = current_G_function_down + 0.0j
     adj_complex = adj + 0.0j
@@ -355,11 +390,11 @@ def corr_fix_tau(G_up, G_down, gap):
 
 
 def susceptibility_local(phi, gap, GFs_up, GFs_down): 
-    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
-    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
-    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up) // 2), dtype = np.complex128)
+    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
+    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
+    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
 
-    for i in range(len(GFs_up) // 2):
+    for i in range(len(GFs_up)):
         D1, D2, C = corr_fix_tau(GFs_up[i] + 0.0j, GFs_down[i] + 0.0j, gap)  # 0.0j for jit complex
         D_1_total[..., i] = D1; D_2_total[..., i] = D2; C_total[..., i] = C
     
@@ -383,3 +418,20 @@ def Coloumb_energy(phi):
                                                       / G_function_up.shape[0]
 
     return energy_coloumb
+
+def waves_twoorb_hex(phi):
+    dl_up = phi.la.diag(phi.current_G_function_up)  # local density
+    dl_down = phi.la.diag(phi.current_G_function_down)
+
+    Ax = waves.construct_wave_V(phi.config, 0, 0, wave_type = 'none')[0] > 0.5
+    Bx = waves.construct_wave_V(phi.config, 0, 1, wave_type = 'none')[0] > 0.5
+    Ay = waves.construct_wave_V(phi.config, 1, 0, wave_type = 'none')[0] > 0.5
+    By = waves.construct_wave_V(phi.config, 1, 1, wave_type = 'none')[0] > 0.5
+    sdw_l = phi.la.mean((dl_up[Ax] + dl_up[Ay] - dl_up[Bx] - dl_up[By]) - (dl_down[Ax] + dl_down[Ay] - dl_down[Bx] - dl_down[By])) ** 2
+    sdw_o = phi.la.mean((dl_up[Ax] + dl_up[Bx] - dl_up[Ay] - dl_up[By]) - (dl_down[Ax] + dl_down[Bx] - dl_down[Ay] - dl_down[By])) ** 2
+    sdw_lo = phi.la.mean((dl_up[Ax] + dl_up[By] - dl_up[Ay] - dl_up[Bx]) - (dl_down[Ax] + dl_down[By] - dl_down[Ay] - dl_down[Bx])) ** 2
+
+    cdw_l = phi.la.mean((dl_up[Ax] + dl_up[Ay] - dl_up[Bx] - dl_up[By]) + (dl_down[Ax] + dl_down[Ay] - dl_down[Bx] - dl_down[By])) ** 2
+    cdw_o = phi.la.mean((dl_up[Ax] + dl_up[Bx] - dl_up[Ay] - dl_up[By]) + (dl_down[Ax] + dl_down[Bx] - dl_down[Ay] - dl_down[By])) ** 2
+    cdw_lo = phi.la.mean((dl_up[Ax] + dl_up[By] - dl_up[Ay] - dl_up[Bx]) + (dl_down[Ax] + dl_down[By] - dl_down[Ay] - dl_down[Bx])) ** 2
+    return sdw_l, sdw_o, sdw_lo, cdw_l, cdw_o, cdw_lo

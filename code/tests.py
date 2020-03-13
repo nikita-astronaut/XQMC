@@ -161,7 +161,7 @@ def test_single_move_check(config):
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
-    while n_agreed < 5:
+    for _ in range(200):
         L = len(wf.state) // 2
         i, j = np.random.randint(0, 2 * L, size = 2)
 
@@ -174,11 +174,39 @@ def test_single_move_check(config):
             continue
         wf.perform_explicit_GF_update()
         final_ampl = wf.current_ampl
+        final_ampl_solid = wf.get_cur_Jastrow_factor() * wf.get_cur_det()
 
-        if np.isclose(final_ampl / initial_ampl, ratio_fast):
+        if np.isclose(final_ampl / initial_ampl, ratio_fast) and np.isclose(final_ampl_solid, final_ampl):
             n_agreed += 1
         else:
             print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
+            n_failed += 1
+            success = False
+    if n_failed == 0:
+        print('Passed')
+    else:
+        print('Failed on samples:', n_failed)
+
+    return success
+
+def test_delayed_updates_check(config):
+    success = True
+    print('Testing delayed updates')
+    n_agreed = 0
+    n_failed = 0
+    wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+    for _ in range(200):
+        initial_ampl = wf.current_ampl
+        for step in range(10):
+            wf.perform_MC_step()
+        wf.perform_explicit_GF_update()
+        final_ampl = wf.current_ampl
+        final_ampl_solid = wf.get_cur_Jastrow_factor() * wf.get_cur_det()
+
+        if np.isclose(final_ampl_solid, final_ampl):
+            n_agreed += 1
+        else:
+            print('Delayed updates test failed:', final_ampl, final_ampl_solid)
             n_failed += 1
             success = False
     if n_failed == 0:
@@ -290,6 +318,7 @@ def perform_all_tests(config):
     success = success and test_explicit_factors_check(config)
     success = success and test_double_move_check(config)
     success = success and test_single_move_check(config)
+    success = success and test_delayed_updates_check(config)
     success = success and test_onsite_gf_is_density_check(config)
     success = success and test_numerical_derivative_check(config)
     return success
