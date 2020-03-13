@@ -17,7 +17,9 @@ def construct_wave_V(config, orbital, sublattice, wave_type):
 
     if wave_type == 'SDW':
         return [np.kron(np.eye(2), dof_matrix) + 0.0j, wave_type + '-' + str(orbital) + '-' + str(sublattice)]
-    return [np.kron(np.diag([1, -1]), dof_matrix) + 0.0j, wave_type + '-' + str(orbital) + '-' + str(sublattice)]
+    if wave_type == 'CDW':
+        return [np.kron(np.diag([1, -1]), dof_matrix) + 0.0j, wave_type + '-' + str(orbital) + '-' + str(sublattice)]
+    return [np.diag(dof_matrix), str(orbital) + '-' + str(sublattice)]
 
 SDW_2orb = None
 CDW_2orb = None
