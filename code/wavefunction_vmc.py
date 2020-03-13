@@ -75,7 +75,7 @@ class wavefunction_singlet():
 
 
         ### random numbers for random moves ###
-        self._rnd_size = 10000
+        self._rnd_size = 20000
         self._refresh_rnd()
 
         self.accepted = 0
@@ -212,13 +212,14 @@ class wavefunction_singlet():
 
     def perform_MC_step(self, proposed_move = None, enforce = False):
         self.MC_step_index += 1
-        if self.MC_step_index % self._rnd_size == 0:
-            self._refresh_rnd()        
+        rnd_index = self.MC_step_index % self._rnd_size
+        #if ind_index == 0:
+        #    self._refresh_rnd()        
 
         if proposed_move == None:
-            moved_site_idx = self.random_numbers_move[self.MC_step_index % self._rnd_size]
+            moved_site_idx = self.random_numbers_move[rnd_index]
             moved_site = self.occupied_sites[moved_site_idx]
-            empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[self.MC_step_index % self._rnd_size]]
+            empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[rnd_index]]
         else:  # only in testmode
             moved_site, empty_site = proposed_move
             moved_site_idx = self.place_in_string[moved_site]
@@ -229,18 +230,18 @@ class wavefunction_singlet():
             self.rejected_filled += 1
             return False, 1, 1, moved_site, empty_site
 
-        t = time()
+        # t = time()
         det_ratio = self.W_GF[empty_site, moved_site_idx] + np.dot(self.a_update_list[empty_site, :self.n_stored_updates],
                                                                    self.b_update_list[moved_site_idx, :self.n_stored_updates])
         Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, \
                                           self.var_f, moved_site, empty_site)
 
-        self.wf += time() - t
+        # self.wf += time() - t
         if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index % self._rnd_size]:
             self.rejected_factor += 1
             return False, 1, 1, moved_site, empty_site
         self.accepted += 1
-        t = time()
+        # t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
         self.current_det *= det_ratio
         self.occupied_sites[moved_site_idx] = empty_site
@@ -268,7 +269,7 @@ class wavefunction_singlet():
         if self.n_stored_updates == self.config.n_delayed_updates:
             self.perform_explicit_GF_update()
 
-        self.update += time() - t 
+        # self.update += time() - t 
         return True, det_ratio, Jastrow_ratio, moved_site, empty_site
 
     def perform_explicit_GF_update(self):
