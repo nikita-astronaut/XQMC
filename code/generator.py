@@ -104,7 +104,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, o_index)
                  
-                if not GF_checked:
+                if False:#not GF_checked:
                     G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                     G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
 
@@ -115,15 +115,17 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
 
                     if np.abs(d_gf_up) > 1e-8 or np.abs(d_gf_down) > 1e-8:
                         print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
-                    print(det_log_up_check + det_log_down_check + current_det_log, current_det_log)  # FIXME
+                    # print(det_log_up_check + det_log_down_check + current_det_log, current_det_log)  # FIXME
             else:
                 ratio = 0
                 accepted = 0
             observables.update_history(ratio, accepted, current_det_sign)
         observables.measure_light_observables(phi_field, current_det_sign.item())
-
+    
     if n_sweep >= phi_field.config.thermalization and n_sweep % phi_field.config.n_print_frequency == 0:
+        t = time()
         observables.measure_heavy_observables(phi_field, current_det_sign.item())
+        print('measurement takes ', time() - t)
     return phi_field, observables
 
 
@@ -153,7 +155,9 @@ if __name__ == "__main__":
 
         for n_sweep in range(config.n_sweeps):
             accept_history = []
+            t = time()
             phi_field, observables = perform_sweep(phi_field, observables, n_sweep)
+            print('total sweep takes ', time() - t)
             phi_field.save_configuration()
             observables.print_std_logs(n_sweep)
             observables.write_light_observables(phi_field.config, n_sweep)

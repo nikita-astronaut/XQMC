@@ -158,6 +158,8 @@ class Observables:
 
         if self.config.n_orbitals == 2 and self.config.n_sublattices == 2:
             waves = waves_twoorb_hex(phi)
+        else:
+            waves = []
 
         self.light_observables_list['⟨density⟩'].append(density)
         self.light_observables_list['⟨E_K⟩'].append(k)
@@ -192,17 +194,16 @@ class Observables:
 
     def measure_heavy_observables(self, phi, current_det_sign):
         self.heavy_signs_history.append(current_det_sign)
-
+        t = time()
         adj_list_density = self.config.adj_list[:self.config.n_adj_density]  # on-site and nn
         phi.copy_to_GPU()
-        # phi.refresh_all_decompositions()
-        # phi.refresh_G_functions()
+        
         phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]
         phi.current_G_function_down = phi.get_G_no_optimisation(-1, -1)[0]
         G_up0 = phi.current_G_function_up
         G_down0 = phi.current_G_function_down
-        GFs_up = phi.get_nonequal_time_GFs(+1.0, G_up0)
-        GFs_down = phi.get_nonequal_time_GFs(-1.0, G_down0)
+        GFs_up = np.array(phi.get_nonequal_time_GFs(+1.0, G_up0))
+        GFs_down = np.array(phi.get_nonequal_time_GFs(-1.0, G_down0))
         phi.copy_to_CPU()
 
         adj = self.config.adj_list[0][0]
@@ -219,7 +220,7 @@ class Observables:
 
         self.num_chi_samples += 1
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            D1, D2, C = susceptibility_local(phi, pairing_unwrapped, GFs_up, GFs_down)
+            D1, D2, C = susceptibility_local(pairing_unwrapped, GFs_up + 0.0j, GFs_down + 0.0j)
             self.gap_observables_list[gap_name + '_D1'] += D1 * current_det_sign
             self.gap_observables_list[gap_name + '_D2'] += D2 * current_det_sign
             self.gap_observables_list[gap_name + '_C'] += C * current_det_sign
@@ -233,7 +234,6 @@ class Observables:
                                                                       pairing_unwrapped, adj_o1o2[0])
                     averaged_correlator += np.abs(corr) / c
                 self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)].append(averaged_correlator.real)
-
         for adj in adj_list_density:
             self.density_corr_list["n_up_n_down_({:d}/{:d}/{:.2f})".format(*adj[1:])].append(n_up_n_down_correlator(phi, adj[0]).item())
     
@@ -386,17 +386,18 @@ def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj)
 def corr_fix_tau(G_up, G_down, gap):
     D_1 = np.conj(gap).dot(G_down).dot(gap.T)
     C = G_up * D_1
-    return D_1, G_up, C
+    return D_1, C
 
 
-def susceptibility_local(phi, gap, GFs_up, GFs_down): 
-    D_1_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
-    D_2_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
-    C_total = np.zeros((GFs_up[0].shape[0], GFs_up[0].shape[1], len(GFs_up)), dtype = np.complex128)
+@jit(nopython=True)
+def susceptibility_local(gap, GFs_up, GFs_down): 
+    D_1_total = np.zeros((GFs_up.shape[1], GFs_up.shape[2], GFs_up.shape[0]), dtype = np.complex128)
+    D_2_total = np.zeros((GFs_up.shape[1], GFs_up.shape[2], GFs_up.shape[0]), dtype = np.complex128)
+    C_total = np.zeros((GFs_up.shape[1], GFs_up.shape[2], GFs_up.shape[0]), dtype = np.complex128)
 
-    for i in range(len(GFs_up)):
-        D1, D2, C = corr_fix_tau(GFs_up[i] + 0.0j, GFs_down[i] + 0.0j, gap)  # 0.0j for jit complex
-        D_1_total[..., i] = D1; D_2_total[..., i] = D2; C_total[..., i] = C
+    for i in range(GFs_up.shape[0]):
+        D1, C = corr_fix_tau(GFs_up[i, ...], GFs_down[i, ...], gap)  # 0.0j for jit complex
+        D_1_total[..., i] = D1; D_2_total[..., i] = GFs_up[i, ...]; C_total[..., i] = C
     
     norm = np.sum(np.abs(gap) > 0)
     return D_1_total / np.sqrt(norm), D_2_total / np.sqrt(norm), C_total / norm
