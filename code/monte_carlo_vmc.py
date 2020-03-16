@@ -345,7 +345,7 @@ if __name__ == "__main__":
         if config_vmc.n_sublattices == 2:
             twists = [[np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))] for _ in range(config_vmc.n_chains)]
         if config_vmc.n_sublattices == 1:
-            twists = [[1., 1.] for _ in range(config_vmc.n_chains)] # FIXME
+            twists = [[1., -1.] for _ in range(config_vmc.n_chains)] # FIXME
         twists_per_cpu = config_vmc.n_chains / n_cpus
     elif config_vmc.twist_mesh == 'PBC':
         twists = [[1., 1.] for _ in range(config_vmc.n_chains)]
