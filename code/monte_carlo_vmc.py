@@ -77,7 +77,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
         print(np.diag(S_cov_theta))
         for val, vec in zip(eigvals, eigvecs.T):
             if np.abs(val) < 1e-6:
-                print('redundant parameter?', twist, val, vec, flush = True)
+                print('redundant parameter?', twist, val, vec)
 
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     
@@ -243,13 +243,13 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
   
     hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
 
-    
+    ''' 
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)
     else:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, True, final_state)
-    
-    # wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)  # always start with bare configuration
+    '''
+    wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)  # always start with bare configuration
     t_steps = 0
     t = time()
     if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
@@ -301,7 +301,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
         t_steps += time() - t
     print('t_chain = ', time() - tc)
     print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
-    print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor), flush = True)
+    print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
     return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E, densities
 
 if __name__ == "__main__":
@@ -343,7 +343,7 @@ if __name__ == "__main__":
     if config_vmc.twist_mesh == 'Baldereschi':
         print('Working with the Baldereschi mesh')
         if config_vmc.n_sublattices == 2:
-            twists = [[np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * 0.1904)] for _ in range(config_vmc.n_chains)]
+            twists = [[np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))] for _ in range(config_vmc.n_chains)]
         if config_vmc.n_sublattices == 1:
             twists = [[1., 1.] for _ in range(config_vmc.n_chains)] # FIXME
         twists_per_cpu = config_vmc.n_chains / n_cpus
@@ -396,6 +396,7 @@ if __name__ == "__main__":
 
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
+    spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
     final_states = [False] * config_vmc.n_chains
 
 
@@ -420,6 +421,11 @@ if __name__ == "__main__":
                 parameters, twists[i], final_states[i]) for i in range(config_vmc.n_chains))
         print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
         t = time() 
+
+        ### print-out current energy levels ###
+        E = results[0][7]
+        spectral_file.write(("{:.7f} " * len(E) + '\n').format(*E))
+        spectral_file.flush()
         ### MC chains data extraction ###
         gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities = \
             extract_MC_data(results, config_vmc, config_vmc.n_chains)
@@ -435,7 +441,7 @@ if __name__ == "__main__":
             write_intermediate_log(log_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, parameters)  # write parameters before step not to lose the initial values
 
-            step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
+            # step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
 
             mask = np.ones(len(step))
             if n_step < 100:  # jastrows have not converged yet
