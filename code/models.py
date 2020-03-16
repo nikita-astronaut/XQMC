@@ -144,7 +144,7 @@ def _model_hex_1orb(Ls, twist, mu, spin):
     t1 = 1.
     n_orbitals = 1
     n_sublattices = 2
-    total_dof = config.Ls ** 2 * n_orbitals * n_sublattices * 2
+    total_dof = Ls ** 2 * n_orbitals * n_sublattices * 2
     K = np.zeros((total_dof // 2, total_dof // 2)) * 1.0j
     for first in range(total_dof // 2):
         for second in range(total_dof // 2):

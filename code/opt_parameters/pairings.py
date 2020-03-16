@@ -301,11 +301,11 @@ def construct_1orb_hex(config, real = True):
     print('Testing the A1_N_singlet properties')
     [check_irrep_properties(config, A1_N_singlet[i:i + 1]) for i in range(len(A1_N_singlet))]
 
-    A2_N_triplet = [
+    A2_N_singlet = [
         [(Zpauli, identity, onsite, 1), factor, addstring + 'S_zxIxδ'],
     ]
-    print('Testing the A2_N_triplet properties')
-    [check_irrep_properties(config, A2_N_triplet[i:i + 1]) for i in range(len(A2_N_triplet))]
+    print('Testing the A2_N_singlet properties')
+    [check_irrep_properties(config, A2_N_singlet[i:i + 1]) for i in range(len(A2_N_singlet))]
 
     A1_NN_singlet = [
         [(Xpauli, identity, v1, 1.0), factor, addstring + '(S_x)xIxv_1'],
@@ -324,15 +324,15 @@ def construct_1orb_hex(config, real = True):
         [(Xpauli, identity, v3, 1.0), factor, addstring + '(S_x)xIxv_3']
     ]
     print('Testing the E_NN_singlet properties')
-    [check_irrep_properties(config, E_NN_singlet[i:i + 1]) for i in range(len(E_NN_singlet))]
+    [check_irrep_properties(config, E_NN_singlet[i:i + 2]) for i in range(len(E_NN_singlet) // 2)]
 
     E_NN_triplet = [
         [(iYpauli, identity, v2, 1.0), factor, addstring + '(iS_y)xIxv_2'],
         [(iYpauli, identity, v3, 1.0), factor, addstring + '(iS_y)xIxv_3']
     ]
     print('Testing the E_NN_triplet properties')
-    [check_irrep_properties(config, E_NN_triplet[i:i + 1]) for i in range(len(E_NN_triplet))]
-    return A1_N_singet, A2_N_triplet, A1_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet
+    [check_irrep_properties(config, E_NN_triplet[i:i + 2]) for i in range(len(E_NN_triplet) // 2)]
+    return A1_N_singlet, A2_N_singlet, A1_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet
 
 
 def construct_on_site_1orb_square(config, real = True):
@@ -342,14 +342,12 @@ def construct_on_site_1orb_square(config, real = True):
         factor = 1.0j
         addstring = 'j'
 
-    onsite = construct_onsite_delta(config)
-    on_site = []
-    on_site.append([(identity, identity, onsite, 1), factor, addstring + 'IxIxδ'])  # A1 0
+    
 
     return on_site
 
 
-def construct_NN_1orb_square(config, real = True):
+def construct_1orb_square(config, real = True):
     factor = 1.0
     addstring = ''
     if not real:
@@ -364,36 +362,66 @@ def construct_NN_1orb_square(config, real = True):
     v3 = construct_vi_square(3)
     v4 = construct_vi_square(4)
 
-    NN = []
+    onsite = construct_onsite_delta(config)
+    
+    A1_N_singlet = [
+        [(identity, identity, onsite, 1), factor, addstring + 'IxIxδ'],
+    ]
+    print('Testing the A1_N_singlet properties')
+    [check_irrep_properties(config, A1_N_singlet[i:i + 1]) for i in range(len(A1_N_singlet))]
 
-    NN.append([(identity, identity, v1, 1.0), factor, addstring + 'IxIxv_1'])  # A1 (A1 x A1 x A1) 0
-    NN.append([(identity, identity, v4, 1.0), factor, addstring + 'IxIxv_4'])  # B2 (A1 x A1 x A2) 1
+    A1_NN_singlet = [
+        [(identity, identity, v1, 1.0), factor, addstring + 'IxIxv_1'],
+    ]
+    print('Testing the A1_NN_singlet properties')
+    [check_irrep_properties(config, A1_NN_singlet[i:i + 1]) for i in range(len(A1_NN_singlet))]
 
-    NN.append([(identity, identity, v2, 1.0), factor, addstring + 'IxIxv_2']); NN.append([(identity, identity, v3, 1.0), factor, addstring + 'IxIxv_3'])  # E (A1 x A1 x E) 2-3
-    return NN
+    A2_NN_singlet = [
+        [(identity, identity, v4, 1.0), factor, addstring + 'IxIxv_4'],
+    ]
+    print('Testing the A1_NN_singlet properties')
+    [check_irrep_properties(config, A2_NN_singlet[i:i + 1]) for i in range(len(A2_NN_singlet))]
+
+    E_NN_triplet = [
+        [(identity, identity, v2, 1.0), factor, addstring + 'IxIxv_2'],
+        [(identity, identity, v3, 1.0), factor, addstring + 'IxIxv_3'],
+    ]
+    print('Testing the E_NN_triplet properties')
+    [check_irrep_properties(config, E_NN_triplet[i:i + 2]) for i in range(len(E_NN_triplet) // 2)]
+    return A1_N_singlet, A1_NN_singlet, A2_NN_singlet, E_NN_triplet
 
 
 def get_C2y_symmetry_map(config):
-    assert config.n_orbitals == 2 and config.n_sublattices == 2
-    geometry = 'hexagonal'
+    if config.n_sublattices == 2:
+        geometry = 'hexagonal'
+    else:
+        geometry = 'square'
 
     mapping = np.zeros((config.total_dof // 2, config.total_dof // 2)) + 0.0j  # trivial mapping
 
     for preindex in range(config.total_dof // 2):
-        orbit_preimage, sublattice_preimage, x_preimage, y_preimage = models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
+        orbit_preimage, sublattice_preimage, x_preimage, y_preimage = \
+            models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
 
         orbit_image = orbit_preimage
-        coefficient = -1.0 if orbit_image == 0 else 1.0
+        if config.n_orbitals == 2:
+            coefficient = -1.0 if orbit_image == 0 else 1.0
+        else:
+            coefficient = 1.0
 
         r_preimage = np.array(models.lattice_to_physical([x_preimage, y_preimage, sublattice_preimage], geometry))
-        r_preimage -= np.array([1. / np.sqrt(3) / 2, 0.0])
-        r_image = np.array([-r_preimage[0], r_preimage[1]]) + np.array([1. / np.sqrt(3) / 2, 0.0])
+        if geometry == 'hexagonal':
+            r_preimage -= np.array([1. / np.sqrt(3) / 2, 0.0])
+            r_image = np.array([-r_preimage[0], r_preimage[1]]) + np.array([1. / np.sqrt(3) / 2, 0.0])
+        else:
+            r_image = np.array([-r_preimage[0], r_preimage[1]])
 
         x_image, y_image, sublattice_image = models.physical_to_lattice(r_image, geometry)
         x_image = int(np.rint(x_image)); y_image = int(np.rint(y_image))
         x_image = (x_image % config.Ls); y_image = (y_image % config.Ls)
         
-        index = models.to_linearized_index(x_image, y_image, sublattice_image, orbit_image, config.Ls, config.n_orbitals, config.n_sublattices)
+        index = models.to_linearized_index(x_image, y_image, sublattice_image, orbit_image, \
+                                           config.Ls, config.n_orbitals, config.n_sublattices)
 
         mapping[preindex, index] += coefficient
 
@@ -401,20 +429,25 @@ def get_C2y_symmetry_map(config):
     return mapping + 0.0j
 
 def get_C3z_symmetry_map(config):
-    assert config.n_orbitals == 2 and config.n_sublattices == 2
+    assert config.n_sublattices == 2
     geometry = 'hexagonal'
 
     mapping = np.zeros((config.total_dof // 2, config.total_dof // 2)) + 0.0j  # trivial mapping
-
-    rotation_matrix = np.array([[np.cos(2 * np.pi / 3.), np.sin(2 * np.pi / 3.)], [-np.sin(2 * np.pi / 3.), np.cos(2 * np.pi / 3.)]])
+    rotation_matrix = np.array([[np.cos(2 * np.pi / 3.), np.sin(2 * np.pi / 3.)], \
+                                [-np.sin(2 * np.pi / 3.), np.cos(2 * np.pi / 3.)]])
+    if config.n_orbitals == 2:
+        rotation_matrix_orbital = rotation_matrix
+    else:
+        rotation_matrix_orbital = np.eye(1)
 
     for preindex in range(config.total_dof // 2):
-        orbit_preimage, sublattice_preimage, x_preimage, y_preimage = models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
+        orbit_preimage, sublattice_preimage, x_preimage, y_preimage = \
+            models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
 
-        orbit_preimage_vector = np.zeros(2); orbit_preimage_vector[orbit_preimage] = 1.
+        orbit_preimage_vector = np.zeros(config.n_orbitals); orbit_preimage_vector[orbit_preimage] = 1.
         r_preimage = models.lattice_to_physical([x_preimage, y_preimage, sublattice_preimage], geometry)
 
-        orbit_image_vector = np.einsum('ij,j->i', rotation_matrix, orbit_preimage_vector)
+        orbit_image_vector = np.einsum('ij,j->i', rotation_matrix_orbital, orbit_preimage_vector)
 
         r_image = np.einsum('ij,j->i', rotation_matrix, r_preimage)
         
@@ -423,22 +456,65 @@ def get_C3z_symmetry_map(config):
         x_image = int(np.rint(x_image)); y_image = int(np.rint(y_image))
         x_image = (x_image % config.Ls); y_image = (y_image % config.Ls)
 
-        for orbit_image in range(2):
+        for orbit_image in range(config.n_orbitals):
             coefficient = orbit_image_vector[orbit_image]
-            index = models.to_linearized_index(x_image, y_image, sublattice_image, orbit_image, config.Ls, config.n_orbitals, config.n_sublattices)
+            index = models.to_linearized_index(x_image, y_image, sublattice_image, orbit_image, \
+                                               config.Ls, config.n_orbitals, config.n_sublattices)
             mapping[preindex, index] += coefficient
     assert np.sum(np.abs(mapping.dot(mapping).dot(mapping) - np.eye(mapping.shape[0]))) < 1e-5  # C_3z^3 = I
+    return mapping + 0.0j
+
+
+def get_C4z_symmetry_map(config):
+    assert config.n_sublattices == 1
+    geometry = 'square'
+
+    mapping = np.zeros((config.total_dof // 2, config.total_dof // 2)) + 0.0j  # trivial mapping
+    rotation_matrix = np.array([[np.cos(2 * np.pi / 4.), np.sin(2 * np.pi / 4.)], \
+                                [-np.sin(2 * np.pi / 4.), np.cos(2 * np.pi / 4.)]])
+    if config.n_orbitals == 2:
+        rotation_matrix_orbital = rotation_matrix
+    else:
+        rotation_matrix_orbital = np.eye(1)
+
+    for preindex in range(config.total_dof // 2):
+        orbit_preimage, sublattice_preimage, x_preimage, y_preimage = \
+            models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
+
+        orbit_preimage_vector = np.zeros(config.n_orbitals); orbit_preimage_vector[orbit_preimage] = 1.
+        r_preimage = models.lattice_to_physical([x_preimage, y_preimage, sublattice_preimage], geometry)
+
+        orbit_image_vector = np.einsum('ij,j->i', rotation_matrix_orbital, orbit_preimage_vector)
+
+        r_image = np.einsum('ij,j->i', rotation_matrix, r_preimage)
+        
+        x_image, y_image, sublattice_image = models.physical_to_lattice(r_image, geometry)
+
+        x_image = int(np.rint(x_image)); y_image = int(np.rint(y_image))
+        x_image = (x_image % config.Ls); y_image = (y_image % config.Ls)
+
+        for orbit_image in range(config.n_orbitals):
+            coefficient = orbit_image_vector[orbit_image]
+            index = models.to_linearized_index(x_image, y_image, sublattice_image, orbit_image, \
+                                               config.Ls, config.n_orbitals, config.n_sublattices)
+            mapping[preindex, index] += coefficient
+    assert np.sum(np.abs(mapping.dot(mapping).dot(mapping).dot(mapping) - np.eye(mapping.shape[0]))) < 1e-5  # C_4z^4 = I
     return mapping + 0.0j
 
 
 def check_irrep_properties(config, irrep):
     if not config.tests:
         return
-    assert config.n_orbitals == 2 and config.n_sublattices == 2
+
     for irr in irrep:
         print(check_parity(config, irr))
-    C2y = get_C2y_symmetry_map(config)
-    C3z = get_C3z_symmetry_map(config)
+
+    reflection = get_C2y_symmetry_map(config)
+
+    if config.n_sublattices == 2:
+        rotation = get_C3z_symmetry_map(config)
+    else:
+        rotation = get_C4z_symmetry_map(config)
 
     def norm_sc(b, a):
         return np.sum(a * b.conj()) / np.sum(np.abs(b ** 2))
@@ -448,14 +524,14 @@ def check_irrep_properties(config, irrep):
 
     for irr in irrep:
         gap = combine_product_terms(config, irr)
-        gap_image = (C2y).dot(gap).dot(C2y.T)
+        gap_image = (reflection).dot(gap).dot(reflection.T)
 
         norm = np.sum(np.abs(gap_image ** 2))
-
         gap_image = gap_image.flatten()
         for irr_decompose in irrep:
             gap_decompose = combine_product_terms(config, irr_decompose)
             coeff = norm_sc(gap_decompose.flatten(), gap_image)
+
             gap_image = gap_image - gap_decompose.flatten() * coeff
             norm = np.sum(np.abs(gap_image ** 2))
             if np.sum(np.abs(gap_image ** 2)) < 1e-5:
@@ -468,7 +544,7 @@ def check_irrep_properties(config, irrep):
 
     for irr in irrep:
         gap = combine_product_terms(config, irr)
-        gap_image = (C3z).dot(gap).dot(C3z.T)
+        gap_image = (rotation).dot(gap).dot(rotation.T)
         norm = np.sum(np.abs(gap_image ** 2))
 
         gap_image = gap_image.flatten()
@@ -502,17 +578,45 @@ twoorb_hex_A1_NN_singlet = None; twoorb_hex_A1_NN_triplet = None;
 twoorb_hex_A2_NN_singlet = None; twoorb_hex_A2_NN_triplet = None;
 twoorb_hex_E_NN_singlet = None; twoorb_hex_E_NN_triplet = None; 
 
+
+oneorb_hex_A1_N_singlet = None; oneorb_hex_A2_N_singlet = None; 
+oneorb_hex_A1_NN_singlet = None; oneorb_hex_A2_NN_triplet = None; 
+oneorb_hex_E_NN_singlet = None; oneorb_hex_E_NN_triplet = None;
+
+
+oneorb_square_A1_N_singlet = None; oneorb_square_A2_N_singlet = None; 
+oneorb_square_A1_NN_singlet = None; oneorb_square_A2_NN_triplet = None; 
+oneorb_square_E_NN_singlet = None; oneorb_square_E_NN_triplet = None;
+
+oneorb_square_A1_N_singlet = None; oneorb_square_A1_NN_singlet = None;
+oneorb_square_A2_NN_singlet = None; oneorb_square_E_NN_triplet = None;
+
 def obtain_all_pairings(config):
     global twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
            twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet
+    global oneorb_hex_A1_N_singlet, oneorb_hex_A2_N_singlet, oneorb_hex_A1_NN_singlet, oneorb_hex_A2_NN_triplet, \
+           oneorb_hex_E_NN_singlet, oneorb_hex_E_NN_triplet
+
+    global oneorb_square_A1_N_singlet, oneorb_square_A1_NN_singlet, oneorb_square_A2_NN_singlet, oneorb_square_E_NN_triplet
+
+
     if config.n_orbitals == 2 and config.n_sublattices == 2:
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
             twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
             twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet = construct_2orb_hex(config, real = True)
         return
+
+
     if config.n_orbitals == 1 and config.n_sublattices == 2:
-        oneorb_A1_N_singet, oneorb_A2_N_triplet, oneorb_A1_NN_singlet, oneorb_A2_NN_triplet, \
-            oneorb_E_NN_singlet, oneorb_E_NN_triplet = construct_1orb_hex(config, real = True)
+        oneorb_hex_A1_N_singlet, oneorb_hex_A2_N_singlet, oneorb_hex_A1_NN_singlet, oneorb_hex_A2_NN_triplet, \
+            oneorb_hex_E_NN_singlet, oneorb_hex_E_NN_triplet = construct_1orb_hex(config, real = True)
         return
+
+
+    if config.n_orbitals == 1 and config.n_sublattices == 1:
+        oneorb_square_A1_N_singlet, oneorb_square_A1_NN_singlet, oneorb_square_A2_NN_singlet, \
+            oneorb_square_E_NN_triplet = construct_1orb_square(config, real = True)
+        return
+
     return []

@@ -37,8 +37,8 @@ def obtain_all_waves(config):
                                       dof % config.n_sublattices, 'CDW') for dof in range(config.n_sublattices * config.n_orbitals)]
         return
     if config.n_orbitals == 1 and config.n_sublattices == 2:
-        SDW_1orb_hex = [construct_wave_V(config, 0, dof, 'SDW') for dof in config.n_sublattices]
-        CDW_1orb_hex = [construct_wave_V(config, 0, dof, 'CDW') for dof in config.n_sublattices]
+        SDW_1orb_hex = [construct_wave_V(config, 0, dof, 'SDW') for dof in range(config.n_sublattices)]
+        CDW_1orb_hex = [construct_wave_V(config, 0, dof, 'CDW') for dof in range(config.n_sublattices)]
         return
     if config.n_orbitals == 1 and config.n_sublattices == 1:
         SDW_1orb_square = [construct_wave_V(config, 0, 0, 'SDW')]

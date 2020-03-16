@@ -72,16 +72,31 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         return E_loc
 
 
-class hamiltonian_2bands(HubbardHamiltonian):
+class hamiltonian_1orb_shortrange(HubbardHamiltonian):
     def __init__(self, config):
         super().__init__(config)
-        self.edges_quadric = _get_interaction(self)
+        self.edges_quadric = self._get_interaction()
 
     def _get_interaction(self):
         # for V_{ij} n_i n_j density--density interactions
         edges_quadric = np.diag(np.ones(self.config.total_dof // 2) * self.config.U / 2.0)
-
         return edges_quadric
+
+    def __call__(self, wf):
+        '''
+            performs the summation 
+            E_loc(i) = \\sum_{j ~ i} H_{ij} \\psi_j / \\psi_i,
+            where j ~ i are the all indixes having non-zero matrix element with i H_{ij}
+        '''
+
+        E_loc = 0.0 + 0.0j
+        base_state = wf.state
+        density = base_state[:len(base_state) // 2] - base_state[len(base_state) // 2:]  # TODO: move that to T_C_Koshino
+
+        wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
+
+        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
+        return E_loc + 0.5 * self.config.U * np.sum(density ** 2)
 
 @jit(nopython=True)
 def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
