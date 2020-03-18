@@ -461,8 +461,8 @@ def measure_gfs_correlator(GF_up, GF_down, ijkl):
     idx = 0
 
     for xi in range(ijkl.shape[0]):
-        i, j, k, l = ijkl[xi, :]
-        C_ijkl[idx] = np.sum(GF_up[:, i, k] * GF_down[:, j, l])
+        i, j, k, l = ijkl[xi]
+        C_ijkl[xi] = np.sum(GF_up[:, i, k] * GF_down[:, j, l])
 
     return C_ijkl
 
