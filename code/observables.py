@@ -249,11 +249,14 @@ class Observables:
         GF_down_sum = np.sum(self.GF_down_stored, axis = 0)
 
         for gap, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+            norm = np.sum(gap != 0.0)  # N_alpha x N_s
+            N_alpha = np.sum(gap[0, :] != 0.0)
+
             total_chi = get_gap_susceptibility(gap, self.ijkl, self.C_ijkl) / (self.num_chi_samples * mean_signs)
             free_chi = np.sum([np.trace(GF_up_sum[tau, ...].dot(gap).dot(GF_down_sum[tau, ...].T).dot(gap.T.conj())) \
                                for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs) ** 2)
-            self.gap_observables_list[gap_name + '_chi'] = total_chi - free_chi
-            self.gap_observables_list[gap_name + '_chi_total'] = total_chi
+            self.gap_observables_list[gap_name + '_chi'] = (total_chi - free_chi) / norm
+            self.gap_observables_list[gap_name + '_chi_total'] = total_chi / norm
 
             corr_list = gap_gap_correlator(gap, self.ijkl, self.PHI_ijkl, self.adj_list_marking)
 
@@ -263,7 +266,7 @@ class Observables:
                 r = self.config.adj_list[r_index][-1]
                 
                 self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)] = \
-                    averaged_correlator / self.num_chi_samples / mean_signs
+                    averaged_correlator / self.num_chi_samples / mean_signs / N_alpha
             
         print('obtaining of gap corrs takes', time() - t)
         # for adj in adj_list_density:
