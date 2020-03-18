@@ -241,7 +241,7 @@ class Observables:
             self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], self.ijkl)
         print('measurement of C_ijkl, PHI_ijkl correlators takes', time() - t)
         self.GF_up_sum += np.sum(self.GF_up_stored[:self.cur_buffer_size, ...], axis = 0)
-        self.GF_down_sum += np.sum(self.GF_down_stored[:self.cur_buffer_size, ...], axis = 0)
+        self.GF_down_.real= np.sum(self.GF_down_stored[:self.cur_buffer_size, ...], axis = 0)
 
         self.cur_buffer_size = 0
         return
@@ -286,8 +286,8 @@ class Observables:
         gap_data = [n_sweep, np.mean(signs)]
 
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            gap_data.append(self.gap_observables_list[gap_name + '_chi']) # norm already accounted
-            gap_data.append(self.gap_observables_list[gap_name + '_chi_total'])
+            gap_data.append(self.gap_observables_list[gap_name + '_chi'].real) # norm already accounted
+            gap_data.append(self.gap_observables_list[gap_name + '_chi_total'].real)
 
             corr_data = [n_sweep, np.mean(signs)]
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
