@@ -41,9 +41,12 @@ class Observables:
         self.ijkl = np.array(get_idxs_list(self.reduced_A))
         self.C_ijkl = np.zeros(len(self.ijkl))
 
-        self.cur_buffer_size = 0; self.max_buffer_size = 5
+        self.cur_buffer_size = 0; self.max_buffer_size = 100
         self.GF_up_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
         self.GF_down_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+
+        self.GF_up_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        self.GF_down_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
 
         # for gap-gap correlator measurement
         self.PHI_ijkl = np.zeros(len(self.ijkl))
@@ -220,8 +223,8 @@ class Observables:
         GFs_down = np.array(phi.get_nonequal_time_GFs(-1.0, phi.current_G_function_down))
         phi.copy_to_CPU()
         
-        self.GF_up_stored[self.cur_buffer_size] = GFs_up * current_det_sign
-        self.GF_down_stored[self.cur_buffer_size] = GFs_down * current_det_sign
+        self.GF_up_stored[self.cur_buffer_size, ...] = GFs_up * current_det_sign
+        self.GF_down_stored[self.cur_buffer_size, ...] = GFs_down * current_det_sign
         print('obtaining of non-equal Gfs takes', time() - t)
 
         self.cur_buffer_size += 1
@@ -229,15 +232,20 @@ class Observables:
             self.refresh_gfs_buffer()
         return
 
+
     def refresh_gfs_buffer(self):
         t = time()
-        self.C_ijkl += measure_gfs_correlator(self.GF_up_stored, self.GF_down_stored, \
-            self.ijkl)
-        self.PHI_ijkl += measure_gfs_correlator(self.GF_up_stored[:, 0:1, ...], \
-            self.GF_down_stored[:, 0:1, ...], self.ijkl)
+        self.C_ijkl += measure_gfs_correlator(self.GF_up_stored[:self.cur_buffer_size, ...], \
+            self.GF_down_stored[:self.cur_buffer_size, ...], self.ijkl)
+        self.PHI_ijkl += measure_gfs_correlator(self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], \
+            self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], self.ijkl)
         print('measurement of C_ijkl, PHI_ijkl correlators takes', time() - t)
+        self.GF_up_sum += np.sum(self.GF_up_stored[:self.cur_buffer_size, ...], axis = 0)
+        self.GF_down_sum += np.sum(self.GF_down_stored[:self.cur_buffer_size, ...], axis = 0)
+
         self.cur_buffer_size = 0
         return
+
 
     def measure_heavy_observables(self, phi):
         self.refresh_gfs_buffer()
@@ -245,15 +253,12 @@ class Observables:
         mean_signs = np.mean(self.heavy_signs_history)
         # adj_list_density = self.config.adj_list[:self.config.n_adj_density]  # on-site and nn
 
-        GF_up_sum = np.sum(self.GF_up_stored, axis = 0)
-        GF_down_sum = np.sum(self.GF_down_stored, axis = 0)
-
         for gap, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             norm = np.sum(gap != 0.0)  # N_alpha x N_s
             N_alpha = np.sum(gap[0, :] != 0.0)
 
             total_chi = get_gap_susceptibility(gap, self.ijkl, self.C_ijkl) / (self.num_chi_samples * mean_signs)
-            free_chi = np.sum([np.trace(GF_up_sum[tau, ...].dot(gap).dot(GF_down_sum[tau, ...].T).dot(gap.T.conj())) \
+            free_chi = np.sum([np.trace(self.GF_up_sum[tau, ...].dot(gap).dot(self.GF_down_sum[tau, ...].T).dot(gap.T.conj())) \
                                for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs) ** 2)
             self.gap_observables_list[gap_name + '_chi'] = (total_chi - free_chi) / norm
             self.gap_observables_list[gap_name + '_chi_total'] = total_chi / norm
