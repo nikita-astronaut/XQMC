@@ -217,6 +217,18 @@ def get_adjacency_list(config):
     return adjacency_list, longest_distance
 
 
+def get_reduced_adjacency_matrix(config):
+    A = get_adjacency_list(config)[0]
+    reduced_A = np.zeros((config.total_dof // 2, config.total_dof // 2))
+
+    for adj in A:
+        if adj[-1] > config.max_square_pairing_distance + 1e-5:
+            continue
+        reduced_A += adj[0]
+
+    return np.array([np.where(reduced_A[i, :] > 0.5)[0] for i in range(reduced_A.shape[0])])
+
+
 @jit(nopython=True)
 def _model_square_1orb(Ls, twist, mu, spin):
     t1 = 1.

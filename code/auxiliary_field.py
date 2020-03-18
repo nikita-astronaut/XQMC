@@ -271,34 +271,6 @@ class AuxiliaryFieldIntraorbital:
         self.current_G_function_down = B_wrap_down.dot(self.current_G_function_down.dot(B_wrap_down_inverse))
 
         return
-    '''
-    def get_nonequal_time_GFs(self, spin):
-
-        current_GF = self.current_G_function_up if spin > 0 else self.current_G_function_down
-
-        GFs = [1. * cp.asnumpy(current_GF)]
-        current_U = self.la.eye(self.config.total_dof // 2)
-
-        slices = list(range(1, self.config.Nt))
-        for nr, slice_idx in enumerate(reversed(slices)):
-            B = self.B_l(spin, slice_idx)
-            current_GF = current_GF.dot(B)
-            GFs.append(-1.0 * cp.asnumpy(current_U.dot(current_GF)))
-            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == 0:
-                u, s, v = self.SVD(current_GF)
-                #print('refresh', nr)
-                #print(type(current_GF), type(v), type(s), type(u))
-                # print(xp.sum(xp.abs(xp.imag(u))), xp.sum(xp.abs(xp.imag(v))))
-                # print(xp.allclose((u.dot(xp.diag(s))).dot(v), M, atol=1e-11))
-
-                #print(self.la.linalg.norm(current_GF - u.dot(self.la.diag(s).dot(v))) / self.la.linalg.norm(current_GF), self.la.max(current_GF))
-                #print(s.max(), s.min())
-                #print(nr, self.la.linalg.norm(current_GF))
-                current_U = current_U.dot(u)
-
-                current_GF = self.la.diag(s).dot(v)
-        return GFs
-    '''
 
     def compute_B_chain(self, spin, tmax, tmin):
         if tmax == self.config.Nt:

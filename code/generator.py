@@ -122,10 +122,10 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             observables.update_history(ratio, accepted, current_det_sign)
         observables.measure_light_observables(phi_field, current_det_sign.item())
     
-    if n_sweep >= phi_field.config.thermalization and n_sweep % phi_field.config.n_print_frequency == 0:
+    if n_sweep >= phi_field.config.thermalization:
         t = time()
-        observables.measure_heavy_observables(phi_field, current_det_sign.item())
-        print('measurement takes ', time() - t)
+        observables.measure_green_functions(phi_field, current_det_sign.item())
+        print('measurement of green functions takes ', time() - t)
     return phi_field, observables
 
 
@@ -163,4 +163,6 @@ if __name__ == "__main__":
             observables.write_light_observables(phi_field.config, n_sweep)
 
             if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
-                observables.write_heavy_observables(phi_field.config, n_sweep)
+                t = time()
+                observables.write_heavy_observables(phi_field, n_sweep)
+                print('measurement and writing of heavy observables took ', time() - t)
