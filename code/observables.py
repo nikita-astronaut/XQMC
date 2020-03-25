@@ -25,11 +25,9 @@ class Observables:
         self.corr_file = open(os.path.join(self.local_workdir, 'corr_log.dat'), open_mode)
 
         self.refresh_light_logs()
-        self.refresh_heavy_logs()
 
         self.init_light_log_file()
-        self.init_heavy_logs_files()
-
+        
         self.gfs_data = []
         self.gfs_equal_data = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2))
         self.num_equal = 0
@@ -39,21 +37,13 @@ class Observables:
         # for Gap-Gap susceptibility
         self.reduced_A = models.get_reduced_adjacency_matrix(self.config)
         self.ijkl = np.array(get_idxs_list(self.reduced_A))
-        self.C_ijkl = np.zeros(len(self.ijkl))
 
-        self.cur_buffer_size = 0; self.max_buffer_size = 100
-        self.GF_up_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-        self.GF_down_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-
-        self.GF_up_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-        self.GF_down_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-
-        # for gap-gap correlator measurement
-        self.PHI_ijkl = np.zeros(len(self.ijkl))
         self.adj_list_marking = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2)).astype(np.int64)
         for idx, adj in enumerate(self.config.adj_list):
             self.adj_list_marking[adj[0] > 0.5] = idx
 
+        self.refresh_heavy_logs()
+        self.init_heavy_logs_files()
         return
 
     def init_light_log_file(self):
@@ -88,32 +78,38 @@ class Observables:
         self.sign_history.append(sign)
 
     def refresh_heavy_logs(self):
-        # self.density_file.flush()
         self.gap_file.flush()
 
-        # self.density_corr_list = OrderedDict()
+        self.C_ijkl = np.zeros(len(self.ijkl))
+
+        self.cur_buffer_size = 0; self.max_buffer_size = 100
+        self.GF_up_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        self.GF_down_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+
+        self.GF_up_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        self.GF_down_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+
+        # for gap-gap correlator measurement
+        self.PHI_ijkl = np.zeros(len(self.ijkl))
+
+
         self.gap_observables_list = OrderedDict()
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
-        chi_shape = (self.config.total_dof // 2, self.config.total_dof // 2, self.config.Nt)
-
         self.num_chi_samples = 0
+        for gap_name_alpha in self.config.pairings_list_names:
+            for gap_name_beta in self.config.pairings_list_names:
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex'] = 0.0
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total'] = 0.0
+
         for gap_name in self.config.pairings_list_names:
-            self.gap_observables_list[gap_name + '_D1'] = 0.0  # susceptibility part D1
-            self.gap_observables_list[gap_name + '_D2'] = 0.0  # susceptibility part D2
-            self.gap_observables_list[gap_name + '_C'] = 0.0  # susceptibility part C
-
-            self.gap_observables_list[gap_name + '_chi'] = 0.0
-            self.gap_observables_list[gap_name + '_chi_total'] = 0.0
-
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
                 r = self.config.adj_list[r_index][-1]
                 self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)] = 0.0  # large-distance correlation function averaged over orbitals
 
         density_adj_list = self.config.adj_list[:self.config.n_adj_density]  # only smallest distance
-        # for adj in adj_list:
-        #     self.density_corr_list["n_up_n_down_({:d}/{:d}/{:.2f})".format(*adj[1:])] = []
+
 
         self.heavy_signs_history = []
 
@@ -167,8 +163,7 @@ class Observables:
         self.light_signs_history.append(current_det_sign)
         self.gfs_equal_data += (phi.current_G_function_up + phi.current_G_function_down) / 2.
         
-        # print(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)), '!!!')
-        # assert np.abs(np.mean(np.trace((phi.current_G_function_up + phi.current_G_function_down) / 2.)) - 18.) < 1e-4
+
         self.num_equal += 1
 
         k = kinetic_energy(phi).item()
@@ -251,18 +246,29 @@ class Observables:
         self.refresh_gfs_buffer()
         t = time()
         mean_signs = np.mean(self.heavy_signs_history)
-        # adj_list_density = self.config.adj_list[:self.config.n_adj_density]  # on-site and nn
+
+
+        for gap_alpha, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+            for gap_beta, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names): 
+                norm = gap.shape[0]  # N_s
+                N_alpha = np.sum(gap[0, :] != 0.0)  # N_alpha
+                N_beta = np.sum(gap[0, :] != 0.0)  # N_beta
+
+
+                total_chi = get_gap_susceptibility(gap_alpha, gap_beta, \
+                    self.ijkl, self.C_ijkl) / (self.num_chi_samples * mean_signs)
+                free_chi = np.sum([np.trace(self.GF_up_sum[tau, ...].dot(gap_beta).dot(self.GF_down_sum[tau, ...].T).dot(gap_alpha.T.conj())) \
+                                   for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs) ** 2)
+
+
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex'] = \
+                    (total_chi - free_chi) / norm / np.sqrt(N_alpha * N_beta)
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total'] = \
+                    total_chi / norm / np.sqrt(N_alpha * N_beta)
+
 
         for gap, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            norm = np.sum(gap != 0.0)  # N_alpha x N_s
             N_alpha = np.sum(gap[0, :] != 0.0)
-
-            total_chi = get_gap_susceptibility(gap, self.ijkl, self.C_ijkl) / (self.num_chi_samples * mean_signs)
-            free_chi = np.sum([np.trace(self.GF_up_sum[tau, ...].dot(gap).dot(self.GF_down_sum[tau, ...].T).dot(gap.T.conj())) \
-                               for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs) ** 2)
-            self.gap_observables_list[gap_name + '_chi'] = (total_chi - free_chi) / norm
-            self.gap_observables_list[gap_name + '_chi_total'] = total_chi / norm
-
             corr_list = gap_gap_correlator(gap, self.ijkl, self.PHI_ijkl, self.adj_list_marking)
 
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
@@ -288,10 +294,13 @@ class Observables:
 
         gap_data = [n_sweep, np.mean(signs)]
 
-        for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            gap_data.append(self.gap_observables_list[gap_name + '_chi'].real) # norm already accounted
-            gap_data.append(self.gap_observables_list[gap_name + '_chi_total'].real)
+        for _, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+            for _, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+                gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex'].real) # norm already accounted
+                gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total'].real)
 
+
+        for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             corr_data = [n_sweep, np.mean(signs)]
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
                 r = self.config.adj_list[r_index][-1]
@@ -305,6 +314,8 @@ class Observables:
         self.gap_file.flush()
         self.corr_file.flush()
 
+
+        self.refresh_heavy_logs()
         return
 
 def get_B_sublattice_mask(config):
@@ -499,12 +510,12 @@ def get_idxs_list(reduced_A):
     return ijkl
 
 @jit(nopython=True, parallel=True)
-def get_gap_susceptibility(gap, ijkl, C_ijkl):
+def get_gap_susceptibility(gap_alpha, gap_beta, ijkl, C_ijkl):
     corr = 0.0 + 0.0j
 
     for xi in range(len(ijkl)):
         i, j, k, l = ijkl[xi]
-        corr += np.conj(gap[i, j]) * gap[k, l] * C_ijkl[xi]
+        corr += np.conj(gap_alpha[i, j]) * gap_beta[k, l] * C_ijkl[xi]
     return corr.real
 
 @jit(nopython=True, parallel=True)
