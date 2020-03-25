@@ -241,7 +241,7 @@ class Observables:
             self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], self.ijkl)
         print('measurement of C_ijkl, PHI_ijkl correlators takes', time() - t)
         self.GF_up_sum += np.sum(self.GF_up_stored[:self.cur_buffer_size, ...], axis = 0)
-        self.GF_down_.real= np.sum(self.GF_down_stored[:self.cur_buffer_size, ...], axis = 0)
+        self.GF_down_sum += np.sum(self.GF_down_stored[:self.cur_buffer_size, ...], axis = 0)
 
         self.cur_buffer_size = 0
         return
