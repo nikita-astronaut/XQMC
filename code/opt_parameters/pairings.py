@@ -97,18 +97,28 @@ def get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params):
 
     return Delta
 
-def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
+def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij, spin_ij = np.eye(1)):
     '''
         returns the matrix of the dimention L x L (L -- total number of sites including orbit),
         sigma_ll \\otimes sigma_oo \\otimes delta_ii
     '''
-    Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
+
+    spin_factor = spin_ij.shape[0]
+    if spin_factor > 1:
+        Delta = np.zeros((config.total_dof, config.total_dof)) * 1.0j
+    else:
+        Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
+
     for first in range(Delta.shape[0]):
         for second in range(Delta.shape[1]):
-            orbit1, sublattice1, x1, y1 = models.from_linearized_index(deepcopy(first), \
+            spin1 = first // (config.total_dof // 2)
+            spin2 = second // (config.total_dof // 2)
+
+            orbit1, sublattice1, x1, y1 = models.from_linearized_index(deepcopy(first % (config.total_dof // 2)), \
                                                  config.Ls, config.n_orbitals, config.n_sublattices)
-            orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), \
+            orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second % (config.total_dof // 2)), \
                                                  config.Ls, config.n_orbitals, config.n_sublattices)
+
             space1 = (x1 * config.Ls + y1) * config.n_sublattices + sublattice1
             space2 = (x2 * config.Ls + y2) * config.n_sublattices + sublattice2
 
@@ -121,10 +131,10 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij):
 
             # otherwise (subl2 = subl1 means this is a square lattice or hex on-site, just use the delta_ij matrix)
             if sigma_l1l2[sublattice1, sublattice2] != 0.0:
-                # print(np.sum(delta_s1s2), sublattice1, sublattice2)
                 Delta[first, second] = sigma_l1l2[sublattice1, sublattice2] * \
                                        sigma_o1o2[orbit1, orbit2] * \
-                                       delta_s1s2[space1, space2]
+                                       delta_s1s2[space1, space2] * \
+                                       spin_ij[spin1, spin2]
     return Delta + 0.0j
 
 def combine_product_terms(config, pairing):
@@ -503,18 +513,19 @@ def get_C4z_symmetry_map(config):
 
 
 def check_irrep_properties(config, irrep):
+    global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
     if not config.tests:
         return
 
     for irr in irrep:
         print(check_parity(config, irr))
 
-    reflection = get_C2y_symmetry_map(config)
+    reflection = C2y_symmetry_map
 
     if config.n_sublattices == 2:
-        rotation = get_C3z_symmetry_map(config)
+        rotation = C3z_symmetry_map
     else:
-        rotation = get_C4z_symmetry_map(config)
+        rotation = C4z_symmetry_map
 
     def norm_sc(b, a):
         return np.sum(a * b.conj()) / np.sum(np.abs(b ** 2))
@@ -590,8 +601,12 @@ oneorb_square_E_NN_singlet = None; oneorb_square_E_NN_triplet = None;
 
 oneorb_square_A1_N_singlet = None; oneorb_square_A1_NN_singlet = None;
 oneorb_square_A2_NN_singlet = None; oneorb_square_E_NN_triplet = None;
+C2y_symmetry_map = None;
+C3z_symmetry_map = None;
+C4z_symmetry_map = None;
 
 def obtain_all_pairings(config):
+    global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
     global twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
            twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet
@@ -602,6 +617,8 @@ def obtain_all_pairings(config):
 
 
     if config.n_orbitals == 2 and config.n_sublattices == 2:
+        C2y_symmetry_map = get_C2y_symmetry_map(config)
+        C3z_symmetry_map = get_C3z_symmetry_map(config)
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
             twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
             twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet = construct_2orb_hex(config, real = True)
@@ -609,12 +626,15 @@ def obtain_all_pairings(config):
 
 
     if config.n_orbitals == 1 and config.n_sublattices == 2:
+        C2y_symmetry_map = get_C2y_symmetry_map(config)
+        C3z_symmetry_map = get_C3z_symmetry_map(config)
         oneorb_hex_A1_N_singlet, oneorb_hex_A2_N_singlet, oneorb_hex_A1_NN_singlet, oneorb_hex_A2_NN_triplet, \
             oneorb_hex_E_NN_singlet, oneorb_hex_E_NN_triplet = construct_1orb_hex(config, real = True)
         return
 
 
     if config.n_orbitals == 1 and config.n_sublattices == 1:
+        C4z_symmetry_map = get_C4z_symmetry_map(config)
         oneorb_square_A1_N_singlet, oneorb_square_A1_NN_singlet, oneorb_square_A2_NN_singlet, \
             oneorb_square_E_NN_triplet = construct_1orb_square(config, real = True)
         return
