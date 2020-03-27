@@ -251,8 +251,8 @@ class Observables:
         for gap_alpha, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             for gap_beta, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names): 
                 norm = gap_alpha.shape[0]  # N_s
-                N_alpha = 1.0 * np.sum(gap_alpha != 0.0) / norm  # N_alpha
-                N_beta = 1.0 * np.sum(gap_beta != 0.0) / norm  # N_beta
+                N_alpha = 1.0 * np.sum(np.abs(gap_alpha) ** 2) / norm  # N_alpha
+                N_beta = 1.0 * np.sum(np.abs(beta) ** 2) / norm  # N_beta
 
 
                 total_chi = get_gap_susceptibility(gap_alpha, gap_beta, \
