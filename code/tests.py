@@ -268,11 +268,11 @@ def test_double_move_check(config):
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
-    while n_agreed < 5:
+    while n_agreed < 5000:
         L = len(wf.state) // 2
         i, j, k, l = np.random.randint(0, 2 * L, size = 4)
-        if i == j or i == l or k == l or k == j:
-            continue  # the degenerate cases are considered separately (directly by density operator)
+        #if i == j or i == l or k == l or k == j:
+        #    continue  # the degenerate cases are considered separately (directly by density operator)
 
         initial_ampl = wf.current_ampl
         state = deepcopy((wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy))
@@ -314,9 +314,9 @@ def test_double_move_check(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_double_move_check(config)
     success = success and test_all_jastrow_factors_add_to_one(config)
     success = success and test_explicit_factors_check(config)
-    success = success and test_double_move_check(config)
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
     success = success and test_onsite_gf_is_density_check(config)

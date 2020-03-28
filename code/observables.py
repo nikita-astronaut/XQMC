@@ -100,8 +100,10 @@ class Observables:
         self.num_chi_samples = 0
         for gap_name_alpha in self.config.pairings_list_names:
             for gap_name_beta in self.config.pairings_list_names:
-                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex'] = 0.0
-                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total'] = 0.0
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real'] = 0.0
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_real'] = 0.0
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_imag'] = 0.0
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'] = 0.0
 
         for gap_name in self.config.pairings_list_names:
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
@@ -261,10 +263,15 @@ class Observables:
                                    for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs) ** 2)
 
 
-                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex'] = \
-                    (total_chi - free_chi) / norm / np.sqrt(N_alpha * N_beta)
-                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total'] = \
-                    total_chi / norm / np.sqrt(N_alpha * N_beta)
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real'] = \
+                    np.real((total_chi - free_chi) / norm / np.sqrt(N_alpha * N_beta))
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_real'] = \
+                    np.real(total_chi / norm / np.sqrt(N_alpha * N_beta))
+
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_imag'] = \
+                    np.imag((total_chi - free_chi) / norm / np.sqrt(N_alpha * N_beta))
+                self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'] = \
+                    np.imag(total_chi / norm / np.sqrt(N_alpha * N_beta))
 
 
         for gap, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
@@ -296,8 +303,10 @@ class Observables:
 
         for _, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             for _, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-                gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex'].real) # norm already accounted
-                gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total'].real)
+                gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real']) # norm already accounted
+                gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_real'])
+                gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_imag']) # norm already accounted
+                gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'])
 
 
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
@@ -516,7 +525,7 @@ def get_gap_susceptibility(gap_alpha, gap_beta, ijkl, C_ijkl):
     for xi in range(len(ijkl)):
         i, j, k, l = ijkl[xi]
         corr += np.conj(gap_alpha[i, j]) * gap_beta[k, l] * C_ijkl[xi]
-    return corr.real
+    return corr
 
 @jit(nopython=True, parallel=True)
 def gap_gap_correlator(gap, ijkl, PHI_ijkl, adj_marking):

@@ -321,23 +321,11 @@ def is_commensurate(L, k):
 
 def get_MFH(config):
     K_up = config.model(config, config.mu, spin = +1.0)[0]
-    K_down = config.model(config, config.mu, spin = -1.0)[0].T  # TODO: check this
-    Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, config.initial_gap_parameters)
+    K_down = config.model(config, config.mu, spin = -1.0)[0].T
 
+    mu, fugacity, waves, gap, jastrow = config.unpack_parameters(config.initial_parameters)
 
-    def _construct_wave_V(config, orbital, sublattice, wave_type):
-        sublattice_matrix = np.zeros((config.n_sublattices, config.n_sublattices))
-        sublattice_matrix[sublattice, sublattice] = 1.
-
-        orbital_matrix = np.zeros((config.n_orbitals, config.n_orbitals))
-        orbital_matrix[orbital, orbital] = 1.            
-
-        dof_matrix = np.kron(np.kron(checkerboard, sublattice_matrix), orbital_matrix)
-
-        if wave_type == 'SDW':
-            return np.kron(np.eye(2), dof_matrix)
-        return np.kron(np.diag([1, -1]), dof_matrix)
-
+    Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, gap)
 
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta
