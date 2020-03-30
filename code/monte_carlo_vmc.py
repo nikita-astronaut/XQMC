@@ -29,7 +29,9 @@ def extract_MC_data(results, config_vmc, num_twists):
     acceptance = np.mean(np.concatenate([np.array(x[2]) for x in results], axis = 0))
     final_states = [x[3] for x in results]
     densities = np.concatenate([np.array(x[8]) for x in results], axis = 0)
-    return gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities
+
+    orbitals_in_use = [x[6] for x in results]
+    return gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities, orbitals_in_use
 
 
 def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
@@ -229,16 +231,18 @@ def import_config(filename: str):
     sys.path.pop(0)
     return module
 
-def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twists, final_states):
+def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, \
+                        twists, final_states, orbitals_in_use):
     res = []
-    for twist, final_state in zip(twists, final_states):
+    for twist, final_state, o in zip(twists, final_states, orbitals_in_use):
         t = time()
-        res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state))
+        res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state, o))
         print('one chain takes =', time() - t)
     return res
 
 
-def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state = False):
+def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
+                         parameters, twist, final_state = False, orbitals_in_use = None):
     config_vmc.twist = tuple(twist)
   
     hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
@@ -249,7 +253,8 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
     else:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, True, final_state)
     '''
-    wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)  # always start with bare configuration
+    wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
+                              False, None, orbitals_in_use)  # always start with bare configuration
     t_steps = 0
     t = time()
     if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
@@ -302,7 +307,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, f
     print('t_chain = ', time() - tc)
     print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
     print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
-    return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_full, wf.E, densities
+    return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_matrix, wf.E, densities
 
 if __name__ == "__main__":
     config_vmc_file = import_config(sys.argv[1])
@@ -398,6 +403,7 @@ if __name__ == "__main__":
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
     spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
     final_states = [False] * config_vmc.n_chains
+    orbitals_in_use = [None] * config_vmc.n_chains
 
 
     ### write log header only if we start from some random parameters ###
@@ -412,13 +418,14 @@ if __name__ == "__main__":
         if twists_per_cpu > 1:
             results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
                 parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
-                final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
+                final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
+                orbitals_in_use = orbitals_in_use[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus),)
             results = []
             for r in results_batched:
                 results = results + r
         else:
             results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
-                parameters, twists[i], final_states[i]) for i in range(config_vmc.n_chains))
+                parameters, twists[i], final_states[i], orbitals_in_use[i]) for i in range(config_vmc.n_chains))
         print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
         t = time() 
 
@@ -427,7 +434,7 @@ if __name__ == "__main__":
         spectral_file.write(("{:.7f} " * len(E) + '\n').format(*E))
         spectral_file.flush()
         ### MC chains data extraction ###
-        gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities = \
+        gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities, orbitals_in_use = \
             extract_MC_data(results, config_vmc, config_vmc.n_chains)
         energies_merged = np.concatenate(energies) 
         print('energy = {:.5f} +/- {:.5f}'.format(energies_merged.mean(), energies_merged.std() / np.sqrt(len(energies_merged))))

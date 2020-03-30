@@ -8,11 +8,10 @@ import scipy
 
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
-                 with_previous_state, previous_state):
+                 with_previous_state, previous_state, orbitals_in_use = None):
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
-                                        for gap in self.config.pairings_list_unwrapped]
-        self.nogaps = len(self.pairings_list_unwrapped) == 0        
+                                        for gap in self.config.pairings_list_unwrapped]  
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
         self.var_f = self.var_f if not config.PN_projection else 0.
@@ -30,7 +29,7 @@ class wavefunction_singlet():
 
 
         ### diagonalisation of the MF--Hamiltonian ###
-        self.U_matrix = self._construct_U_matrix()
+        self.U_matrix = self._construct_U_matrix(orbitals_in_use)
         self.with_previous_state = with_previous_state
         self.MC_step_index = 0
         self.update = 0.
@@ -142,7 +141,7 @@ class wavefunction_singlet():
 
         return np.array(O)
 
-    def _construct_U_matrix(self):
+    def _construct_U_matrix(self, orbitals_in_use):
         T = construct_HMF(self.config, self.K_up, self.K_down, \
                           self.pairings_list_unwrapped, self.var_params_gap, self.var_waves)
         E, U = np.linalg.eigh(T)
@@ -151,20 +150,13 @@ class wavefunction_singlet():
         self.U_full = deepcopy(U).astype(np.complex128)
         self.E = E
 
-        if self.nogaps:
-            self.particle_orbitals = np.array([np.abs(np.sum(np.abs(U[:U.shape[0] // 2, i]) ** 2) - 1) < 1e-4 for i in range(U.shape[1])])
-            print('there are {:d} particle orbitals and {:d} hole orbitals'.format(np.sum(self.particle_orbitals), len(self.particle_orbitals) - np.sum(self.particle_orbitals)), flush = True)
-            k = (self.config.total_dof // 2 - self.config.Ne) // 2
-            # occupy exactly Ne/2 + k particles and Ne/2 - k holes
-            E_tmp = 1. * E.copy()
-            E_tmp[~self.particle_orbitals] = np.inf
-            lowest_energy_particles = np.argsort(E_tmp)[:self.config.total_dof // 4 - k]
-            E_tmp = 1. * E.copy()
-            E_tmp[self.particle_orbitals] = np.inf
-            lowest_energy_holes = np.argsort(E_tmp)[:self.config.total_dof // 4 + k]
-            self.lowest_energy_states = np.concatenate([lowest_energy_holes, lowest_energy_particles])
+        if orbitals_in_use is not None:
+            overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
+            self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
+            print(np.max(overlap_matrix, axis = 0), 'print maximums of overlaps')
         else:
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
+
         rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
         U = U[:, self.lowest_energy_states]  # select only occupied orbitals
         self.E_fermi = np.max(self.E[self.lowest_energy_states])
@@ -172,13 +164,7 @@ class wavefunction_singlet():
         self.occupied_levels = np.zeros(len(E), dtype=bool)
         self.occupied_levels[self.lowest_energy_states] = True
 
-        # print('mu_BCS - E_max_occupied=', -self.E_fermi + self.var_mu)
-        # print('E_min_unoccupied - mu_BCS =', np.min(self.E[rest_states]) - self.var_mu)
-
-        # print('E_max_occupied =', self.E_fermi)
-        # print('E_min_unoccupied =', np.min(self.E[rest_states]))
-
-        if E[rest_states].min() - self.E_fermi < 1e-14 and not self.nogaps:
+        if E[rest_states].min() - self.E_fermi < 1e-14:
             print('open shell configuration, consider different pairing or filling!', flush = True)
         return U 
 
