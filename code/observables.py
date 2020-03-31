@@ -219,9 +219,10 @@ class Observables:
         GFs_up = np.array(phi.get_nonequal_time_GFs(+1.0, phi.current_G_function_up))
         GFs_down = np.array(phi.get_nonequal_time_GFs(-1.0, phi.current_G_function_down))
         phi.copy_to_CPU()
-        
-        self.GF_up_stored[self.cur_buffer_size, ...] = (GFs_up + GFs_up.transpose((0, 2, 1))) * current_det_sign / 2.  # symmetrize by hand
-        self.GF_down_stored[self.cur_buffer_size, ...] = (GFs_down + GFs_down.transpose((0, 2, 1))) * current_det_sign / 2.  # symmetrize by hand
+        self.GF_up_stored[self.cur_buffer_size, ...] = GFs_up * current_det_sign
+        self.GF_down_stored[self.cur_buffer_size, ...] = GFs_down * current_det_sign
+        #self.GF_up_stored[self.cur_buffer_size, ...] = (GFs_up + GFs_up.transpose((0, 2, 1))) * current_det_sign / 2.  # symmetrize by hand
+        #self.GF_down_stored[self.cur_buffer_size, ...] = (GFs_down + GFs_down.transpose((0, 2, 1))) * current_det_sign / 2.  # symmetrize by hand
         print('obtaining of non-equal Gfs takes', time() - t)
 
         self.cur_buffer_size += 1
@@ -506,6 +507,7 @@ def measure_gfs_correlator(GF_up, GF_down, ijkl):
         C_ijkl[xi] = np.sum(GF_up[:, :, i, k] * GF_down[:, :, j, l])
 
     return C_ijkl
+
 
 @jit(nopython=True, parallel=True)
 def get_idxs_list(reduced_A):
