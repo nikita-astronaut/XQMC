@@ -513,6 +513,7 @@ def get_C4z_symmetry_map(config):
 
 
 def check_irrep_properties(config, irrep):
+    return
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
     if not config.tests:
         return

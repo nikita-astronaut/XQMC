@@ -8,29 +8,34 @@ iYpauli = np.array([[0, 1], [-1, 0]])
 Zpauli = np.array([[1, 0], [0, -1]])
 
 def construct_2orb_hex(config):
+    # under particle-hole
     onsite = pairings.construct_onsite_delta(config)
 
     orders_on_site = [
-        [(Zpauli, Ipauli, onsite, Zpauli), 'S_zxS_0xS_z'],
+        [(Zpauli, Ipauli, onsite, Zpauli_spin), 'S_zxS_0xS_z'],
         #[(Ipauli, iYpauli, onsite, Zpauli), 'S_0x(iS_y)xS_z'],
         #[(Zpauli, iYpauli, onsite, Ipauli), 'S_zx(iS_y)xS_0'],
         #[(Ipauli, iYpauli, onsite, Ipauli), 'S_0x(iS_y)xS_0'],
-        [(Zpauli, Ipauli, onsite, Ipauli), 'S_zxS_0xS_0'],
+        [(Zpauli, Ipauli, onsite, Ipauli_spin), 'S_zxS_0xS_0'],
         #[(Zpauli, iYpauli, onsite, Zpauli), 'S_zx(iS_y)xS_z'],
-        [(Ipauli, Xpauli, onsite, Ipauli), 'S_0x(S_x)xS_0'], [(Ipauli, Zpauli, onsite, Ipauli), 'S_0x(S_z)xS_0'],
-        [(Zpauli, Xpauli, onsite, Ipauli), 'S_zx(S_x)xS_0'], [(Zpauli, Zpauli, onsite, Ipauli), 'S_zx(S_z)xS_0'],
-        [(Ipauli, Xpauli, onsite, Zpauli), 'S_0x(S_x)xS_z'], [(Ipauli, Zpauli, onsite, Zpauli), 'S_0x(S_z)xS_z'],
-        [(Zpauli, Xpauli, onsite, Zpauli), 'S_zx(S_x)xS_z'], [(Zpauli, Zpauli, onsite, Zpauli), 'S_zx(S_z)xS_z'],
+        [(Ipauli, Xpauli, onsite, Ipauli_spin), 'S_0x(S_x)xS_0'], [(Ipauli, Zpauli, onsite, Ipauli_spin), 'S_0x(S_z)xS_0'],
+        [(Zpauli, Xpauli, onsite, Ipauli_spin), 'S_zx(S_x)xS_0'], [(Zpauli, Zpauli, onsite, Ipauli_spin), 'S_zx(S_z)xS_0'],
+        [(Ipauli, Xpauli, onsite, Zpauli_spin), 'S_0x(S_x)xS_z'], [(Ipauli, Zpauli, onsite, Zpauli_spin), 'S_0x(S_z)xS_z'],
+        [(Zpauli, Xpauli, onsite, Zpauli_spin), 'S_zx(S_x)xS_z'], [(Zpauli, Zpauli, onsite, Zpauli_spin), 'S_zx(S_z)xS_z'],
     ]
 
     orders_unwrapped = []
 
     for order in orders_on_site:
         order_unwrapped = pairings.expand_tensor_product(config, *(order[0]))
-
         orders_unwrapped.append([(order_unwrapped + order_unwrapped.conj().T) / 2., order[1]])
+
+
     return orders_unwrapped
 
+def waves_particle_hole(m):
+    m[m.shape[0] // 2:, m.shape[1] // 2] = -1. * m[m.shape[0] // 2:, m.shape[1] // 2].T
+    return m
 
 def construct_wave_V(config, orbital, sublattice, wave_type):
     if config.n_sublattices == 2:

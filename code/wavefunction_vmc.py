@@ -410,9 +410,8 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
 
-    ## SDW/CDW is the same for every orbital and sublattice ##
     for wave, coeff in zip(config.waves_list, var_waves):
-        T += wave[0] * coeff
+        T += waves.waves_particle_hole(wave[0]) * coeff
     return T
 
 @jit(nopython = True)
