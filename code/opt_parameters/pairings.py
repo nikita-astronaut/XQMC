@@ -139,9 +139,16 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij, spin_ij = np
 
 def combine_product_terms(config, pairing):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
-    for sigma_ll, sigma_oo, delta_ii, C in pairing[:-2]:
-        Delta += C * expand_tensor_product(config, sigma_ll, sigma_oo, delta_ii)  # C -- the coefficient corresponding for the right D_3 transformation properties (irrep)
-    return Delta * pairing[-2]  # the overal coefficient of this irrep (can be 1 or i)
+    if len(pairing) > 2:  # pairings
+        for sigma_ll, sigma_oo, delta_ii, C in pairing[:-2]:
+            Delta += C * expand_tensor_product(config, sigma_ll, sigma_oo, delta_ii)  # C -- the coefficient corresponding for the right D_3 transformation properties (irrep)
+        return Delta * pairing[-2]  # the overal coefficient of this irrep (can be 1 or i)
+
+    # waves
+    sigma_ll, sigma_oo, delta_ii, _ = pairing[0]
+    Delta += expand_tensor_product(config, sigma_ll, sigma_oo, delta_ii)  # C -- the coefficient corresponding for the right D_3 transformation properties (irrep)
+    return Delta
+ 
 
 def get_total_pairing(config, pairings, var_params):
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
@@ -345,18 +352,6 @@ def construct_1orb_hex(config, real = True):
     return A1_N_singlet, A2_N_singlet, A1_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet
 
 
-def construct_on_site_1orb_square(config, real = True):
-    factor = 1.0
-    addstring = ''
-    if not real:
-        factor = 1.0j
-        addstring = 'j'
-
-    
-
-    return on_site
-
-
 def construct_1orb_square(config, real = True):
     factor = 1.0
     addstring = ''
@@ -513,7 +508,6 @@ def get_C4z_symmetry_map(config):
 
 
 def check_irrep_properties(config, irrep):
-    return
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
     if not config.tests:
         return

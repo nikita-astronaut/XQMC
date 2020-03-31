@@ -136,7 +136,7 @@ def get_E_J_Hund(x_orbital, y_orbital, wf_state, total_fugacity):
         E_loc += -density(wf_state[2], x) * density(wf_state[2], y)
         E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, x, y + L, x + L, y)
         E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, y, x + L, y + L, x)
-        E_loc += -density(wf_state[2], x + L) * density(wf_state[2], y + L)
+        E_loc += (1 - density(wf_state[2], x + L)) * (1 - density(wf_state[2], y + L))
     return E_loc
 
 

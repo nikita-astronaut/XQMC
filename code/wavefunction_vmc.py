@@ -1,6 +1,6 @@
 import numpy as np
 from time import time
-from opt_parameters import pairings
+from opt_parameters import pairings, waves
 import models
 from copy import deepcopy
 from numba import jit
@@ -68,7 +68,7 @@ class wavefunction_singlet():
 
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
-        self.W_waves_derivatives = np.array([self._get_derivative(wave[0]) for wave in self.config.waves_list])
+        self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(wave[0])) for wave in self.config.waves_list])
         ### allowed 1-particle moves ###
         self.adjacency_list = self.config.adjacency_transition_matrix 
 
@@ -144,6 +144,7 @@ class wavefunction_singlet():
     def _construct_U_matrix(self, orbitals_in_use):
         T = construct_HMF(self.config, self.K_up, self.K_down, \
                           self.pairings_list_unwrapped, self.var_params_gap, self.var_waves)
+        assert np.allclose(T, T.conj().T)
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E

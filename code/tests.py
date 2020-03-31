@@ -268,7 +268,7 @@ def test_double_move_check(config):
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
-    while n_agreed < 5000:
+    while n_agreed < 1000:
         L = len(wf.state) // 2
         i, j, k, l = np.random.randint(0, 2 * L, size = 4)
         #if i == j or i == l or k == l or k == j:
@@ -312,8 +312,44 @@ def test_double_move_check(config):
 
     return success
 
+
+def test_double_move_commutation_check(config):
+    success = True
+    print('Testing fast double updates have correct commutation properties...')
+    n_agreed = 0
+    n_failed = 0
+    wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+    state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
+
+    while n_agreed < 1000:
+        L = len(wf.state) // 2
+        i, j, k, l = np.random.randint(0, 2 * L, size = 4)
+        if len(np.unique([i, j, k, l])) < 4:
+            continue
+        ratio_fast_ijkl = get_wf_ratio_double_exchange(*state, wf.var_f, i, j, k, l)
+        ratio_fast_ilkj = get_wf_ratio_double_exchange(*state, wf.var_f, i, l, k, j)
+        ratio_fast_kjil = get_wf_ratio_double_exchange(*state, wf.var_f, k, j, i, l)
+        ratio_fast_lkij = get_wf_ratio_double_exchange(*state, wf.var_f, k, l, i, j)
+
+        if np.allclose([ratio_fast_ilkj, ratio_fast_kjil, ratio_fast_lkij], \
+                       [-ratio_fast_ijkl, -ratio_fast_ijkl, ratio_fast_ijkl], atol = 1e-11, rtol = 1e-11):
+            n_agreed += 1
+        else:
+            print('double move check permutation ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩ failed:', \
+                   ratio_fast_ijkl, ratio_fast_ilkj, ratio_fast_kjil, ratio_fast_lkij, i, j, k, l)
+            n_failed += 1
+            success = False
+    if n_failed == 0:
+        print('Passed')
+    else:
+        print('Failed on samples:', n_failed)
+
+    return success
+
+
 def perform_all_tests(config):
     success = True
+    success = success and test_double_move_commutation_check(config)
     success = success and test_double_move_check(config)
     success = success and test_all_jastrow_factors_add_to_one(config)
     success = success and test_explicit_factors_check(config)
