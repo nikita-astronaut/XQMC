@@ -17,8 +17,7 @@ import config_vmc as cv_module
 
 
 def extract_MC_data(results, config_vmc, num_twists):
-    gaps = [-results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2 - 1]] + \
-                   results[i][7][np.argsort(results[i][7])[config_vmc.total_dof // 2]] for i in range(num_twists)]
+    gaps = [x[9] for x in results]
     gap = np.min(gaps)
     vol = config_vmc.total_dof // 2
     energies = [np.array(x[0]) for x in results]  # collection of all energy sets obtained from different threads
@@ -31,7 +30,9 @@ def extract_MC_data(results, config_vmc, num_twists):
     densities = np.concatenate([np.array(x[8]) for x in results], axis = 0)
 
     orbitals_in_use = [x[6] for x in results]
-    return gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities, orbitals_in_use
+    occupied_numbers = [x[7] for x in results]
+    return gaps, gap, energies, mean_variance, Os, acceptance, \
+           final_states, densities, orbitals_in_use, occupied_numbers
 
 
 def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
@@ -74,12 +75,14 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
         # l, _ = np.linalg.eigh(s_new)
         print(np.sqrt(np.abs(s[1, 1])), t[0].real, t[0].imag, t[1].real, t[1].imag, gap)
     '''
+    '''
     for S_cov_theta, twist in zip(S_cov, twists):
         eigvals, eigvecs = np.linalg.eigh(S_cov_theta)
         print(np.diag(S_cov_theta))
         for val, vec in zip(eigvals, eigvecs.T):
             if np.abs(val) < 1e-6:
                 print('redundant parameter?', twist, val, vec)
+    '''
 
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     
@@ -102,7 +105,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
 
 
 def write_initial_logs(log_file, config_vmc):
-    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩ ")
+    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩ n_above_FS ")
 
     if not config_vmc.PN_projection:
         log_file.write('⟨mu_BCS⟩ ⟨fugacity⟩ ')
@@ -145,12 +148,14 @@ def print_model_summary(config_vmc):
     print('Total number of optimized parameters: ', np.sum(config_vmc.layout))
     return
 
-def write_intermediate_log(log_file, n_step, vol, energies, densities, mean_variance, acceptance, forces, step, gap, parameters):
-    log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e}" + " {:.7e} " * len(step) + "\n").format(n_step, \
+def write_intermediate_log(log_file, n_step, vol, energies, densities, \
+                           mean_variance, acceptance, forces, step, gap, \
+                           n_above_FS, parameters):
+    log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e} {:d}" + " {:.7e} " * len(step) + "\n").format(n_step, \
                     np.mean(energies).real / vol, np.std(energies).real / np.sqrt(len(energies)) / vol, \
                     np.mean(densities).real / vol, np.std(densities).real / np.sqrt(len(densities)) / vol, \
                     mean_variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
-                    gap, *parameters))
+                    gap, n_above_FS, *parameters))
     log_file.flush()
     return
 
@@ -237,7 +242,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, \
     for twist, final_state, o in zip(twists, final_states, orbitals_in_use):
         t = time()
         res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state, o))
-        print('one chain takes =', time() - t)
+        # print('one chain takes =', time() - t)
     return res
 
 
@@ -304,10 +309,11 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
         t = time()
         acceptance.append(wf.perform_MC_step()[0])
         t_steps += time() - t
-    print('t_chain = ', time() - tc)
-    print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
-    print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
-    return energies, Os, acceptance, wf.get_state(), observables, names, wf.U_matrix, wf.E, densities
+    # print('t_chain = ', time() - tc)
+    # print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
+    # print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
+    return energies, Os, acceptance, wf.get_state(), observables, \
+           names, wf.U_matrix, wf.lowest_energy_states, densities, wf.gap
 
 if __name__ == "__main__":
     config_vmc_file = import_config(sys.argv[1])
@@ -434,19 +440,20 @@ if __name__ == "__main__":
         spectral_file.write(("{:.7f} " * len(E) + '\n').format(*E))
         spectral_file.flush()
         ### MC chains data extraction ###
-        gaps, gap, energies, mean_variance, Os, acceptance, final_states, densities, orbitals_in_use = \
+        gaps, gap, energies, mean_variance, Os, acceptance, \
+            final_states, densities, orbitals_in_use, occupied_numbers = \
             extract_MC_data(results, config_vmc, config_vmc.n_chains)
         energies_merged = np.concatenate(energies) 
-        print('energy = {:.5f} +/- {:.5f}'.format(energies_merged.mean(), energies_merged.std() / np.sqrt(len(energies_merged))))
+        
+        n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
 
-    
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps)
             step, forces, force_SR_abs_history, force_abs_history = \
                 clip_forces(step, forces, force_SR_abs_history, force_abs_history)
             write_intermediate_log(log_file, n_step, config_vmc.total_dof // 2, energies, densities, \
-                                   mean_variance, acceptance, forces, step, gap, parameters)  # write parameters before step not to lose the initial values
+                                   mean_variance, acceptance, forces, step, gap, n_above_FS, parameters)  # write parameters before step not to lose the initial values
 
             # step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
 

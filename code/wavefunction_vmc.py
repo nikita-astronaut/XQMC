@@ -4,7 +4,11 @@ from opt_parameters import pairings, waves
 import models
 from copy import deepcopy
 from numba import jit
+from numba.errors import NumbaPerformanceWarning
 import scipy
+import warnings
+
+warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
@@ -154,11 +158,11 @@ class wavefunction_singlet():
         if orbitals_in_use is not None:
             overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
             self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
-            print(np.max(overlap_matrix, axis = 0), 'print maximums of overlaps')
         else:
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
 
         rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
+        self.gap = -np.min(E[self.lowest_energy_states]) + np.max(E[rest_states])
         U = U[:, self.lowest_energy_states]  # select only occupied orbitals
         self.E_fermi = np.max(self.E[self.lowest_energy_states])
 
