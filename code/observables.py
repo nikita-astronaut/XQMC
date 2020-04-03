@@ -222,8 +222,6 @@ class Observables:
         data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), np.mean(self.sign_history),
                 np.mean(self.light_signs_history)] + [self.signs_avg(val, signs) for _, val in self.light_observables_list.items()]
 
-        # print(len(self.light_observables_list['⟨density⟩']), len(signs), np.mean(self.light_observables_list['⟨density⟩']), np.mean(signs), np.mean(np.array(self.light_observables_list['⟨density⟩']) * signs))
-
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
         self.log_file.flush()
         self.global_average_sign.append(np.mean(signs))
@@ -262,7 +260,7 @@ class Observables:
 
 
         self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0: ...], signs[:, 0], self.ijkl_order)
-        self.Z_dd_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+        self.Z_dd_ijkl = measure_Z_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
 
         self.X_uu_ijkl = measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
             self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
@@ -340,7 +338,7 @@ class Observables:
                                get_order_average_connected(order_up, self.ijkl_order, self.Z_uu_ijkl, self.ik_marking, self.config.Ls) + \
                                get_order_average_connected(order_down, self.ijkl_order, self.Z_dd_ijkl, self.ik_marking, self.config.Ls)
 
-            order_correlator /= self.num_chi_samples * norm * N * mean_signs
+            order_correlator /= (self.num_chi_samples * norm * N * mean_signs)
             self.order_observables_list[order_name + '_order'] = order_correlator
 
         print('obtaining of observables', time() - t)
@@ -354,13 +352,29 @@ class Observables:
         # density_data = [n_sweep, np.mean(signs)] + [self.signs_avg(val, signs) / np.mean(signs) for _, val in self.density_corr_list.items()]
 
         gap_data = [n_sweep, np.mean(signs)]
+        name = os.path.join(self.config.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
+        idx_alpha = 0; idx_beta = 0
+        chi_vertex = np.zeros((len(self.config.pairings_list_names), len(self.config.pairings_list_names)), dtype=np.complex64)
+        chi_total = np.zeros((len(self.config.pairings_list_names), len(self.config.pairings_list_names)), dtype=np.complex64)
+
 
         for _, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             for _, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+                chi_vertex[idx_alpha, idx_beta] = self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real'] + \
+                                           1.0j * self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_imag']
+                chi_total[idx_alpha, idx_beta] = self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_real'] + \
+                                           1.0j * self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag']
                 gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real']) # norm already accounted
                 gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_real'])
                 gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_imag']) # norm already accounted
                 gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'])
+                idx_beta += 1
+            idx_alpha += 1
+        name = os.path.join(self.config.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
+        np.save(name, chi_vertex)
+        name = os.path.join(self.config.local_workdir, 'chi_total_{:d}.npy'.format(n_sweep))
+        np.save(name, chi_total)
+        np.save(os.path.join(self.config.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
 
 
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
@@ -370,18 +384,21 @@ class Observables:
                 corr_data.append(self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)])
             self.corr_file.write(gap_name + (" {:d} " + "{:.6f} " * (len(corr_data) - 1) + '\n').format(n_sweep, *corr_data[1:]))
 
+        orders = np.zeros((len(self.config.waves_list_names), self.config.Ls, self.config.Ls), dtype=np.complex64)
+
+        idx_order = 0
         for order_name in self.config.waves_list_names:
-            name = os.path.join(self.config.local_workdir, '{:d}_{:s}.npy'.format(n_sweep, order_name))
-            np.save(name, self.order_observables_list[order_name + '_order'])
+            orders[idx_order, ...] = self.order_observables_list[order_name + '_order']
+            idx_order += 1
 
-        # self.density_file.write(("{:d} " + "{:.6f} " * (len(density_data) - 1) + '\n').format(n_sweep, *density_data[1:]))
+        np.save(os.path.join(self.config.local_workdir, 'orders_names.npy'), np.array(self.config.waves_list_names))
+        name = os.path.join(self.config.local_workdir, 'order_{:d}.npy'.format(n_sweep))
+        np.save(name, orders)
+
+
         self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))
-
-        # self.density_file.flush()
         self.gap_file.flush()
         self.corr_file.flush()
-
-
         self.refresh_heavy_logs()
         return
 
@@ -575,14 +592,14 @@ def measure_Z_correlator(GF_sigma, signs, ijkl):
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
-        adding = 0 if l == j else 1
-        Z_ijkl[xi] = np.sum((-GF_sigma[:, l, j] + adding) * GF_sigma[:, i, k] * signs)
+        delta_lj = 0 if l != j else 1
+        Z_ijkl[xi] = np.sum((-GF_sigma[:, l, j] + delta_lj) * GF_sigma[:, i, k] * signs)
 
     return Z_ijkl
 
 
 @jit(nopython=True, parallel=True)
-def measure_X_correlator(GF_sigma1, GF_sigma2, ijkl):
+def measure_X_correlator(GF_sigma1, GF_sigma2, signs, ijkl):
     X_ijkl = np.zeros(len(ijkl), dtype=np.float64)
     idx = 0
 
