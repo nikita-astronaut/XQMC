@@ -21,7 +21,6 @@ class Observables:
         
         self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), open_mode)
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
-        # self.density_file = open(os.path.join(self.local_workdir, 'density_log.dat'), open_mode)
         self.corr_file = open(os.path.join(self.local_workdir, 'corr_log.dat'), open_mode)
 
         self.refresh_light_logs()
@@ -35,12 +34,21 @@ class Observables:
 
 
         # for Gap-Gap susceptibility
-        self.reduced_A = models.get_reduced_adjacency_matrix(self.config)
-        self.ijkl = np.array(get_idxs_list(self.reduced_A))
+        self.reduced_A_gap = models.get_reduced_adjacency_matrix(self.config, \
+            self.config.max_square_pairing_distance)
+        self.ijkl = np.array(get_idxs_list(self.reduced_A_gap))
 
+        # for order-order susceptibility
+        self.reduced_A_order = models.get_reduced_adjacency_matrix(self.config, \
+            self.config.max_square_order_distance)
+        self.ijkl_order = np.array(get_idxs_list(self.reduced_A_order))
+        self.ik_marking = get_ik_marking(self.config)
+
+        # for fast correlator computation
         self.adj_list_marking = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2)).astype(np.int64)
         for idx, adj in enumerate(self.config.adj_list):
             self.adj_list_marking[adj[0] > 0.5] = idx
+
 
         self.refresh_heavy_logs()
         self.init_heavy_logs_files()
@@ -55,20 +63,19 @@ class Observables:
 
     def init_heavy_logs_files(self):
         self.gap_file.write('step sign_obs ')
-        # self.density_file.write('step sign_obs ')
         self.corr_file.write('name step sign_obs ')
 
-        # for key, _ in self.density_corr_list.items():
-        #     self.density_file.write(key + ' ')
+
         for key, _ in self.gap_observables_list.items():
             if 'chi' in key:
                 self.gap_file.write(key + ' ')
+
         for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
             r = self.config.adj_list[r_index][-1]
             self.corr_file.write('{:2f} '.format(r))
 
+
         self.gap_file.write('\n')
-        # self.density_file.write('\n')
         self.corr_file.write('\n')
         return
 
@@ -92,8 +99,18 @@ class Observables:
         # for gap-gap correlator measurement
         self.PHI_ijkl = np.zeros(len(self.ijkl))
 
+        # for order-order correlator measurement
+        self.Z_uu_ijkl = np.zeros(len(self.ijkl_order))
+        self.Z_dd_ijkl = np.zeros(len(self.ijkl_order))
+
+        self.X_uu_ijkl = np.zeros(len(self.ijkl_order))
+        self.X_ud_ijkl = np.zeros(len(self.ijkl_order))
+        self.X_du_ijkl = np.zeros(len(self.ijkl_order))
+        self.X_dd_ijkl = np.zeros(len(self.ijkl_order))
+
 
         self.gap_observables_list = OrderedDict()
+        self.order_observables_list = OrderedDict()
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
@@ -104,6 +121,11 @@ class Observables:
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_real'] = 0.0
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_imag'] = 0.0
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'] = 0.0
+
+
+        for order_name in self.config.waves_list_names:
+            self.order_observables_list[order_name + '_order'] = 0.0
+
 
         for gap_name in self.config.pairings_list_names:
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
@@ -219,10 +241,8 @@ class Observables:
         GFs_up = np.array(phi.get_nonequal_time_GFs(+1.0, phi.current_G_function_up))
         GFs_down = np.array(phi.get_nonequal_time_GFs(-1.0, phi.current_G_function_down))
         phi.copy_to_CPU()
-        self.GF_up_stored[self.cur_buffer_size, ...] = GFs_up * current_det_sign
-        self.GF_down_stored[self.cur_buffer_size, ...] = GFs_down * current_det_sign
-        #self.GF_up_stored[self.cur_buffer_size, ...] = (GFs_up + GFs_up.transpose((0, 2, 1))) * current_det_sign / 2.  # symmetrize by hand
-        #self.GF_down_stored[self.cur_buffer_size, ...] = (GFs_down + GFs_down.transpose((0, 2, 1))) * current_det_sign / 2.  # symmetrize by hand
+        self.GF_up_stored[self.cur_buffer_size, ...] = GFs_up
+        self.GF_down_stored[self.cur_buffer_size, ...] = GFs_down
         print('obtaining of non-equal Gfs takes', time() - t)
 
         self.cur_buffer_size += 1
@@ -233,13 +253,32 @@ class Observables:
 
     def refresh_gfs_buffer(self):
         t = time()
+        signs = self.heavy_signs_history[-self.cur_buffer_size:][..., np.newaxis]
+
         self.C_ijkl += measure_gfs_correlator(self.GF_up_stored[:self.cur_buffer_size, ...], \
-            self.GF_down_stored[:self.cur_buffer_size, ...], self.ijkl)
+            self.GF_down_stored[:self.cur_buffer_size, ...], signs, self.ijkl)
         self.PHI_ijkl += measure_gfs_correlator(self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], \
-            self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], self.ijkl)
+            self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], signs, self.ijkl)
+
+
+        self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0: ...], signs[:, 0], self.ijkl_order)
+        self.Z_dd_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+
+        self.X_uu_ijkl = measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
+            self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+        self.X_ud_ijkl = measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
+            self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+        self.X_du_ijkl = measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
+            self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+        self.X_dd_ijkl = measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
+            self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+
+
         print('measurement of C_ijkl, PHI_ijkl correlators takes', time() - t)
-        self.GF_up_sum += np.sum(self.GF_up_stored[:self.cur_buffer_size, ...], axis = 0)
-        self.GF_down_sum += np.sum(self.GF_down_stored[:self.cur_buffer_size, ...], axis = 0)
+        self.GF_up_sum += np.sum(self.GF_up_stored[:self.cur_buffer_size, ...] * \
+                                 signs[..., np.newaxis, np.newaxis], axis = 0)
+        self.GF_down_sum += np.sum(self.GF_down_stored[:self.cur_buffer_size, ...] * \
+                                   signs[..., np.newaxis, np.newaxis], axis = 0)
 
         self.cur_buffer_size = 0
         return
@@ -286,11 +325,25 @@ class Observables:
                 
                 self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)] = \
                     averaged_correlator / self.num_chi_samples / mean_signs / N_alpha
-            
-        print('obtaining of gap corrs takes', time() - t)
-        # for adj in adj_list_density:
-        #     self.density_corr_list["n_up_n_down_({:d}/{:d}/{:.2f})".format(*adj[1:])].append(n_up_n_down_correlator(phi, adj[0]).item())
-    
+        
+
+        for order, order_name in zip(self.config.waves_list, self.config.waves_list_names):
+            norm = order.shape[0]  # N_s
+            N = 1.0 * np.sum(np.abs(order) ** 2) / norm  # N_alpha
+
+            order_up = order[:order.shape[0] // 2, :order.shape[1] // 2]
+            order_down = order[order.shape[0] // 2:, order.shape[1] // 2:]
+            order_correlator = get_order_average_disconnected(order_up, order_up, self.ijkl_order, self.X_uu_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average_disconnected(order_up, order_down, self.ijkl_order, self.X_ud_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average_disconnected(order_down, order_up, self.ijkl_order, self.X_du_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average_disconnected(order_down, order_down, self.ijkl_order, self.X_dd_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average_connected(order_up, self.ijkl_order, self.Z_uu_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average_connected(order_down, self.ijkl_order, self.Z_dd_ijkl, self.ik_marking, self.config.Ls)
+
+            order_correlator /= self.num_chi_samples * norm * N * mean_signs
+            self.order_observables_list[order_name + '_order'] = order_correlator
+
+        print('obtaining of observables', time() - t)
         return
 
 
@@ -316,6 +369,10 @@ class Observables:
                 r = self.config.adj_list[r_index][-1]
                 corr_data.append(self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)])
             self.corr_file.write(gap_name + (" {:d} " + "{:.6f} " * (len(corr_data) - 1) + '\n').format(n_sweep, *corr_data[1:]))
+
+        for order_name in self.config.waves_list_names:
+            name = os.path.join(self.config.local_workdir, '{:d}_{:s}.npy'.format(n_sweep, order_name))
+            np.save(name, self.order_observables_list[order_name + '_order'])
 
         # self.density_file.write(("{:d} " + "{:.6f} " * (len(density_data) - 1) + '\n').format(n_sweep, *density_data[1:]))
         self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))
@@ -498,15 +555,45 @@ def waves_twoorb_hex(phi):
     return sdw_l, sdw_o, sdw_lo, cdw_l, cdw_o, cdw_lo
 
 @jit(nopython=True, parallel=True)
-def measure_gfs_correlator(GF_up, GF_down, ijkl):
+def measure_gfs_correlator(GF_up, GF_down, signs, ijkl):
     C_ijkl = np.zeros(len(ijkl), dtype=np.float64)
     idx = 0
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
-        C_ijkl[xi] = np.sum(GF_up[:, :, i, k] * GF_down[:, :, j, l])
+        C_ijkl[xi] = np.sum(GF_up[:, :, i, k] * GF_down[:, :, j, l] * signs)
 
     return C_ijkl
+
+
+
+# <(delta_ij - G^up(l, j)) G^up(i, k)>
+@jit(nopython=True, parallel=True)
+def measure_Z_correlator(GF_sigma, signs, ijkl):
+    Z_ijkl = np.zeros(len(ijkl), dtype=np.float64)
+    idx = 0
+
+    for xi in range(ijkl.shape[0]):
+        i, j, k, l = ijkl[xi]
+        adding = 0 if l == j else 1
+        Z_ijkl[xi] = np.sum((-GF_sigma[:, l, j] + adding) * GF_sigma[:, i, k] * signs)
+
+    return Z_ijkl
+
+
+@jit(nopython=True, parallel=True)
+def measure_X_correlator(GF_sigma1, GF_sigma2, ijkl):
+    X_ijkl = np.zeros(len(ijkl), dtype=np.float64)
+    idx = 0
+
+    for xi in range(ijkl.shape[0]):
+        i, j, k, l = ijkl[xi]
+        delta_ij = 0 if i != j else 1
+        delta_kl = 0 if k != l else 1
+
+        X_ijkl[xi] = np.sum((GF_sigma1[:, i, j] - delta_ij) * (GF_sigma2[:, l, k] - delta_kl) * signs)
+
+    return X_ijkl
 
 
 @jit(nopython=True, parallel=True)
@@ -529,6 +616,27 @@ def get_gap_susceptibility(gap_alpha, gap_beta, ijkl, C_ijkl):
         corr += np.conj(gap_alpha[i, j]) * gap_beta[k, l] * C_ijkl[xi]
     return corr
 
+
+@jit(nopython=True, parallel=True)
+def get_order_average_disconnected(order_s1, order_s2, ijkl, X_s1s2_ijkl, ik_marking, Ls):
+    corr = np.zeros((Ls, Ls), dtype=np.complex64)
+
+    for xi in range(len(ijkl)):
+        i, j, k, l = ijkl[xi]
+        corr[ik_marking[i, k]] += np.conj(order_s1[i, j]) * order_s2[k, l] * X_s1s2_ijkl[xi]
+    return corr
+
+
+@jit(nopython=True, parallel=True)
+def get_order_average_connected(order_s, ijkl, Z_ss_ijkl, ik_marking, Ls):
+    corr = np.zeros((Ls, Ls), dtype=np.complex64)
+
+    for xi in range(len(ijkl)):
+        i, j, k, l = ijkl[xi]
+        corr[ik_marking[i, k]] += np.conj(order_s[i, j]) * order_s[k, l] * Z_ss_ijkl[xi]
+    return corr
+
+
 @jit(nopython=True, parallel=True)
 def gap_gap_correlator(gap, ijkl, PHI_ijkl, adj_marking):
     corr_list = np.zeros(len(adj_marking)) + 0.0j
@@ -538,3 +646,21 @@ def gap_gap_correlator(gap, ijkl, PHI_ijkl, adj_marking):
         adj_index = adj_marking[i, k]
         corr_list[adj_index] += np.conj(gap[i, j]) * gap[k, l] * PHI_ijkl[xi]
     return corr_list.real
+
+
+def get_ik_marking(config):
+    return _get_ik_marking(config.Ls, config.n_orbitals, config.n_sublattices, config.total_dof)
+
+@jit(nopython=True)
+def _get_ik_marking(Ls, n_orbitals, n_sublattices, total_dof):
+    A = np.zeros((total_dof // 2, total_dof // 2), dtype = np.int64)
+    for i in range(config.total_dof // 2):
+        oi, si, xi, yi = from_linearized_index(i, Ls, n_orbitals, n_sublattices)
+        for j in range(config.total_dof // 2):
+            oj, sj, xj, yj = from_linearized_index(j, Ls, n_orbitals, n_sublattices)
+
+            dx = (xi - xj) % Ls
+            dy = (yi - yj) % Ls
+            index = dy * Ls + dx
+            A[i, j] = index
+    return A

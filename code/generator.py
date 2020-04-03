@@ -128,6 +128,20 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
         print('measurement of green functions takes ', time() - t)
     return phi_field, observables
 
+def retrieve_last_n_sweep(config):
+    try:
+        general_log = open(os.path.join(config.local_workdir, 'general_log.dat'), 'r')
+    except:
+        return 0
+    for line in general_log:
+        pass
+    try:
+        return int(line.split(' ')[0])
+    except:
+        pass
+    return 0
+
+
 
 if __name__ == "__main__":
     U_list = deepcopy(config.U); V_list = deepcopy(config.V); mu_list = deepcopy(config.mu); Nt_list = deepcopy(config.Nt);
@@ -153,7 +167,7 @@ if __name__ == "__main__":
         observables = obs_methods.Observables(phi_field, local_workdir)
         observables.print_greerings()
 
-        for n_sweep in range(config.n_sweeps):
+        for n_sweep in range(retrieve_last_n_sweep(config), config.n_sweeps):
             accept_history = []
             t = time()
             phi_field, observables = perform_sweep(phi_field, observables, n_sweep)

@@ -367,9 +367,11 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
 
     def _V_from_configuration(self, s, sign, spin):
         if spin > 0:
-            V = self.config.nu_V * sign * np.array([-s[0], s[0]]) + self.config.nu_U * sign * np.array([s[2], s[1]])
+            V = self.config.nu_V * sign * np.array([-s[0], s[0]]) + \
+                self.config.nu_U * sign * np.array([s[2], s[1]])
         else:
-            V = self.config.nu_V * sign * np.array([-s[0], s[0]]) + self.config.nu_U * sign * np.array([-s[2], -s[1]])
+            V = self.config.nu_V * sign * np.array([-s[0], s[0]]) + \
+                self.config.nu_U * sign * np.array([-s[2], -s[1]])
         return np.diag(np.exp(V))
 
     def _get_initial_field_configuration(self):

@@ -446,7 +446,7 @@ if __name__ == "__main__":
         energies_merged = np.concatenate(energies) 
         
         n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
-
+        print(occupied_numbers[0])
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps)

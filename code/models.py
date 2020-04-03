@@ -217,12 +217,12 @@ def get_adjacency_list(config):
     return adjacency_list, longest_distance
 
 
-def get_reduced_adjacency_matrix(config):
+def get_reduced_adjacency_matrix(config, max_distance):
     A = get_adjacency_list(config)[0]
     reduced_A = np.zeros((config.total_dof // 2, config.total_dof // 2))
 
     for adj in A:
-        if adj[-1] > config.max_square_pairing_distance + 1e-5:
+        if adj[-1] > max_distance + 1e-5:
             continue
         reduced_A += adj[0]
 
