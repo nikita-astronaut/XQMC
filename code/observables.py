@@ -251,15 +251,16 @@ class Observables:
 
     def refresh_gfs_buffer(self):
         t = time()
-        signs = self.heavy_signs_history[-self.cur_buffer_size:][..., np.newaxis]
+        signs = np.array(self.heavy_signs_history[-self.cur_buffer_size:])[..., np.newaxis]
+        signs = np.repeat(signs, self.config.Nt, axis = 1)
 
         self.C_ijkl += measure_gfs_correlator(self.GF_up_stored[:self.cur_buffer_size, ...], \
             self.GF_down_stored[:self.cur_buffer_size, ...], signs, self.ijkl)
         self.PHI_ijkl += measure_gfs_correlator(self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], \
-            self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], signs, self.ijkl)
+                self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1], self.ijkl)
 
 
-        self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0: ...], signs[:, 0], self.ijkl_order)
+        self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
         self.Z_dd_ijkl = measure_Z_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
 
         self.X_uu_ijkl = measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
@@ -273,11 +274,8 @@ class Observables:
 
 
         print('measurement of C_ijkl, PHI_ijkl correlators takes', time() - t)
-        self.GF_up_sum += np.sum(self.GF_up_stored[:self.cur_buffer_size, ...] * \
-                                 signs[..., np.newaxis, np.newaxis], axis = 0)
-        self.GF_down_sum += np.sum(self.GF_down_stored[:self.cur_buffer_size, ...] * \
-                                   signs[..., np.newaxis, np.newaxis], axis = 0)
-
+        self.GF_up_sum += np.einsum('ijkl,i->jkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs[..., 0])
+        self.GF_down_sum += np.einsum('ijkl,i->jkl', self.GF_down_stored[:self.cur_buffer_size, ...], signs[..., 0])
         self.cur_buffer_size = 0
         return
 
@@ -293,7 +291,6 @@ class Observables:
                 norm = gap_alpha.shape[0]  # N_s
                 N_alpha = 1.0 * np.sum(np.abs(gap_alpha) ** 2) / norm  # N_alpha
                 N_beta = 1.0 * np.sum(np.abs(gap_beta) ** 2) / norm  # N_beta
-
 
                 total_chi = get_gap_susceptibility(gap_alpha, gap_beta, \
                     self.ijkl, self.C_ijkl) / (self.num_chi_samples * mean_signs)
@@ -325,7 +322,8 @@ class Observables:
                     averaged_correlator / self.num_chi_samples / mean_signs / N_alpha
         
 
-        for order, order_name in zip(self.config.waves_list, self.config.waves_list_names):
+        for order_list, order_name in zip(self.config.waves_list, self.config.waves_list_names):
+            order = order_list[0]
             norm = order.shape[0]  # N_s
             N = 1.0 * np.sum(np.abs(order) ** 2) / norm  # N_alpha
 
@@ -337,6 +335,7 @@ class Observables:
                                get_order_average_disconnected(order_down, order_down, self.ijkl_order, self.X_dd_ijkl, self.ik_marking, self.config.Ls) + \
                                get_order_average_connected(order_up, self.ijkl_order, self.Z_uu_ijkl, self.ik_marking, self.config.Ls) + \
                                get_order_average_connected(order_down, self.ijkl_order, self.Z_dd_ijkl, self.ik_marking, self.config.Ls)
+            order_correlator = order_correlator.reshape((self.config.Ls, self.config.Ls))
 
             order_correlator /= (self.num_chi_samples * norm * N * mean_signs)
             self.order_observables_list[order_name + '_order'] = order_correlator
@@ -352,13 +351,14 @@ class Observables:
         # density_data = [n_sweep, np.mean(signs)] + [self.signs_avg(val, signs) / np.mean(signs) for _, val in self.density_corr_list.items()]
 
         gap_data = [n_sweep, np.mean(signs)]
-        name = os.path.join(self.config.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
+        name = os.path.join(self.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
         idx_alpha = 0; idx_beta = 0
         chi_vertex = np.zeros((len(self.config.pairings_list_names), len(self.config.pairings_list_names)), dtype=np.complex64)
         chi_total = np.zeros((len(self.config.pairings_list_names), len(self.config.pairings_list_names)), dtype=np.complex64)
 
 
         for _, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+            idx_beta = 0
             for _, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
                 chi_vertex[idx_alpha, idx_beta] = self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real'] + \
                                            1.0j * self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_imag']
@@ -370,11 +370,11 @@ class Observables:
                 gap_data.append(self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'])
                 idx_beta += 1
             idx_alpha += 1
-        name = os.path.join(self.config.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
+        name = os.path.join(self.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
         np.save(name, chi_vertex)
-        name = os.path.join(self.config.local_workdir, 'chi_total_{:d}.npy'.format(n_sweep))
+        name = os.path.join(self.local_workdir, 'chi_total_{:d}.npy'.format(n_sweep))
         np.save(name, chi_total)
-        np.save(os.path.join(self.config.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
+        np.save(os.path.join(self.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
 
 
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
@@ -391,8 +391,8 @@ class Observables:
             orders[idx_order, ...] = self.order_observables_list[order_name + '_order']
             idx_order += 1
 
-        np.save(os.path.join(self.config.local_workdir, 'orders_names.npy'), np.array(self.config.waves_list_names))
-        name = os.path.join(self.config.local_workdir, 'order_{:d}.npy'.format(n_sweep))
+        np.save(os.path.join(self.local_workdir, 'orders_names.npy'), np.array(self.config.waves_list_names))
+        name = os.path.join(self.local_workdir, 'order_{:d}.npy'.format(n_sweep))
         np.save(name, orders)
 
 
@@ -634,9 +634,9 @@ def get_gap_susceptibility(gap_alpha, gap_beta, ijkl, C_ijkl):
     return corr
 
 
-@jit(nopython=True, parallel=True)
+@jit(nopython=True,parallel=True)
 def get_order_average_disconnected(order_s1, order_s2, ijkl, X_s1s2_ijkl, ik_marking, Ls):
-    corr = np.zeros((Ls, Ls), dtype=np.complex64)
+    corr = np.zeros(Ls * Ls) + 0.0j
 
     for xi in range(len(ijkl)):
         i, j, k, l = ijkl[xi]
@@ -646,7 +646,7 @@ def get_order_average_disconnected(order_s1, order_s2, ijkl, X_s1s2_ijkl, ik_mar
 
 @jit(nopython=True, parallel=True)
 def get_order_average_connected(order_s, ijkl, Z_ss_ijkl, ik_marking, Ls):
-    corr = np.zeros((Ls, Ls), dtype=np.complex64)
+    corr = np.zeros(Ls * Ls) + 0.0j
 
     for xi in range(len(ijkl)):
         i, j, k, l = ijkl[xi]
@@ -671,10 +671,10 @@ def get_ik_marking(config):
 @jit(nopython=True)
 def _get_ik_marking(Ls, n_orbitals, n_sublattices, total_dof):
     A = np.zeros((total_dof // 2, total_dof // 2), dtype = np.int64)
-    for i in range(config.total_dof // 2):
-        oi, si, xi, yi = from_linearized_index(i, Ls, n_orbitals, n_sublattices)
-        for j in range(config.total_dof // 2):
-            oj, sj, xj, yj = from_linearized_index(j, Ls, n_orbitals, n_sublattices)
+    for i in range(total_dof // 2):
+        oi, si, xi, yi = models.from_linearized_index(i, Ls, n_orbitals, n_sublattices)
+        for j in range(total_dof // 2):
+            oj, sj, xj, yj = models.from_linearized_index(j, Ls, n_orbitals, n_sublattices)
 
             dx = (xi - xj) % Ls
             dy = (yi - yj) % Ls
