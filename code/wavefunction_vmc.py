@@ -72,7 +72,7 @@ class wavefunction_singlet():
 
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
-        self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(wave[0])) for wave in self.config.waves_list])
+        self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave[0])) for wave in self.config.waves_list])
         ### allowed 1-particle moves ###
         self.adjacency_list = self.config.adjacency_transition_matrix 
 
@@ -416,7 +416,7 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
 
     for wave, coeff in zip(config.waves_list, var_waves):
-        T += waves.waves_particle_hole(wave[0]) * coeff
+        T += waves.waves_particle_hole(config, wave[0]) * coeff
     return T
 
 @jit(nopython = True)

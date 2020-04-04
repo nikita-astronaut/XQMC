@@ -1,6 +1,7 @@
 import numpy as np
 import models
 from opt_parameters import pairings
+from copy import deepcopy
 
 Ipauli = np.array([[1, 0], [0, 1]])
 Xpauli = np.array([[0, 1], [1, 0]])
@@ -76,9 +77,11 @@ def construct_2orb_hex(config):
 
     return orders_unwrapped
 
-def waves_particle_hole(m):
+def waves_particle_hole(config, m):
     m_ph = m.copy()
-    m_ph[m.shape[0] // 2:, m.shape[1] // 2:] = -1. * m[m.shape[0] // 2:, m.shape[1] // 2:].T
+
+    m_ph[:m.shape[0] // 2, :m.shape[1] // 2] = models.apply_TBC(config, deepcopy(m_ph[:m.shape[0] // 2, :m.shape[1] // 2]), inverse = False)
+    m_ph[m.shape[0] // 2:, m.shape[1] // 2:] = -models.apply_TBC(config, deepcopy(m_ph[m.shape[0] // 2:, m.shape[1] // 2:]), inverse = True).T
     return m_ph
 
 def construct_wave_V(config, orbital, sublattice, wave_type):
