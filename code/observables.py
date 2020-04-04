@@ -254,10 +254,10 @@ class Observables:
         signs = np.array(self.heavy_signs_history[-self.cur_buffer_size:])[..., np.newaxis]
         signs = np.repeat(signs, self.config.Nt, axis = 1)
 
-        self.C_ijkl += measure_gfs_correlator(self.GF_up_stored[:self.cur_buffer_size, ...], \
-            self.GF_down_stored[:self.cur_buffer_size, ...], signs, self.ijkl)
-        self.PHI_ijkl += measure_gfs_correlator(self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], \
-                self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1], self.ijkl)
+        self.C_ijkl += measure_gfs_correlator(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs), \
+            self.GF_down_stored[:self.cur_buffer_size, ...], self.ijkl)
+        self.PHI_ijkl += measure_gfs_correlator(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1]), \
+                self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], self.ijkl)
 
 
         self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
@@ -572,13 +572,13 @@ def waves_twoorb_hex(phi):
     return sdw_l, sdw_o, sdw_lo, cdw_l, cdw_o, cdw_lo
 
 @jit(nopython=True, parallel=True)
-def measure_gfs_correlator(GF_up, GF_down, signs, ijkl):
+def measure_gfs_correlator(GF_up, GF_down, ijkl):
     C_ijkl = np.zeros(len(ijkl), dtype=np.float64)
     idx = 0
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
-        C_ijkl[xi] = np.sum(GF_up[:, :, i, k] * GF_down[:, :, j, l] * signs)
+        C_ijkl[xi] = np.sum(GF_up[:, :, i, k] * GF_down[:, :, j, l])
 
     return C_ijkl
 
