@@ -50,6 +50,34 @@ def construct_NN_delta(config, direction, geometry):
 
     return delta
 
+
+
+def construct_NNN_delta(config, direction, geometry, sublattice = 0):
+    interlattice = 0
+    if geometry == 'square':
+        n_sublattices = 1
+    else:
+        n_sublattices = 2
+
+
+    delta = np.zeros((config.Ls ** 2 * n_sublattices, config.Ls ** 2 * n_sublattices))
+
+    for first in range(delta.shape[0]):
+        for second in range(delta.shape[1]):
+            sublattice1, sublattice2 = first % n_sublattices, second % n_sublattices
+            space1, space2 = first // n_sublattices, second // n_sublattices
+            x1, y1 = space1 // config.Ls, space1 % config.Ls
+            x2, y2 = space2 // config.Ls, space2 % config.Ls
+            r1 = np.array([x1, y1])
+            r2 = np.array([x2, y2])
+
+            if sublattice1 == sublattice and sublattice2 == sublattice:
+                if direction == models.next_nearest_neighbor(r1, r2, config.Ls, geometry)[1]:
+                    delta[first, second] = 1
+
+    return delta
+
+
 def construct_vi_hex(vi, delta_hex):
     '''
         v[1] = delta1 + delta2 + delta3
@@ -67,6 +95,18 @@ def construct_vi_hex(vi, delta_hex):
         phase_factor = np.exp(-2.0 * np.pi / 3. * 1.0j)
 
     return delta_hex[0] * (1.0 + 0.0j) + delta_hex[1] * phase_factor + delta_hex[2] * phase_factor ** 2
+
+
+def construct_ui_hex(ui, delta_hex):
+    '''
+        u[1] = delta1 + delta2 + delta3 + delta4 + delta5 + delta6
+    '''
+    if ui > 1:
+        print('Not implemented!')
+        exit(-1)
+
+    return delta_hex[0] + delta_hex[1] + delta_hex[2] + delta_hex[3] + delta_hex[4] + delta_hex[5]
+
 
 def construct_vi_square(vi):
     '''
@@ -122,12 +162,19 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij, spin_ij = np
             space1 = (x1 * config.Ls + y1) * config.n_sublattices + sublattice1
             space2 = (x2 * config.Ls + y2) * config.n_sublattices + sublattice2
 
-            if sublattice2 - sublattice1 == 1:  # AB pairings (only in the hexagonal case)
-                delta_s1s2 = delta_ij[0]
-            elif sublattice2 - sublattice1 == -1:  # BA pairings (only in the hexagonal case)
-                delta_s1s2 = delta_ij[1]
+            if config.n_sublattices == 2:
+                if sublattice2 - sublattice1 == 1:  # AB pairings (only in the hexagonal case)
+                    delta_s1s2 = delta_ij[0]
+                elif sublattice2 - sublattice1 == -1:  # BA pairings (only in the hexagonal case)
+                    delta_s1s2 = delta_ij[1]
+                elif sublattice1 == 0 and len(delta_ij) == 2:
+                    delta_s1s2 = delta_ij[0]  # AA pairing (only hex case, not on-site)
+                elif sublattice1 == 1 and len(delta_ij) == 2:
+                    delta_s1s2 = delta_ij[1]  # BB pairing (only hex case, not on-site)
+                else:
+                    delta_s1s2 = delta_ij
             else:
-                delta_s1s2 = delta_ij
+                delta_s1s2 = delta_ij  # only square case
 
             # otherwise (subl2 = subl1 means this is a square lattice or hex on-site, just use the delta_ij matrix)
             if sigma_l1l2[sublattice1, sublattice2] != 0.0:

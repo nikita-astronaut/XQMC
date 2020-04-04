@@ -230,6 +230,152 @@ def plot_pairing(config, gap_expanded, name):
     plt.clf()
     return
 
+
+def plot_all_waves(config):
+    for wave, name in zip(config.waves_list, config.waves_list_names):
+        plot_wave(config, wave[0], name)
+
+def plot_wave(config, wave, name):
+    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+
+    if geometry == 'hexagonal':
+        R = models.R_hexagonal
+    else:
+        R = models.R_square
+    set_style()
+
+    textshift = np.array([0.1, 0.1])
+
+    x1, y1 = config.Ls // 2, config.Ls // 2
+    for sublattice1 in range(config.n_sublattices):
+        for orbit1 in range(config.n_orbitals):
+            first = models.to_linearized_index(x1, y1, sublattice1, orbit1, config.Ls, config.n_orbitals, config.n_sublattices)
+            for second in range(config.total_dof // 2):
+                orbit2, sublattice2, x2, y2 = models.from_linearized_index(deepcopy(second), config.Ls, \
+                                                                           config.n_orbitals, config.n_sublattices)
+                if wave[first, second] == 0:
+                    continue
+                value_uu = wave[first, second]
+                value_dd = wave[first + config.total_dof // 2, second + config.total_dof // 2]
+
+                labelstring_up = str(value_uu)
+                if np.abs(value_uu.imag) < 1e-10:
+                    labelstring_up = str(value_uu.real)
+                elif geometry == 'hexagonal':
+                    if np.abs(value_uu - np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_up = '$\\omega$'
+                    if np.abs(value_uu + np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_up = '$-\\omega$'
+                    if np.abs(value_uu - np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_up = '$\\omega^*$'
+                    if np.abs(value_uu + np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_up = '$-\\omega^*$'
+
+                    if np.abs(value_uu - 1.0j * np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_up = '$i \\omega$'
+                    if np.abs(value_uu + 1.0j * np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_up = '$-i \\omega$'
+                    if np.abs(value_uu - 1.0j * np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_up = '$i \\omega^*$'
+                    if np.abs(value_uu + 1.0j * np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_up = '$-i \\omega^*$'
+
+                    if np.abs(value_uu - 1.0j) < 1e-7:
+                        labelstring_up = '$i$'
+                    if np.abs(value_uu + 1.0j) < 1e-7:
+                        labelstring_up = '$-i$'
+
+                    if np.abs(value_uu - 1.0) < 1e-7:
+                        labelstring_up = '$1$'
+                    if np.abs(value_uu + 1.0) < 1e-7:
+                        labelstring_up = '$-1$'
+
+                    if np.abs(value_uu - 1.0j * np.sqrt(3)) < 1e-7:
+                        labelstring_up = '$i\\sqrt{3}$'
+                    if np.abs(value_uu + 1.0j * np.sqrt(3)) < 1e-7:
+                        labelstring_up = '$-i\\sqrt{3}$'
+
+                    if np.abs(value_uu - np.sqrt(3)) < 1e-7:
+                        labelstring_up = '$\\sqrt{3}$'
+                    if np.abs(value_uu + np.sqrt(3)) < 1e-7:
+                        labelstring_up = '$-\\sqrt{3}$'
+
+                labelstring_up = '(' + str(orbit1) + '-' + str(orbit2) + '), ' + labelstring_up + ', $\\uparrow$'
+
+                labelstring_down = str(value_dd)
+                if np.abs(value_dd.imag) < 1e-10:
+                    labelstring_down = str(value_dd.real)
+                elif geometry == 'hexagonal':
+                    if np.abs(value_dd - np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_down = '$\\omega$'
+                    if np.abs(value_dd + np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_down = '$-\\omega$'
+                    if np.abs(value_dd - np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_down = '$\\omega^*$'
+                    if np.abs(value_dd + np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_down = '$-\\omega^*$'
+
+                    if np.abs(value_dd - 1.0j * np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_down = '$i \\omega$'
+                    if np.abs(value_dd + 1.0j * np.exp(2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_down = '$-i \\omega$'
+                    if np.abs(value_dd - 1.0j * np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_down = '$i \\omega^*$'
+                    if np.abs(value_dd + 1.0j * np.exp(-2.0 * np.pi / 3.0 * 1.0j)) < 1e-11:
+                        labelstring_down = '$-i \\omega^*$'
+
+                    if np.abs(value_dd - 1.0j) < 1e-7:
+                        labelstring_down = '$i$'
+                    if np.abs(value_dd + 1.0j) < 1e-7:
+                        labelstring_down = '$-i$'
+
+                    if np.abs(value_dd - 1.0) < 1e-7:
+                        labelstring_down = '$1$'
+                    if np.abs(value_dd + 1.0) < 1e-7:
+                        labelstring_down = '$-1$'
+
+                    if np.abs(value_dd - 1.0j * np.sqrt(3)) < 1e-7:
+                        labelstring_down = '$i\\sqrt{3}$'
+                    if np.abs(value_dd + 1.0j * np.sqrt(3)) < 1e-7:
+                        labelstring_down = '$-i\\sqrt{3}$'
+
+                    if np.abs(value_dd - np.sqrt(3)) < 1e-7:
+                        labelstring_down = '$\\sqrt{3}$'
+                    if np.abs(value_dd + np.sqrt(3)) < 1e-7:
+                        labelstring_down = '$-\\sqrt{3}$'
+
+                labelstring_down = '(' + str(orbit1) + '-' + str(orbit2) + '), ' + labelstring_down + ', $\\downarrow$'
+
+                r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)  # always 0 in the square case
+                r2 = np.array([x2, y2]).dot(R) + sublattice2 * np.array([1, 0]) / np.sqrt(3)
+
+                r1_origin = np.array([x1, y1]).dot(R)
+                r1 = r1 - r1_origin
+                r2 = r2 - r1_origin
+                if sublattice2 == 0:
+                    plt.scatter(*r2, s=20, color='red')
+                else:
+                    plt.scatter(*r2, s=20, color='blue')
+                plt.annotate(s='', xy=r2, xytext=r1, arrowprops=dict(arrowstyle='->'))
+                
+                textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
+                textshift = textshift / np.sqrt(np.sum(textshift ** 2) + 1e-5)
+                shiftval = 0.4 - ((orbit1 * config.n_orbitals + orbit2) + 4) * 0.1
+                plt.text(*(r2 + shiftval * textshift), labelstring_up, zorder=10, fontsize=8, color='orange')
+                shiftval = 0.4 - ((orbit1 * config.n_orbitals + orbit2)) * 0.1
+                plt.text(*(r2 + shiftval * textshift), labelstring_down, zorder=10, fontsize=8, color='violet')
+    
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    #plt.xlim([-0.5, 1.25])
+    #plt.ylim([-0.75, 0.75])
+    # plt.title(name + ' pairing')
+    plt.savefig('../plots/wave_' + name + '.pdf')
+    plt.clf()
+    return
+
+
+
 def plot_all_Jastrow(config):
     for index, jastrow in enumerate(config.jastrows_list):
         plot_Jastrow(config, jastrow, index)

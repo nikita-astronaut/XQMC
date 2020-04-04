@@ -6,6 +6,8 @@ Ipauli = np.array([[1, 0], [0, 1]])
 Xpauli = np.array([[0, 1], [1, 0]])
 iYpauli = np.array([[0, 1], [-1, 0]])
 Zpauli = np.array([[1, 0], [0, -1]])
+delta_hex_AB = None 
+delta_hex_BA = None
 
 def construct_2orb_hex(config):
     # under particle-hole
@@ -13,11 +15,7 @@ def construct_2orb_hex(config):
 
     orders_on_site = [
         [(Zpauli, Ipauli, onsite, Zpauli), 'S_zxS_0xS_z'],
-        #[(Ipauli, iYpauli, onsite, Zpauli), 'S_0x(iS_y)xS_z'],
-        #[(Zpauli, iYpauli, onsite, Ipauli), 'S_zx(iS_y)xS_0'],
-        #[(Ipauli, iYpauli, onsite, Ipauli), 'S_0x(iS_y)xS_0'],
         [(Zpauli, Ipauli, onsite, Ipauli), 'S_zxS_0xS_0'],
-        #[(Zpauli, iYpauli, onsite, Zpauli), 'S_zx(iS_y)xS_z'],
         [(Ipauli, Xpauli, onsite, Ipauli), 'S_0x(S_x)xS_0'], [(Ipauli, Zpauli, onsite, Ipauli), 'S_0x(S_z)xS_0'],
         [(Zpauli, Xpauli, onsite, Ipauli), 'S_zx(S_x)xS_0'], [(Zpauli, Zpauli, onsite, Ipauli), 'S_zx(S_z)xS_0'],
         [(Ipauli, Xpauli, onsite, Zpauli), 'S_0x(S_x)xS_z'], [(Ipauli, Zpauli, onsite, Zpauli), 'S_0x(S_z)xS_z'],
@@ -41,12 +39,40 @@ def construct_2orb_hex(config):
     print('Checking S_zx(S_x)xS_z/S_zx(S_z)xS_z wave symmetries')
     pairings.check_irrep_properties(config, orders_on_site[8:10])
 
+    global delta_hex_AB, delta_hex_BA
+    delta_hex_AB = [pairings.construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
+    delta_hex_BA = [delta.T for delta in delta_hex_AB]
+
+    v1_AB = pairings.construct_vi_hex(1, delta_hex_AB)
+    v1_BA = pairings.construct_vi_hex(1, delta_hex_BA)
+    v1 = (v1_AB, v1_BA)
+
+    orders_NN = [
+        [(Xpauli, Ipauli, v1, Ipauli), '(S_x)xS_0xv_1xS_0'],  # renormalization of t_1
+    ]
+    print('Checking (S_x)xS_0xv_1xS_0 wave symmetries')
+    pairings.check_irrep_properties(config, orders_NN[0:1])
+
+    delta_hex_AA = [pairings.construct_NNN_delta(config, direction, 'hexagonal', sublattice = 0) for direction in range(1, 7)]
+    delta_hex_BB = [pairings.construct_NNN_delta(config, direction, 'hexagonal', sublattice = 1) for direction in range(1, 7)]
+
+    u1_AA = pairings.construct_ui_hex(1, delta_hex_AA)
+    u1_BB = pairings.construct_ui_hex(1, delta_hex_BB)
+    u1 = (u1_AA, u1_BB)
+
+    orders_NNN = [
+        [(Ipauli, Ipauli, u1, Ipauli), 'S_0xS_0xu_1xS_0']
+    ]
+
+    print('Checking S_0xS_0xu_1xS_0 wave symmetries')
+    pairings.check_irrep_properties(config, orders_NNN[0:1])
+
     orders_unwrapped = []
 
-    for order in orders_on_site:
+    for order in orders_on_site + orders_NN + orders_NNN:
         order_unwrapped = pairings.expand_tensor_product(config, *(order[0]))
-        orders_unwrapped.append([(order_unwrapped + order_unwrapped.conj().T) / 2., order[1]])
-
+        orders_unwrapped.append([(order_unwrapped + order_unwrapped.conj().T) / 2., order[1]])  # TODO: remove Hermitisation?
+    
 
     return orders_unwrapped
 
