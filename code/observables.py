@@ -250,10 +250,12 @@ class Observables:
 
 
     def refresh_gfs_buffer(self):
+        if self.cur_buffer_size == 0:
+            return
+
         t = time()
         signs = np.array(self.heavy_signs_history[-self.cur_buffer_size:])[..., np.newaxis]
         signs = np.repeat(signs, self.config.Nt, axis = 1)
-        #print(self.GF_up_stored[:self.cur_buffer_size, ...].flags, '!!!')
         
         shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
         self.C_ijkl += measure_gfs_correlator(np.asfortranarray(np.einsum('ijkl,ij->ijkl', \

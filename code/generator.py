@@ -130,7 +130,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
 
 def retrieve_last_n_sweep(local_workdir):
     try:
-        general_log = open(os.path.join(local_workdir, 'general_log.dat'), 'r')
+        general_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'r')
     except:
         return 0
     for line in general_log:
@@ -157,6 +157,7 @@ if __name__ == "__main__":
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
         local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}'.format(U, V, mu, int(Nt)))
         os.makedirs(local_workdir, exist_ok=True)
+        last_n_sweep_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'a')
 
         phi_field = config.field(config, K_operator, K_operator_inverse, \
                                  K_matrix, local_workdir)
@@ -175,7 +176,7 @@ if __name__ == "__main__":
             phi_field.save_configuration()
             observables.print_std_logs(n_sweep)
             observables.write_light_observables(phi_field.config, n_sweep)
-
+            last_n_sweep_log.write(str(n_sweep) + '\n'); last_n_sweep_log.flush()
             if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
                 t = time()
                 observables.write_heavy_observables(phi_field, n_sweep)
