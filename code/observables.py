@@ -21,7 +21,7 @@ class Observables:
         
         self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), open_mode)
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
-        self.corr_file = open(os.path.join(self.local_workdir, 'corr_log.dat'), open_mode)
+        # self.corr_file = open(os.path.join(self.local_workdir, 'corr_log.dat'), open_mode)
 
         self.refresh_light_logs()
 
@@ -63,20 +63,20 @@ class Observables:
 
     def init_heavy_logs_files(self):
         self.gap_file.write('step sign_obs ')
-        self.corr_file.write('name step sign_obs ')
+        #self.corr_file.write('name step sign_obs ')
 
 
         for key, _ in self.gap_observables_list.items():
             if 'chi' in key:
                 self.gap_file.write(key + ' ')
-
+        '''
         for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
             r = self.config.adj_list[r_index][-1]
             self.corr_file.write('{:2f} '.format(r))
-
+        '''
 
         self.gap_file.write('\n')
-        self.corr_file.write('\n')
+        # self.corr_file.write('\n')
         return
 
     def update_history(self, ratio, accepted, sign):
@@ -126,12 +126,12 @@ class Observables:
         for order_name in self.config.waves_list_names:
             self.order_observables_list[order_name + '_order'] = 0.0
 
-
+        '''
         for gap_name in self.config.pairings_list_names:
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
                 r = self.config.adj_list[r_index][-1]
                 self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)] = 0.0  # large-distance correlation function averaged over orbitals
-
+        '''
         density_adj_list = self.config.adj_list[:self.config.n_adj_density]  # only smallest distance
 
 
@@ -256,15 +256,17 @@ class Observables:
         t = time()
         signs = np.array(self.heavy_signs_history[-self.cur_buffer_size:])[..., np.newaxis]
         signs = np.repeat(signs, self.config.Nt, axis = 1)
-        print(signs.shape, self.GF_up_stored[:self.cur_buffer_size, ...].shape, 'dangerous place')
+        
+        shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
+        self.C_ijkl += measure_gfs_correlator(np.asfortranarray(np.einsum('ijkl,ij->ijkl', \
+                       self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape((shape[0] * shape[1], shape[2], shape[3]))), \
+            np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, ...].reshape((shape[0] * shape[1], shape[2], shape[3]))), self.ijkl)
 
-        self.C_ijkl += measure_gfs_correlator(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs), \
-            self.GF_down_stored[:self.cur_buffer_size, ...], self.ijkl)
-        print('C_ijkl takes', time() - t)
-        t = time()
-        self.PHI_ijkl += measure_gfs_correlator(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1]), \
-                self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], self.ijkl)
-        print('PHI_ijkl takes', time() - t)
+        # self.PHI_ijkl += measure_gfs_correlator( \
+        #         np.asfortranarray(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], \
+        #         signs[..., 0:1]).reshape((shape[0], shape[2], shape[3]))), \
+        #         np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, 0:1, ...].reshape((shape[0], shape[2], shape[3]))),
+        #         self.ijkl)
 
         t = time()
         self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
@@ -318,7 +320,7 @@ class Observables:
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'] = \
                     np.imag(total_chi / norm / np.sqrt(N_alpha * N_beta))
 
-
+        '''
         for gap, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             N_alpha = np.sum(gap[0, :] != 0.0)
             corr_list = gap_gap_correlator(gap, self.ijkl, self.PHI_ijkl, self.adj_list_marking)
@@ -330,7 +332,7 @@ class Observables:
                 
                 self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)] = \
                     averaged_correlator / self.num_chi_samples / mean_signs / N_alpha
-        
+        '''
 
         for order_list, order_name in zip(self.config.waves_list, self.config.waves_list_names):
             order = order_list[0]
@@ -386,13 +388,14 @@ class Observables:
         np.save(name, chi_total)
         np.save(os.path.join(self.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
 
-
+        '''
         for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             corr_data = [n_sweep, np.mean(signs)]
             for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
                 r = self.config.adj_list[r_index][-1]
                 corr_data.append(self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)])
             self.corr_file.write(gap_name + (" {:d} " + "{:.6f} " * (len(corr_data) - 1) + '\n').format(n_sweep, *corr_data[1:]))
+        '''
 
         orders = np.zeros((len(self.config.waves_list_names), self.config.Ls, self.config.Ls), dtype=np.complex64)
 
@@ -408,7 +411,7 @@ class Observables:
 
         self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))
         self.gap_file.flush()
-        self.corr_file.flush()
+        # self.corr_file.flush()
         self.refresh_heavy_logs()
         return
 
@@ -588,7 +591,7 @@ def measure_gfs_correlator(GF_up, GF_down, ijkl):
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
-        C_ijkl[xi] = np.sum(GF_up[:, :, i, k] * GF_down[:, :, j, l])
+        C_ijkl[xi] = np.dot(GF_up[:, i, k], GF_down[:, j, l])
 
     return C_ijkl
 
