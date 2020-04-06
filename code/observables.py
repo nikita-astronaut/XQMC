@@ -260,12 +260,18 @@ class Observables:
 
         self.C_ijkl += measure_gfs_correlator(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs), \
             self.GF_down_stored[:self.cur_buffer_size, ...], self.ijkl)
+        print('C_ijkl takes', time() - t)
+        t = time()
         self.PHI_ijkl += measure_gfs_correlator(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1]), \
                 self.GF_down_stored[:self.cur_buffer_size, 0:1, ...], self.ijkl)
+        print('PHI_ijkl takes', time() - t)
 
-
+        t = time()
         self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
         self.Z_dd_ijkl = measure_Z_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+
+        print('Z_ss_ijkl take', time() - t)
+        t = time()
 
         self.X_uu_ijkl = measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
             self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
@@ -275,7 +281,7 @@ class Observables:
             self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
         self.X_dd_ijkl = measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
             self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
-
+        print('X_s1s2_ijkl take', time() - t)
 
         print('measurement of C_ijkl, PHI_ijkl correlators takes', time() - t)
         self.GF_up_sum += np.einsum('ijkl,i->jkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs[..., 0])
