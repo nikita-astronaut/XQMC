@@ -140,11 +140,6 @@ class Observables:
         return
 
     def refresh_light_logs(self):
-        self.names_waves = []
-
-        if self.config.n_orbitals == 2 and self.config.n_sublattices == 2:
-            self.names_waves = ['⟨SDW_l⟩', '⟨SDW_o⟩', '⟨SDW_lo⟩', '⟨CDW_l⟩', '⟨CDW_o⟩', '⟨CDW_lo⟩']
-
         self.log_file.flush()
         self.light_observables_list = OrderedDict({
             '⟨density⟩' : [], 
@@ -152,8 +147,6 @@ class Observables:
             '⟨E_C⟩' : [],
             '⟨E_T⟩' : [],
         })
-        for name in self.names_waves:
-            self.light_observables_list[name] = []
 
         self.light_signs_history = []
 
@@ -194,17 +187,10 @@ class Observables:
         C = Coloumb_energy(phi)
         density = total_density(phi).item()
 
-        if self.config.n_orbitals == 2 and self.config.n_sublattices == 2:
-            waves = waves_twoorb_hex(phi)
-        else:
-            waves = []
-
         self.light_observables_list['⟨density⟩'].append(density)
         self.light_observables_list['⟨E_K⟩'].append(k)
         self.light_observables_list['⟨E_C⟩'].append(C)
         self.light_observables_list['⟨E_T⟩'].append(k + C)
-        for name, wave in zip(self.names_waves, waves):
-            self.light_observables_list[name].append(wave)
 
         return
 
@@ -262,12 +248,6 @@ class Observables:
                        self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape((shape[0] * shape[1], shape[2], shape[3]))), \
             np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, ...].reshape((shape[0] * shape[1], shape[2], shape[3]))), self.ijkl)
 
-        # self.PHI_ijkl += measure_gfs_correlator( \
-        #         np.asfortranarray(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], \
-        #         signs[..., 0:1]).reshape((shape[0], shape[2], shape[3]))), \
-        #         np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, 0:1, ...].reshape((shape[0], shape[2], shape[3]))),
-        #         self.ijkl)
-
         t = time()
         self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
         self.Z_dd_ijkl = measure_Z_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
@@ -320,20 +300,6 @@ class Observables:
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'] = \
                     np.imag(total_chi / norm / np.sqrt(N_alpha * N_beta))
 
-        '''
-        for gap, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            N_alpha = np.sum(gap[0, :] != 0.0)
-            corr_list = gap_gap_correlator(gap, self.ijkl, self.PHI_ijkl, self.adj_list_marking)
-
-            for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
-                c = np.sum([adj[0] for adj in self.config.adj_list[r_index:r_index + self.config.n_adj_pairings]])
-                averaged_correlator = np.sum(np.abs(corr_list[r_index:r_index + self.config.n_adj_pairings])) / c
-                r = self.config.adj_list[r_index][-1]
-                
-                self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)] = \
-                    averaged_correlator / self.num_chi_samples / mean_signs / N_alpha
-        '''
-
         for order_list, order_name in zip(self.config.waves_list, self.config.waves_list_names):
             order = order_list[0]
             norm = order.shape[0]  # N_s
@@ -360,7 +326,6 @@ class Observables:
         config = phi.config
         self.measure_heavy_observables(phi)
         signs = np.array(self.heavy_signs_history)
-        # density_data = [n_sweep, np.mean(signs)] + [self.signs_avg(val, signs) / np.mean(signs) for _, val in self.density_corr_list.items()]
 
         gap_data = [n_sweep, np.mean(signs)]
         name = os.path.join(self.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
@@ -388,14 +353,6 @@ class Observables:
         np.save(name, chi_total)
         np.save(os.path.join(self.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
 
-        '''
-        for pairing_unwrapped, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            corr_data = [n_sweep, np.mean(signs)]
-            for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
-                r = self.config.adj_list[r_index][-1]
-                corr_data.append(self.gap_observables_list[gap_name + '{:2f}_corr'.format(r)])
-            self.corr_file.write(gap_name + (" {:d} " + "{:.6f} " * (len(corr_data) - 1) + '\n').format(n_sweep, *corr_data[1:]))
-        '''
 
         orders = np.zeros((len(self.config.waves_list_names), self.config.Ls, self.config.Ls), dtype=np.complex64)
 
@@ -411,12 +368,8 @@ class Observables:
 
         self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))
         self.gap_file.flush()
-        # self.corr_file.flush()
         self.refresh_heavy_logs()
         return
-
-def get_B_sublattice_mask(config):
-    return xp.asarray(1.0 * np.array([models.from_linearized_index(index, config.Ls, config.n_orbitals)[1] for index in range(config.n_sublattices * config.n_orbitals * config.Ls ** 2)]))
 
 def density_spin(phi, spin):
     if spin == +1:
@@ -442,39 +395,6 @@ def double_occupancy(h_configuration, K, config):
     G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
 
     return xp.trace(G_function_up * G_function_down) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
-
-def staggered_magnetisation(phi):
-    def staggered_magnetisation_ij(G_function_up, G_function_down, i_sublattice, j_sublattice, config):
-        i_sublattice_mask = get_B_sublattice_mask(config)
-        if i_sublattice == 0:
-            i_sublattice_mask = 1. - i_sublattice_mask
-        j_sublattice_mask = 1.0 * i_sublattice_mask
-        if j_sublattice != i_sublattice:
-            j_sublattice_mask = 1. - j_sublattice_mask
-
-        i_sublattice_disconnected = xp.sum((xp.diag(G_function_up) - xp.diag(G_function_down)) * i_sublattice_mask)
-        j_sublattice_disconnected = xp.sum((xp.diag(G_function_up) - xp.diag(G_function_down)) * j_sublattice_mask)
-
-        connected_up = xp.einsum('ij,ji,j,i', G_function_up, G_function_up, i_sublattice_mask, j_sublattice_mask)
-        connected_down = xp.einsum('ij,ji,j,i', G_function_down, G_function_down, i_sublattice_mask, j_sublattice_mask)
-
-        contact_term = 0.0
-        if i_sublattice == j_sublattice:
-            contact_term = 3 * xp.sum((xp.diag(G_function_up) + xp.diag(G_function_down)) * i_sublattice_mask)
-
-        connected_up_down = 2. * xp.einsum('ij,ji,j,i', G_function_up, G_function_down, i_sublattice_mask, j_sublattice_mask)
-        connected_down_up = 2. * xp.einsum('ij,ji,j,i', G_function_down, G_function_up, i_sublattice_mask, j_sublattice_mask)
-        return i_sublattice_disconnected * j_sublattice_disconnected + contact_term - connected_up - connected_down - connected_up_down - connected_down_up
-
-    G_function_up = phi.current_G_function_up
-    G_function_down = phi.current_G_function_down
-
-    AA = staggered_magnetisation_ij(G_function_up, G_function_down, 0, 0, phi.config)
-    BB = staggered_magnetisation_ij(G_function_up, G_function_down, 1, 1, phi.config)
-    AB = staggered_magnetisation_ij(G_function_up, G_function_down, 0, 1, phi.config)
-    BA = staggered_magnetisation_ij(G_function_up, G_function_down, 1, 0, phi.config)
-    
-    return (AA + BB - AB - BA) / (phi.config.total_dof // 2) ** 2 / 4.
 
 def SzSz_onsite(phi_field):
     G_function_up = phi_field.current_G_function_up
@@ -567,22 +487,7 @@ def Coloumb_energy(phi):
 
     return energy_coloumb
 
-def waves_twoorb_hex(phi):
-    dl_up = phi.la.diag(phi.current_G_function_up)  # local density
-    dl_down = phi.la.diag(phi.current_G_function_down)
 
-    Ax = waves.construct_wave_V(phi.config, 0, 0, wave_type = 'none')[0] > 0.5
-    Bx = waves.construct_wave_V(phi.config, 0, 1, wave_type = 'none')[0] > 0.5
-    Ay = waves.construct_wave_V(phi.config, 1, 0, wave_type = 'none')[0] > 0.5
-    By = waves.construct_wave_V(phi.config, 1, 1, wave_type = 'none')[0] > 0.5
-    sdw_l = phi.la.mean((dl_up[Ax] + dl_up[Ay] - dl_up[Bx] - dl_up[By]) - (dl_down[Ax] + dl_down[Ay] - dl_down[Bx] - dl_down[By])) ** 2
-    sdw_o = phi.la.mean((dl_up[Ax] + dl_up[Bx] - dl_up[Ay] - dl_up[By]) - (dl_down[Ax] + dl_down[Bx] - dl_down[Ay] - dl_down[By])) ** 2
-    sdw_lo = phi.la.mean((dl_up[Ax] + dl_up[By] - dl_up[Ay] - dl_up[Bx]) - (dl_down[Ax] + dl_down[By] - dl_down[Ay] - dl_down[Bx])) ** 2
-
-    cdw_l = phi.la.mean((dl_up[Ax] + dl_up[Ay] - dl_up[Bx] - dl_up[By]) + (dl_down[Ax] + dl_down[Ay] - dl_down[Bx] - dl_down[By])) ** 2
-    cdw_o = phi.la.mean((dl_up[Ax] + dl_up[Bx] - dl_up[Ay] - dl_up[By]) + (dl_down[Ax] + dl_down[Bx] - dl_down[Ay] - dl_down[By])) ** 2
-    cdw_lo = phi.la.mean((dl_up[Ax] + dl_up[By] - dl_up[Ay] - dl_up[Bx]) + (dl_down[Ax] + dl_down[By] - dl_down[Ay] - dl_down[Bx])) ** 2
-    return sdw_l, sdw_o, sdw_lo, cdw_l, cdw_o, cdw_lo
 
 @jit(nopython=True, parallel=True)
 def measure_gfs_correlator(GF_up, GF_down, ijkl):

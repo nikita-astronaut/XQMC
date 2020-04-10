@@ -362,6 +362,7 @@ if __name__ == "__main__":
         twists_per_cpu = config_vmc.n_chains / n_cpus
     elif config_vmc.twist_mesh == 'PBC':
         twists = [[1., 1.] for _ in range(config_vmc.n_chains)]
+        twists_per_cpu = config_vmc.n_chains / n_cpus
     else:    
         twists_per_cpu = config_vmc.n_chains // n_cpus
         assert twists_per_cpu * n_cpus == config_vmc.n_chains
