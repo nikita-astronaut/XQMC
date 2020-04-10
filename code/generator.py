@@ -148,14 +148,14 @@ if __name__ == "__main__":
 
     for U, V, mu, Nt in zip(U_list, V_list, mu_list, Nt_list):
         config.U = U; config.V = V; config.mu = mu; config.Nt = int(Nt);
-        
+        n_copy = config.n_copy
         config.nu_V = np.arccosh(np.exp(V / 2. * config.dt))
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
 
         K_matrix = config.model(config, config.mu)[0].real
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
-        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}'.format(U, V, mu, int(Nt)))
+        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), n_copy))
         os.makedirs(local_workdir, exist_ok=True)
         last_n_sweep_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'a')
 
