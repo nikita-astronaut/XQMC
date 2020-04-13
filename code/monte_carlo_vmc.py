@@ -54,7 +54,7 @@ def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
 def make_SR_step(Os, energies, config_vmc, twists, gaps):
     def remove_singularity(S):
         for i in range(S.shape[0]):
-            if S[i, i] < 1e-4:
+            if S[i, i] < 1e-5:
                 S[i, :] = 0.0
                 S[:, i] = 0.0
                 S[i, i] = 1.0
@@ -69,36 +69,25 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
     Os_mean = [np.repeat(Os_mean_theta[np.newaxis, ...], len(Os_theta), axis = 0) for Os_mean_theta, Os_theta in zip(Os_mean, Os)]
     S_cov = [(np.einsum('nk,nl->kl', (Os_theta - Os_mean_theta).conj(), (Os_theta - Os_mean_theta)) / Os_theta.shape[0]).real \
              for Os_mean_theta, Os_theta in zip(Os_mean, Os)]  # SR_matrix is computed independently for every twist angle theta
-    '''    
-    for s, t, gap, in zip(S_cov, twists, gaps):
-        s_new = np.einsum('i,ij,j->ij', 1.0 / np.sqrt(np.abs(np.diag(s))), s, 1.0 / np.sqrt(np.abs(np.diag(s))))
-        # l, _ = np.linalg.eigh(s_new)
-        print(np.sqrt(np.abs(s[1, 1])), t[0].real, t[0].imag, t[1].real, t[1].imag, gap)
-    '''
-    '''
-    for S_cov_theta, twist in zip(S_cov, twists):
-        eigvals, eigvecs = np.linalg.eigh(S_cov_theta)
-        print(np.diag(S_cov_theta))
-        for val, vec in zip(eigvals, eigvecs.T):
-            if np.abs(val) < 1e-6:
-                print('redundant parameter?', twist, val, vec)
-    '''
 
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
-    
     S_cov = np.mean(S_cov, axis = 0)
-    diag = np.sqrt(np.abs(np.diag(S_cov)))
 
+    # https://journals.jps.jp/doi/pdf/10.1143/JPSJ.77.114701 (formula 71)
+    # removal of diagonal singularities
+    S_cov += config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
 
-    forces_pc = forces / diag  # below (6.52)
-    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / diag, S_cov, 1.0 / diag)
-
-    # (6.51, scale-invariant regularization)
-    S_cov_pc += config_vmc.opt_parameters[0] * np.eye(S_cov_pc.shape[0])  # (6.54)
-    S_cov_pc_inv = np.linalg.inv(S_cov_pc)
-
-    step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
-    step = step_pc / diag
+    # https://journals.jps.jp/doi/10.1143/JPSJ.77.114701 (formula 76)
+    # regularized inversion with truncation of redundant directions
+    u, s, v = np.linalg.svd(S_cov)
+    S_cov_inv = np.zeros(S_cov.shape)
+    keep_lambdas = (s / s.max()) > config_vmc.opt_parameters[3]
+    for lambda_idx in range(len(s)):
+        if not keep_lambdas[lambda_idx]:
+            continue
+        S_cov_inv += (1. / s[lambda_idx]) * \
+                      np.einsum('i,j->ij', v.T[:, lambda_idx], u.T[lambda_idx, :])
+    step = S_cov_inv.dot(forces)
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(np.mean(forces, axis = 0) ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
     return step, forces
