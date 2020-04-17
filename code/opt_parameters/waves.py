@@ -9,6 +9,8 @@ iYpauli = np.array([[0, 1], [-1, 0]])
 Zpauli = np.array([[1, 0], [0, -1]])
 delta_hex_AB = None 
 delta_hex_BA = None
+identity = np.array([[1]])
+
 
 def construct_2orb_hex(config):
     # under particle-hole
@@ -70,12 +72,55 @@ def construct_2orb_hex(config):
 
     orders_unwrapped = []
 
-    for order in orders_on_site + orders_NN + orders_NNN:
+    for order in orders_on_site:# + orders_NN + orders_NNN:
         order_unwrapped = pairings.expand_tensor_product(config, *(order[0]))
         orders_unwrapped.append([(order_unwrapped + order_unwrapped.conj().T) / 2., order[1]])  # TODO: remove Hermitisation?
     
 
     return orders_unwrapped
+
+
+def construct_1orb_hex(config):
+    # under particle-hole
+    onsite = pairings.construct_onsite_delta(config)
+
+    orders_on_site = [
+        [(Zpauli, identity, onsite, Zpauli), 'S_zxIxS_z'],  # sublattice polarisation (SDW)
+        [(Zpauli, identity, onsite, Ipauli), 'S_zxIxS_0'],  # sublattice CDW
+    ]
+    print('Checking S_zxIxS_z wave symmetries')
+    pairings.check_irrep_properties(config, orders_on_site[0:1])
+
+    print('Checking S_zxIxS_0 wave symmetries')
+    pairings.check_irrep_properties(config, orders_on_site[1:2])
+
+    orders_unwrapped = []
+
+    for order in orders_on_site:
+        order_unwrapped = pairings.expand_tensor_product(config, *(order[0]))
+        orders_unwrapped.append([(order_unwrapped + order_unwrapped.conj().T) / 2., order[1]])  # TODO: remove Hermitisation?
+    
+
+    return orders_unwrapped
+
+def construct_1orb_square(config):
+    onsite = pairings.construct_onsite_delta(config)
+
+    orders_on_site = [
+        [(identity, identity, onsite, Zpauli), 'IxIxS_z'],  # local AFM response
+    ]
+    print('Checking IxIxS_z wave symmetries')
+    pairings.check_irrep_properties(config, orders_on_site[0:1])
+
+    orders_unwrapped = []
+
+    for order in orders_on_site:
+        order_unwrapped = pairings.expand_tensor_product(config, *(order[0]))
+        orders_unwrapped.append([(order_unwrapped + order_unwrapped.conj().T) / 2., order[1]])  # TODO: remove Hermitisation?
+    
+
+    return orders_unwrapped
+
 
 def waves_particle_hole(config, m):
     m_ph = m.copy()
@@ -84,43 +129,20 @@ def waves_particle_hole(config, m):
     m_ph[m.shape[0] // 2:, m.shape[1] // 2:] = -models.apply_TBC(config, deepcopy(m_ph[m.shape[0] // 2:, m.shape[1] // 2:]), inverse = True).T
     return m_ph
 
-def construct_wave_V(config, orbital, sublattice, wave_type):
-    if config.n_sublattices == 2:
-        pattern = models.spatial_uniform(config.Ls)
-    else:
-        pattern = models.spatial_checkerboard(config.Ls)
-
-    sublattice_matrix = np.zeros((config.n_sublattices, config.n_sublattices))
-    sublattice_matrix[sublattice, sublattice] = 1.
-
-    orbital_matrix = np.zeros((config.n_orbitals, config.n_orbitals))
-    orbital_matrix[orbital, orbital] = 1.            
-
-    dof_matrix = np.kron(np.kron(pattern, sublattice_matrix), orbital_matrix)
-
-    if wave_type == 'SDW':
-        return [np.kron(np.eye(2), dof_matrix) + 0.0j, wave_type + '-' + str(orbital) + '-' + str(sublattice)]
-    if wave_type == 'CDW':
-        return [np.kron(np.diag([1, -1]), dof_matrix) + 0.0j, wave_type + '-' + str(orbital) + '-' + str(sublattice)]
-    return [np.diag(dof_matrix), str(orbital) + '-' + str(sublattice)]
 
 hex_2orb = None
-SDW_1orb_hex = None
-CDW_1orb_hex = None
-SDW_1orb_square = None
-CDW_1orb_square = None
+hex_1orb = None
+square_1orb = None
 
 def obtain_all_waves(config):
-    global hex_2orb, SDW_1orb_hex, CDW_1orb_hex, SDW_1orb_square, CDW_1orb_square
+    global hex_2orb, hex_1orb, square_1orb
     if config.n_orbitals == 2 and config.n_sublattices == 2:
         hex_2orb = construct_2orb_hex(config)
         return
     if config.n_orbitals == 1 and config.n_sublattices == 2:
-        SDW_1orb_hex = [construct_wave_V(config, 0, dof, 'SDW') for dof in range(config.n_sublattices)]
-        CDW_1orb_hex = [construct_wave_V(config, 0, dof, 'CDW') for dof in range(config.n_sublattices)]
+        hex_1orb = construct_1orb_hex(config)
         return
     if config.n_orbitals == 1 and config.n_sublattices == 1:
-        SDW_1orb_square = [construct_wave_V(config, 0, 0, 'SDW')]
-        CDW_1orb_square = [construct_wave_V(config, 0, 0, 'CDW')]
+        square_1orb = construct_1orb_square(config)
         return
     raise NotImplementedError()

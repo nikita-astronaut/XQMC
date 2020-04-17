@@ -158,6 +158,8 @@ class wavefunction_singlet():
         if orbitals_in_use is not None:
             overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
             self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
+            print(self.lowest_energy_states)
+            print(overlap_matrix.max(axis = 0))
         else:
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
 
