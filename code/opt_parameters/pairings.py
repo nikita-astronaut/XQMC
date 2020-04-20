@@ -630,18 +630,22 @@ twoorb_hex_A1_NN_singlet = None; twoorb_hex_A1_NN_triplet = None;
 twoorb_hex_A2_NN_singlet = None; twoorb_hex_A2_NN_triplet = None;
 twoorb_hex_E_NN_singlet = None; twoorb_hex_E_NN_triplet = None; 
 
+twoorb_hex_all = None;
 
 oneorb_hex_A1_N_singlet = None; oneorb_hex_A2_N_singlet = None; 
 oneorb_hex_A1_NN_singlet = None; oneorb_hex_A2_NN_triplet = None; 
 oneorb_hex_E_NN_singlet = None; oneorb_hex_E_NN_triplet = None;
 
+oneorb_hex_all = None;
 
 oneorb_square_A1_N_singlet = None; oneorb_square_A2_N_singlet = None; 
 oneorb_square_A1_NN_singlet = None; oneorb_square_A2_NN_triplet = None; 
 oneorb_square_E_NN_singlet = None; oneorb_square_E_NN_triplet = None;
-
 oneorb_square_A1_N_singlet = None; oneorb_square_A1_NN_singlet = None;
 oneorb_square_A2_NN_singlet = None; oneorb_square_E_NN_triplet = None;
+
+oneorb_square_all = None
+
 C2y_symmetry_map = None;
 C3z_symmetry_map = None;
 C4z_symmetry_map = None;
@@ -656,12 +660,17 @@ def obtain_all_pairings(config):
 
     global oneorb_square_A1_N_singlet, oneorb_square_A1_NN_singlet, oneorb_square_A2_NN_singlet, oneorb_square_E_NN_triplet
 
+    global twoorb_hex_all, oneorb_hex_all, oneorb_square_all
+
     C2y_symmetry_map = get_C2y_symmetry_map(config)
     if config.n_orbitals == 2 and config.n_sublattices == 2:
         C3z_symmetry_map = get_C3z_symmetry_map(config)
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
             twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
             twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet = construct_2orb_hex(config, real = True)
+        twoorb_hex_all = twoorb_hex_A1_N_singlet + twoorb_hex_A1_N_triplet + twoorb_hex_A2_N_singlet + twoorb_hex_A2_N_triplet + twoorb_hex_E_N_singlet + \
+            twoorb_hex_A1_NN_singlet + twoorb_hex_A1_NN_triplet + twoorb_hex_A2_NN_singlet + twoorb_hex_A2_NN_triplet + \
+            twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet
         return
 
 
@@ -669,6 +678,9 @@ def obtain_all_pairings(config):
         C3z_symmetry_map = get_C3z_symmetry_map(config)
         oneorb_hex_A1_N_singlet, oneorb_hex_A2_N_singlet, oneorb_hex_A1_NN_singlet, oneorb_hex_A2_NN_triplet, \
             oneorb_hex_E_NN_singlet, oneorb_hex_E_NN_triplet = construct_1orb_hex(config, real = True)
+        
+        oneorb_hex_all = oneorb_hex_A1_N_singlet + oneorb_hex_A2_N_singlet + oneorb_hex_A1_NN_singlet + oneorb_hex_A2_NN_triplet + \
+            oneorb_hex_E_NN_singlet + oneorb_hex_E_NN_triplet
         return
 
 
@@ -676,6 +688,7 @@ def obtain_all_pairings(config):
         C4z_symmetry_map = get_C4z_symmetry_map(config)
         oneorb_square_A1_N_singlet, oneorb_square_A1_NN_singlet, oneorb_square_A2_NN_singlet, \
             oneorb_square_E_NN_triplet = construct_1orb_square(config, real = True)
+        oneorb_square_all = oneorb_square_A1_N_singlet + oneorb_square_A1_NN_singlet + oneorb_square_A2_NN_singlet + \
+            oneorb_square_E_NN_triplet
         return
-
-    return []
+    raise NotImplementedError()
