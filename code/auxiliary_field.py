@@ -76,21 +76,12 @@ class AuxiliaryFieldIntraorbital:
         m = v1.dot(u2)
         middle_mat = (u1.T).dot(v2.T) + (self.la.diag(s1).dot(m)).dot(self.la.diag(s2))
         inv = self.la.linalg.inv(middle_mat)
-        #um, sm, vm = self.SVD(middle_mat)  # FIXME!!! (try with just self.linglg.inv ?)
 
-        #left = (vm.dot(v2)).T
-        #right = (u1.dot(um)).T
         s, ld = np.linalg.slogdet(inv)
-        # sign = np.sign(np.linalg.slogdet(self.to_numpy(left))[0] * np.linalg.slogdet(self.to_numpy(right))[0] * s)
         sign = np.sign(np.linalg.slogdet(self.to_numpy(v2.T))[0] * np.linalg.slogdet(self.to_numpy(u1.T))[0] * s)
-        # assert np.allclose((left.dot(self.la.diag(sm ** -1))).dot(right), np.linalg.inv(np.eye(len(s1)) + u1.dot(np.diag(s1)).dot(v1).dot(u2).dot(np.diag(s2)).dot(v2)))
         if return_logdet:
             return v2.T.dot(inv).dot(u1.T), ld, sign
-            #return (left.dot(self.la.diag(sm ** -1))).dot(right), \
-            #       self.la.sum(self.la.log(sm ** -1)), \
-            #       sign
         return v2.T.dot(inv).dot(u1.T)
-        #return left.dot(self.la.diag(sm ** -1)).dot(right)
 
     def refresh_all_decompositions(self):
         self.partial_SVD_decompositions_up = []
