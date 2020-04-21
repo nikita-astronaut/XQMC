@@ -284,9 +284,9 @@ class Observables:
                 N_alpha = 1.0 * np.sum(np.abs(gap_alpha) ** 2) / norm  # N_alpha
                 N_beta = 1.0 * np.sum(np.abs(gap_beta) ** 2) / norm  # N_beta
 
-                total_chi = get_gap_susceptibility(gap_alpha, gap_beta, \
+                total_chi = self.config.dt * get_gap_susceptibility(gap_alpha, gap_beta, \
                     self.ijkl, self.C_ijkl) / (self.num_chi_samples * mean_signs)
-                free_chi = np.sum([np.trace(self.GF_up_sum[tau, ...].dot(gap_beta).dot(self.GF_down_sum[tau, ...].T).dot(gap_alpha.T.conj())) \
+                free_chi = self.config.dt * np.sum([np.trace(self.GF_up_sum[tau, ...].dot(gap_beta).dot(self.GF_down_sum[tau, ...].T).dot(gap_alpha.T.conj())) \
                                    for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs) ** 2)
 
 
