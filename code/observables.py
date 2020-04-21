@@ -457,44 +457,6 @@ def kinetic_energy(phi):
 
     return phi.la.einsum('ij,ij', phi.K_matrix, G_function_up + G_function_down) / G_function_up.shape[0]
 
-'''
-@jit(nopython=True)
-def gap_gap_correlator(current_G_function_up, current_G_function_down, gap, adj):
-
-        ⟨\\Delta^{\\dag} \\Delta⟩ = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} c^{\\dag}_{j, down} c^{\\dag}_{i, up} c_{k, up} c_{l, down} = 
-                                  = \\sum\\limits_{ijkl} \\Delta_{ij}^* \\Delta_{kl} G^{down}(l, j) G^{up}_{k, i}
-                                  (i ~ j | k ~ l)_{delta}, (i ~ k)_{adj}
-
-    G_function_up = current_G_function_up + 0.0j
-    G_function_down = current_G_function_down + 0.0j
-    adj_complex = adj + 0.0j
-
-    counter = np.sum(adj > 0)
-    n_bonds = np.sum(np.abs(gap) > 0) / gap.shape[0]
-
-    return np.sum((G_function_up * adj_complex.T).dot(np.conj(gap)).dot(G_function_down.T) * gap) / n_bonds, counter
-
-
-@jit(nopython=True)
-def corr_fix_tau(G_up, G_down, gap):
-    D_1 = np.conj(gap).dot(G_down).dot(gap.T)
-    C = G_up * D_1
-    return D_1, C
-
-
-@jit(nopython=True)
-def susceptibility_local(gap, GFs_up, GFs_down): 
-    D_1_total = np.zeros((GFs_up.shape[1], GFs_up.shape[2], GFs_up.shape[0]), dtype = np.complex128)
-    D_2_total = np.zeros((GFs_up.shape[1], GFs_up.shape[2], GFs_up.shape[0]), dtype = np.complex128)
-    C_total = np.zeros((GFs_up.shape[1], GFs_up.shape[2], GFs_up.shape[0]), dtype = np.complex128)
-
-    for i in range(GFs_up.shape[0]):
-        D1, C = corr_fix_tau(GFs_up[i, ...], GFs_down[i, ...], gap)  # 0.0j for jit complex
-        D_1_total[..., i] = D1; D_2_total[..., i] = GFs_up[i, ...]; C_total[..., i] = C
-    
-    norm = np.sum(np.abs(gap) > 0)
-    return D_1_total / np.sqrt(norm), D_2_total / np.sqrt(norm), C_total / norm
-'''
 
 def Coloumb_energy(phi):
     G_function_up = phi.current_G_function_up
