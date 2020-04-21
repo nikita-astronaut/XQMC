@@ -47,11 +47,14 @@ config.__dict__ = config_dqmc_import.__dict__.copy()
 
 def perform_sweep(phi_field, observables, n_sweep, switch = True):
     if phi_field.config.n_orbitals == 1:
-        sp_index_range = phi_field.config.total_dof // 2
         n_fields = 1
-    else:
-        sp_index_range = phi_field.config.total_dof // 4 * 3
+        sp_index_range = phi_field.config.total_dof // 2 // phi_field.config.n_orbitals * n_fields
+    elif phi_field.config.n_orbitals == 2:
         n_fields = 3
+        sp_index_range = phi_field.config.total_dof // 2 // phi_field.config.n_orbitals * n_fields
+    else:
+        raise NotImplementedError()
+
     lambdas = np.random.uniform(0, 1, size = phi_field.config.Nt * sp_index_range)
     if switch:
         phi_field.copy_to_GPU()
