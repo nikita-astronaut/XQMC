@@ -249,6 +249,26 @@ def get_adjacency_list(config):
     return adjacency_list, longest_distance
 
 
+def get_distances_list(config):
+    # returns |r_i - r_j|^2 for all sites i, j
+    if config.n_sublattices == 2:
+        R = R_hexagonal
+    else:
+        R = R_square
+
+    A = np.zeros((config.total_dof // 2, config.total_dof // 2))
+
+    for first in range(config.total_dof // 2):
+        for second in range(config.total_dof // 2):
+            _, sublattice1, x1, y1 = from_linearized_index(first, config.Ls, config.n_orbitals, config.n_sublattices)
+            _, sublattice2, x2, y2 = from_linearized_index(second, config.Ls, config.n_orbitals, config.n_sublattices)
+            
+            r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)  # always 0 in the square case
+            r2s = get_bc_copies(np.array([1.0 * x2, 1.0 * y2]), R, config.Ls, sublattice2)
+            A[first, second] = np.min(np.array([np.sum((r1 - r2) ** 2) for r2 in r2s]))  # account for PBC
+    return A
+
+
 def get_reduced_adjacency_matrix(config, max_distance):
     A = get_adjacency_list(config)[0]
     reduced_A = np.zeros((config.total_dof // 2, config.total_dof // 2))
