@@ -246,8 +246,8 @@ class Observables:
             np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, ...].reshape((shape[0] * shape[1], shape[2], shape[3]))), self.ijkl)
 
         self.PHI_ijkl += measure_gfs_correlator(np.asfortranarray(np.einsum('ijkl,ij->ijkl', \
-                       self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1]).reshape((shape[0] * shape[1], shape[2], shape[3]))), \
-            np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, 0:1, ...].reshape((shape[0] * shape[1], shape[2], shape[3]))), self.ijkl)
+                       self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1]).reshape((shape[0] * 1, shape[2], shape[3]))), \
+            np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, 0:1, ...].reshape((shape[0] * 1, shape[2], shape[3]))), self.ijkl)
 
         t = time()
         self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
