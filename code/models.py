@@ -81,7 +81,8 @@ def next_nearest_neighbor(r1, r2, L, geometry):
     if geometry == 'hexagonal':
         return next_nearest_neighbor_hexagonal(r1, r2, L)
     print('Geometry', geometry, 'is not supported!!! Terminate.')
-    return False, 0
+    raise NotImplementedError()
+
 
 @jit(nopython=True)
 def next_nearest_neighbor_hexagonal(r1, r2, L):
@@ -92,18 +93,18 @@ def next_nearest_neighbor_hexagonal(r1, r2, L):
         return True, 2
 
     if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, -1):
-        return True, 3
-
-    if diff_modulo(r1[0], r2[0], L, -1) and r1[1] == r2[1]:
         return True, 4
 
-    if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, -1):
+    if diff_modulo(r1[0], r2[0], L, -1) and r1[1] == r2[1]:
         return True, 5
+
+    if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, -1):
+        return True, 3
 
     if diff_modulo(r1[0], r2[0], L, -1) and diff_modulo(r1[1], r2[1], L, 1):
         return True, 6
 
-    return False, 0
+    return False, -1
 
 
 @jit(nopython=True)

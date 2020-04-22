@@ -11,6 +11,7 @@ sigma_1 = (Zpauli - 1.0j * Xpauli)
 sigma_2 = (Zpauli + 1.0j * Xpauli)
 
 delta_hex_AB, delta_hex_BA = [], []
+delta_hex_NNN_AA, delta_hex_NNN_BB = [], []
 delta_square = []
 
 identity = np.array([[1]])
@@ -51,9 +52,7 @@ def construct_NN_delta(config, direction, geometry):
     return delta
 
 
-
 def construct_NNN_delta(config, direction, geometry, sublattice = 0):
-    interlattice = 0
     if geometry == 'square':
         n_sublattices = 1
     else:
@@ -98,14 +97,15 @@ def construct_vi_hex(vi, delta_hex):
 
 
 def construct_ui_hex(ui, delta_hex):
-    '''
-        u[1] = delta1 + delta2 + delta3 + delta4 + delta5 + delta6
-    '''
-    if ui > 1:
-        print('Not implemented!')
-        exit(-1)
+    omega = np.exp(-2.0 * np.pi / 3. * 1.0j)
 
-    return delta_hex[0] + delta_hex[1] + delta_hex[2] + delta_hex[3] + delta_hex[4] + delta_hex[5]
+    if ui == 1:
+        return (delta_hex[2] + delta_hex[5]) + (delta_hex[1] + delta_hex[4]) + (delta_hex[0] + delta_hex[3])
+    if ui == 2:
+        return (delta_hex[2] + delta_hex[5]) + omega * (delta_hex[1] + delta_hex[4]) + np.conj(omega) * (delta_hex[0] + delta_hex[3])
+    if ui == 3:
+        return (delta_hex[2] + delta_hex[5]) + np.conj(omega) * (delta_hex[1] + delta_hex[4]) + omega * (delta_hex[0] + delta_hex[3])
+    raise ValueError("NNN has only 3 possible links numerated 1, 2, 3")
 
 
 def construct_vi_square(vi):
@@ -236,9 +236,14 @@ def construct_2orb_hex(config, real = True):
         addstring = 'j'
 
     global delta_hex_AB, delta_hex_BA
+    global delta_hex_NNN_AA, delta_hex_NNN_BB
     delta_hex_AB = [construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
     delta_hex_BA = [delta.T for delta in delta_hex_AB]
     onsite = construct_onsite_delta(config)
+
+    delta_hex_NNN_AA = [construct_NNN_delta(config, direction, geometry='hexagonal', sublattice = 0) for direction in range(1, 7)]
+    delta_hex_NNN_BB = [construct_NNN_delta(config, direction, geometry='hexagonal', sublattice = 1) for direction in range(1, 7)]
+
 
     v1_AB = construct_vi_hex(1, delta_hex_AB)
     v2_AB = construct_vi_hex(2, delta_hex_AB)
@@ -251,6 +256,10 @@ def construct_2orb_hex(config, real = True):
     v1 = (v1_AB, v1_BA)
     v2 = (v2_AB, v2_BA)
     v3 = (v3_AB, v3_BA)
+
+    u1 = (construct_ui_hex(1, delta_hex_NNN_AA), construct_ui_hex(1, delta_hex_NNN_BB))
+    u2 = (construct_ui_hex(2, delta_hex_NNN_AA), construct_ui_hex(2, delta_hex_NNN_BB))
+    u3 = (construct_ui_hex(3, delta_hex_NNN_AA), construct_ui_hex(3, delta_hex_NNN_BB))
 
     A1_N_singlet = [
         [(Ipauli, Ipauli, onsite, 1), factor, addstring + 'S_0xS_0xδ'],
@@ -271,12 +280,27 @@ def construct_2orb_hex(config, real = True):
     ]
     print('Testing the A1_NN_singlet properties')
     [check_irrep_properties(config, A1_NN_singlet[i:i + 1]) for i in range(len(A1_NN_singlet))]
+
+    A1_NNN_singlet = [
+        [(Ipauli, Ipauli, u1, 1.0), factor, addstring + '(S_0)xS_0xu_1'],
+        [(Zpauli, iYpauli, u1, 1.0), factor, addstring + '(S_z)x(iS_y)xu_1'],
+        [(Ipauli, sigma_1, u2, 1.0), (Ipauli, sigma_2, u3, 1.0), factor, addstring + '[(S_0)xS_1xu_2+(S_0)xS_2xu_3]'],
+    ]
+    print('Testing the A1_NNN_singlet properties')
+    [check_irrep_properties(config, A1_NNN_singlet[i:i + 1]) for i in range(len(A1_NNN_singlet))]
+
     
     A1_NN_triplet = [
         [(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iS_y)xS_1xv_2-(iS_y)xS_2xv_3]'],
     ]
     print('Testing the A1_NN_triplet properties')
     [check_irrep_properties(config, A1_NN_triplet[i:i + 1]) for i in range(len(A1_NN_triplet))]
+
+    A1_NNN_triplet = [
+        [(Zpauli, sigma_1, u2, 1.0), (Zpauli, sigma_2, u3, -1.0), factor, addstring + '[(S_z)xS_1xu_2-(S_z)xS_2xu_3]'],
+    ]
+    print('Testing the A1_NNN_triplet properties')
+    [check_irrep_properties(config, A1_NNN_triplet[i:i + 1]) for i in range(len(A1_NNN_triplet))]
 
 
     A2_N_singlet = [
@@ -297,6 +321,13 @@ def construct_2orb_hex(config, real = True):
     print('Testing the A2_NN_singlet properties')
     [check_irrep_properties(config, A2_NN_singlet[i:i + 1]) for i in range(len(A2_NN_singlet))]
 
+    A2_NNN_singlet = [
+        [(Ipauli, sigma_1, u2, 1.0), (Ipauli, sigma_2, u3, -1.0), factor, addstring + '[(S_0)xS_1xu_2-(S_0)xS_2xu_3]'],
+    ]
+    print('Testing the A2_NNN_singlet properties')
+    [check_irrep_properties(config, A2_NNN_singlet[i:i + 1]) for i in range(len(A2_NNN_singlet))]
+
+
     A2_NN_triplet = [
         [(Xpauli, iYpauli, v1, 1.0), factor, addstring + '(S_x)x(iS_y)xv_1'],
         [(iYpauli, Ipauli, v1, 1.0), factor, addstring + '(iS_y)xS_0xv_1'],
@@ -304,6 +335,15 @@ def construct_2orb_hex(config, real = True):
     ]
     print('Testing the A2_NN_triplet properties')
     [check_irrep_properties(config, A2_NN_triplet[i:i + 1]) for i in range(len(A2_NN_triplet))]
+
+
+    A2_NNN_triplet = [
+        [(Ipauli, iYpauli, u1, 1.0), factor, addstring + '(S_0)x(iS_y)xu_1'],
+        [(Zpauli, Ipauli, u1, 1.0), factor, addstring + '(S_z)xS_0xu_1'],
+        [(Zpauli, sigma_1, u2, 1.0), (Zpauli, sigma_2, u3, 1.0), factor, addstring + '[(S_z)xS_1xu_2+(S_z)xS_2xu_3]'],
+    ]
+    print('Testing the A2_NNN_triplet properties')
+    [check_irrep_properties(config, A2_NNN_triplet[i:i + 1]) for i in range(len(A2_NNN_triplet))]
 
 
     E_N_singlet = [
@@ -322,6 +362,15 @@ def construct_2orb_hex(config, real = True):
     print('Testing the E_NN_singlet properties')
     [check_irrep_properties(config, E_NN_singlet[2 * i:2 * i + 2]) for i in range(len(E_NN_singlet) // 2)]
 
+    E_NNN_singlet = [
+        [(Ipauli, Xpauli, u1, 1.0), factor, addstring + '(S_0)x(S_x)xu_1'], [(Ipauli, Zpauli, u1, 1.0), factor, addstring + '(S_0)xS_zxu_1'],
+        [(Ipauli, Ipauli, u2, 1.0), factor, addstring + '(S_0)xS_0xu_2'], [(Ipauli, Ipauli, u3, 1.0), factor, addstring + '(S_0)xS_0xu_3'],
+        [(Zpauli, iYpauli, u2, 1.0), factor, addstring + '(S_z)x(iS_y)xu_2'], [(Zpauli, iYpauli, u3, 1.0), factor, addstring + '(S_z)x(iS_y)xu_3'],
+        [(Ipauli, sigma_1, u3, 1.0), factor, addstring + '(S_0)xS_1xu_3'], [(Ipauli, sigma_2, u2, 1.0), factor, addstring + '(S_0)xS_2xu_2'],
+    ]
+    print('Testing the E_NNN_singlet properties')
+    [check_irrep_properties(config, E_NNN_singlet[2 * i:2 * i + 2]) for i in range(len(E_NNN_singlet) // 2)]
+
     E_NN_triplet = [
         [(iYpauli, Xpauli, v1, 1.0), factor, addstring + '(iS_y)x(S_x)xv_1'], [(iYpauli, Zpauli, v1, 1.0), factor, addstring + '(iS_y)xS_zxv_1'],
         [(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iS_y)xS_0xv_2'], [(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iS_y)xS_0xv_3'],
@@ -331,8 +380,18 @@ def construct_2orb_hex(config, real = True):
     print('Testing the E_NN_triplet properties')
     [check_irrep_properties(config, E_NN_triplet[2 * i:2 * i + 2]) for i in range(len(E_NN_triplet) // 2)]
 
+    E_NNN_triplet = [
+        [(Zpauli, Xpauli, u1, 1.0), factor, addstring + '(S_z)x(S_x)xu_1'], [(Zpauli, Zpauli, u1, 1.0), factor, addstring + '(S_z)xS_zxu_1'],
+        [(Zpauli, Ipauli, u2, 1.0), factor, addstring + '(S_z)xS_0xu_2'], [(Zpauli, Ipauli, u3, 1.0), factor, addstring + '(S_z)xS_0xu_3'],
+        [(Ipauli, iYpauli, u2, 1.0), factor, addstring + '(S_0)x(iS_y)xu_2'], [(Ipauli, iYpauli, u3, 1.0), factor, addstring + '(S_0)x(iS_y)xu_3'],
+        [(Zpauli, sigma_1, u3, 1.0), factor, addstring + '(S_z)xS_1xu_3'], [(Zpauli, sigma_2, u2, 1.0), factor, addstring + '(S_z)xS_2xu_2'],
+    ]
+    print('Testing the E_NNN_triplet properties')
+    [check_irrep_properties(config, E_NNN_triplet[2 * i:2 * i + 2]) for i in range(len(E_NNN_triplet) // 2)]
+
     return A1_N_singlet, A1_N_triplet, A2_N_singlet, A2_N_triplet, E_N_singlet, \
-           A1_NN_singlet, A1_NN_triplet, A2_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet 
+           A1_NN_singlet, A1_NN_triplet, A2_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet, \
+           A1_NNN_singlet, A1_NNN_triplet, A2_NNN_singlet, A2_NNN_triplet, E_NNN_singlet, E_NNN_triplet
 
 def construct_1orb_hex(config, real = True):
     factor = 1.0
@@ -559,6 +618,7 @@ def check_irrep_properties(config, irrep):
     if not config.tests:
         return
 
+    print([gap[-1] for gap in irrep])
     for irr in irrep:
         print(check_parity(config, irr))
 
@@ -575,6 +635,8 @@ def check_irrep_properties(config, irrep):
 
 
     for irr in irrep:
+        print(' ')
+        print('testing {:s} M'.format(irr[-1]))
         gap = combine_product_terms(config, irr)
         gap_image = (reflection).dot(gap).dot(reflection.T)
 
@@ -583,18 +645,23 @@ def check_irrep_properties(config, irrep):
         for irr_decompose in irrep:
             gap_decompose = combine_product_terms(config, irr_decompose)
             coeff = norm_sc(gap_decompose.flatten(), gap_image)
+            print('<{:s}|M|{:s}> = '.format(irr[-1], irr_decompose[-1]) + str(coeff))
 
             gap_image = gap_image - gap_decompose.flatten() * coeff
             norm = np.sum(np.abs(gap_image ** 2))
-            if np.sum(np.abs(gap_image ** 2)) < 1e-5:
-                break
+            # if np.sum(np.abs(gap_image ** 2)) < 1e-5:
+            #     break
         assert norm < 1e-5
-        if np.abs(coeff + 1) < 1e-5:
-            print('Seems like this is the A2 or E2 irrep')
-        if np.abs(coeff - 1) < 1e-5:
-            print('Seems like this is the A1 or E1 irrep')
+        #if np.abs(coeff + 1) < 1e-5:
+        #    print('Seems like this is the A2 or E2 irrep')
+        #elif np.abs(coeff - 1) < 1e-5:
+        #    print('Seems like this is the A1 or E1 irrep')
+        #else:
+        #    print('coeff = ' + str(coeff) + ' what does that mean?')
 
     for irr in irrep:
+        print(' ')
+        print('testing {:s} R'.format(irr[-1]))
         gap = combine_product_terms(config, irr)
         gap_image = (rotation).dot(gap).dot(rotation.T)
         norm = np.sum(np.abs(gap_image ** 2))
@@ -603,19 +670,22 @@ def check_irrep_properties(config, irrep):
         for irr_decompose in irrep:
             gap_decompose = combine_product_terms(config, irr_decompose)
             coeff = norm_sc(gap_decompose.flatten(), gap_image.flatten())
+            print('<{:s}|R|{:s}> = '.format(irr[-1], irr_decompose[-1]) + str(coeff))
             gap_image = gap_image - gap_decompose.flatten() * coeff
             norm = np.sum(np.abs(gap_image ** 2))
         assert norm < 1e-5
-        if np.abs(np.abs(coeff) - 1. / 2.) < 1e-5 or np.abs(np.abs(coeff) - np.sqrt(3) / 2.) < 1e-5:
-            print('Seems like this is the E1 or E2 irrep')
-        if np.abs(np.abs(coeff) - 1.) < 1e-5:
-            print('Seems like this is the A1 or A2')
 
-    print('test passed'); print([gap[-1] for gap in irrep])
+        #if np.abs(np.abs(coeff) - 1. / 2.) < 1e-5 or np.abs(np.abs(coeff) - np.sqrt(3) / 2.) < 1e-5:
+        #    print('Seems like this is the E1 or E2 irrep')
+        #elif np.abs(np.abs(coeff) - 1.) < 1e-5:
+        #    print('Seems like this is the A1 or A2')
+        #else:
+        #    print('coeff = ' + str(coeff) + ' what does that mean?')
+
+    print('test passed'); 
 
 def check_parity(config, pairing):
     gap = combine_product_terms(config, pairing)
-    # print(np.sum(np.abs(gap)) / config.Ls ** 2 / config.n_sublattices)
     if np.allclose(gap + gap.T, 0):
         return 'triplet'
     elif np.allclose(gap - gap.T, 0):
@@ -626,9 +696,14 @@ def check_parity(config, pairing):
 twoorb_hex_A1_N_singlet = None; twoorb_hex_A1_N_triplet = None;
 twoorb_hex_A2_N_singlet = None; twoorb_hex_A2_N_triplet = None;
 twoorb_hex_E_N_singlet = None;
+
 twoorb_hex_A1_NN_singlet = None; twoorb_hex_A1_NN_triplet = None; 
 twoorb_hex_A2_NN_singlet = None; twoorb_hex_A2_NN_triplet = None;
 twoorb_hex_E_NN_singlet = None; twoorb_hex_E_NN_triplet = None; 
+
+twoorb_hex_A1_NNN_singlet = None; twoorb_hex_A1_NNN_triplet = None; 
+twoorb_hex_A2_NNN_singlet = None; twoorb_hex_A2_NNN_triplet = None;
+twoorb_hex_E_NNN_singlet = None; twoorb_hex_E_NNN_triplet = None; 
 
 twoorb_hex_all = None;
 
@@ -654,7 +729,9 @@ def obtain_all_pairings(config):
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
     global twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
            twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
-           twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet
+           twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet,\
+           twoorb_hex_A1_NNN_singlet, twoorb_hex_A1_NNN_triplet, twoorb_hex_A2_NNN_singlet, twoorb_hex_A2_NNN_triplet, \
+           twoorb_hex_E_NNN_singlet, twoorb_hex_E_NNN_triplet
     global oneorb_hex_A1_N_singlet, oneorb_hex_A2_N_singlet, oneorb_hex_A1_NN_singlet, oneorb_hex_A2_NN_triplet, \
            oneorb_hex_E_NN_singlet, oneorb_hex_E_NN_triplet
 
@@ -667,10 +744,16 @@ def obtain_all_pairings(config):
         C3z_symmetry_map = get_C3z_symmetry_map(config)
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
             twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
-            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet = construct_2orb_hex(config, real = True)
+            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet,\
+            twoorb_hex_A1_NNN_singlet, twoorb_hex_A1_NNN_triplet, twoorb_hex_A2_NNN_singlet, twoorb_hex_A2_NNN_triplet, \
+            twoorb_hex_E_NNN_singlet, twoorb_hex_E_NNN_triplet = construct_2orb_hex(config, real = True)
+
         twoorb_hex_all = twoorb_hex_A1_N_singlet + twoorb_hex_A1_N_triplet + twoorb_hex_A2_N_singlet + twoorb_hex_A2_N_triplet + twoorb_hex_E_N_singlet + \
             twoorb_hex_A1_NN_singlet + twoorb_hex_A1_NN_triplet + twoorb_hex_A2_NN_singlet + twoorb_hex_A2_NN_triplet + \
-            twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet
+            twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet + \
+            twoorb_hex_A1_NNN_singlet + twoorb_hex_A1_NNN_triplet + twoorb_hex_A2_NNN_singlet + twoorb_hex_A2_NNN_triplet + \
+            twoorb_hex_E_NNN_singlet + twoorb_hex_E_NNN_triplet
+
         return
 
 
