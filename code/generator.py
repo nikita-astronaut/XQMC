@@ -1,3 +1,7 @@
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+
 import numpy as np
 import os
 import itertools
@@ -158,7 +162,7 @@ if __name__ == "__main__":
         K_matrix = config.model(config, config.mu)[0].real
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
-        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), n_copy))
+        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank))
         os.makedirs(local_workdir, exist_ok=True)
         last_n_sweep_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'a')
 
