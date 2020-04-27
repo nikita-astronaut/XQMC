@@ -487,7 +487,7 @@ def Coloumb_energy(phi):
 
 
 
-@jit(nopython=True)#, parallel=True)
+@jit(nopython=True)
 def measure_gfs_correlator(GF_up, GF_down, ijkl):
     C_ijkl = np.zeros(len(ijkl), dtype=np.float64)
     idx = 0
@@ -500,7 +500,7 @@ def measure_gfs_correlator(GF_up, GF_down, ijkl):
 
 
 # <(delta_ij - G^up(l, j)) G^up(i, k)>
-@jit(nopython=True)#, parallel=True)
+@jit(nopython=True)
 def measure_Z_correlator(GF_sigma, signs, ijkl):
     Z_ijkl = np.zeros(len(ijkl), dtype=np.float64)
     idx = 0
@@ -513,7 +513,7 @@ def measure_Z_correlator(GF_sigma, signs, ijkl):
     return Z_ijkl
 
 
-@jit(nopython=True)#, parallel=True)
+@jit(nopython=True)
 def measure_X_correlator(GF_sigma1, GF_sigma2, signs, ijkl):
     X_ijkl = np.zeros(len(ijkl), dtype=np.float64)
     idx = 0
@@ -528,7 +528,7 @@ def measure_X_correlator(GF_sigma1, GF_sigma2, signs, ijkl):
     return X_ijkl
 
 
-@jit(nopython=True)#, parallel=True)
+@jit(nopython=True)
 def get_idxs_list(reduced_A):
     ijkl = []
 
@@ -539,7 +539,7 @@ def get_idxs_list(reduced_A):
                     ijkl.append(np.array([i, j, k, l]))
     return ijkl
 
-@jit(nopython=True)#, parallel=True)
+@jit(nopython=True)
 def get_gap_susceptibility(gap_alpha, gap_beta, ijkl, C_ijkl, weight):
     corr = 0.0 + 0.0j
 
@@ -549,7 +549,7 @@ def get_gap_susceptibility(gap_alpha, gap_beta, ijkl, C_ijkl, weight):
     return corr
 
 
-@jit(nopython=True)#,parallel=True)
+@jit(nopython=True)
 def get_order_average_disconnected(order_s1, order_s2, ijkl, X_s1s2_ijkl, ik_marking, Ls):
     corr = np.zeros(Ls * Ls) + 0.0j
 
@@ -559,7 +559,7 @@ def get_order_average_disconnected(order_s1, order_s2, ijkl, X_s1s2_ijkl, ik_mar
     return corr
 
 
-@jit(nopython=True)#, parallel=True)
+@jit(nopython=True)
 def get_order_average_connected(order_s, ijkl, Z_ss_ijkl, ik_marking, Ls):
     corr = np.zeros(Ls * Ls) + 0.0j
 
