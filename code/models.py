@@ -118,6 +118,48 @@ def fifth_nearest_neighbor(r1, r2, L):
     return False
 
 @jit(nopython=True)
+def fourth_nearest_neighbor(r1, r2, L):
+    if diff_modulo(r1[0], r2[0], L, 1) and r1[1] == r2[1]:
+        return True
+    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1):
+        return True
+    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, -2):
+        return True
+    if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, -2):
+        return True
+    if diff_modulo(r1[0], r2[0], L, -2) and r1[1] == r2[1]:
+        return True
+    if diff_modulo(r1[0], r2[0], L, -2) and diff_modulo(r1[1], r2[1], L, 1):
+        return True
+    return False
+
+@jit(nopython=True)
+def sixth_nearest_neighbor(r1, r2, L):
+    if diff_modulo(r1[0], r2[0], L, 2) and r1[1] == r2[1]:
+        return True
+    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 2):
+        return True
+    if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, 1):
+        return True
+
+
+    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, -3):
+        return True
+    if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, -3):
+        return True
+    if diff_modulo(r1[0], r2[0], L, 2) and diff_modulo(r1[1], r2[1], L, -3):
+        return True
+
+
+    if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, -3):
+        return True
+    if diff_modulo(r1[1], r2[1], L, 1) and diff_modulo(r1[0], r2[0], L, -3):
+        return True
+    if diff_modulo(r1[1], r2[1], L, 2) and diff_modulo(r1[0], r2[0], L, -3):
+        return True
+    return False
+
+@jit(nopython=True)
 def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
     orbit = index % n_orbitals
     coord = index // n_orbitals
@@ -139,7 +181,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     n_orbitals = 2
     n_sublattices = 2
     total_dof = Ls ** 2 * n_orbitals * n_sublattices * 2
-    t1, t2 = 0.331, (-0.010 + 1.0j * 0.097)
+    t1, t2, t5, t4 = 0.331, (-0.010 + 1.0j * 0.097), 0.119, 0.036
 
     K = np.zeros((total_dof // 2, total_dof // 2)) * 1.0j
     for first in range(total_dof // 2):
@@ -160,6 +202,12 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
                     K[first, second] = np.imag(t2)
                 else:
                     K[first, second] = -np.imag(t2)
+
+            if orbit1 == orbit2 and fourth_nearest_neighbor(r1, r2, Ls) and sublattice1 == 1 and sublattice2 == 0:
+                K[first, second] = t5
+            if orbit1 == orbit2 and sixth_nearest_neighbor(r1, r2, Ls) and sublattice1 == 1 and sublattice2 == 0:
+                K[first, second] = t4
+
 
     K = K + K.conj().T
     K = K - mu * np.eye(K.shape[0])
