@@ -236,15 +236,20 @@ class Observables:
         if self.cur_buffer_size == 0:
             return
 
+        print('current buffer size = {:d}'.format(self.cur_buffer_size))
         t = time()
         signs = np.array(self.heavy_signs_history[-self.cur_buffer_size:])[..., np.newaxis]
         signs = np.repeat(signs, self.config.Nt, axis = 1)
         
         shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
-        self.C_ijkl += measure_gfs_correlator(np.asfortranarray(np.einsum('ijkl,ij->ijkl', \
-                       self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape((shape[0] * shape[1], shape[2], shape[3]))), \
-            np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, ...].reshape((shape[0] * shape[1], shape[2], shape[3]))), self.ijkl)
+        print(len(self.ijkl), (shape[0] * shape[1], shape[2], shape[3]))
+        G_up_prepared = np.asfortranarray(np.einsum('ijkl,ij->ijkl', \
+                       self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape((shape[0] * shape[1], shape[2], shape[3])))
+        G_down_prepared = np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, ...].reshape((shape[0] * shape[1], shape[2], shape[3])))
 
+        t = time()
+        self.C_ijkl += measure_gfs_correlator(G_up_prepared, G_down_prepared, self.ijkl)
+        print('C_ijkl take', time() - t)
         self.PHI_ijkl += measure_gfs_correlator(np.asfortranarray(np.einsum('ijkl,ij->ijkl', \
                        self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1]).reshape((shape[0] * 1, shape[2], shape[3]))), \
             np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, 0:1, ...].reshape((shape[0] * 1, shape[2], shape[3]))), self.ijkl)
@@ -274,6 +279,7 @@ class Observables:
 
 
     def measure_heavy_observables(self, phi):
+        print('refreshing gfs buffers...')
         self.refresh_gfs_buffer()
         t = time()
         mean_signs = np.mean(self.heavy_signs_history)
@@ -489,7 +495,6 @@ def measure_gfs_correlator(GF_up, GF_down, ijkl):
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
         C_ijkl[xi] = np.dot(GF_up[:, i, k], GF_down[:, j, l])
-
     return C_ijkl
 
 
