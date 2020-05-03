@@ -46,6 +46,21 @@ def K_FT(k, K, config, R, spin_dof = 1):
             #       orbit2 + config.n_orbitals * sublattice2] += ft_factor * element
     return result
 
+def plot_DOS(config):
+    E, U = np.linalg.eigh(config.model(config, 0.0, spin = +1.0)[0])
+    set_style()
+    fig = plt.figure()
+
+    plt.hist(E, bins = np.linspace(E.min() - 0.1, E.max() + 0.1, 300))
+    for i, e in enumerate(E):
+        print(i, e)
+    plt.xlabel('$dn(E) / dE$')
+    plt.ylabel('$E$')
+    plt.grid(True)
+    plt.savefig('DoS.pdf')
+    plt.show()
+    plt.clf()
+
 def plot_fermi_surface(config):
     geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
 
@@ -68,7 +83,7 @@ def plot_fermi_surface(config):
             energies.append(np.sort(e_k))
     energies = np.array(energies).real
     k_vectors = np.array(k_vectors)
-    E_max = np.sort(np.array(energies).reshape(-1))[config.N_electrons // 2]  # 2-spin degeneracy
+    E_max = np.sort(np.array(energies).reshape(-1))[config.total_dof // 2 // 2 - 14]  # 2-spin degeneracy
 
     set_style()
     fig = plt.figure()
@@ -80,6 +95,7 @@ def plot_fermi_surface(config):
     plt.ylabel('$k_y,\\, \\pi$')
     ax.set_zlabel('$E(\\vec k) / t$')
     plt.savefig('../plots/bands.pdf')
+    plt.show()
     plt.clf()
 
 

@@ -320,11 +320,13 @@ if __name__ == "__main__":
 
 
     if config_vmc.visualisation:
+        visualisation.plot_DOS(config_vmc)
+        visualisation.plot_fermi_surface(config_vmc)
         visualisation.plot_all_waves(config_vmc)
         visualisation.plot_all_pairings(config_vmc)
         visualisation.plot_all_Jastrow(config_vmc)
         visualisation.plot_MF_spectrum_profile(config_vmc)
-        visualisation.plot_fermi_surface(config_vmc)
+        
 
 
     if config_vmc.tests:

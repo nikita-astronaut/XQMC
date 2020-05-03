@@ -7,6 +7,9 @@ Ipauli = np.array([[1, 0], [0, 1]])
 Xpauli = np.array([[0, 1], [1, 0]])
 iYpauli = np.array([[0, 1], [-1, 0]])
 Zpauli = np.array([[1, 0], [0, -1]])
+
+sigma_1 = (Zpauli - 1.0j * Xpauli)
+sigma_2 = (Zpauli + 1.0j * Xpauli)
 delta_hex_AB = None 
 delta_hex_BA = None
 identity = np.array([[1]])
@@ -17,12 +20,12 @@ def construct_2orb_hex(config):
     onsite = pairings.construct_onsite_delta(config)
 
     orders_on_site = [
-        [(Zpauli, Ipauli, onsite, Zpauli), 'S_zxS_0xS_z'],
-        [(Zpauli, Ipauli, onsite, Ipauli), 'S_zxS_0xS_0'],
-        [(Ipauli, Xpauli, onsite, Ipauli), 'S_0x(S_x)xS_0'], [(Ipauli, Zpauli, onsite, Ipauli), 'S_0x(S_z)xS_0'],
-        [(Zpauli, Xpauli, onsite, Ipauli), 'S_zx(S_x)xS_0'], [(Zpauli, Zpauli, onsite, Ipauli), 'S_zx(S_z)xS_0'],
-        [(Ipauli, Xpauli, onsite, Zpauli), 'S_0x(S_x)xS_z'], [(Ipauli, Zpauli, onsite, Zpauli), 'S_0x(S_z)xS_z'],
-        [(Zpauli, Xpauli, onsite, Zpauli), 'S_zx(S_x)xS_z'], [(Zpauli, Zpauli, onsite, Zpauli), 'S_zx(S_z)xS_z'],
+        [(Zpauli, Ipauli, onsite, Zpauli), '(S_z)x(S_0)x(S_z)'],
+        [(Zpauli, Ipauli, onsite, Ipauli), '(S_z)x(S_0)x(S_0)'],
+        [(Ipauli, sigma_1, onsite, Ipauli), '(S_0)x(S_1)x(S_0)'], [(Ipauli, sigma_2, onsite, Ipauli), '(S_0)x(S_2)x(S_0)'],
+        [(Zpauli, sigma_1, onsite, Ipauli), '(S_z)x(S_1)x(S_0)'], [(Zpauli, sigma_2, onsite, Ipauli), '(S_z)x(S_2)x(S_0)'],
+        [(Ipauli, sigma_1, onsite, Zpauli), '(S_0)x(S_1)x(S_z)'], [(Ipauli, sigma_2, onsite, Zpauli), '(S_0)x(S_2)x(S_z)'],
+        [(Zpauli, sigma_1, onsite, Zpauli), '(S_z)x(S_1)x(S_z)'], [(Zpauli, sigma_2, onsite, Zpauli), '(S_z)x(S_2)x(S_z)'],
     ]
     print('Checking S_zxS_0xS_z wave symmetries')
     pairings.check_irrep_properties(config, orders_on_site[0:1])

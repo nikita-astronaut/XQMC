@@ -6,6 +6,7 @@ from numba import jit
 import os
 from collections import OrderedDict
 from opt_parameters import waves
+import pickle
 
 try:
     import cupy as cp
@@ -119,6 +120,7 @@ class Observables:
         for gap_name_alpha in self.config.pairings_list_names:
             self.gap_observables_list[gap_name_alpha + '_corr_length'] = 0.0
             self.gap_observables_list[gap_name_alpha + '_Sq0'] = 0.0
+            self.gap_observables_list[gap_name_alpha + '_Pq0'] = 0.0
 
             for gap_name_beta in self.config.pairings_list_names:
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real'] = 0.0
@@ -284,11 +286,13 @@ class Observables:
         t = time()
         mean_signs = np.mean(self.heavy_signs_history)
 
-
+        idx_alpha = 0
+        idx_beta = 0
         for gap_alpha, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
-            print(gap_name_alpha)
             for gap_beta, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names): 
-                if gap_name_alpha != gap_name_beta:
+                if self.config.name_group_dict[gap_name_alpha] != self.config.name_group_dict[gap_name_beta]:
+                    continue
+                if idx_beta > idx_alpha:
                     continue
 
                 norm = gap_alpha.shape[0]  # N_s
@@ -310,6 +314,8 @@ class Observables:
                     np.imag((total_chi - free_chi) / norm / np.sqrt(N_alpha * N_beta))
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_total_imag'] = \
                     np.imag(total_chi / norm / np.sqrt(N_alpha * N_beta))
+                idx_beta += 1
+            idx_alpha += 1
 
         for gap, gap_name in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             norm = gap.shape[0]
@@ -328,6 +334,7 @@ class Observables:
 
             self.gap_observables_list[gap_name + '_corr_length'] = corr_length_gap.real
             self.gap_observables_list[gap_name + '_Sq0'] = (total_chi_d - free_chi_d).real / norm / N
+            self.gap_observables_list[gap_name + '_Pq0'] = (total_chi_n - free_chi_n).real / norm / N
 
         for order_list, order_name in zip(self.config.waves_list, self.config.waves_list_names):
             order = order_list[0]
@@ -364,9 +371,11 @@ class Observables:
 
         corr_lengths = []
         Sq0 = []
+        Pq0 = []
         for _, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
             corr_lengths.append(self.gap_observables_list[gap_name_alpha + '_corr_length'])
             Sq0.append(self.gap_observables_list[gap_name_alpha + '_Sq0'])
+            Pq0.append(self.gap_observables_list[gap_name_alpha + '_Pq0'])
             idx_beta = 0
             for _, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
                 chi_vertex[idx_alpha, idx_beta] = self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real'] + \
@@ -380,15 +389,21 @@ class Observables:
                 idx_beta += 1
             idx_alpha += 1
         name = os.path.join(self.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
-        np.save(name, chi_vertex)
+        np.save(name, (chi_vertex + chi_vertex.conj().T) / 2.)
         name = os.path.join(self.local_workdir, 'chi_total_{:d}.npy'.format(n_sweep))
-        np.save(name, chi_total)
+        np.save(name, (chi_total + chi_total.conj().T) / 2.)
         name = os.path.join(self.local_workdir, 'Sq0_{:d}.npy'.format(n_sweep))
         np.save(name, np.array(Sq0))
+        name = os.path.join(self.local_workdir, 'Pq0_{:d}.npy'.format(n_sweep))
+        np.save(name, np.array(Pq0))
         name = os.path.join(self.local_workdir, 'corr_lengths_{:d}.npy'.format(n_sweep))
         np.save(name, np.array(corr_lengths))
 
         np.save(os.path.join(self.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
+        f = open("name_group_dict.pkl", "wb")
+        pickle.dump(self.config.name_group_dict, f)
+        f.close()
+
 
         orders = np.zeros((len(self.config.waves_list_names), self.config.Ls, self.config.Ls), dtype=np.complex64)
 
