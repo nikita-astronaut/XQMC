@@ -264,89 +264,97 @@ def construct_2orb_hex(config, real = True):
     u3 = (construct_ui_hex(3, delta_hex_NNN_AA), construct_ui_hex(3, delta_hex_NNN_BB))
 
     A1_N_singlet = [
-        [(Ipauli, Ipauli, onsite, 1), factor, addstring + '(S_0)x(S_0)x(δ)'],
+        [(Ipauli, Ipauli, onsite, 1), factor, addstring + '(S_0)x(S_0&S_x)x(δ)'],
     ]
     print('Testing the A1_N_singlet properties')
     [check_irrep_properties(config, A1_N_singlet[i:i + 1]) for i in range(len(A1_N_singlet))]
+    [check_irrep_properties(config, A1_N_singlet[i:i + 1], chiral = True) for i in range(len(A1_N_singlet))]
 
     A1_N_triplet = [
-        [(Zpauli, iYpauli, onsite, 1), factor, addstring + '(S_z)x(iS_y)x(δ)'],
+        [(Zpauli, iYpauli, onsite, 1), factor, addstring + '(S_z)x(iS_y&S_y)x(δ)'],
     ]
     print('Testing the A1_N_triplet properties')
     [check_irrep_properties(config, A1_N_triplet[i:i + 1]) for i in range(len(A1_N_triplet))]
+    [check_irrep_properties(config, A1_N_triplet[i:i + 1], chiral = True) for i in range(len(A1_N_triplet))]
 
     A1_NN_singlet = [
-        [(Xpauli, Ipauli, v1, 1.0), factor, addstring + '(S_x)x(S_0)x(v_1)'],
-        [(iYpauli, iYpauli, v1, 1.0), factor, addstring + '(iS_y)x(iS_y)x(v_1)'],
+        [(Xpauli, Ipauli, v1, 1.0), factor, addstring + '(S_x)x(S_0&S_x)x(v_1)'],
+        [(iYpauli, iYpauli, v1, 1.0), factor, addstring + '(iS_y)x(iS_y&S_y)x(v_1)'],
         [(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor, addstring + '[(S_x)x(S_1)x(v_2)+(S_x)x(S_2)x(v_3)]'],
     ]
     print('Testing the A1_NN_singlet properties')
     [check_irrep_properties(config, A1_NN_singlet[i:i + 1]) for i in range(len(A1_NN_singlet))]
+    [check_irrep_properties(config, A1_NN_singlet[i:i + 1], chiral = True) for i in range(len(A1_NN_singlet))]
 
     A1_NNN_singlet = [
-        [(Ipauli, Ipauli, u1, 1.0), factor, addstring + '(S_0)x(S_0)x(u_1)'],
+        [(Ipauli, Ipauli, u1, 1.0), factor, addstring + '(S_0)x(S_0&S_x)x(u_1)'],
         [(Ipauli, sigma_1, u2, 1.0), (Ipauli, sigma_2, u3, 1.0), factor, addstring + '[(S_0)x(S_1)x(u_2)+(S_0)x(S_2)x(u_3)]'],
         [(Zpauli, sigma_1, u2, 1.0), (Zpauli, sigma_2, u3, -1.0), factor, addstring + '[(S_z)x(S_1)x(u_2)-(S_z)x(S_2)x(u_3)]'],
     ]
     print('Testing the A1_NNN_singlet properties')
     [check_irrep_properties(config, A1_NNN_singlet[i:i + 1]) for i in range(len(A1_NNN_singlet))]
-
+    [check_irrep_properties(config, A1_NNN_singlet[i:i + 1], chiral = True) for i in range(len(A1_NNN_singlet))]
     
     A1_NN_triplet = [
         [(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iS_y)x(S_1)x(v_2)-(iS_y)x(S_2)x(v_3)]'],
     ]
     print('Testing the A1_NN_triplet properties')
     [check_irrep_properties(config, A1_NN_triplet[i:i + 1]) for i in range(len(A1_NN_triplet))]
+    [check_irrep_properties(config, A1_NN_triplet[i:i + 1], chiral = True) for i in range(len(A1_NN_triplet))]
 
     A1_NNN_triplet = [
-        [(Zpauli, iYpauli, u1, 1.0), factor, addstring + '(S_z)x(iS_y)x(u_1)'],
+        [(Zpauli, iYpauli, u1, 1.0), factor, addstring + '(S_z)x(iS_y&S_y)x(u_1)'],
     ]
     print('Testing the A1_NNN_triplet properties')
     [check_irrep_properties(config, A1_NNN_triplet[i:i + 1]) for i in range(len(A1_NNN_triplet))]
-
+    [check_irrep_properties(config, A1_NNN_triplet[i:i + 1], chiral = True) for i in range(len(A1_NNN_triplet))]
 
     A2_N_singlet = [
-        [(Zpauli, Ipauli, onsite, 1), factor, addstring + '(S_z)x(S_0)x(δ)'],
+        [(Zpauli, Ipauli, onsite, 1), factor, addstring + '(S_z)x(S_0&S_x)x(δ)'],
     ]
     print('Testing the A2_N_singlet properties')
     [check_irrep_properties(config, A2_N_singlet[i:i + 1]) for i in range(len(A2_N_singlet))]
+    [check_irrep_properties(config, A2_N_singlet[i:i + 1], chiral = True) for i in range(len(A2_N_singlet))]
 
     A2_N_triplet = [
-        [(Ipauli, iYpauli, onsite, 1), factor, addstring + '(S_0)x(iS_y)x(δ)'],
+        [(Ipauli, iYpauli, onsite, 1), factor, addstring + '(S_0)x(iS_y&S_y)x(δ)'],
     ]
     print('Testing the A2_N_triplet properties')
     [check_irrep_properties(config, A2_N_triplet[i:i + 1]) for i in range(len(A2_N_triplet))]
+    [check_irrep_properties(config, A2_N_triplet[i:i + 1], chiral = True) for i in range(len(A2_N_triplet))]
+
 
     A2_NN_singlet = [
         [(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor, addstring + '[(S_x)x(S_1)x(v_2)-(S_x)x(S_2)x(v_3)]'],
     ]
     print('Testing the A2_NN_singlet properties')
     [check_irrep_properties(config, A2_NN_singlet[i:i + 1]) for i in range(len(A2_NN_singlet))]
+    [check_irrep_properties(config, A2_NN_singlet[i:i + 1], chiral = True) for i in range(len(A2_NN_singlet))]
 
     A2_NNN_singlet = [
         [(Ipauli, sigma_1, u2, 1.0), (Ipauli, sigma_2, u3, -1.0), factor, addstring + '[(S_0)x(S_1)x(u_2)-(S_0)x(S_2)x(u_3)]'],
-        [(Zpauli, Ipauli, u1, 1.0), factor, addstring + '(S_z)x(S_0)x(u_1)'],
+        [(Zpauli, Ipauli, u1, 1.0), factor, addstring + '(S_z)x(S_0&S_x)x(u_1)'],
         [(Zpauli, sigma_1, u2, 1.0), (Zpauli, sigma_2, u3, 1.0), factor, addstring + '[(S_z)x(S_1)x(u_2)+(S_z)x(S_2)x(u_3)]'],
     ]
     print('Testing the A2_NNN_singlet properties')
     [check_irrep_properties(config, A2_NNN_singlet[i:i + 1]) for i in range(len(A2_NNN_singlet))]
-
+    [check_irrep_properties(config, A2_NNN_singlet[i:i + 1], chiral = True) for i in range(len(A2_NNN_singlet))]
 
     A2_NN_triplet = [
-        [(Xpauli, iYpauli, v1, 1.0), factor, addstring + '(S_x)x(iS_y)x(v_1)'],
-        [(iYpauli, Ipauli, v1, 1.0), factor, addstring + '(iS_y)x(S_0)x(v_1)'],
+        [(Xpauli, iYpauli, v1, 1.0), factor, addstring + '(S_x)x(iS_y&S_y)x(v_1)'],
+        [(iYpauli, Ipauli, v1, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_1)'],
         [(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor, addstring + '[(iS_y)x(S_1)x(v_2)+(iS_y)x(S_2)x(v_3)]'],
     ]
     print('Testing the A2_NN_triplet properties')
     [check_irrep_properties(config, A2_NN_triplet[i:i + 1]) for i in range(len(A2_NN_triplet))]
-
+    [check_irrep_properties(config, A2_NN_triplet[i:i + 1], chiral = True) for i in range(len(A2_NN_triplet))]
 
     A2_NNN_triplet = [
-        [(Ipauli, iYpauli, u1, 1.0), factor, addstring + '(S_0)x(iS_y)x(u_1)'],
+        [(Ipauli, iYpauli, u1, 1.0), factor, addstring + '(S_0)x(iS_y&S_y)x(u_1)'],
     ]
     print('Testing the A2_NNN_triplet properties')
     [check_irrep_properties(config, A2_NNN_triplet[i:i + 1]) for i in range(len(A2_NNN_triplet))]
-
+    [check_irrep_properties(config, A2_NNN_triplet[i:i + 1], chiral = True) for i in range(len(A2_NNN_triplet))]
 
     E_N_singlet = [
         [(Ipauli, sigma_1, onsite, 1.0), factor, addstring + '(S_0)x(S_1)x(δ)'], [(Ipauli, sigma_2, onsite, 1.0), factor, addstring + '(S_0)x(S_2)x(δ)'],
@@ -354,26 +362,31 @@ def construct_2orb_hex(config, real = True):
     ]
     print('Testing the E_N_singlet properties')
     [check_irrep_properties(config, E_N_singlet[2 * i:2 * i + 2]) for i in range(len(E_N_singlet) // 2)]
+    [check_irrep_properties(config, E_N_singlet[2 * i:2 * i + 2], chiral = True) for i in range(len(E_N_singlet) // 2)]
 
     E_NN_singlet = [
         [(Xpauli, sigma_1, v1, 1.0), factor, addstring + '(S_x)x(S_1)x(v_1)'], [(Xpauli, sigma_2, v1, 1.0), factor, addstring + '(S_x)x(S_2)x(v_1)'],
-        [(Xpauli, Ipauli, v2, 1.0), factor, addstring + '(S_x)x(S_0)x(v_2)'], [(Xpauli, Ipauli, v3, 1.0), factor, addstring + '(S_x)x(S_0)x(v_3)'],
-        [(iYpauli, iYpauli, v2, 1.0), factor, addstring + '(iS_y)x(iS_y)x(v_2)'], [(iYpauli, iYpauli, v3, 1.0), factor, addstring + '(iS_y)x(iS_y)x(v_3)'],
+        [(Xpauli, Ipauli, v2, 1.0), factor, addstring + '(S_x)x(S_0&S_x)x(v_2)'], [(Xpauli, Ipauli, v3, 1.0), factor, addstring + '(S_x)x(S_0&S_x)x(v_3)'],
+        [(iYpauli, iYpauli, v2, 1.0), factor, addstring + '(iS_y)x(iS_y&S_y)x(v_2)'], [(iYpauli, iYpauli, v3, 1.0), factor, addstring + '(iS_y)x(iS_y&S_y)x(v_3)'],
         [(Xpauli, sigma_1, v3, 1.0), factor, addstring + '(S_x)x(S_1)x(v_3)'], [(Xpauli, sigma_2, v2, 1.0), factor, addstring + '(S_x)x(S_2)x(v_2)'],
     ]
     print('Testing the E_NN_singlet properties')
     [check_irrep_properties(config, E_NN_singlet[2 * i:2 * i + 2]) for i in range(len(E_NN_singlet) // 2)]
+    [check_irrep_properties(config, E_NN_singlet[2 * i:2 * i + 2], chiral = True) for i in range(len(E_NN_singlet) // 2)]
+
 
     E_NNN_singlet = [
         [(Ipauli, sigma_1, u1, 1.0), factor, addstring + '(S_0)x(S_1)x(u_1)'], [(Ipauli, sigma_2, u1, 1.0), factor, addstring + '(S_0)x(S_2)x(u_1)'],
-        [(Ipauli, Ipauli, u2, 1.0), factor, addstring + '(S_0)x(S_0)x(u_2)'], [(Ipauli, Ipauli, u3, 1.0), factor, addstring + '(S_0)x(S_0)x(u_3)'],
+        [(Ipauli, Ipauli, u2, 1.0), factor, addstring + '(S_0)x(S_0&S_x)x(u_2)'], [(Ipauli, Ipauli, u3, 1.0), factor, addstring + '(S_0)x(S_0&S_x)x(u_3)'],
         [(iYpauli, sigma_1, v1, 1.0), factor, addstring + '(iS_y)x(S_1)x(v_1)'], [(iYpauli, sigma_2, v1, 1.0), factor, addstring + '(iS_y)x(S_2)x(v_1)'],
-        [(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iS_y)x(S_0)x(v_2)'], [(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iS_y)x(S_0)x(v_3)'],
+        [(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_2)'], [(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_3)'],
         [(Ipauli, sigma_1, u3, 1.0), factor, addstring + '(S_0)x(S_1)x(u_3)'], [(Ipauli, sigma_2, u2, 1.0), factor, addstring + '(S_0)x(S_2)x(u_2)'],
-        [(Zpauli, iYpauli, u2, 1.0), factor, addstring + '(S_z)x(iS_y)x(u_2)'], [(Zpauli, iYpauli, u3, 1.0), factor, addstring + '(S_z)x(iS_y)x(u_3)'],
+        [(Zpauli, iYpauli, u2, 1.0), factor, addstring + '(S_z)x(iS_y&S_y)x(u_2)'], [(Zpauli, iYpauli, u3, 1.0), factor, addstring + '(S_z)x(iS_y&S_y)x(u_3)'],
     ]
     print('Testing the E_NNN_singlet properties')
     [check_irrep_properties(config, E_NNN_singlet[2 * i:2 * i + 2]) for i in range(len(E_NNN_singlet) // 2)]
+    [check_irrep_properties(config, E_NNN_singlet[2 * i:2 * i + 2], chiral = True) for i in range(len(E_NNN_singlet) // 2)]
+
 
     E_NN_triplet = [
         [(Xpauli, iYpauli, v2, 1.0), factor, addstring + '(S_x)x(iS_y)x(v_2)'], [(Xpauli, iYpauli, v3, 1.0), factor, addstring + '(S_x)x(iS_y)x(v_3)'],
@@ -381,15 +394,19 @@ def construct_2orb_hex(config, real = True):
     ]
     print('Testing the E_NN_triplet properties')
     [check_irrep_properties(config, E_NN_triplet[2 * i:2 * i + 2]) for i in range(len(E_NN_triplet) // 2)]
+    [check_irrep_properties(config, E_NN_triplet[2 * i:2 * i + 2], chiral = True) for i in range(len(E_NN_triplet) // 2)]
+
 
     E_NNN_triplet = [
         [(Zpauli, sigma_1, u1, 1.0), factor, addstring + '(S_z)x(S_1)x(u_1)'], [(Zpauli, sigma_2, u1, 1.0), factor, addstring + '(S_z)x(S_2)x(u_1)'],
-        [(Zpauli, Ipauli, u2, 1.0), factor, addstring + '(S_z)x(S_0)x(u_2)'], [(Zpauli, Ipauli, u3, 1.0), factor, addstring + '(S_z)x(S_0)x(u_3)'],
+        [(Zpauli, Ipauli, u2, 1.0), factor, addstring + '(S_z)x(S_0&S_x)x(u_2)'], [(Zpauli, Ipauli, u3, 1.0), factor, addstring + '(S_z)x(S_0&S_x)x(u_3)'],
         [(Ipauli, iYpauli, u2, 1.0), factor, addstring + '(S_0)x(iS_y)x(u_2)'], [(Ipauli, iYpauli, u3, 1.0), factor, addstring + '(S_0)x(iS_y)x(u_3)'],
         [(Zpauli, sigma_1, u3, 1.0), factor, addstring + '(S_z)x(S_1)x(u_3)'], [(Zpauli, sigma_2, u2, 1.0), factor, addstring + '(S_z)x(S_2)x(u_2)'],
     ]
     print('Testing the E_NNN_triplet properties')
     [check_irrep_properties(config, E_NNN_triplet[2 * i:2 * i + 2]) for i in range(len(E_NNN_triplet) // 2)]
+    [check_irrep_properties(config, E_NNN_triplet[2 * i:2 * i + 2], chiral = True) for i in range(len(E_NNN_triplet) // 2)]
+
 
     return A1_N_singlet, A1_N_triplet, A2_N_singlet, A2_N_triplet, E_N_singlet, \
            A1_NN_singlet, A1_NN_triplet, A2_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet, \
@@ -504,7 +521,7 @@ def construct_1orb_square(config, real = True):
     return A1_N_singlet, A1_NN_singlet, A2_NN_singlet, E_NN_triplet
 
 
-def get_C2y_symmetry_map(config):
+def get_C2y_symmetry_map(config, chiral = False):
     if config.n_sublattices == 2:
         geometry = 'hexagonal'
     else:
@@ -514,12 +531,17 @@ def get_C2y_symmetry_map(config):
 
     for preindex in range(config.total_dof // 2):
         orbit_preimage, sublattice_preimage, x_preimage, y_preimage = \
-            models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
+            models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)     
 
-        orbit_image = orbit_preimage
         if config.n_orbitals == 2:
-            coefficient = -1.0 if orbit_image == 0 else 1.0
+            if not chiral:
+                orbit_image = orbit_preimage
+                coefficient = -1.0 if orbit_image == 0 else 1.0
+            else:
+                orbit_image = 1 - orbit_preimage
+                coefficient = -1.0
         else:
+            orbit_image = orbit_preimage
             coefficient = 1.0
 
         r_preimage = np.array(models.lattice_to_physical([x_preimage, y_preimage, sublattice_preimage], geometry))
@@ -541,7 +563,7 @@ def get_C2y_symmetry_map(config):
     assert np.sum(np.abs(mapping.dot(mapping) - np.eye(mapping.shape[0]))) < 1e-5  # C_2y^2 = I
     return mapping + 0.0j
 
-def get_C3z_symmetry_map(config):
+def get_C3z_symmetry_map(config, chiral = False):
     assert config.n_sublattices == 2
     geometry = 'hexagonal'
 
@@ -549,7 +571,10 @@ def get_C3z_symmetry_map(config):
     rotation_matrix = np.array([[np.cos(2 * np.pi / 3.), np.sin(2 * np.pi / 3.)], \
                                 [-np.sin(2 * np.pi / 3.), np.cos(2 * np.pi / 3.)]])
     if config.n_orbitals == 2:
-        rotation_matrix_orbital = rotation_matrix
+        if not chiral:
+            rotation_matrix_orbital = rotation_matrix
+        else:
+            rotation_matrix_orbital = np.diag([np.exp(2.0j * np.pi / 3), np.exp(-2.0j * np.pi / 3)])
     else:
         rotation_matrix_orbital = np.eye(1)
 
@@ -615,15 +640,23 @@ def get_C4z_symmetry_map(config):
     return mapping + 0.0j
 
 
-def check_irrep_properties(config, irrep):
+def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False):
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
+    global C2y_symmetry_map_chiral, C3z_symmetry_map_chiral
     global name_group_dict
     if not config.tests:
         return
 
-    reflection = C2y_symmetry_map
+    if chiral:
+        reflection = C2y_symmetry_map_chiral
+    else:
+        reflection = C2y_symmetry_map
+
     if config.n_sublattices == 2:
-        rotation = C3z_symmetry_map
+        if chiral:
+            rotation = C3z_symmetry_map_chiral
+        else:
+            rotation = C3z_symmetry_map
     else:
         rotation = C4z_symmetry_map
 
@@ -641,12 +674,28 @@ def check_irrep_properties(config, irrep):
             pairing_group += (check_parity(config, irr) + 1) // 2
 
         gap = combine_product_terms(config, irr) if type(irr[0]) == tuple else irr[0]
-        gap_image = (reflection).dot(gap).dot(reflection.T)
+        i = 1
+        for j in range(gap.shape[1] // 2):
+            if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
+                print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'before')
+            break
+        gap = models.xy_to_chiral(gap, term_type, config, chiral = chiral)  # can do nothing or make chiral transform
+        i = 1
+        for j in range(gap.shape[1] // 2):
+            if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
+                print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'after')
+            break
+
+        if term_type != 'pairing':
+            gap_image = (reflection).dot(gap).dot(reflection.conj().T)
+        else:
+            gap_image = (reflection).dot(gap).dot(reflection.T)
 
         norm = np.sum(np.abs(gap_image ** 2))
         gap_image = gap_image.flatten()
         for irr_decompose in irrep:
             gap_decompose = combine_product_terms(config, irr_decompose) if type(irr_decompose[0]) == tuple else irr_decompose[0]
+            gap_decompose = models.xy_to_chiral(gap_decompose, term_type, config, chiral = chiral)  # can do nothing or make chiral transform
             coeff = norm_sc(gap_decompose.flatten(), gap_image)
             # print('<{:s}|M|{:s}> = '.format(irr[-1], irr_decompose[-1]) + str(coeff))
             if np.abs(coeff) > 1e-5:
@@ -660,13 +709,16 @@ def check_irrep_properties(config, irrep):
             norm = np.sum(np.abs(gap_image ** 2))
         assert norm < 1e-5
 
-        gap = combine_product_terms(config, irr) if type(irr[0]) == tuple else irr[0]
-        gap_image = (rotation).dot(gap).dot(rotation.T)
+        if term_type != 'pairing':
+            gap_image = (rotation).dot(gap).dot(rotation.conj().T)
+        else:
+            gap_image = (rotation).dot(gap).dot(rotation.T)
         norm = np.sum(np.abs(gap_image ** 2))
 
         gap_image = gap_image.flatten()
         for irr_decompose in irrep:
             gap_decompose = combine_product_terms(config, irr_decompose) if type(irr_decompose[0]) == tuple else irr_decompose[0]
+            gap_decompose = models.xy_to_chiral(gap_decompose, term_type, config, chiral = chiral)  # can do nothing or make chiral transform
             coeff = norm_sc(gap_decompose.flatten(), gap_image.flatten())
             # print('<{:s}|R|{:s}> = '.format(irr[-1], irr_decompose[-1]) + str(coeff))
             if np.abs(coeff) > 1e-5:
@@ -680,6 +732,7 @@ def check_irrep_properties(config, irrep):
                     print('λ_R = 1')
                     pairing_group += 0
                 else:
+                    print(coeff)
                     print('Strange eigenvalue R')
                     exit(-1)
             gap_image = gap_image - gap_decompose.flatten() * coeff
@@ -728,12 +781,12 @@ oneorb_square_A2_NN_singlet = None; oneorb_square_E_NN_triplet = None;
 
 oneorb_square_all = None
 
-C2y_symmetry_map = None;
-C3z_symmetry_map = None;
+C2y_symmetry_map = None; C2y_symmetry_map_chiral = None;
+C3z_symmetry_map = None; C3z_symmetry_map_chiral = None;
 C4z_symmetry_map = None;
 
 def obtain_all_pairings(config):
-    global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
+    global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map, C3z_symmetry_map_chiral, C2y_symmetry_map_chiral
     global twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
            twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet,\
@@ -749,6 +802,9 @@ def obtain_all_pairings(config):
     C2y_symmetry_map = get_C2y_symmetry_map(config)
     if config.n_orbitals == 2 and config.n_sublattices == 2:
         C3z_symmetry_map = get_C3z_symmetry_map(config)
+        C3z_symmetry_map_chiral = get_C3z_symmetry_map(config, chiral=True)
+        C2y_symmetry_map_chiral = get_C2y_symmetry_map(config, chiral=True)
+
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
             twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
             twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet,\
@@ -760,7 +816,7 @@ def obtain_all_pairings(config):
             twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet + \
             twoorb_hex_A1_NNN_singlet + twoorb_hex_A1_NNN_triplet + twoorb_hex_A2_NNN_singlet + twoorb_hex_A2_NNN_triplet + \
             twoorb_hex_E_NNN_singlet + twoorb_hex_E_NNN_triplet
-
+        
 
         names = []
         pairings = []

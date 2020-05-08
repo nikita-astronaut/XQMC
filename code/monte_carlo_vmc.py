@@ -117,7 +117,7 @@ def write_initial_logs(log_file, config_vmc):
 def print_model_summary(config_vmc):
     print('Model geometry: {:d}x{:d}, {:d} sublattices, {:d} orbitals'.format(config_vmc.Ls, \
            config_vmc.Ls, config_vmc.n_sublattices, config_vmc.n_orbitals))
-    print('U = {:2f}, V = {:2f}, J = {:2f}'.format(config_vmc.U, config_vmc.V, config_vmc.J))
+    print('epsilon_EM = {:2f}, '.format(config_vmc.epsilon))
     print('Monte Carlo chain length = {:d}, lr = {:.3f}, epsilon = {:.5f}'.format(\
         config_vmc.MC_chain, config_vmc.opt_parameters[1], config_vmc.opt_parameters[0])
     )
@@ -373,10 +373,8 @@ if __name__ == "__main__":
     pairings_names = config_vmc.pairings_list_names
 
 
-    template = 'U_{:.2f}_V_{:.2f}_J_{:.2f}_Ne_{:d}'.format(config_vmc.U, \
-        config_vmc.V, config_vmc.J, config_vmc.Ne) if config_vmc.PN_projection else \
-               'U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}'.format(config_vmc.U, \
-        config_vmc.V, config_vmc.J, config_vmc.mu)
+    template = 'e_{:.2f}_Ne_{:d}'.format(config_vmc.epsilon, config_vmc.Ne) if config_vmc.PN_projection else \
+               'e_{:.2f}_mu_{:.2f}'.format(config_vmc.epsilon, config_vmc.mu)
 
     local_workdir = os.path.join(config_vmc.workdir, template)
     os.makedirs(local_workdir, exist_ok=True)

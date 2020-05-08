@@ -13,6 +13,7 @@ warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
                  with_previous_state, previous_state, orbitals_in_use = None):
+        orbitals_in_use = None
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]  

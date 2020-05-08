@@ -23,25 +23,39 @@ class HubbardHamiltonian(object):
 class hamiltonian_Koshino(HubbardHamiltonian):
     def __init__(self, config):
         super().__init__(config)
-        self.edges_quadric, self.x_orbital, self.y_orbital = self._get_interaction()
+        self.plus_orbital = np.arange(0, self.config.total_dof // 2, 2)  # chiral basis now
+        self.minus_orbital = self.plus_orbital + 1
+        self.U = 1.
+        self.V = 1.
+        self.W1 = 2. / 3.
+        self.W2 = 1. / 3.
+        self.W3 = 1. / 3.
+        self.JH = (self.U - self.V) / 2
+        self.J = 1. / 5.
+        self.epsilon = self.config.epsilon
+        self.edges_quadric, self.edges_J_same, self.edges_J_updown, self.edges_J_downup = self._get_interaction()
 
     def _get_interaction(self):
         # for V_{ij} n_i n_j density--density interactions
-        edges_quadric = np.diag(np.ones(self.config.total_dof // 2) * self.config.U / 2.0)
 
-        x_orbit, y_orbit = np.arange(0, self.config.total_dof // 2, 2), \
-                           np.arange(1, self.config.total_dof // 2, 2)
-                           # x_orbit[i] and y_orbit[i] are the two orbitals residing on the same lattice site
+        #  https://journals.aps.org/prb/pdf/10.1103/PhysRevB.98.081102
+        #  https://arxiv.org/pdf/2003.09513.pdf
+        #  term U / 2 \sum_{nu = +/-} (n_nu)^2
+        edges_quadric = np.eye(self.config.total_dof // 2) * self.U / 2.0 / self.epsilon
+        #  term V / 2 n_+ n_i + n_- n_+
+        edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * self.V / 2 / self.epsilon
 
-        edges_quadric[x_orbit, y_orbit] = self.config.V / 2.0
-        edges_quadric[y_orbit, x_orbit] = self.config.V / 2.0
+        edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.W1 / 2 / self.epsilon
+        edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[6:9]]).sum(axis = 0) * self.W2 / 2 / self.epsilon
+        edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[9:12]]).sum(axis = 0) * self.W3 / 2 / self.epsilon
 
-        '''
-        for x, y in zip(x_orbit, y_orbit):
-            edges_quadric[x, y] = self.config.V / 2.0
-            edges_quadric[y, x] = self.config.V / 2.0
-        '''
-        return edges_quadric, x_orbit, y_orbit
+        edges_J_same = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * (-self.J / 2) / self.epsilon + 0.0j
+        edges_J_updown = models.apply_TBC(self.config, deepcopy(edges_J_same), inverse = False, factor = 2) / self.epsilon
+        edges_J_downup = models.apply_TBC(self.config, deepcopy(edges_J_same), inverse = True, factor = 2) / self.epsilon
+
+        assert np.allclose(edges_J_updown, edges_J_downup.conj())
+
+        return edges_quadric, edges_J_same, edges_J_updown, edges_J_downup
 
     def __call__(self, wf):
         '''
@@ -52,23 +66,24 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         E_loc = 0.0 + 0.0j
         base_state = wf.state
+        particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
 
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
-        E_loc += get_E_C_Koshino(base_state[:len(base_state) // 2], base_state[len(base_state) // 2:], \
-                                 self.config.total_dof // 2, self.config.U, self.config.V)
-        # E_loc += 0.5 * self.config.U * np.sum(density ** 2)  # U--term
-        # E_loc += self.config.V * np.sum(density[self.x_orbital] * density[self.y_orbital])
-        # the interaction term taken from https://arxiv.org/pdf/1809.06772.pdf, Eq. (2)
-        # to ensure the right coefficients for the Kanamori relation
+        E_loc += np.dot(particles - holes, self.edges_quadric.dot(particles - holes))
 
-        if self.config.J == 0:
-            return E_loc
+        #E_loc += get_E_C_Koshino(base_state[:len(base_state) // 2], base_state[len(base_state) // 2:], \
+        #                         self.config.total_dof // 2, self.config.U, self.config.V)
 
-        # Hund terms (are not affected by the twisted BC):
-        E_loc += self.config.J * (get_E_J_Hund(self.x_orbital, self.y_orbital, wf_state, wf.var_f) + \
-                                  get_E_Jprime_Hund(self.x_orbital, self.y_orbital, wf_state, wf.var_f))
+        # on-site Hund term https://arxiv.org/pdf/2003.09513.pdf (Eq. 2)
+        if self.JH != 0.0:
+            E_loc += -self.config.JH * (get_E_J_Hund(self.plus_orbital, self.minus_orbital, wf_state, wf.var_f) + \
+                                        get_E_J_Hund(self.minus_orbital, self.plus_orbital, wf_state, wf.var_f))
+
+        if self.J != 0.0:
+            E_loc += get_E_J_Hund_long(self.edges_J_same, self.edges_J_updown, self.edges_J_updown,\
+                                       wf_state, wf.var_f)
         return E_loc
 
 
@@ -125,23 +140,54 @@ def get_E_C_Koshino(electrons, holes, size, U, V):
 
 
 @jit(nopython=True)
-def get_E_J_Hund(x_orbital, y_orbital, wf_state, total_fugacity):
+def get_E_J_Hund(plus_orbital, minus_orbital, wf_state, total_fugacity):
     '''
         E_hund = J \\sum_{i, s1, s2} c^{\\dag}_ixs1 c^{\\dag}_iys2 c_{ixs2} c_iys1
     '''
     L = len(wf_state[3]) // 2
     E_loc = 0.0 + 0.0j
 
-    for x, y in zip(x_orbital, y_orbital):
+    for x, y in zip(plus_orbital, minus_orbital):
         E_loc += -density(wf_state[2], x) * density(wf_state[2], y)
         E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, x, y + L, x + L, y)
         E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, y, x + L, y + L, x)
         E_loc += (1 - density(wf_state[2], x + L)) * (1 - density(wf_state[2], y + L))
     return E_loc
 
+@jit(nopython=True)
+def get_E_J_Hund_long(edges_J_same, edges_J_updown, \
+                      edges_J_downup, wf_state, total_fugacity):
+    L = len(wf_state[3]) // 2
+    E_loc = 0.0 + 0.0j
+
+    for i in range(edges_J_same.shape[0] // 2):
+        for j in range(edges_J_same.shape[1] // 2):
+            if edges_J_same[i * 2, j * 2] == 0:
+                continue
+
+            for orb in range(2):
+                itotal = i * 2 + orb; jtotal = i * 2 + orb
+                E_loc += edges_J_same[itotal, jtotal] * density(wf_state[2], itotal) * density(wf_state[2], jtotal)  # s1 = s2
+                E_loc += edges_J_same[itotal, jtotal] * (1 - density(wf_state[2], itotal + L)) * (1 - density(wf_state[2], jtotal + L))  # s1 = s2
+                E_loc += -edges_J_updown[itotal, jtotal] * \
+                    get_wf_ratio_double_exchange(*wf_state, total_fugacity, itotal, jtotal + L, itotal + L, jtotal)
+                E_loc += -edges_J_downup[itotal, jtotal] * \
+                    get_wf_ratio_double_exchange(*wf_state, total_fugacity, jtotal, itotal + L, jtotal + L, itotal)
+
+            for mp in range(2):
+                iplus = i * 2 + mp; iminus = i * 2 + 1 - mp; jplus = 2 * j + mp; jminus = j * 2 + 1 - mp;
+                E_loc += edges_J_same[iplus, jplus] * \
+                    get_wf_ratio_double_exchange(*wf_state, total_fugacity, iplus, iminus, jminus, jplus)  # up-up
+                E_loc += edges_J_same[iplus, jplus] * \
+                    get_wf_ratio_double_exchange(*wf_state, total_fugacity, iminus + L, iplus + L, jplus + L, jminus + L)  # down-down
+                E_loc += -edges_J_updown[iplus, jplus] * \
+                    get_wf_ratio_double_exchange(*wf_state, total_fugacity, iplus, jminus + L, iminus + L, jplus)  # up-down
+                E_loc += -edges_J_downup[iplus, jplus] * \
+                    get_wf_ratio_double_exchange(*wf_state, total_fugacity, jminus, iplus + L, jplus + L, iminus)  # down-up
+    return E_loc
 
 @jit(nopython=True)
-def get_E_Jprime_Hund(x_orbital, y_orbital, wf_state, total_fugacity):
+def get_E_Jprime_Hund(x_orbital, y_orbital, wf_state, total_fugacity):  # valid only for px/py basis
     '''
         E_hund_prime = J \\sum_{i, o1 != o2} c^{\\dag}_io1up c^{\\dag}_io1down c_io2down c_io2up = 
                        J \\sum_{i, o1 != o2} d^{\\dag}_io1 d_{io1 + L} d^{\\dag}_{io2 + L} d_{i o2} =
