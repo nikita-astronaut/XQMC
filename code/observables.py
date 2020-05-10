@@ -22,15 +22,18 @@ class Observables:
         
         self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), open_mode)
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
-        # self.corr_file = open(os.path.join(self.local_workdir, 'corr_log.dat'), open_mode)
+
+        self.C_ijkl_filename = os.path.join(self.local_workdir, 'C_ijkl.npy')
+        self.PHI_ijkl_filename = os.path.join(self.local_workdir, 'Phi_ijkl.npy')
+        self.G_up_sum_filename = os.path.join(self.local_workdir, 'G_up_sum.npy')
+        self.G_down_sum_filename = os.path.join(self.local_workdir, 'G_down_sum.npy')
+
+        self.sign_filename = os.path.join(self.local_workdir, 'sign.npy')
+        self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples.npy')
+
 
         self.refresh_light_logs()
-
         self.init_light_log_file()
-        
-        self.gfs_data = []
-        self.gfs_equal_data = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2))
-        self.num_equal = 0
         self.global_average_sign = []
 
 
@@ -52,6 +55,7 @@ class Observables:
             self.adj_list_marking[adj[0] > 0.5] = idx
 
 
+        self.load_presaved_GF_data()
         self.refresh_heavy_logs()
         self.init_heavy_logs_files()
         return
@@ -71,14 +75,8 @@ class Observables:
         for key, _ in self.gap_observables_list.items():
             if 'chi' in key:
                 self.gap_file.write(key + ' ')
-        '''
-        for r_index in np.arange(0, len(self.config.adj_list), self.config.n_adj_pairings):
-            r = self.config.adj_list[r_index][-1]
-            self.corr_file.write('{:2f} '.format(r))
-        '''
 
         self.gap_file.write('\n')
-        # self.corr_file.write('\n')
         return
 
     def update_history(self, ratio, accepted, sign):
@@ -86,20 +84,42 @@ class Observables:
         self.acceptance_history.append(accepted)
         self.sign_history.append(sign)
 
+    def load_presaved_GF_data(self):
+        ### load pveroously stored GF data if exists ###
+        if self.config.start_type == 'presaved' and os.path.isfile(self.G_up_sum_filename):
+            self.GF_up_sum = np.load(self.G_up_sum_filename)
+            self.GF_down_sum = np.load(self.G_down_sum_filename)
+            self.C_ijkl = np.load(self.C_ijkl_filename)
+            self.PHI_ijkl = np.load(self.PHI_ijkl_filename)
+            self.num_chi_samples = np.load(self.num_samples_filename)[0]
+            self.total_sign = np.load(self.sign_filename)[0]
+        else:
+            self.GF_up_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+            self.GF_down_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+            self.num_chi_samples = 0
+            self.total_sign = 0.0
+            self.C_ijkl = np.zeros(len(self.ijkl))
+            self.PHI_ijkl = np.zeros(len(self.ijkl))
+        return
+
+    def save_GF_data(self):
+        ### save GF data ###
+        np.save(self.G_up_sum_filename, self.GF_up_sum)
+        np.save(self.G_down_sum_filename, self.GF_down_sum)
+        np.save(self.C_ijkl_filename, self.C_ijkl)
+        np.save(self.PHI_ijkl_filename, self.PHI_ijkl)
+        np.save(self.num_samples_filename, np.array([self.num_chi_samples]))
+        np.save(self.sign_filename, np.array([self.total_sign]))
+        return
+
     def refresh_heavy_logs(self):
         self.gap_file.flush()
 
-        self.C_ijkl = np.zeros(len(self.ijkl))
-
+        ### buffer for efficient GF-measurements ###
         self.cur_buffer_size = 0; self.max_buffer_size = 100
         self.GF_up_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
         self.GF_down_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
 
-        self.GF_up_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-        self.GF_down_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-
-        # for gap-gap correlation length measurement
-        self.PHI_ijkl = np.zeros(len(self.ijkl))
 
         # for order-order correlator measurement
         self.Z_uu_ijkl = np.zeros(len(self.ijkl_order))
@@ -116,7 +136,6 @@ class Observables:
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
-        self.num_chi_samples = 0
         for gap_name_alpha in self.config.pairings_list_names:
             self.gap_observables_list[gap_name_alpha + '_corr_length'] = 0.0
             self.gap_observables_list[gap_name_alpha + '_Sq0'] = 0.0
@@ -176,11 +195,7 @@ class Observables:
         return
 
     def measure_light_observables(self, phi, current_det_sign):
-        self.light_signs_history.append(current_det_sign)
-        self.gfs_equal_data += (phi.current_G_function_up + phi.current_G_function_down) / 2.
-        
-
-        self.num_equal += 1
+        self.light_signs_history.append(current_det_sign)  
 
         k = kinetic_energy(phi).item()
         C = Coloumb_energy(phi)
@@ -242,7 +257,9 @@ class Observables:
         t = time()
         signs = np.array(self.heavy_signs_history[-self.cur_buffer_size:])[..., np.newaxis]
         signs = np.repeat(signs, self.config.Nt, axis = 1)
-        
+        self.total_sign += np.sum(signs)
+
+
         shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
         print(len(self.ijkl), (shape[0] * shape[1], shape[2], shape[3]))
         G_up_prepared = np.asfortranarray(np.einsum('ijkl,ij->ijkl', \
@@ -285,6 +302,7 @@ class Observables:
         self.refresh_gfs_buffer()
         t = time()
         mean_signs = np.mean(self.heavy_signs_history)
+        mean_signs_global = self.total_sign / self.num_chi_samples
 
         idx_alpha = 0
         for gap_alpha, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
@@ -300,9 +318,9 @@ class Observables:
                 N_beta = 1.0 * np.sum(np.abs(gap_beta) ** 2) / norm  # N_beta
                 
                 total_chi = self.config.dt * get_gap_susceptibility(gap_alpha, gap_beta, \
-                    self.ijkl, self.C_ijkl, np.ones(shape = gap_alpha.shape)) / (self.num_chi_samples * mean_signs)
+                    self.ijkl, self.C_ijkl, np.ones(shape = gap_alpha.shape)) / (self.num_chi_samples * mean_signs_global)
                 free_chi = self.config.dt * np.sum([np.trace(self.GF_up_sum[tau, ...].dot(gap_beta).dot(self.GF_down_sum[tau, ...].T).dot(gap_alpha.T.conj())) \
-                                   for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs) ** 2)
+                                   for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs_global) ** 2)
 
 
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real'] = \
@@ -321,15 +339,15 @@ class Observables:
             norm = gap.shape[0]
             N = 1.0 * np.sum(np.abs(gap) ** 2) / norm
             total_chi_n = get_gap_susceptibility(gap, gap, \
-                self.ijkl, self.PHI_ijkl, self.distances_list) / (self.num_chi_samples * mean_signs)
+                self.ijkl, self.PHI_ijkl, self.distances_list) / (self.num_chi_samples * mean_signs_global)
             free_chi_n = np.trace((self.GF_up_sum[0, ...] * self.distances_list).dot(gap).dot(self.GF_down_sum[0, ...].T).dot(gap.T.conj())) \
-                 / ((self.num_chi_samples * mean_signs) ** 2)
+                 / ((self.num_chi_samples * mean_signs_global) ** 2)
 
             corr_length_gap = total_chi_n - free_chi_n
             total_chi_d = get_gap_susceptibility(gap, gap, \
-                self.ijkl, self.PHI_ijkl, np.ones(shape=gap.shape)) / (self.num_chi_samples * mean_signs)
+                self.ijkl, self.PHI_ijkl, np.ones(shape=gap.shape)) / (self.num_chi_samples * mean_signs_global)
             free_chi_d = np.trace((self.GF_up_sum[0, ...]).dot(gap).dot(self.GF_down_sum[0, ...].T).dot(gap.T.conj())) \
-                 / ((self.num_chi_samples * mean_signs) ** 2)
+                 / ((self.num_chi_samples * mean_signs_global) ** 2)
             corr_length_gap = corr_length_gap / (total_chi_d - free_chi_d) / 4
 
             self.gap_observables_list[gap_name + '_corr_length'] = corr_length_gap.real
@@ -351,7 +369,7 @@ class Observables:
                                get_order_average_connected(order_down, self.ijkl_order, self.Z_dd_ijkl, self.ik_marking, self.config.Ls)
             order_correlator = order_correlator.reshape((self.config.Ls, self.config.Ls))
 
-            order_correlator /= (self.num_chi_samples * norm * N * mean_signs)
+            order_correlator /= (len(self.heavy_signs_history) * norm * N * mean_signs)
             self.order_observables_list[order_name + '_order'] = order_correlator
 
         print('obtaining of observables', time() - t)
@@ -420,7 +438,9 @@ class Observables:
         self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))
         self.gap_file.flush()
         self.refresh_heavy_logs()
+        self.save_GF_data()
         return
+
 
 def density_spin(phi, spin):
     if spin == +1:
