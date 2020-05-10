@@ -329,6 +329,7 @@ if __name__ == "__main__":
         
 
 
+    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
     if config_vmc.tests:
         if tests.perform_all_tests(config_vmc):
             print('\033[92m All tests passed successfully \033[0m', flush = True)
