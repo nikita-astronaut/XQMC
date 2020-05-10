@@ -49,11 +49,14 @@ class wavefunction_singlet():
             else:
                 self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration()
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
-            if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
-                break
-            else:
-                self.with_previous_state = False  # if previous state failed, reinitialize from scratch
-                print('degenerate: will retry the wave function initialisation', flush = True)
+            break
+            #if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
+            #    break
+            #else:
+            #    print('the rank of this initialization is {:d}'.format(np.linalg.matrix_rank(self.U_tilde_matrix)))
+            #    print(np.linalg.det(self.U_tilde_matrix))
+            #    self.with_previous_state = False  # if previous state failed, reinitialize from scratch
+            #    print('degenerate: will retry the wave function initialisation', flush = True)
 
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
@@ -165,7 +168,7 @@ class wavefunction_singlet():
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
 
         rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
-        self.gap = -np.min(E[self.lowest_energy_states]) + np.max(E[rest_states])
+        self.gap = -np.max(E[self.lowest_energy_states]) + np.min(E[rest_states])
         U = U[:, self.lowest_energy_states]  # select only occupied orbitals
         self.E_fermi = np.max(self.E[self.lowest_energy_states])
 

@@ -75,6 +75,8 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
 
     # https://journals.jps.jp/doi/pdf/10.1143/JPSJ.77.114701 (formula 71)
     # removal of diagonal singularities
+
+    '''
     S_cov += config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
 
     # https://journals.jps.jp/doi/10.1143/JPSJ.77.114701 (formula 76)
@@ -88,6 +90,19 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
         S_cov_inv += (1. / s[lambda_idx]) * \
                       np.einsum('i,j->ij', v.T[:, lambda_idx], u.T[lambda_idx, :])
     step = S_cov_inv.dot(forces)
+    '''
+
+    diag = np.sqrt(np.abs(np.diag(S_cov)))
+
+    forces_pc = forces / diag  # below (6.52)
+    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / diag, S_cov, 1.0 / diag)
+
+    # (6.51, scale-invariant regularization)
+    S_cov_pc += config_vmc.opt_parameters[0] * np.eye(S_cov_pc.shape[0])  # (6.54)
+    S_cov_pc_inv = np.linalg.inv(S_cov_pc)
+
+    step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
+    step = step_pc / diag
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(np.mean(forces, axis = 0) ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
     return step, forces
@@ -302,7 +317,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     # print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
     # print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
     return energies, Os, acceptance, wf.get_state(), observables, \
-           names, wf.U_matrix, wf.lowest_energy_states, densities, wf.gap
+           names, wf.U_matrix, wf.E, densities, wf.gap
 
 if __name__ == "__main__":
     config_vmc_file = import_config(sys.argv[1])
