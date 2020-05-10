@@ -287,8 +287,8 @@ class Observables:
         mean_signs = np.mean(self.heavy_signs_history)
 
         idx_alpha = 0
-        idx_beta = 0
         for gap_alpha, gap_name_alpha in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names):
+            idx_beta = 0
             for gap_beta, gap_name_beta in zip(self.config.pairings_list_unwrapped, self.config.pairings_list_names): 
                 if self.config.name_group_dict[gap_name_alpha] != self.config.name_group_dict[gap_name_beta]:
                     continue
@@ -400,7 +400,7 @@ class Observables:
         np.save(name, np.array(corr_lengths))
 
         np.save(os.path.join(self.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
-        f = open("name_group_dict.pkl", "wb")
+        f = open(os.path.join(self.local_workdir, 'name_group_dict.pkl'), "wb")
         pickle.dump(self.config.name_group_dict, f)
         f.close()
 
