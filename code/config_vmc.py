@@ -9,19 +9,28 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
-        self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
+        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 2; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
+        self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
+
+        self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
+        for i in range(self.K_0.shape[0]):
+            for j in range(self.K_0.shape[1]):
+                if (i + j) % 2 == 1 and self.K_0[i, j] != 0.0:
+                    print(i, j, self.K_0[i, j])
+                #if (i + j) % 2 == 0 and self.K_0[i, j] != self.K_0[j, i]:
+                #    print(i, j, self.K_0[i, j], self.K_0[j, i])
+
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
+
         self.adjacency_list, self.longest_distance = models.get_adjacency_list(self)
 
 
         ### interaction parameters ###
-        self.U = 1.2
-        self.V = 0.8
-        self.J = (self.U - self.V) / 2  # only used in 2-orbital models, set equal to J'
+        self.epsilon = 1.0
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
 
 
@@ -33,24 +42,26 @@ class MC_parameters:
 
         if self.PN_projection:
             assert 0.0 == self.mu
-
         self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0])
 
 
         ### other parameters ###
         self.visualisation = False; 
-        self.tests = True
+        self.tests = False
         self.n_cpus = 4  # the number of processors to use | -1 -- take as many as available
         self.workdir = '/home/astronaut/DQMC_TBG/logs/1/'
-        self.load_parameters = False; self.load_parameters_path = None
+        self.load_parameters = True; self.load_parameters_path = None
 
 
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = []# pairings.twoorb_hex_all
+        self.pairings_list = pairings.twoorb_hex_all
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
+        self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
+            self, self.chiral_basis) for g in self.pairings_list_unwrapped]
+
         self.name_group_dict = pairings.name_group_dict
         print(self.name_group_dict)
 
@@ -72,7 +83,7 @@ class MC_parameters:
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = 5 * (self.total_dof // 2)
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-2, 2e-4, 1.0005, 1e-3]
+        self.opt_parameters = [1e-2, 2e-2, 1.0005, 1e-3]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5
         self.generator_mode = True
@@ -92,7 +103,8 @@ class MC_parameters:
         print('mu_BCS was set to {:.5f}'.format(self.initial_parameters[0]))
 
         ### check K-matrix irrep properties ###
-        pairings.check_irrep_properties(self, [[self.K_0, 'K_matrix']])
+        pairings.check_irrep_properties(self, [[self.model(self, self.mu, spin = +1.0)[0], 'K_matrix']], \
+            term_type = 'K_matrix', chiral = self.chiral_basis)
 
     def select_initial_muBCS(self, parameters = []):
         if len(parameters) == 0:

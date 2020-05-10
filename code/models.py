@@ -7,6 +7,8 @@ G_hexagonal = 2 * np.pi * np.array([[1 / np.sqrt(3), 1.], [1. / np.sqrt(3), -1.]
 R_square = np.array([[1., 0.], [0., 1.]])
 G_square = 2 * np.pi * np.array([[1, 0], [0, 1]])
 
+U_xy_to_chiral = None
+
 @jit(nopython=True)
 def diff_modulo(x, y, L, d):
     if d >= 0:
@@ -174,6 +176,22 @@ def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
 @jit(nopython=True)
 def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 2):
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
+
+def xy_to_chiral(M, term_type, config, chiral = False):
+    if not chiral:
+        return M
+    global U_xy_to_chiral
+    if U_xy_to_chiral is None:
+        U_xy_to_chiral = np.kron(np.eye(M.shape[0] // 2), np.array([[1, 1], [1.0j, -1.0j]]) / np.sqrt(2))
+    if term_type == 'bilinear' or term_type == 'K_matrix':
+        M_chiral = U_xy_to_chiral.conj().T.dot(M).dot(U_xy_to_chiral)
+    else:
+        M_chiral = U_xy_to_chiral.T.dot(M).dot(U_xy_to_chiral)  # pairing
+    if term_type == 'K_matrix':
+        assert np.isclose(np.sum(np.abs(M_chiral[np.arange(0, \
+            M_chiral.shape[0], 2), ...][..., np.arange(0, \
+            M_chiral.shape[0], 2) + 1])), 0)
+    return M_chiral
 
 
 @jit(nopython=True)
@@ -372,9 +390,13 @@ def get_transition_matrix(PN_projection, K):
     return adjacency_list
 
 @jit(nopython=True)
-def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = False):  # inverse = True in the case of spin--down
+def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = False, factor = 1):  # inverse = True in the case of spin--down
     x_factor = twist[0] if not inverse else 1. / twist[0]
     y_factor = twist[1] if not inverse else 1. / twist[1]
+
+    if factor != 1:
+        x_factor = x_factor ** factor
+        y_factor = y_factor ** factor
     for first in range(K.shape[0]):
         for second in np.where(np.abs(K[first, :]) > 0)[0]:
             orbit1, sublattice1, x1, y1 = from_linearized_index(first, Ls, n_orbitals, n_sublattices)
@@ -393,8 +415,8 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = False):  # inv
                     K[first, second] *= np.conj(y_factor)
     return K
 
-def apply_TBC(config, K, inverse = False):
-    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, config.twist, inverse)
+def apply_TBC(config, K, inverse = False, factor = 1):
+    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, config.twist, inverse, factor)
 
 @jit(nopython=True)
 def spatial_checkerboard(Ls):

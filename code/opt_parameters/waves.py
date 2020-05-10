@@ -28,22 +28,28 @@ def construct_2orb_hex(config):
         [(Zpauli, sigma_1, onsite, Zpauli), '(S_z)x(S_1)x(S_z)'], [(Zpauli, sigma_2, onsite, Zpauli), '(S_z)x(S_2)x(S_z)'],
     ]
     print('Checking S_zxS_0xS_z wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[0:1])
+    pairings.check_irrep_properties(config, orders_on_site[0:1], term_type = 'bilinear')
+    pairings.check_irrep_properties(config, orders_on_site[0:1], term_type = 'bilinear', chiral = True)
 
     print('Checking S_zxS_0xS_0 wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[1:2])
+    pairings.check_irrep_properties(config, orders_on_site[1:2], term_type = 'bilinear')
+    pairings.check_irrep_properties(config, orders_on_site[1:2], term_type = 'bilinear', chiral = True)
 
     print('Checking S_0x(S_x)xS_0/S_0x(S_z)xS_0 wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[2:4])
+    pairings.check_irrep_properties(config, orders_on_site[2:4], term_type = 'bilinear')
+    pairings.check_irrep_properties(config, orders_on_site[2:4], term_type = 'bilinear', chiral = True)
 
     print('Checking S_zx(S_x)xS_0/S_zx(S_z)xS_0 wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[4:6])
+    pairings.check_irrep_properties(config, orders_on_site[4:6], term_type = 'bilinear')
+    pairings.check_irrep_properties(config, orders_on_site[4:6], term_type = 'bilinear', chiral = True)
 
     print('Checking S_0x(S_x)xS_z/S_0x(S_z)xS_z wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[6:8])
+    pairings.check_irrep_properties(config, orders_on_site[6:8], term_type = 'bilinear')
+    pairings.check_irrep_properties(config, orders_on_site[6:8], term_type = 'bilinear', chiral = True)
 
     print('Checking S_zx(S_x)xS_z/S_zx(S_z)xS_z wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[8:10])
+    pairings.check_irrep_properties(config, orders_on_site[8:10], term_type = 'bilinear')
+    pairings.check_irrep_properties(config, orders_on_site[8:10], term_type = 'bilinear', chiral = True)
 
     global delta_hex_AB, delta_hex_BA
     delta_hex_AB = [pairings.construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]

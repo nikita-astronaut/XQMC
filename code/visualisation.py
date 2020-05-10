@@ -481,15 +481,21 @@ def is_commensurate(L, k):
         return True
     return False
 
-def get_MFH(config):
+def get_MFH(config, only_free = False):
     K_up = config.model(config, config.mu, spin = +1.0)[0]
+    K_up = models.xy_to_chiral(K_up, 'K_matrix', config, config.chiral_basis)
     K_down = config.model(config, config.mu, spin = -1.0)[0].T
+    K_down = models.xy_to_chiral(K_down, 'K_matrix', config, config.chiral_basis)
+
+    T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
+    if only_free:
+        return T
 
     mu, fugacity, waves, gap, jastrow = config.unpack_parameters(config.initial_parameters)
 
     Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, gap)
 
-    T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
+    
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
     return T
@@ -510,7 +516,7 @@ def plot_MF_spectrum_profile(config):
                   [(1 - alpha) * Gamma_point + alpha * M_point for alpha in np.linspace(0, 1, 100)] + \
                   [(1 - alpha) * M_point + alpha * Kprime_point for alpha in np.linspace(0, 1, 100)]
 
-    MFH = get_MFH(config)
+    MFH = get_MFH(config, only_free = True)
 
     energies = []
     for k_real in k_real_list:
