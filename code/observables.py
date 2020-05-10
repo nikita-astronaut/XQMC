@@ -256,8 +256,8 @@ class Observables:
         print('current buffer size = {:d}'.format(self.cur_buffer_size))
         t = time()
         signs = np.array(self.heavy_signs_history[-self.cur_buffer_size:])[..., np.newaxis]
-        signs = np.repeat(signs, self.config.Nt, axis = 1)
         self.total_sign += np.sum(signs)
+        signs = np.repeat(signs, self.config.Nt, axis = 1)
 
 
         shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
