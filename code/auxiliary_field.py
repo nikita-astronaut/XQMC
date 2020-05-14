@@ -52,7 +52,11 @@ class AuxiliaryFieldIntraorbital:
             self.refresh_checkpoints.append(t)
             t += self.config.s_refresh
         self.refresh_checkpoints = np.array(self.refresh_checkpoints)
+
+        self.local_conf_combinations = [tuple([1]), tuple([-1])]
         return
+    def get_gauge_factor_move(self, sp_index, time_slice, local_conf):
+        return 1.
 
     def get_current_gauge_factor_log(self):
         return 0
@@ -223,8 +227,8 @@ class AuxiliaryFieldIntraorbital:
         self.current_G_function_down = _update_G_seq_intra(self.current_G_function_down, self.Delta_down, sp_index, self.config.total_dof)
         return
 
-    def update_field(self, sp_index, time_slice, *args):
-        self.configuration[time_slice, sp_index] *= -1
+    def update_field(self, sp_index, time_slice, new_conf):
+        self.configuration[time_slice, sp_index] = new_conf[0]
         return
 
     def to_numpy(self, array):
@@ -356,10 +360,19 @@ class AuxiliaryFieldIntraorbital:
         return log_det_up + s_factor_log - log_det_down, sign_up - sign_down
     ####### END DEBUG ######
 
+    def get_current_conf(self, sp_index, time_slice):
+        return self.configuration[time_slice, sp_index, ...]
+
 
 class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
     def __init__(self, config, K, K_inverse, K_matrix, local_workdir):
         super().__init__(config, K, K_inverse, K_matrix, local_workdir)
+        self.local_conf_combinations = [
+                                    (-1, -1, -1), (-1, -1, 1), \
+                                    (-1, 1, -1), (-1, 1, 1), \
+                                    (1, -1, -1), (1, -1, 1), \
+                                    (1, 1, -1), (1, 1, 1),
+                                ]
         return
 
     def _V_from_configuration(self, s, sign, spin):
@@ -403,15 +416,18 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         return
 
 
-    def update_field(self, sp_index, time_slice, o_index, new_value):
-        self.configuration[time_slice, sp_index, o_index] = new_value
-        s = self.configuration[time_slice, sp_index, ...]
+    def update_field(self, sp_index, time_slice, new_conf):
+        self.configuration[time_slice, sp_index, ...] = np.array(new_conf)
         sx = sp_index * 2
         sy = sp_index * 2 + 1
-        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration(s, +1.0, +1.0, self.config.nu_U, self.config.nu_V)
-        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration(s, -1.0, +1.0, self.config.nu_U, self.config.nu_V)
-        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration(s, +1.0, -1.0, self.config.nu_U, self.config.nu_V)
-        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration(s, -1.0, -1.0, self.config.nu_U, self.config.nu_V)
+        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration(new_conf, +1.0, +1.0, self.config.nu_U, self.config.nu_V)
+        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration(new_conf, -1.0, +1.0, self.config.nu_U, self.config.nu_V)
+        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration(new_conf, +1.0, -1.0, self.config.nu_U, self.config.nu_V)
+        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration(new_conf, -1.0, -1.0, self.config.nu_U, self.config.nu_V)
         return
 
     def B_l(self, spin, l, inverse = False):
@@ -424,25 +440,15 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
             return self.K_inverse.dot(self.Vinv_up[l, ...])
         return self.K_inverse.dot(self.Vinv_down[l, ...])
 
-    def compute_deltas(self, sp_index, time_slice, o_index, new_value):
-    	self.Delta_up = self.la.asarray(self.get_delta(+1., sp_index, time_slice, o_index, new_value))
-    	self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice, o_index, new_value))
+    def compute_deltas(self, sp_index, time_slice, local_conf_proposed):
+    	self.Delta_up = self.la.asarray(self.get_delta(+1., sp_index, time_slice, local_conf_proposed))
+    	self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice, local_conf_proposed))
     	return
 
-    '''
-    def get_delta(self, spin, sp_index, time_slice, o_index, new_value):  # sign change proposal is made at (time_slice, sp_index, o_index)
-        local_configuration_proposed = self.configuration[time_slice, sp_index, :] * 1.
-        local_configuration_proposed[o_index] = new_value
-        local_configuration = self.configuration[time_slice, sp_index, :]
 
-        local_V_inv = self._V_from_configuration(local_configuration, -1.0, spin)  # already stored in self.V or self.Vinv
-        local_V_proposed = self._V_from_configuration(local_configuration_proposed, 1.0, spin)
-        return local_V_proposed.dot(local_V_inv) - np.eye(2)
-    '''
-
-    def get_delta(self, spin, sp_index, time_slice, o_index, new_value):  # sign change proposal is made at (time_slice, sp_index, o_index)
-        return get_delta_interorbital(self.configuration[time_slice, sp_index, :], \
-                                      o_index, spin, new_value, self.config.nu_U, self.config.nu_V)
+    def get_delta(self, spin, sp_index, time_slice, local_conf_proposed):  # sign change proposal is made at (time_slice, sp_index, o_index)
+        return get_delta_interorbital(tuple(self.configuration[time_slice, sp_index, :]), \
+                                      local_conf_proposed, spin, self.config.nu_U, self.config.nu_V)
 
     def update_G_seq(self, sp_index):
         self.current_G_function_up = _update_G_seq_inter(self.current_G_function_up, \
@@ -472,7 +478,6 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         self.configuration = cp.asnumpy(self.configuration)
         return
 
-
 class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
     def __init__(self, config, K, K_inverse, K_matrix, local_workdir):
         self.eta = {
@@ -497,17 +502,19 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         }
 
         super().__init__(config, K, K_inverse, K_matrix, local_workdir)
+        self.local_conf_combinations = [
+                                    (-1, -1, -2), (-1, -1, -1), (-1, -1, 1), (-1, -1, 2), \
+                                    (-1, 1, -2), (-1, 1, -1), (-1, 1, 1), (-1, 1, 2), \
+                                    (1, -1, -2), (1, -1, -1), (1, -1, 1), (1, -1, 2), \
+                                    (1, 1, -2), (1, 1, -1), (1, 1, 1), (1, 1, 2)
+                                    ]
+
         self.rnd = np.random.choice(np.array([-2, -1, 1, 2]), size=100000)
         self.rnd_idx = 0
         return
 
-    def propose_move(self, sp_index, time_slice, o_index):
-        if o_index == 0:
-            new_value = self.rnd[self.rnd_idx % len(self.rnd)]
-            self.rnd_idx += 1
-            old_value = self.configuration[time_slice, sp_index, 0]
-            return new_value, self.gauge[new_value] / self.gauge[old_value]  # this will sometimes yield the same field
-        return -self.configuration[time_slice, sp_index, o_index], 1.0  # gauge factor is always 1
+    def get_gauge_factor_move(self, sp_index, time_slice, local_conf):
+        return self.gauge[local_conf[0]] / self.gauge[self.configuration[time_slice, sp_index, 0]]
 
     def get_current_gauge_factor_log(self):
         cf = self.configuration[..., 0].flatten()
@@ -562,30 +569,30 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
                     self._V_from_configuration(self.configuration[time_slice, sp_index, :], -1.0, -1)
         return
 
-    def update_field(self, sp_index, time_slice, o_index, new_value):
-        self.configuration[time_slice, sp_index, o_index] = new_value
-        s = self.configuration[time_slice, sp_index, ...]
+    def update_field(self, sp_index, time_slice, new_conf):
+        self.configuration[time_slice, sp_index, ...] = np.array(new_conf)
         sx = sp_index * 2
         sy = sp_index * 2 + 1
-        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration_accurate(s, +1.0, +1.0, self.config.nu_U, self.config.nu_V)
-        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration_accurate(s, -1.0, +1.0, self.config.nu_U, self.config.nu_V)
-        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration_accurate(s, +1.0, -1.0, self.config.nu_U, self.config.nu_V)
-        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration_accurate(s, -1.0, -1.0, self.config.nu_U, self.config.nu_V)
+        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration_accurate(new_conf, +1.0, +1.0, self.config.nu_U, self.config.nu_V)
+        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] =\
+            _V_from_configuration_accurate(new_conf, -1.0, +1.0, self.config.nu_U, self.config.nu_V)
+        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration_accurate(new_conf, +1.0, -1.0, self.config.nu_U, self.config.nu_V)
+        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration_accurate(new_conf, -1.0, -1.0, self.config.nu_U, self.config.nu_V)
 
         return
 
-    def get_delta(self, spin, sp_index, time_slice, o_index, new_value):  # sign change proposal is made at (time_slice, sp_index, o_index)
-        return _get_delta_interorbital_accurate(self.configuration[time_slice, sp_index, :], \
-                                                o_index, spin, new_value, self.config.nu_U, self.config.nu_V)
+    def get_delta(self, spin, sp_index, time_slice, local_conf_proposed):  # sign change proposal is made at (time_slice, sp_index, o_index)
+        return _get_delta_interorbital_accurate(tuple(self.configuration[time_slice, sp_index, :]), \
+                                                local_conf_proposed, spin, self.config.nu_U, self.config.nu_V)
 
 @jit(nopython = True)
-def _get_delta_interorbital_accurate(local_configuration, o_index, spin, \
-                                    new_value, nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
-    local_configuration_proposed = 1. * local_configuration
-    local_configuration_proposed[o_index] = new_value
-
-    local_V_inv = _V_from_configuration_accurate(local_configuration, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
-    local_V_proposed = _V_from_configuration_accurate(local_configuration_proposed, 1.0, spin, nu_U, nu_V)
+def _get_delta_interorbital_accurate(local_conf, local_conf_proposed, spin, \
+                                     nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
+    local_V_inv = _V_from_configuration_accurate(local_conf, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
+    local_V_proposed = _V_from_configuration_accurate(local_conf_proposed, 1.0, spin, nu_U, nu_V)
     return local_V_proposed.dot(local_V_inv) - np.eye(2)
 
 @jit(nopython=True)
@@ -615,13 +622,10 @@ def _V_from_configuration(s, sign, spin, nu_U, nu_V):
 
 
 @jit(nopython = True)
-def get_delta_interorbital(local_configuration, o_index, spin, \
-                           new_value, nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
-    local_configuration_proposed = 1. * local_configuration
-    local_configuration_proposed[o_index] = new_value
-
+def get_delta_interorbital(local_configuration, local_conf_proposed, spin, \
+                           nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
     local_V_inv = _V_from_configuration(local_configuration, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
-    local_V_proposed = _V_from_configuration(local_configuration_proposed, 1.0, spin, nu_U, nu_V)
+    local_V_proposed = _V_from_configuration(local_conf_proposed, 1.0, spin, nu_U, nu_V)
     return local_V_proposed.dot(local_V_inv) - np.eye(2)
 
 @jit(nopython=True)
