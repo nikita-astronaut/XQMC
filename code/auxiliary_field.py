@@ -54,6 +54,12 @@ class AuxiliaryFieldIntraorbital:
         self.refresh_checkpoints = np.array(self.refresh_checkpoints)
         return
 
+    def get_current_gauge_factor_log(self):
+        return 0
+
+    def propose_move(self, sp_index, time_slice, o_index):
+        return -self.configuration[time_slice, sp_index, o_index], 1.0  # gauge factor is always 1
+
     def SVD(self, matrix):
         if self.cpu:
             return scipy.linalg.svd(matrix, lapack_driver='gesvd')  # this is VERY IMPORTANT
@@ -376,10 +382,10 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
             else:
                 self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
 
-        self.V_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-        self.Vinv_up = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-        self.V_down = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-        self.Vinv_down = np.zeros(shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
+        NtVolVol_shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2)
+        self.V_up = np.zeros(shape = NtVolVol_shape); self.Vinv_up = np.zeros(shape = NtVolVol_shape)
+        self.V_down = np.zeros(shape = NtVolVol_shape); self.Vinv_down = np.zeros(shape = NtVolVol_shape)
+        
 
         for time_slice in range(self.config.Nt):
             for sp_index in range(self.config.total_dof // 2 // 2):
@@ -394,15 +400,11 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
                     self._V_from_configuration(self.configuration[time_slice, sp_index, :], +1.0, -1)
                 self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
                     self._V_from_configuration(self.configuration[time_slice, sp_index, :], -1.0, -1)
-
-        self.V_up = self.V_up
-        self.Vinv_up = self.Vinv_up
-        self.V_down = self.V_down
-        self.Vinv_down = self.Vinv_down
         return
 
-    def update_field(self, sp_index, time_slice, o_index):
-        self.configuration[time_slice, sp_index, o_index] *= -1
+
+    def update_field(self, sp_index, time_slice, o_index, new_value):
+        self.configuration[time_slice, sp_index, o_index] = new_value
         s = self.configuration[time_slice, sp_index, ...]
         sx = sp_index * 2
         sy = sp_index * 2 + 1
@@ -422,14 +424,19 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
             return self.K_inverse.dot(self.Vinv_up[l, ...])
         return self.K_inverse.dot(self.Vinv_down[l, ...])
 
-    def compute_deltas(self, sp_index, time_slice, o_index):
-    	self.Delta_up = self.la.asarray(self.get_delta(+1., sp_index, time_slice, o_index))
-    	self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice, o_index))
+    def compute_deltas(self, sp_index, time_slice, o_index, new_value):
+    	self.Delta_up = self.la.asarray(self.get_delta(+1., sp_index, time_slice, o_index, new_value))
+    	self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice, o_index, new_value))
     	return
 
-    def get_delta(self, spin, sp_index, time_slice, o_index):  # sign change proposal is made at (time_slice, sp_index, o_index)
-        return get_delta_interorbital(self.configuration[time_slice, sp_index, :], \
-                                      o_index, spin, self.config.nu_U, self.config.nu_V)
+    def get_delta(self, spin, sp_index, time_slice, o_index, new_value):  # sign change proposal is made at (time_slice, sp_index, o_index)
+        local_configuration_proposed = self.configuration[time_slice, sp_index, :] * 1.
+        local_configuration_proposed[o_index] = new_value
+        local_configuration = self.configuration[time_slice, sp_index, :]
+
+        local_V_inv = self._V_from_configuration(local_configuration, -1.0, spin)  # already stored in self.V or self.Vinv
+        local_V_proposed = self._V_from_configuration(local_configuration_proposed, 1.0, spin)
+        return local_V_proposed.dot(local_V_inv) - np.eye(2)
 
     def update_G_seq(self, sp_index):
         self.current_G_function_up = _update_G_seq_inter(self.current_G_function_up, self.Delta_up, sp_index, self.config.total_dof)
@@ -456,6 +463,102 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         self.Vinv_down = cp.asarray(self.Vinv_down)
         self.configuration = cp.asnumpy(self.configuration)
         return
+
+
+class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir):
+        self.eta = {
+            -2 : -np.sqrt(6 + 2 * np.sqrt(6)),
+            +2 : +np.sqrt(6 + 2 * np.sqrt(6)),
+            -1 : -np.sqrt(6 - 2 * np.sqrt(6)),
+            +1 : +np.sqrt(6 - 2 * np.sqrt(6)),
+        }
+
+        self.gauge = {
+            -2 : 1. - np.sqrt(6) / 3,
+            2 : 1. - np.sqrt(6) / 3.,
+            -1 : 1. + np.sqrt(6) / 3.,
+            +1 : 1 + np.sqrt(6) / 3.
+        }
+
+        self.gauge_log = {
+            -2 : np.log(1. - np.sqrt(6) / 3),
+            2 : np.log(1. - np.sqrt(6) / 3),
+            -1 : np.log(1. + np.sqrt(6) / 3),
+            +1 : np.log(1 + np.sqrt(6) / 3)
+        }
+
+        super().__init__(config, K, K_inverse, K_matrix, local_workdir)
+        return
+
+    def propose_move(self, sp_index, time_slice, o_index):
+        if o_index == 0:
+            new_value = np.random.choice(np.array([-2, -1, 1, 2]))
+            old_value = self.configuration[time_slice, sp_index, 0]
+            return new_value, self.gauge[new_value] / self.gauge[old_value]  # this will sometimes yield the same field
+        return -self.configuration[time_slice, sp_index, o_index], 1.0  # gauge factor is always 1
+
+    def get_current_gauge_factor_log(self):
+        factor_log = 0.
+        for s in self.configuration[..., 0].flatten():
+            factor_log += self.gauge_log[s]
+        return factor_log
+
+    def _V_from_configuration(self, s, sign, spin):
+        if spin > 0:
+            V = self.config.nu_V * self.eta[s[0]] * sign * np.array([-1, 1]) + \
+                self.config.nu_U * sign * np.array([s[2], s[1]])
+        else:
+            V = self.config.nu_V * self.eta[s[0]] * sign * np.array([-1, 1]) + \
+                self.config.nu_U * sign * np.array([-s[2], -s[1]])
+        return np.diag(np.exp(V))
+
+    def _get_initial_field_configuration(self):
+        if self.config.start_type == 'cold':
+            self.configuration = np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
+        elif self.config.start_type == 'hot':
+            self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0  # standard 2-valued aux Hubbard field
+            self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
+                                                          size = (self.config.Nt, self.config.total_dof // 2 // 2))  # 4-valued F.F. Assaad field
+        else:
+            if os.path.isfile(self.conf_path):
+                self.configuration = self._load_configuration()
+            else:
+                self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
+                self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
+                                                              size = (self.config.Nt, self.config.total_dof // 2 // 2))
+
+        NtVolVol_shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2)
+        self.V_up = np.zeros(shape = NtVolVol_shape); self.Vinv_up = np.zeros(shape = NtVolVol_shape)
+        self.V_down = np.zeros(shape = NtVolVol_shape); self.Vinv_down = np.zeros(shape = NtVolVol_shape)
+
+        for time_slice in range(self.config.Nt):
+            for sp_index in range(self.config.total_dof // 2 // 2):
+                sx = sp_index * 2
+                sy = sp_index * 2 + 1
+                self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, :], +1.0, +1.0)
+                self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, :], -1.0, +1.0)
+
+                self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, :], +1.0, -1)
+                self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    self._V_from_configuration(self.configuration[time_slice, sp_index, :], -1.0, -1)
+        return
+
+    def update_field(self, sp_index, time_slice, o_index, new_value):
+        self.configuration[time_slice, sp_index, o_index] = new_value
+        s = self.configuration[time_slice, sp_index, ...]
+        sx = sp_index * 2
+        sy = sp_index * 2 + 1
+        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(s, +1.0, +1.0)
+        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(s, -1.0, +1.0)
+        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(s, +1.0, -1.0)
+        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(s, -1.0, -1.0)
+
+        return
+
 
 
 @jit(nopython=True)

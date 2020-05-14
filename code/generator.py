@@ -70,6 +70,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
+            current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             if switch:
                 phi_field.copy_to_GPU()
@@ -77,41 +78,40 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
             
-            current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
+            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
+            current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
         phi_field.wrap_up(time_slice)
         if switch:
             phi_field.copy_to_CPU()
-        #if time_slice == 0:
-        #    phi_field.current_G_function_up, phi_field.log_det_up, phi_field.sign_det_up = phi_field.get_G_no_optimisation(+1, 0)
-        #    phi_field.current_G_function_down, phi_field.log_det_down, phi_field.sign_det_down = phi_field.get_G_no_optimisation(-1, 0)
-        #    current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
-        #print('first measurement in loop {:d}'.format(time_slice))
-        #observables.measure_light_observables(phi_field, current_det_sign)
+
         for sp_index in range(sp_index_range):
             site_idx = sp_index // n_fields
             o_index = sp_index % n_fields
 
-            phi_field.compute_deltas(site_idx, time_slice, o_index)
+            new_value, gauge_factor = phi_field.propose_move(site_idx, time_slice, o_index)
+            phi_field.compute_deltas(site_idx, time_slice, o_index, new_value)
             if n_fields > 1:
                 ratio = auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
                         auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
             else:
                 ratio = auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
                         auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
-            lamb = lambdas[sp_index + time_slice * sp_index_range]
-            if lamb < np.min([1, np.abs(ratio)]):
-                current_det_log += np.log(np.abs(ratio))
 
+            lamb = lambdas[sp_index + time_slice * sp_index_range]
+            if lamb < np.min([1, np.abs(ratio) * gauge_factor]):
+                current_det_log += np.log(np.abs(ratio))
+                current_gauge_factor_log += np.log(gauge_factor)
                 current_det_sign *= np.sign(ratio)
                 ratio = np.log(np.abs(ratio))
                 # print(current_det_sign, ratio, np.sign(ratio))
 
                 accepted = 1.0
                 phi_field.update_G_seq(site_idx)
-                phi_field.update_field(site_idx, time_slice, o_index)
+                phi_field.update_field(site_idx, time_slice, o_index, new_value)
                  
-                if False:#not GF_checked:
+                if False:
+                    print(sp_index)
                     G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                     G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
 
@@ -122,7 +122,10 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
 
                     if np.abs(d_gf_up) > 1e-8 or np.abs(d_gf_down) > 1e-8:
                         print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
-                    # print(det_log_up_check + det_log_down_check + current_det_log, current_det_log)  # FIXME
+                    else:
+                        print('test passed')
+                    print('Determinant discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
+                    print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
             else:
                 ratio = 0
                 accepted = 0
@@ -156,7 +159,7 @@ if __name__ == "__main__":
     for U, V, mu, Nt in zip(U_list, V_list, mu_list, Nt_list):
         config.U = U; config.V = V; config.mu = mu; config.Nt = int(Nt);
         n_copy = config.n_copy
-        config.nu_V = np.arccosh(np.exp(V / 2. * config.dt))
+        config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
 
         K_matrix = config.model(config, config.mu)[0].real
