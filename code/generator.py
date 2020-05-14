@@ -169,6 +169,7 @@ if __name__ == "__main__":
         n_copy = config.n_copy
         config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
+        assert V == 0 or V == U
 
         K_matrix = config.model(config, config.mu)[0].real
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real
