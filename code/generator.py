@@ -90,21 +90,22 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
 
             local_det_factors = []
             local_gauge_factors = []
+            local_conf_old = phi_field.get_current_conf(site_idx, time_slice)
+
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move(site_idx, time_slice, local_conf)
 
+                phi_field.compute_deltas(site_idx, time_slice, local_conf_old, local_conf)
 
-                phi_field.compute_deltas(site_idx, time_slice, local_conf)
                 if n_fields > 1:
                     det_ratio = auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
                                 auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
                 else:
                     det_ratio = auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
                                 auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
-                
-
                 local_det_factors.append(det_ratio)
                 local_gauge_factors.append(gauge_ratio)
+
             probas = np.abs(np.array(local_det_factors) * np.array(local_gauge_factors))
             idx = np.random.choice(np.arange(len(local_det_factors)), \
                                    p = probas / np.sum(probas))
@@ -115,13 +116,12 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_sign *= np.sign(local_det_factors[idx])
 
             ratio = np.log(np.abs(local_det_factors[idx]))
-            accepted = (new_conf != tuple(phi_field.get_current_conf(site_idx, time_slice)))
+            accepted = (new_conf != local_conf_old)
 
 
             if accepted:
-                phi_field.compute_deltas(site_idx, time_slice, new_conf); phi_field.update_G_seq(site_idx)
+                phi_field.compute_deltas(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, new_conf)
-                 
             if False:
                 G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                 G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]

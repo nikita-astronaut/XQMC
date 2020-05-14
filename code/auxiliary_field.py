@@ -215,8 +215,8 @@ class AuxiliaryFieldIntraorbital:
         return self.K_inverse.dot(V)
 
     def compute_deltas(self, sp_index, time_slice, *args):
-        self.Delta_up = self.la.asarray(self.get_delta(+1., sp_index, time_slice))
-        self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice))
+        self.Delta_up = self.get_delta(+1., sp_index, time_slice)
+        self.Delta_down = self.get_delta(-1., sp_index, time_slice)
         return
 
     def get_delta(self, spin, sp_index, time_slice):  # sign change proposal is made at (time_slice, sp_index, o_index)
@@ -361,7 +361,7 @@ class AuxiliaryFieldIntraorbital:
     ####### END DEBUG ######
 
     def get_current_conf(self, sp_index, time_slice):
-        return self.configuration[time_slice, sp_index, ...]
+        return tuple(self.configuration[time_slice, sp_index, ...])
 
 
 class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
@@ -441,8 +441,8 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         return self.K_inverse.dot(self.Vinv_down[l, ...])
 
     def compute_deltas(self, sp_index, time_slice, local_conf_proposed):
-    	self.Delta_up = self.la.asarray(self.get_delta(+1., sp_index, time_slice, local_conf_proposed))
-    	self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice, local_conf_proposed))
+    	self.Delta_up = self.get_delta(+1., sp_index, time_slice, local_conf_proposed)
+    	self.Delta_down = self.get_delta(-1., sp_index, time_slice, local_conf_proposed)
     	return
 
 
@@ -584,6 +584,11 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
 
         return
 
+    def compute_deltas(self, sp_index, time_slice, local_conf, local_conf_proposed):
+        self.Delta_up = _get_delta_interorbital_accurate(local_conf, local_conf_proposed, +1, self.config.nu_U, self.config.nu_V)
+        self.Delta_down = _get_delta_interorbital_accurate(local_conf, local_conf_proposed, -1, self.config.nu_U, self.config.nu_V)
+        return
+
     def get_delta(self, spin, sp_index, time_slice, local_conf_proposed):  # sign change proposal is made at (time_slice, sp_index, o_index)
         return _get_delta_interorbital_accurate(tuple(self.configuration[time_slice, sp_index, :]), \
                                                 local_conf_proposed, spin, self.config.nu_U, self.config.nu_V)
@@ -593,24 +598,26 @@ def _get_delta_interorbital_accurate(local_conf, local_conf_proposed, spin, \
                                      nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
     local_V_inv = _V_from_configuration_accurate(local_conf, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
     local_V_proposed = _V_from_configuration_accurate(local_conf_proposed, 1.0, spin, nu_U, nu_V)
-    return local_V_proposed.dot(local_V_inv) - np.eye(2)
+    return np.diag(np.array([local_V_proposed[0, 0] * local_V_inv[0, 0] - 1, local_V_proposed[1, 1] * local_V_inv[1, 1] - 1])) # local_V_proposed.dot(local_V_inv) - np.eye(2)
 
 @jit(nopython=True)
 def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
-    eta = {
-        -2 : -np.sqrt(6 + 2 * np.sqrt(6)),
-        +2 : +np.sqrt(6 + 2 * np.sqrt(6)),
-        -1 : -np.sqrt(6 - 2 * np.sqrt(6)),
-        +1 : +np.sqrt(6 - 2 * np.sqrt(6)),
-    }
+    #eta = {
+    #    -2 : -np.sqrt(6 + 2 * np.sqrt(6)),
+    #    +2 : +np.sqrt(6 + 2 * np.sqrt(6)),
+    #    -1 : -np.sqrt(6 - 2 * np.sqrt(6)),
+    #    +1 : +np.sqrt(6 - 2 * np.sqrt(6)),
+    #}
 
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
     if spin > 0:
-        V = nu_V * eta[int(s[0])] * sign * np.array([1, -1]) + \
+        V = nu_V * eta[int(s[0]) + 2] * sign * np.array([1, -1]) + \
             nu_U * sign * np.array([s[2], s[1]])
     else:
-        V = nu_V * eta[int(s[0])] * sign * np.array([1, -1]) + \
+        V = nu_V * eta[int(s[0]) + 2] * sign * np.array([1, -1]) + \
             nu_U * sign * np.array([-s[2], -s[1]])
     return np.diag(np.exp(V))
+
 
 @jit(nopython=True)
 def _V_from_configuration(s, sign, spin, nu_U, nu_V):
