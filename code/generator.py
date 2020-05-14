@@ -104,14 +104,12 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 current_gauge_factor_log += np.log(gauge_factor)
                 current_det_sign *= np.sign(ratio)
                 ratio = np.log(np.abs(ratio))
-                # print(current_det_sign, ratio, np.sign(ratio))
 
                 accepted = 1.0
                 phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, o_index, new_value)
                  
                 if False:
-                    print(sp_index)
                     G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                     G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
 

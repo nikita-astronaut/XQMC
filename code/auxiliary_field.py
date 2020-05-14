@@ -429,6 +429,7 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
     	self.Delta_down = self.la.asarray(self.get_delta(-1., sp_index, time_slice, o_index, new_value))
     	return
 
+    '''
     def get_delta(self, spin, sp_index, time_slice, o_index, new_value):  # sign change proposal is made at (time_slice, sp_index, o_index)
         local_configuration_proposed = self.configuration[time_slice, sp_index, :] * 1.
         local_configuration_proposed[o_index] = new_value
@@ -437,10 +438,17 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         local_V_inv = self._V_from_configuration(local_configuration, -1.0, spin)  # already stored in self.V or self.Vinv
         local_V_proposed = self._V_from_configuration(local_configuration_proposed, 1.0, spin)
         return local_V_proposed.dot(local_V_inv) - np.eye(2)
+    '''
+
+    def get_delta(self, spin, sp_index, time_slice, o_index, new_value):  # sign change proposal is made at (time_slice, sp_index, o_index)
+        return get_delta_interorbital(self.configuration[time_slice, sp_index, :], \
+                                      o_index, spin, new_value, self.config.nu_U, self.config.nu_V)
 
     def update_G_seq(self, sp_index):
-        self.current_G_function_up = _update_G_seq_inter(self.current_G_function_up, self.Delta_up, sp_index, self.config.total_dof)
-        self.current_G_function_down = _update_G_seq_inter(self.current_G_function_down, self.Delta_down, sp_index, self.config.total_dof)
+        self.current_G_function_up = _update_G_seq_inter(self.current_G_function_up, \
+                                                         self.Delta_up, sp_index, self.config.total_dof)
+        self.current_G_function_down = _update_G_seq_inter(self.current_G_function_down, \
+                                                           self.Delta_down, sp_index, self.config.total_dof)
         return
 
     def copy_to_CPU(self):
@@ -489,27 +497,34 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         }
 
         super().__init__(config, K, K_inverse, K_matrix, local_workdir)
+        self.rnd = np.random.choice(np.array([-2, -1, 1, 2]), size=100000)
+        self.rnd_idx = 0
         return
 
     def propose_move(self, sp_index, time_slice, o_index):
         if o_index == 0:
-            new_value = np.random.choice(np.array([-2, -1, 1, 2]))
+            new_value = self.rnd[self.rnd_idx % len(self.rnd)]
+            self.rnd_idx += 1
             old_value = self.configuration[time_slice, sp_index, 0]
             return new_value, self.gauge[new_value] / self.gauge[old_value]  # this will sometimes yield the same field
         return -self.configuration[time_slice, sp_index, o_index], 1.0  # gauge factor is always 1
 
     def get_current_gauge_factor_log(self):
-        factor_log = 0.
-        for s in self.configuration[..., 0].flatten():
-            factor_log += self.gauge_log[s]
-        return factor_log
+        cf = self.configuration[..., 0].flatten()
+        factor_logs = np.zeros(len(cf))
+        factor_logs[cf == -2] = self.gauge_log[-2]
+        factor_logs[cf == 2] = self.gauge_log[2]
+        factor_logs[cf == 1] = self.gauge_log[1]
+        factor_logs[cf == -1] = self.gauge_log[-1]
+
+        return np.sum(factor_logs)
 
     def _V_from_configuration(self, s, sign, spin):
         if spin > 0:
-            V = self.config.nu_V * self.eta[s[0]] * sign * np.array([-1, 1]) + \
+            V = self.config.nu_V * self.eta[s[0]] * sign * np.array([1, -1]) + \
                 self.config.nu_U * sign * np.array([s[2], s[1]])
         else:
-            V = self.config.nu_V * self.eta[s[0]] * sign * np.array([-1, 1]) + \
+            V = self.config.nu_V * self.eta[s[0]] * sign * np.array([1, -1]) + \
                 self.config.nu_U * sign * np.array([-s[2], -s[1]])
         return np.diag(np.exp(V))
 
@@ -552,14 +567,43 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         s = self.configuration[time_slice, sp_index, ...]
         sx = sp_index * 2
         sy = sp_index * 2 + 1
-        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(s, +1.0, +1.0)
-        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(s, -1.0, +1.0)
-        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(s, +1.0, -1.0)
-        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = self._V_from_configuration(s, -1.0, -1.0)
+        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration_accurate(s, +1.0, +1.0, self.config.nu_U, self.config.nu_V)
+        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration_accurate(s, -1.0, +1.0, self.config.nu_U, self.config.nu_V)
+        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration_accurate(s, +1.0, -1.0, self.config.nu_U, self.config.nu_V)
+        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = _V_from_configuration_accurate(s, -1.0, -1.0, self.config.nu_U, self.config.nu_V)
 
         return
 
+    def get_delta(self, spin, sp_index, time_slice, o_index, new_value):  # sign change proposal is made at (time_slice, sp_index, o_index)
+        return _get_delta_interorbital_accurate(self.configuration[time_slice, sp_index, :], \
+                                                o_index, spin, new_value, self.config.nu_U, self.config.nu_V)
 
+@jit(nopython = True)
+def _get_delta_interorbital_accurate(local_configuration, o_index, spin, \
+                                    new_value, nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
+    local_configuration_proposed = 1. * local_configuration
+    local_configuration_proposed[o_index] = new_value
+
+    local_V_inv = _V_from_configuration_accurate(local_configuration, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
+    local_V_proposed = _V_from_configuration_accurate(local_configuration_proposed, 1.0, spin, nu_U, nu_V)
+    return local_V_proposed.dot(local_V_inv) - np.eye(2)
+
+@jit(nopython=True)
+def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
+    eta = {
+        -2 : -np.sqrt(6 + 2 * np.sqrt(6)),
+        +2 : +np.sqrt(6 + 2 * np.sqrt(6)),
+        -1 : -np.sqrt(6 - 2 * np.sqrt(6)),
+        +1 : +np.sqrt(6 - 2 * np.sqrt(6)),
+    }
+
+    if spin > 0:
+        V = nu_V * eta[int(s[0])] * sign * np.array([1, -1]) + \
+            nu_U * sign * np.array([s[2], s[1]])
+    else:
+        V = nu_V * eta[int(s[0])] * sign * np.array([1, -1]) + \
+            nu_U * sign * np.array([-s[2], -s[1]])
+    return np.diag(np.exp(V))
 
 @jit(nopython=True)
 def _V_from_configuration(s, sign, spin, nu_U, nu_V):
@@ -571,13 +615,14 @@ def _V_from_configuration(s, sign, spin, nu_U, nu_V):
 
 
 @jit(nopython = True)
-def get_delta_interorbital(local_configuration, o_index, spin, nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
+def get_delta_interorbital(local_configuration, o_index, spin, \
+                           new_value, nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
     local_configuration_proposed = 1. * local_configuration
-    local_configuration_proposed[o_index] *= -1
+    local_configuration_proposed[o_index] = new_value
 
-    local_V = _V_from_configuration(local_configuration, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
+    local_V_inv = _V_from_configuration(local_configuration, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
     local_V_proposed = _V_from_configuration(local_configuration_proposed, 1.0, spin, nu_U, nu_V)
-    return local_V_proposed.dot(local_V) - np.eye(2)
+    return local_V_proposed.dot(local_V_inv) - np.eye(2)
 
 @jit(nopython=True)
 def get_delta_intraorbital(s, spin, nu_U):
@@ -603,7 +648,7 @@ def _update_G_seq_inter(G, Delta, sp_index, total_dof):
 
     update_matrix = np.zeros((2, total_dof // 2))  # keep only two nontrivial rows here
     update_matrix[:, sx:sy + 1] = np.eye(2) + Delta
-    update_matrix -= np.dot(Delta, G_sliced_left)
+    update_matrix -= np.dot(Delta, np.ascontiguousarray(G_sliced_left))
     det = np.linalg.det(update_matrix[:, sx:sy + 1])
 
     inverse_update_matrix = np.zeros((2, total_dof // 2))  # keep only two nontrivial rows here
@@ -618,7 +663,7 @@ def _update_G_seq_inter(G, Delta, sp_index, total_dof):
     inverse_update_matrix[0, sy] = -update_matrix[0, sy] / det
     inverse_update_matrix[1, sy] = update_matrix[0, sx] / det - 1
 
-    G = G + np.dot(G_sliced_right, inverse_update_matrix)
+    G = G + np.dot(np.ascontiguousarray(G_sliced_right), inverse_update_matrix)
     return G
 
 def _update_G_seq_intra(G, Delta, sp_index, total_dof):

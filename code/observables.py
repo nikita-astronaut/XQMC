@@ -261,32 +261,37 @@ class Observables:
 
 
         shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
-        print(len(self.ijkl), (shape[0] * shape[1], shape[2], shape[3]))
-        G_up_prepared = np.asfortranarray(np.einsum('ijkl,ij->ijkl', \
-                       self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape((shape[0] * shape[1], shape[2], shape[3])))
-        G_down_prepared = np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, ...].reshape((shape[0] * shape[1], shape[2], shape[3])))
+        new_shape = (shape[0] * shape[1], shape[2], shape[3])
+        G_up_prepared = np.asfortranarray(np.einsum('ijkl,ij->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape))
+        G_down_prepared = np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, ...].reshape(new_shape))
 
         t = time()
-        self.C_ijkl += measure_gfs_correlator(G_up_prepared, G_down_prepared, self.ijkl)
+        self.C_ijkl += measure_gfs_correlator(G_up_prepared, G_down_prepared, self.ijkl) / 2.
+
+        G_down_prepared = np.asfortranarray(np.einsum('ijkl,ij->ijkl', self.GF_down_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape))
+        G_up_prepared = np.asfortranarray(self.GF_up_stored[:self.cur_buffer_size, ...].reshape(new_shape))
+
+        self.C_ijkl += measure_gfs_correlator(G_down_prepared, G_up_prepared, self.ijkl) / 2.  # SU(2) symmetry to stabilyze the measurements
+
         print('C_ijkl take', time() - t)
         self.PHI_ijkl += measure_gfs_correlator(np.asfortranarray(np.einsum('ijkl,ij->ijkl', \
                        self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], signs[..., 0:1]).reshape((shape[0] * 1, shape[2], shape[3]))), \
             np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, 0:1, ...].reshape((shape[0] * 1, shape[2], shape[3]))), self.ijkl)
 
         t = time()
-        self.Z_uu_ijkl = measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
-        self.Z_dd_ijkl = measure_Z_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+        self.Z_uu_ijkl += measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
+        self.Z_dd_ijkl += measure_Z_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
 
         print('Z_ss_ijkl take', time() - t)
         t = time()
 
-        self.X_uu_ijkl = measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
+        self.X_uu_ijkl += measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
             self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
-        self.X_ud_ijkl = measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
+        self.X_ud_ijkl += measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
             self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
-        self.X_du_ijkl = measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
+        self.X_du_ijkl += measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
             self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
-        self.X_dd_ijkl = measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
+        self.X_dd_ijkl += measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
             self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs[:, 0], self.ijkl_order)
         print('X_s1s2_ijkl take', time() - t)
 
@@ -319,8 +324,11 @@ class Observables:
                 
                 total_chi = self.config.dt * get_gap_susceptibility(gap_alpha, gap_beta, \
                     self.ijkl, self.C_ijkl, np.ones(shape = gap_alpha.shape)) / (self.num_chi_samples * mean_signs_global)
-                free_chi = self.config.dt * np.sum([np.trace(self.GF_up_sum[tau, ...].dot(gap_beta).dot(self.GF_down_sum[tau, ...].T).dot(gap_alpha.T.conj())) \
-                                   for tau in range(self.config.Nt)]) / ((self.num_chi_samples * mean_signs_global) ** 2)
+                free_chi = self.config.dt * np.sum([
+                    np.trace(self.GF_up_sum[tau, ...].dot(gap_beta).dot(self.GF_down_sum[tau, ...].T).dot(gap_alpha.T.conj())) + \
+                    np.trace(self.GF_down_sum[tau, ...].dot(gap_beta).dot(self.GF_up_sum[tau, ...].T).dot(gap_alpha.T.conj())) \
+                    for tau in range(self.config.Nt)
+                                                   ]) / ((self.num_chi_samples * mean_signs_global) ** 2) / 2.
 
 
                 self.gap_observables_list[gap_name_alpha + '*' + gap_name_beta + '_chi_vertex_real'] = \
