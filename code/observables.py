@@ -53,7 +53,15 @@ class Observables:
         self.adj_list_marking = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2)).astype(np.int64)
         for idx, adj in enumerate(self.config.adj_list):
             self.adj_list_marking[adj[0] > 0.5] = idx
+        self.chiral_to_xy = np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[1., 1.0j], [1.0, -1.0j]]) / np.sqrt(2))
+        self.O_pm_chiral = np.kron(np.ones((self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)), np.array([[0, 1], [0, 0]]))
+        self.O_pm_xy = self.chiral_to_xy.conj().T.dot(self.O_pm_chiral).dot(self.chiral_to_xy)
 
+        self.O_mm_chiral = np.kron(np.ones((self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)), np.array([[0, 0], [0, 1]]))
+        self.O_mm_xy = self.chiral_to_xy.conj().T.dot(self.O_mm_chiral).dot(self.chiral_to_xy)
+
+        self.violation_vals = []
+        self.violation_signs = []
 
         self.load_presaved_GF_data()
         self.refresh_heavy_logs()
@@ -164,6 +172,8 @@ class Observables:
             '⟨E_K⟩' : [], 
             '⟨E_C⟩' : [],
             '⟨E_T⟩' : [],
+            '⟨c^dag_{+down}c_{-down}⟩' : [],
+            '⟨c^dag_{-down}c_{-down}⟩' : [],
         })
 
         self.light_signs_history = []
@@ -178,11 +188,11 @@ class Observables:
         print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
               "lattice = {:d}^2 x {:d}".format(self.config.start_type, 1.0 / self.config.dt / self.config.Nt, \
                                                self.config.mu, self.config.Ls, self.config.Nt))
-        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩')
+        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩ ⟨c^dag_{+down}c_{-down}⟩ ⟨c^dag_{-down}c_{-down}⟩')
         return
 
     def print_std_logs(self, n_sweep):
-        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f} {:.5f}".format(
+        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f}".format(
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
@@ -191,10 +201,12 @@ class Observables:
             np.mean(self.light_observables_list['⟨E_K⟩']),
             np.mean(self.light_observables_list['⟨E_C⟩']),
             np.mean(self.light_observables_list['⟨E_T⟩']),
+            np.mean(self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩']),
+            np.mean(self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩']),
         ), flush = True)
         return
 
-    def measure_light_observables(self, phi, current_det_sign):
+    def measure_light_observables(self, phi, current_det_sign, n_sweep):
         self.light_signs_history.append(current_det_sign)  
 
         k = kinetic_energy(phi).item()
@@ -204,7 +216,9 @@ class Observables:
         self.light_observables_list['⟨density⟩'].append(density)
         self.light_observables_list['⟨E_K⟩'].append(k)
         self.light_observables_list['⟨E_C⟩'].append(C)
-        self.light_observables_list['⟨E_T⟩'].append(k + C)
+        self.light_observables_list['⟨E_T⟩'].append((k + C))
+        self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩'].append(np.trace(phi.current_G_function_down.dot(self.O_pm_xy)))
+        self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩'].append(np.trace(phi.current_G_function_down.dot(self.O_mm_xy)))
 
         return
 

@@ -115,7 +115,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_sign *= np.sign(local_det_factors[idx])
 
             ratio = np.log(np.abs(local_det_factors[idx]))
-            accepted = new_conf != tuple(phi_field.get_current_conf(site_idx, time_slice))
+            accepted = (new_conf != tuple(phi_field.get_current_conf(site_idx, time_slice)))
 
 
             if accepted:
@@ -138,7 +138,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 print('Determinant discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
             observables.update_history(ratio, accepted, current_det_sign)
-        observables.measure_light_observables(phi_field, current_det_sign.item())
+        observables.measure_light_observables(phi_field, current_det_sign.item(), n_sweep)
     
     if n_sweep >= phi_field.config.thermalization:
         t = time()
