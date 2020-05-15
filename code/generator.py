@@ -70,6 +70,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
+            current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             if switch:
                 phi_field.copy_to_GPU()
@@ -77,57 +78,67 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
             
-            current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
+            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
+            current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
         phi_field.wrap_up(time_slice)
         if switch:
             phi_field.copy_to_CPU()
-        #if time_slice == 0:
-        #    phi_field.current_G_function_up, phi_field.log_det_up, phi_field.sign_det_up = phi_field.get_G_no_optimisation(+1, 0)
-        #    phi_field.current_G_function_down, phi_field.log_det_down, phi_field.sign_det_down = phi_field.get_G_no_optimisation(-1, 0)
-        #    current_det_log, current_det_sign = -phi_field.log_det_up -phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
-        #print('first measurement in loop {:d}'.format(time_slice))
-        #observables.measure_light_observables(phi_field, current_det_sign)
-        for sp_index in range(sp_index_range):
-            site_idx = sp_index // n_fields
-            o_index = sp_index % n_fields
 
-            phi_field.compute_deltas(site_idx, time_slice, o_index)
-            if n_fields > 1:
-                ratio = auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
-                        auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
-            else:
-                ratio = auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
-                        auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
-            lamb = lambdas[sp_index + time_slice * sp_index_range]
-            if lamb < np.min([1, np.abs(ratio)]):
-                current_det_log += np.log(np.abs(ratio))
+        for sp_index in range(sp_index_range // n_fields):
+            site_idx = sp_index
 
-                current_det_sign *= np.sign(ratio)
-                ratio = np.log(np.abs(ratio))
-                # print(current_det_sign, ratio, np.sign(ratio))
+            local_det_factors = []
+            local_gauge_factors = []
+            local_conf_old = phi_field.get_current_conf(site_idx, time_slice)
 
-                accepted = 1.0
-                phi_field.update_G_seq(site_idx)
-                phi_field.update_field(site_idx, time_slice, o_index)
-                 
-                if False:#not GF_checked:
-                    G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
-                    G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
+            for local_conf in phi_field.local_conf_combinations:
+                gauge_ratio = phi_field.get_gauge_factor_move(site_idx, time_slice, local_conf)
 
-                    d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
-                    d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
+                phi_field.compute_deltas(site_idx, time_slice, local_conf_old, local_conf)
+
+                if n_fields > 1:
+                    det_ratio = auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
+                                auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
+                else:
+                    det_ratio = auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
+                                auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
+                local_det_factors.append(det_ratio)
+                local_gauge_factors.append(gauge_ratio)
+
+            probas = np.abs(np.array(local_det_factors) * np.array(local_gauge_factors))
+            idx = np.random.choice(np.arange(len(local_det_factors)), \
+                                   p = probas / np.sum(probas))
+            new_conf = phi_field.local_conf_combinations[idx]
+
+            current_det_log += np.log(np.abs(local_det_factors[idx]))
+            current_gauge_factor_log += np.log(local_gauge_factors[idx])
+            current_det_sign *= np.sign(local_det_factors[idx])
+
+            ratio = np.log(np.abs(local_det_factors[idx]))
+            accepted = (new_conf != local_conf_old)
+
+
+            if accepted:
+                phi_field.compute_deltas(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq(site_idx)
+                phi_field.update_field(site_idx, time_slice, new_conf)
+            if False:
+                G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
+                G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
+
+                d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
+                d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
                     
-                    GF_checked = True
+                GF_checked = True
 
-                    if np.abs(d_gf_up) > 1e-8 or np.abs(d_gf_down) > 1e-8:
-                        print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
-                    # print(det_log_up_check + det_log_down_check + current_det_log, current_det_log)  # FIXME
-            else:
-                ratio = 0
-                accepted = 0
+                if np.abs(d_gf_up) > 1e-8 or np.abs(d_gf_down) > 1e-8:
+                    print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
+                else:
+                    print('test passed')
+                print('Determinant discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
+                print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
             observables.update_history(ratio, accepted, current_det_sign)
-        observables.measure_light_observables(phi_field, current_det_sign.item())
+        observables.measure_light_observables(phi_field, current_det_sign.item(), n_sweep)
     
     if n_sweep >= phi_field.config.thermalization:
         t = time()
@@ -156,9 +167,9 @@ if __name__ == "__main__":
     for U, V, mu, Nt in zip(U_list, V_list, mu_list, Nt_list):
         config.U = U; config.V = V; config.mu = mu; config.Nt = int(Nt);
         n_copy = config.n_copy
-        config.nu_V = np.arccosh(np.exp(V / 2. * config.dt))
+        config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
-        print(config.name_group_dict)
+        assert V == 0 or V == U
         K_matrix = config.model(config, config.mu)[0].real
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
