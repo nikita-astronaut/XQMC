@@ -418,10 +418,6 @@ class Observables:
         np.save(name, np.array(corr_lengths))
 
         np.save(os.path.join(self.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
-        f = open(os.path.join(self.local_workdir, 'name_group_dict.pkl'), "wb")
-        pickle.dump(self.config.name_group_dict, f)
-        f.close()
-
 
         orders = np.zeros((len(self.config.waves_list_names), self.config.Ls, self.config.Ls), dtype=np.complex64)
 
