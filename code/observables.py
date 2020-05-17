@@ -14,19 +14,20 @@ except ImportError:
     pass
 
 class Observables:
-    def __init__(self, phi, local_workdir):
+    def __init__(self, phi, local_workdir, local_workdir_heavy):
         self.config = phi.config 
         self.local_workdir = local_workdir
+        self.local_workdir_heavy = local_workdir_heavy
 
         open_mode = 'a' if phi.config.start_type == 'presaved' else 'w'
         
         self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), open_mode)
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
 
-        self.C_ijkl_filename = os.path.join(self.local_workdir, 'C_ijkl.npy')
-        self.PHI_ijkl_filename = os.path.join(self.local_workdir, 'Phi_ijkl.npy')
-        self.G_up_sum_filename = os.path.join(self.local_workdir, 'G_up_sum.npy')
-        self.G_down_sum_filename = os.path.join(self.local_workdir, 'G_down_sum.npy')
+        self.C_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl.npy')
+        self.PHI_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl.npy')
+        self.G_up_sum_filename = os.path.join(self.local_workdir_heavy, 'G_up_sum.npy')
+        self.G_down_sum_filename = os.path.join(self.local_workdir_heavy, 'G_down_sum.npy')
 
         self.sign_filename = os.path.join(self.local_workdir, 'sign.npy')
         self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples.npy')
@@ -166,14 +167,17 @@ class Observables:
         return
 
     def refresh_light_logs(self):
-        self.log_file.flush()
+        # self.log_file.flush()
         self.light_observables_list = OrderedDict({
             '⟨density⟩' : [], 
             '⟨E_K⟩' : [], 
             '⟨E_C⟩' : [],
             '⟨E_T⟩' : [],
-            '⟨c^dag_{+down}c_{-down}⟩' : [],
-            '⟨c^dag_{-down}c_{-down}⟩' : [],
+            '⟨c^dag_{+down}c_{-down}⟩_re' : [],
+            '⟨c^dag_{+down}c_{-down}⟩_im' : [],
+            '⟨c^dag_{-down}c_{-down}⟩_re' : [],
+            '⟨c^dag_{-down}c_{-down}⟩_im' : [],
+            '⟨m_z^2⟩' : []
         })
 
         self.light_signs_history = []
@@ -188,11 +192,11 @@ class Observables:
         print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
               "lattice = {:d}^2 x {:d}".format(self.config.start_type, 1.0 / self.config.dt / self.config.Nt, \
                                                self.config.mu, self.config.Ls, self.config.Nt))
-        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩ ⟨c^dag_{+down}c_{-down}⟩ ⟨c^dag_{-down}c_{-down}⟩')
+        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩ ⟨c^dag_{+down}c_{-down}⟩_re ⟨c^dag_{+down}c_{-down}⟩_im ⟨c^dag_{-down}c_{-down}⟩_re ⟨c^dag_{-down}c_{-down}⟩_im ⟨m_z^2⟩')
         return
 
     def print_std_logs(self, n_sweep):
-        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f}".format(
+        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f}".format(
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
@@ -201,9 +205,12 @@ class Observables:
             np.mean(self.light_observables_list['⟨E_K⟩']),
             np.mean(self.light_observables_list['⟨E_C⟩']),
             np.mean(self.light_observables_list['⟨E_T⟩']),
-            np.mean(self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩']),
-            np.mean(self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩']),
-        ), flush = True)
+            np.mean(self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_re']),
+            np.mean(self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im']),
+            np.mean(self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re']),
+            np.mean(self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im']),
+            np.mean(self.light_observables_list['⟨m_z^2⟩']),
+        ))
         return
 
     def measure_light_observables(self, phi, current_det_sign, n_sweep):
@@ -217,8 +224,11 @@ class Observables:
         self.light_observables_list['⟨E_K⟩'].append(k)
         self.light_observables_list['⟨E_C⟩'].append(C)
         self.light_observables_list['⟨E_T⟩'].append((k + C))
-        self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩'].append(np.trace(phi.current_G_function_down.dot(self.O_pm_xy)))
-        self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩'].append(np.trace(phi.current_G_function_down.dot(self.O_mm_xy)))
+        self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_re'].append(np.real(np.trace(phi.current_G_function_down.dot(self.O_pm_xy))))
+        self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im'].append(np.imag(np.trace(phi.current_G_function_down.dot(self.O_pm_xy))))
+        self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re'].append(np.real(np.trace(phi.current_G_function_down.dot(self.O_mm_xy))))
+        self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im'].append(np.imag(np.trace(phi.current_G_function_down.dot(self.O_mm_xy))))
+        self.light_observables_list['⟨m_z^2⟩'].append((np.trace(phi.current_G_function_down) - np.trace(phi.current_G_function_up)) ** 2)
 
         return
 
@@ -237,7 +247,7 @@ class Observables:
                 np.mean(self.light_signs_history)] + [self.signs_avg(val, signs) for _, val in self.light_observables_list.items()]
 
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
-        self.log_file.flush()
+        # self.log_file.flush()
         self.global_average_sign.append(np.mean(signs))
         self.refresh_light_logs()
         return

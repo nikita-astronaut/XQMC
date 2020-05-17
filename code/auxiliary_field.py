@@ -392,6 +392,7 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         else:
             if os.path.isfile(self.conf_path):
                 self.configuration = self._load_configuration()
+                print('Starting from a presaved field configuration', flush=True)
             else:
                 self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
 
@@ -545,6 +546,7 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         else:
             if os.path.isfile(self.conf_path):
                 self.configuration = self._load_configuration()
+                print('Starting from a presaved field configuration', flush=True)
             else:
                 self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
                 self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \

@@ -2,7 +2,7 @@ import subprocess
 import os
 import sys
 
-U, V, mu, Nt, Nc = [x for x in sys.argv[5:]]
+U, V, mu, Nt, Nc, offset = [x for x in sys.argv[5:]]
 U = float(U)
 V = float(V)
 mu = float(mu)
@@ -26,7 +26,7 @@ for i, line in enumerate(lines):
     if 'self.Nt = ' in line:
         lines[i] = '        self.Nt = np.array([{:d}])\n'.format(Nt)
 
-config_name = list(os.path.join(path_to_configs, 'config_U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}.py'.format(U, V, mu, Nt)))
+config_name = list(os.path.join(path_to_configs, 'config_U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_o_{:d}.py'.format(U, V, mu, Nt, int(offset))))
 for i, s in enumerate(config_name):
     if s == '.' and ''.join(config_name[i:]) != '.py':
         config_name[i] = '-'

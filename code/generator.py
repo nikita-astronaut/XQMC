@@ -174,7 +174,9 @@ if __name__ == "__main__":
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
         local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
+        local_workdir_heavy = os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
         os.makedirs(local_workdir, exist_ok=True)
+        os.makedirs(local_workdir_heavy, exist_ok=True)
         last_n_sweep_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'a')
 
         phi_field = config.field(config, K_operator, K_operator_inverse, \
@@ -183,7 +185,7 @@ if __name__ == "__main__":
         with open(os.path.join(local_workdir, 'config.py'), 'w') as target, open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
             target.write(source.read())
         
-        observables = obs_methods.Observables(phi_field, local_workdir)
+        observables = obs_methods.Observables(phi_field, local_workdir, local_workdir_heavy)
         observables.print_greerings()
 
         for n_sweep in range(retrieve_last_n_sweep(local_workdir), config.n_sweeps):
