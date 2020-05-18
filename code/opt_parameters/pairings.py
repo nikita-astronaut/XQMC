@@ -408,6 +408,10 @@ def construct_2orb_hex(config, real = True):
     [check_irrep_properties(config, E_NNN_triplet[2 * i:2 * i + 2], chiral = True) for i in range(len(E_NNN_triplet) // 2)]
 
 
+    check_P_symmetry(config, E_NN_singlet[2], E_NN_triplet[0])
+    check_P_symmetry(config, E_NN_singlet[3], E_NN_triplet[1])
+    #check_P_symmetry(config, A1_NN_singlet[0], A2_NN_triplet[1])
+
     return A1_N_singlet, A1_N_triplet, A2_N_singlet, A2_N_triplet, E_N_singlet, \
            A1_NN_singlet, A1_NN_triplet, A2_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet, \
            A1_NNN_singlet, A1_NNN_triplet, A2_NNN_singlet, A2_NNN_triplet, E_NNN_singlet, E_NNN_triplet
@@ -638,6 +642,35 @@ def get_C4z_symmetry_map(config):
             mapping[preindex, index] += coefficient
     assert np.sum(np.abs(mapping.dot(mapping).dot(mapping).dot(mapping) - np.eye(mapping.shape[0]))) < 1e-5  # C_4z^4 = I
     return mapping + 0.0j
+
+def check_P_symmetry(config, gap_singlet, gap_triplet):
+    def norm_sc(b, a):
+        return np.sum(a * b.conj()) / np.sum(np.abs(b ** 2))
+    df = config.total_dof
+    P = np.ones(df)
+    P[np.arange(df // 2, df, 2) + 1] = -1
+    P = np.diag(P)
+    assert np.allclose(np.eye(df), P.dot(P))
+
+    gs = combine_product_terms(config, gap_singlet)
+    gt = combine_product_terms(config, gap_triplet)
+    gs = models.xy_to_chiral(gs, 'pairing', config, chiral = True)
+    gt = models.xy_to_chiral(gt, 'pairing', config, chiral = True)
+    print(np.unique(gs), np.unique(gt))
+
+    delta_s_extended = np.zeros((df, df), dtype=np.complex128)
+    delta_s_extended[df // 2:, :df // 2] = gs
+    delta_s_extended[:df // 2, df // 2:] = -gs.T
+
+    delta_t_extended = np.zeros((df, df), dtype=np.complex128)
+    delta_t_extended[df // 2:, :df // 2] = gt
+    delta_t_extended[:df // 2, df // 2:] = -gt.T
+
+    delta_s_extended = P.T.dot(delta_s_extended).dot(P)
+    coeff = norm_sc(delta_s_extended.flatten(), delta_t_extended.flatten())
+    print(coeff)
+    assert np.isclose(np.abs(coeff), 1.0)
+    print('P^T {:s} P = {:s}'.format(gap_singlet[-1], gap_triplet[-1]))
 
 
 def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False):

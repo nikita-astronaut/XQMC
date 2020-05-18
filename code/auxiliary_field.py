@@ -605,14 +605,9 @@ def _get_delta_interorbital_accurate(local_conf, local_conf_proposed, spin, \
 
 @jit(nopython=True)
 def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
-    #eta = {
-    #    -2 : -np.sqrt(6 + 2 * np.sqrt(6)),
-    #    +2 : +np.sqrt(6 + 2 * np.sqrt(6)),
-    #    -1 : -np.sqrt(6 - 2 * np.sqrt(6)),
-    #    +1 : +np.sqrt(6 - 2 * np.sqrt(6)),
-    #}
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
+           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
 
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
     if spin > 0:
         V = nu_V * eta[int(s[0]) + 2] * sign * np.array([1, -1]) + \
             nu_U * sign * np.array([s[2], s[1]])

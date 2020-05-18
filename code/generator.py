@@ -125,7 +125,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             if accepted:
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, new_conf)
-            if True:#need_check:
+            if False:#need_check:
                 G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                 G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
 
