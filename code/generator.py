@@ -71,6 +71,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
+            need_check = True
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             if switch:
                 phi_field.copy_to_GPU()
@@ -81,6 +82,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
+            need_check = True
         phi_field.wrap_up(time_slice)
         if switch:
             phi_field.copy_to_CPU()
@@ -93,7 +95,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             local_conf_old = phi_field.get_current_conf(site_idx, time_slice)
 
             for local_conf in phi_field.local_conf_combinations:
-                gauge_ratio = phi_field.get_gauge_factor_move(site_idx, time_slice, local_conf)
+                gauge_ratio = phi_field.get_gauge_factor_move(site_idx, time_slice, local_conf_old, local_conf)
 
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, local_conf)
 
@@ -109,6 +111,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             probas = np.abs(np.array(local_det_factors) * np.array(local_gauge_factors))
             idx = np.random.choice(np.arange(len(local_det_factors)), \
                                    p = probas / np.sum(probas))
+
             new_conf = phi_field.local_conf_combinations[idx]
 
             current_det_log += np.log(np.abs(local_det_factors[idx]))
@@ -122,13 +125,14 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             if accepted:
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, new_conf)
-            if False:
+            if False:#need_check:
                 G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                 G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
 
                 d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                 d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
-                    
+                print(np.linalg.norm(phi_field.current_G_function_up - G_up_check) / np.linalg.norm(G_up_check))
+                print(np.linalg.norm(phi_field.current_G_function_down - G_down_check) / np.linalg.norm(G_down_check))
                 GF_checked = True
 
                 if np.abs(d_gf_up) > 1e-8 or np.abs(d_gf_down) > 1e-8:
@@ -137,6 +141,8 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                     print('test passed')
                 print('Determinant discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
+                need_check = False
+
             observables.update_history(ratio, accepted, current_det_sign)
         observables.measure_light_observables(phi_field, current_det_sign.item(), n_sweep)
     
@@ -170,12 +176,13 @@ if __name__ == "__main__":
         config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
         assert V == 0 or V == U
-
         K_matrix = config.model(config, config.mu)[0].real
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
-        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank))
+        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
+        local_workdir_heavy = os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
         os.makedirs(local_workdir, exist_ok=True)
+        os.makedirs(local_workdir_heavy, exist_ok=True)
         last_n_sweep_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'a')
 
         phi_field = config.field(config, K_operator, K_operator_inverse, \
@@ -184,7 +191,7 @@ if __name__ == "__main__":
         with open(os.path.join(local_workdir, 'config.py'), 'w') as target, open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
             target.write(source.read())
         
-        observables = obs_methods.Observables(phi_field, local_workdir)
+        observables = obs_methods.Observables(phi_field, local_workdir, local_workdir_heavy)
         observables.print_greerings()
 
         for n_sweep in range(retrieve_last_n_sweep(local_workdir), config.n_sweeps):

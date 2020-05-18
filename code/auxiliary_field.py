@@ -135,7 +135,7 @@ class AuxiliaryFieldIntraorbital:
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
                 u, s, v = self.SVD(M)  # this is a VERY tricky point
                 
-                assert self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M) < 1e-13
+                assert self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M) < 1e-14
                 current_U = current_U.dot(u)
                 if spin == +1:
                     self.partial_SVD_decompositions_up.append((current_U, s, v))
@@ -392,6 +392,7 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         else:
             if os.path.isfile(self.conf_path):
                 self.configuration = self._load_configuration()
+                print('Starting from a presaved field configuration', flush=True)
             else:
                 self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
 
@@ -502,19 +503,20 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         }
 
         super().__init__(config, K, K_inverse, K_matrix, local_workdir)
-        self.local_conf_combinations = [
-                                    (-1, -1, -2), (-1, -1, -1), (-1, -1, 1), (-1, -1, 2), \
-                                    (-1, 1, -2), (-1, 1, -1), (-1, 1, 1), (-1, 1, 2), \
-                                    (1, -1, -2), (1, -1, -1), (1, -1, 1), (1, -1, 2), \
-                                    (1, 1, -2), (1, 1, -1), (1, 1, 1), (1, 1, 2)
+        self.local_conf_combinations = 
+                                    [
+                                        (-2, -1, -1), (-1, -1, -1), (1, -1, -1), (2, -1, -1), \
+                                        (-2, -1, 1),  (-1, -1, 1),  (1, -1, 1),  (2, -1, 1), \
+                                        (-2, 1, -1),  (-1, 1, -1),  (1, 1, -1),  (2, 1, -1), \
+                                        (-2, 1, 1),   (-1, 1, 1),   (1, 1, 1),   (2, 1, 1)
                                     ]
 
         self.rnd = np.random.choice(np.array([-2, -1, 1, 2]), size=100000)
         self.rnd_idx = 0
         return
 
-    def get_gauge_factor_move(self, sp_index, time_slice, local_conf):
-        return self.gauge[local_conf[0]] / self.gauge[self.configuration[time_slice, sp_index, 0]]
+    def get_gauge_factor_move(self, sp_index, time_slice, local_conf_old, local_conf):
+        return self.gauge[local_conf[0]] / self.gauge[local_conf_old[0]]
 
     def get_current_gauge_factor_log(self):
         cf = self.configuration[..., 0].flatten()
@@ -545,6 +547,7 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         else:
             if os.path.isfile(self.conf_path):
                 self.configuration = self._load_configuration()
+                print('Starting from a presaved field configuration', flush=True)
             else:
                 self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
                 self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
@@ -602,14 +605,9 @@ def _get_delta_interorbital_accurate(local_conf, local_conf_proposed, spin, \
 
 @jit(nopython=True)
 def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
-    #eta = {
-    #    -2 : -np.sqrt(6 + 2 * np.sqrt(6)),
-    #    +2 : +np.sqrt(6 + 2 * np.sqrt(6)),
-    #    -1 : -np.sqrt(6 - 2 * np.sqrt(6)),
-    #    +1 : +np.sqrt(6 - 2 * np.sqrt(6)),
-    #}
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
+           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
 
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
     if spin > 0:
         V = nu_V * eta[int(s[0]) + 2] * sign * np.array([1, -1]) + \
             nu_U * sign * np.array([s[2], s[1]])
