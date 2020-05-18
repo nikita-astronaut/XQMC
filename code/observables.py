@@ -54,11 +54,13 @@ class Observables:
         self.adj_list_marking = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2)).astype(np.int64)
         for idx, adj in enumerate(self.config.adj_list):
             self.adj_list_marking[adj[0] > 0.5] = idx
+
+        NN = models.get_adjacency_list(self.config, orbital_mod = False)[0][1]
         self.chiral_to_xy = np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[1., 1.0j], [1.0, -1.0j]]) / np.sqrt(2))
-        self.O_pm_chiral = np.kron(np.ones((self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)), np.array([[0, 1], [0, 0]]))
+        self.O_pm_chiral = np.kron(NN, np.array([[0, 1], [0, 0]]))
         self.O_pm_xy = self.chiral_to_xy.conj().T.dot(self.O_pm_chiral).dot(self.chiral_to_xy)
 
-        self.O_mm_chiral = np.kron(np.ones((self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)), np.array([[0, 0], [0, 1]]))
+        self.O_mm_chiral = np.kron(NN, np.array([[0, 0], [0, 1]]))
         self.O_mm_xy = self.chiral_to_xy.conj().T.dot(self.O_mm_chiral).dot(self.chiral_to_xy)
 
         self.violation_vals = []

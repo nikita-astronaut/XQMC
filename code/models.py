@@ -286,7 +286,7 @@ def get_bc_copies(r, R, Ls, sublattice):
     return copies
 
 
-def get_adjacency_list(config):
+def get_adjacency_list(config, orbital_mod = True):
     if config.n_sublattices == 2:
         R = R_hexagonal
     else:
@@ -309,7 +309,10 @@ def get_adjacency_list(config):
     longest_distance = None
     for dist in distances:
         adj = (A_rounded == dist).astype(np.float32)
-        adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals, dist)
+        if orbital_mod
+            adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals, dist)
+        else:
+            adjacency_list.append(adj)
 
         if dist == distances.max():
             longest_distance = np.kron(adj, np.ones((config.n_orbitals, config.n_orbitals)))
