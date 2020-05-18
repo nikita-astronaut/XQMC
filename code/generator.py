@@ -71,6 +71,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
+            need_check = True
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             if switch:
                 phi_field.copy_to_GPU()
@@ -81,6 +82,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
+            need_check = True
         phi_field.wrap_up(time_slice)
         if switch:
             phi_field.copy_to_CPU()
@@ -109,6 +111,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             probas = np.abs(np.array(local_det_factors) * np.array(local_gauge_factors))
             idx = np.random.choice(np.arange(len(local_det_factors)), \
                                    p = probas / np.sum(probas))
+
             new_conf = phi_field.local_conf_combinations[idx]
 
             current_det_log += np.log(np.abs(local_det_factors[idx]))
@@ -122,13 +125,14 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             if accepted:
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, new_conf)
-            if False:
+            if True:#need_check:
                 G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                 G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
 
                 d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                 d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
-                    
+                print(np.linalg.norm(phi_field.current_G_function_up - G_up_check) / np.linalg.norm(G_up_check))
+                print(np.linalg.norm(phi_field.current_G_function_down - G_down_check) / np.linalg.norm(G_down_check))
                 GF_checked = True
 
                 if np.abs(d_gf_up) > 1e-8 or np.abs(d_gf_down) > 1e-8:
@@ -137,6 +141,8 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                     print('test passed')
                 print('Determinant discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
+                need_check = False
+
             observables.update_history(ratio, accepted, current_det_sign)
         observables.measure_light_observables(phi_field, current_det_sign.item(), n_sweep)
     
