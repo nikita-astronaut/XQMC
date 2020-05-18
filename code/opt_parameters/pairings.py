@@ -641,6 +641,7 @@ def get_C4z_symmetry_map(config):
 
 
 def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False):
+    return
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
     global C2y_symmetry_map_chiral, C3z_symmetry_map_chiral
     global name_group_dict
@@ -677,13 +678,13 @@ def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False)
         i = 1
         for j in range(gap.shape[1] // 2):
             if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
-                print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'before')
+                print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'before', i, j, chiral)
             break
         gap = models.xy_to_chiral(gap, term_type, config, chiral = chiral)  # can do nothing or make chiral transform
         i = 1
         for j in range(gap.shape[1] // 2):
             if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
-                print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'after')
+                print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'after', i, j, chiral)
             break
 
         if term_type != 'pairing':
