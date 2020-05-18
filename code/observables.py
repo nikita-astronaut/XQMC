@@ -230,7 +230,7 @@ class Observables:
         self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im'].append(np.imag(np.trace(phi.current_G_function_down.dot(self.O_pm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re'].append(np.real(np.trace(phi.current_G_function_down.dot(self.O_mm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im'].append(np.imag(np.trace(phi.current_G_function_down.dot(self.O_mm_xy))))
-        self.light_observables_list['⟨m_z^2⟩'].append((np.trace(phi.current_G_function_down) - np.trace(phi.current_G_function_up)) ** 2)
+        self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(phi.current_G_function_down, phi.current_G_function_up))
 
         return
 
@@ -663,3 +663,9 @@ def _get_ik_marking(Ls, n_orbitals, n_sublattices, total_dof):
             index = dy * Ls + dx
             A[i, j] = index
     return A
+
+
+def total_mz_squared(G_down, G_up):
+    M = np.trace(G_up) - np.trace(G_down)
+    vol = G_up.shape[0]
+    return (M ** 2 + np.trace((np.eye(vol) - G_up).dot(G_up)) + np.trace((np.eye(vol) - G_down).dot(G_down))) / vol ** 2
