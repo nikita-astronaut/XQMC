@@ -514,8 +514,8 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         self.rnd_idx = 0
         return
 
-    def get_gauge_factor_move(self, sp_index, time_slice, local_conf):
-        return self.gauge[local_conf[0]] / self.gauge[self.configuration[time_slice, sp_index, 0]]
+    def get_gauge_factor_move(self, sp_index, time_slice, local_conf_old, local_conf):
+        return self.gauge[local_conf[0]] / self.gauge[local_conf_old[0]]
 
     def get_current_gauge_factor_log(self):
         cf = self.configuration[..., 0].flatten()

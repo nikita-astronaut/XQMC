@@ -93,7 +93,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             local_conf_old = phi_field.get_current_conf(site_idx, time_slice)
 
             for local_conf in phi_field.local_conf_combinations:
-                gauge_ratio = phi_field.get_gauge_factor_move(site_idx, time_slice, local_conf)
+                gauge_ratio = phi_field.get_gauge_factor_move(site_idx, time_slice, local_conf_old, local_conf)
 
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, local_conf)
 

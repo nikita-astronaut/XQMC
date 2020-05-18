@@ -247,7 +247,8 @@ class Observables:
                 np.mean(self.light_signs_history)] + [self.signs_avg(val, signs) for _, val in self.light_observables_list.items()]
 
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
-        # self.log_file.flush()
+        if n_sweep % 100 == 0:
+            self.log_file.flush()
         self.global_average_sign.append(np.mean(signs))
         self.refresh_light_logs()
         return
@@ -327,6 +328,7 @@ class Observables:
 
 
     def measure_heavy_observables(self, phi):
+        self.log_file.flush()
         print('refreshing gfs buffers...')
         self.refresh_gfs_buffer()
         t = time()
