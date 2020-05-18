@@ -503,7 +503,7 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         }
 
         super().__init__(config, K, K_inverse, K_matrix, local_workdir)
-        self.local_conf_combinations = 
+        self.local_conf_combinations = \
                                     [
                                         (-2, -1, -1), (-1, -1, -1), (1, -1, -1), (2, -1, -1), \
                                         (-2, -1, 1),  (-1, -1, 1),  (1, -1, 1),  (2, -1, 1), \
