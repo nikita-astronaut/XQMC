@@ -245,7 +245,7 @@ def test_onsite_gf_is_density_check(config):
 
     return success
 
-def test_all_jastrow_factors_add_to_one(config):
+def test_all_jastrow_factors_included_only_once(config):
     print('Testing all Jastrow correlations included only once')
     factors = config.adjacency_list
     success = True
@@ -254,8 +254,8 @@ def test_all_jastrow_factors_add_to_one(config):
     for A in factors:
         result += A[0]
 
-    if np.allclose(result, np.ones(A[0].shape)):
-        print('Passed')
+    if np.sum(result > 1) == 0:
+        print('Passed', np.unique(result))
     else:
         print('Failed')
         success = False
@@ -334,6 +334,8 @@ def test_double_move_commutation_check(config):
         if np.allclose([ratio_fast_ilkj, ratio_fast_kjil, ratio_fast_lkij], \
                        [-ratio_fast_ijkl, -ratio_fast_ijkl, ratio_fast_ijkl], atol = 1e-11, rtol = 1e-11):
             n_agreed += 1
+            # print('double move check permutation ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩ fine:', \
+            #        ratio_fast_ijkl, ratio_fast_ilkj, ratio_fast_kjil, ratio_fast_lkij, i, j, k, l)
         else:
             print('double move check permutation ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩ failed:', \
                    ratio_fast_ijkl, ratio_fast_ilkj, ratio_fast_kjil, ratio_fast_lkij, i, j, k, l)
@@ -349,10 +351,10 @@ def test_double_move_commutation_check(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_all_jastrow_factors_included_only_once(config)
+    success = success and test_explicit_factors_check(config)
     success = success and test_double_move_commutation_check(config)
     success = success and test_double_move_check(config)
-    success = success and test_all_jastrow_factors_add_to_one(config)
-    success = success and test_explicit_factors_check(config)
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
     success = success and test_onsite_gf_is_density_check(config)

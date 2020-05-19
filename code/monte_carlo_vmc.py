@@ -73,6 +73,17 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     S_cov = np.mean(S_cov, axis = 0)
 
+    eigvals, eigvecs = np.linalg.eigh(S_cov)
+    print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
+    print(eigvals)
+    print(np.diag(S_cov))
+    for val, vec in zip(eigvals, eigvecs.T):
+        if np.abs(val) < 1e-6:
+            print('redundancy observed:')
+            for val, name in zip(vec, config_vmc.all_names):
+                if np.abs(val) > 1e-1:
+                    print(name, val)
+
     # https://journals.jps.jp/doi/pdf/10.1143/JPSJ.77.114701 (formula 71)
     # removal of diagonal singularities
 
