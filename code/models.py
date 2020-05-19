@@ -309,7 +309,7 @@ def get_adjacency_list(config, orbital_mod = True):
     longest_distance = None
     for dist in distances:
         adj = (A_rounded == dist).astype(np.float32)
-        if orbital_mod
+        if orbital_mod:
             adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals, dist)
         else:
             adjacency_list.append(adj)

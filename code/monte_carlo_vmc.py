@@ -433,7 +433,7 @@ if __name__ == "__main__":
             results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
                 parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
                 final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
-                orbitals_in_use = orbitals_in_use[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus),)
+                orbitals_in_use = orbitals_in_use[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
             results = []
             for r in results_batched:
                 results = results + r
