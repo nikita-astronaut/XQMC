@@ -73,6 +73,17 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     S_cov = np.mean(S_cov, axis = 0)
 
+    eigvals, eigvecs = np.linalg.eigh(S_cov)
+    print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
+    print(eigvals)
+    print(np.diag(S_cov))
+    for val, vec in zip(eigvals, eigvecs.T):
+        if np.abs(val) < 1e-6:
+            print('redundancy observed:')
+            for val, name in zip(vec, config_vmc.all_names):
+                if np.abs(val) > 1e-1:
+                    print(name, val)
+
     # https://journals.jps.jp/doi/pdf/10.1143/JPSJ.77.114701 (formula 71)
     # removal of diagonal singularities
 
@@ -433,7 +444,7 @@ if __name__ == "__main__":
             results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
                 parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
                 final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
-                orbitals_in_use = orbitals_in_use[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus),)
+                orbitals_in_use = orbitals_in_use[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
             results = []
             for r in results_batched:
                 results = results + r

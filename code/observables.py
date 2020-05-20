@@ -35,8 +35,8 @@ class Observables:
 
         self.refresh_light_logs()
         self.init_light_log_file()
-        self.global_average_sign = []
-
+        self.global_average_sign = 0.
+        self.global_average_sign_measurements = 0
 
         # for Gap-Gap susceptibility
         self.reduced_A_gap = models.get_reduced_adjacency_matrix(self.config, \
@@ -202,7 +202,7 @@ class Observables:
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
-            np.mean(self.global_average_sign),
+            self.global_average_sign,
             np.mean(self.light_observables_list['⟨density⟩']),
             np.mean(self.light_observables_list['⟨E_K⟩']),
             np.mean(self.light_observables_list['⟨E_C⟩']),
@@ -251,7 +251,10 @@ class Observables:
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
         if n_sweep % 100 == 0:
             self.log_file.flush()
-        self.global_average_sign.append(np.mean(signs))
+
+        self.global_average_sign = (self.global_average_sign * self.global_average_sign_measurements + \
+                                    np.sum(signs)) / (self.global_average_sign_measurements + len(signs))
+        self.global_average_sign_measurements += len(signs)
         self.refresh_light_logs()
         return
 

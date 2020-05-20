@@ -31,7 +31,7 @@ class wavefunction_singlet():
 
         self.Jastrow_A = np.array([j[0] for j in config.jastrows_list])
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
-
+        assert np.allclose(self.Jastrow, self.Jastrow.T)
 
         ### diagonalisation of the MF--Hamiltonian ###
         self.U_matrix = self._construct_U_matrix(orbitals_in_use)
@@ -189,11 +189,34 @@ class wavefunction_singlet():
 
     def _generate_configuration(self):
         doping = (self.config.total_dof // 2 - self.config.Ne) // 2  # k
-        occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
-                                                    size = self.config.total_dof // 4 - doping, replace = False)
-        occupied_sites_holes = np.random.choice(np.arange(self.config.total_dof // 2, self.config.total_dof), 
-                                                size = self.config.total_dof // 4 + doping, replace = False)
-        occupied_sites = np.concatenate([occupied_sites_particles, occupied_sites_holes])
+        n_particles = self.config.total_dof // 4 - doping
+        n_holes = self.config.total_dof // 4 + doping
+
+
+        if self.config.n_orbitals == 2:
+            n_particles_plus = n_particles // 2 + self.config.valley_imbalance // 2
+            n_particles_minus = n_particles // 2 - self.config.valley_imbalance // 2
+
+            n_holes_plus = n_holes // 2 - self.config.valley_imbalance // 2
+            n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 2
+            print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
+
+            particles_plus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2),
+                                                        size = n_particles_plus, replace = False)
+            particles_minus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2) + 1,
+                                                        size = n_particles_minus, replace = False)
+
+            holes_plus = np.random.choice(np.arange(self.config.total_dof // 2, self.config.total_dof, 2),
+                                                        size = n_holes_plus, replace = False)
+            holes_minus = np.random.choice(np.arange(self.config.total_dof // 2, self.config.total_dof, 2) + 1,
+                                                        size = n_holes_minus, replace = False)
+            occupied_sites = np.concatenate([particles_plus, particles_minus, holes_plus, holes_minus])        
+        else:
+            occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
+                                                        size = n_particles, replace = False)
+            occupied_sites_holes = np.random.choice(np.arange(self.config.total_dof // 2, self.config.total_dof), 
+                                                    size = n_holes, replace = False)
+            occupied_sites = np.concatenate([occupied_sites_particles, occupied_sites_holes])
 
         place_in_string = (np.zeros(self.config.total_dof) - 1).astype(np.int64)
         place_in_string[occupied_sites] = np.arange(len(occupied_sites))
@@ -237,15 +260,14 @@ class wavefunction_singlet():
         if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index % self._rnd_size]:
             self.rejected_factor += 1
             return False, 1, 1, moved_site, empty_site
+
         self.accepted += 1
         # t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
         self.current_det *= det_ratio
+        # print(self.current_det, self.current_ampl, self.get_cur_Jastrow_factor())
         self.occupied_sites[moved_site_idx] = empty_site
 
-        ## debug
-        #det_after = np.linalg.det(self.U_matrix[self.occupied_sites, :])
-        # print((self.current_det - det_after) / det_after, 'ratio check')
 
         self.empty_sites.remove(empty_site)
         self.empty_sites.add(moved_site)
@@ -256,7 +278,16 @@ class wavefunction_singlet():
         self.state[moved_site] = 0
         self.state[empty_site] = 1
         self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
-
+        # print('valley polarisation', np.sum(self.occupancy[np.arange(0, len(self.occupancy), 2)] - self.occupancy[np.arange(0, len(self.occupancy), 2) + 1]))
+        '''
+        det_after = np.linalg.det(self.U_matrix[self.occupied_sites, :])
+        jastrow = self.get_cur_Jastrow_factor()
+        print((self.current_det - det_after) / det_after, 'ratio check')
+        print((self.current_ampl / self.current_det - jastrow) / jastrow, 'jastrow check')
+        if np.abs((self.current_ampl / self.current_det - jastrow) / jastrow) > 1e-7:
+            print((self.current_ampl / self.current_det - jastrow) / jastrow)
+            exit(-1)
+        '''
         a_new, b_new = _jit_delayed_update(self.a_update_list, self.b_update_list, self.n_stored_updates, \
                                            self.W_GF, empty_site, moved_site_idx)
         self.a_update_list[..., self.n_stored_updates] = a_new
@@ -268,6 +299,7 @@ class wavefunction_singlet():
 
         # self.update += time() - t 
         return True, det_ratio, Jastrow_ratio, moved_site, empty_site
+
 
     def perform_explicit_GF_update(self):
         if self.n_stored_updates == 0:
@@ -363,7 +395,7 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
     ratio_det = get_det_ratio(*state_packed, i, j) * get_det_ratio(*state_packed, k, l) - \
                 get_det_ratio(*state_packed, i, l) * get_det_ratio(*state_packed, k, j)
     jastrow = 0.0
-    if np.abs(ratio_det) > 1e-10:
+    if True:#np.abs(ratio_det) > 1e-10:
         jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, total_fugacity, i, j)
         delta_i = 1 if i < L else -1
         delta_j = 1 if j < L else -1
