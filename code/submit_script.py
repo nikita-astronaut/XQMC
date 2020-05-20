@@ -2,10 +2,8 @@ import subprocess
 import os
 import sys
 
-U, V, J, mu, Ne, gaps = [x for x in sys.argv[6:]]
-U = float(U)
-V = float(V)
-J = float(J)
+epsilon, mu, Ne, gaps = [x for x in sys.argv[6:]]
+epsilon = float(epsilon)
 mu = float(mu)
 
 Ne = int(Ne)
@@ -19,12 +17,8 @@ name = sys.argv[5]
 
 lines = [line for line in bare_config]
 for i, line in enumerate(lines):
-    if 'self.U =' in line:
-        lines[i] = '        self.U = {:.2f}\n'.format(U)
-    if 'self.V =' in line:
-        lines[i] = '        self.V = {:.2f}\n'.format(V)
-    if 'self.J =' in line:
-        lines[i] = '        self.J = {:.2f}\n'.format(J)
+    if 'self.epsilon =' in line:
+        lines[i] = '        self.epsilon = {:.2f}\n'.format(epsilon)
     if 'self.mu =' in line:
         lines[i] = '        self.mu = {:.2f}\n'.format(mu)
     if 'self.Ne = ' in line:
@@ -34,7 +28,7 @@ for i, line in enumerate(lines):
     if 'self.workdir =' in line:
         lines[i] = line[:-2] + name + '/\'\n'
 
-config_name = list(os.path.join(path_to_configs, 'config_{:s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.py'.format(name, U, V, J, mu, Ne)))
+config_name = list(os.path.join(path_to_configs, 'config_{:s}_e_{:.2f}_mu_{:.2f}_Ne_{:d}.py'.format(name, epsilon, mu, Ne)))
 for i, s in enumerate(config_name):
     if s == '.' and ''.join(config_name[i:]) != '.py':
         config_name[i] = '-'
@@ -49,11 +43,11 @@ lines = [line for line in sbatch_file]
 
 for i, line in enumerate(lines):
     if '#SBATCH -o' in line:
-        lines[i] = '#SBATCH -o {:s}/output_{:s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.out\n'.format(path_to_logs, name, U, V, J, mu, Ne)
+        lines[i] = '#SBATCH -o {:s}/output_{:s}_e_{:.2f}_mu_{:.2f}_Ne_{:d}.out\n'.format(path_to_logs, name, epsilon, mu, Ne)
     if '#SBATCH -e' in line:
-        lines[i] = '#SBATCH -e {:s}/error_{:s}_U_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}.err\n'.format(path_to_logs, name, U, V, J, mu, Ne)
+        lines[i] = '#SBATCH -e {:s}/error_{:s}_e_{:.2f}_mu_{:.2f}_Ne_{:d}.err\n'.format(path_to_logs, name, epsilon, mu, Ne)
     if '#SBATCH --job-name' in line:
-        lines[i] = '#SBATCH --job-name U_{:s}_{:.2f}_V_{:.2f}_J_{:.2f}_mu_{:.2f}_Ne_{:d}\n'.format(name, U, V, J, mu, Ne)
+        lines[i] = '#SBATCH --job-name {:s}_e_{:.2f}_mu_{:.2f}_Ne_{:d}\n'.format(name, epsilon, mu, Ne)
 
     if 'python' in line:
         pieces = line.split()
