@@ -51,7 +51,7 @@ class MC_parameters:
         self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
         self.workdir = '/home/astronaut/DQMC_TBG/logs/3/'
         self.load_parameters = True; self.load_parameters_path = None
-
+        self.offset = 6
 
 
         ### variational parameters settings ###
