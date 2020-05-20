@@ -286,7 +286,7 @@ def get_bc_copies(r, R, Ls, sublattice):
     return copies
 
 
-def get_adjacency_list(config):
+def get_adjacency_list(config, orbital_mod = True):
     if config.n_sublattices == 2:
         R = R_hexagonal
     else:
@@ -309,7 +309,10 @@ def get_adjacency_list(config):
     longest_distance = None
     for dist in distances:
         adj = (A_rounded == dist).astype(np.float32)
-        adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals, dist)
+        if orbital_mod:
+            adjacency_list = adjacency_list + interorbital_mod(adj, config.n_orbitals, dist)
+        else:
+            adjacency_list.append(adj)
 
         if dist == distances.max():
             longest_distance = np.kron(adj, np.ones((config.n_orbitals, config.n_orbitals)))
@@ -376,13 +379,13 @@ def model_square_1orb(config, mu, spin = +1.0):
     return _model_square_1orb(config.Ls, config.twist, mu, spin)
 
 @jit(nopython = True)
-def get_transition_matrix(PN_projection, K, n_orbitals):
+def get_transition_matrix(PN_projection, K, n_orbitals = 1):
     adjacency_matrix = np.zeros(K.shape)
     for i in range(K.shape[0] // n_orbitals):
         for j in range(K.shape[0] // n_orbitals):
             if K[i * n_orbitals, j * n_orbitals] != 0.0:
                 adjacency_matrix[i * n_orbitals:i * n_orbitals + n_orbitals, \
-                                 j * n_orbitals:j * n_orbitals + n_orbitals] = np.ones((n_orbitals, n_orbitals))
+                                 j * n_orbitals:j * n_orbitals + n_orbitals] = np.eye(n_orbitals)  # valley-charge conservation
 
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
     if not PN_projection:  # not only particle-conserving moves

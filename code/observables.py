@@ -54,11 +54,13 @@ class Observables:
         self.adj_list_marking = np.zeros((phi.config.total_dof // 2, phi.config.total_dof // 2)).astype(np.int64)
         for idx, adj in enumerate(self.config.adj_list):
             self.adj_list_marking[adj[0] > 0.5] = idx
+
+        NN = models.get_adjacency_list(self.config, orbital_mod = False)[0][1]
         self.chiral_to_xy = np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[1., 1.0j], [1.0, -1.0j]]) / np.sqrt(2))
-        self.O_pm_chiral = np.kron(np.ones((self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)), np.array([[0, 1], [0, 0]]))
+        self.O_pm_chiral = np.kron(NN, np.array([[0, 1], [0, 0]]))
         self.O_pm_xy = self.chiral_to_xy.conj().T.dot(self.O_pm_chiral).dot(self.chiral_to_xy)
 
-        self.O_mm_chiral = np.kron(np.ones((self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)), np.array([[0, 0], [0, 1]]))
+        self.O_mm_chiral = np.kron(NN, np.array([[0, 0], [0, 1]]))
         self.O_mm_xy = self.chiral_to_xy.conj().T.dot(self.O_mm_chiral).dot(self.chiral_to_xy)
 
         self.violation_vals = []
@@ -228,7 +230,7 @@ class Observables:
         self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im'].append(np.imag(np.trace(phi.current_G_function_down.dot(self.O_pm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re'].append(np.real(np.trace(phi.current_G_function_down.dot(self.O_mm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im'].append(np.imag(np.trace(phi.current_G_function_down.dot(self.O_mm_xy))))
-        self.light_observables_list['⟨m_z^2⟩'].append((np.trace(phi.current_G_function_down) - np.trace(phi.current_G_function_up)) ** 2)
+        self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(phi.current_G_function_down, phi.current_G_function_up))
 
         return
 
@@ -661,3 +663,9 @@ def _get_ik_marking(Ls, n_orbitals, n_sublattices, total_dof):
             index = dy * Ls + dx
             A[i, j] = index
     return A
+
+
+def total_mz_squared(G_down, G_up):
+    M = np.trace(G_up) - np.trace(G_down)
+    vol = G_up.shape[0]
+    return (M ** 2 + np.trace((np.eye(vol) - G_up).dot(G_up)) + np.trace((np.eye(vol) - G_down).dot(G_down))) / vol ** 2

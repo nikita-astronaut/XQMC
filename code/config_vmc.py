@@ -9,9 +9,9 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
-        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
+        self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 2; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 1; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
@@ -23,7 +23,6 @@ class MC_parameters:
                     print(i, j, self.K_0[i, j])
                 #if (i + j) % 2 == 0 and self.K_0[i, j] != self.K_0[j, i]:
                 #    print(i, j, self.K_0[i, j], self.K_0[j, i])
-
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
 
         self.adjacency_list, self.longest_distance = models.get_adjacency_list(self)
@@ -36,20 +35,21 @@ class MC_parameters:
 
         ### density VQMC parameters ###
         self.Ne = self.total_dof // 2 - 16
+        self.valley_imbalance = 0
         # if PN_projection = True, the density is fixed at this number
         self.PN_projection = True  # if PN_projection = False, work in the Grand Canonial approach
         self.optimize_mu_BCS = True
 
         if self.PN_projection:
             assert 0.0 == self.mu
-        self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0])
-
+        self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0], self.n_orbitals)
+        print(self.adjacency_transition_matrix)
 
         ### other parameters ###
         self.visualisation = False; 
         self.tests = False
-        self.n_cpus = 4  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/astronaut/DQMC_TBG/logs/1/'
+        self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
+        self.workdir = '/home/astronaut/DQMC_TBG/logs/3/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 6
 
@@ -67,7 +67,7 @@ class MC_parameters:
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
-        self.jastrows_list = jastrow.jastrow_long_range_2orb_nondegenerate[:-1] # remove one jastrow (norm renormalization if PN is conserved)
+        self.jastrows_list = jastrow.jastrow_Koshino # remove one jastrow (norm renormalization if PN is conserved)
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
 
@@ -78,7 +78,7 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 20000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
+        self.MC_chain = 2000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = 5 * (self.total_dof // 2)
@@ -96,7 +96,15 @@ class MC_parameters:
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
             np.random.uniform(-0.1, 0.1, size = self.layout[3]),  # gaps
-            np.random.uniform(0.0, 0.2, size = self.layout[4]),  # jastrows
+            np.random.uniform(0.0, 0.005, size = self.layout[4]),  # jastrows
+        ])
+
+        self.all_names = np.concatenate([
+            np.array(['mu_BCS']),  # mu_BCS
+            np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
+            np.array(self.waves_list_names),  # waves
+            np.array(self.pairings_list_names),  # gaps
+            np.array(self.jastrows_list_names),
         ])
 
         self.initial_parameters[0] = self.select_initial_muBCS()
