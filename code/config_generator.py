@@ -4,7 +4,7 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-dt_in_inv_t1 = 1. / 20
+dt_in_inv_t1 = 1. / 40
 U_in_t1 = np.array([2.20])
 V_in_t1 = np.array([2.20])
 main_hopping = 1.0
@@ -37,8 +37,8 @@ class simulation_parameters:
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
-        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/-0-08-2-2-20/'
-        self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-2-2-20/'
+        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/-0-08-3-3-40/'
+        self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-3-3-40/'
         self.thermalization = 3000  # after how many sweeps start computing observables
         self.tests = False
         self.adj_list = models.get_adjacency_list(self)[0]
