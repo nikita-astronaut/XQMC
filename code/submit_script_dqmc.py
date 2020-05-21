@@ -25,6 +25,8 @@ for i, line in enumerate(lines):
         lines[i] = '        self.mu = np.array([{:.2f}])\n'.format(mu)
     if 'self.Nt = ' in line:
         lines[i] = '        self.Nt = np.array([{:d}])\n'.format(Nt)
+    if 'self.offset = ' in line:
+        lines[i] = '        self.offset = {:d}\n'.format(offset)
 
 config_name = list(os.path.join(path_to_configs, 'config_U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_o_{:d}.py'.format(U, V, mu, Nt, int(offset))))
 for i, s in enumerate(config_name):
