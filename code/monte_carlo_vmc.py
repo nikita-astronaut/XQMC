@@ -306,7 +306,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
 
             t = time()
             energies.append(hamiltonian(wf))
-            densities.append(0)#wf.total_density())
+            densities.append(wf.total_density())
             t_energies += time() - t
 
             t = time()
