@@ -26,15 +26,11 @@ class simulation_parameters:
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
         self.nu_V = None
         self.nu_U = None
-        self.BC_twist = False; self.twist = (1.0, 1.0)
         self.mu = np.array([-0.08])
         self.offset = 0
 
 
-        self.model = models.model_hex_2orb_Koshino
-        self.n_orbitals = 2
         self.field = auxiliary_field.AuxiliaryFieldInterorbitalAccurate
-        self.n_sublattices = 2
         self.start_type = 'presaved'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
         self.n_sweeps = 50000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 200  # every n-th configuration will be stored during generation
