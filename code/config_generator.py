@@ -13,8 +13,8 @@ class simulation_parameters:
     def __init__(self):
         self.gpu = False
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Nt = np.array([40])
         self.BC_twist = False; self.twist = (1.0, 1.0)
-        self.Nt = np.array([70])  # the number of time slices for the Suzuki-Trotter procedure
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
         self.field = auxiliary_field.AuxiliaryFieldInterorbitalAccurate

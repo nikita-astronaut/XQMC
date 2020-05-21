@@ -53,7 +53,7 @@ def get_spatial_mask(Ls, x_shift, y_shift):
             xj, yj = j // Ls, j % Ls
             if (xi - xj) % Ls == x_shift and (yi - yj) % Ls == y_shift:
                 mask[i, j] = 1.
-    return (mask + mask.T) / 2.
+    return mask
 
 
 def get_jastrow_Koshino(config):
@@ -107,22 +107,50 @@ def get_jastrow_Koshino(config):
         assert np.sum(np.abs(mapping.dot(mapping).dot(mapping) - np.eye(mapping.shape[0]))) < 1e-12  # C_3z^3 = I
         return mapping
 
+    def get_TRS_symmetry_map_chiral_jastrow(config):
+        assert config.n_sublattices == 2
+        geometry = 'hexagonal'
+
+        mapping = np.zeros((config.total_dof // 2, config.total_dof // 2)) # trivial mapping
+
+        for preindex in range(config.total_dof // 2):
+            orbit_preimage, sublattice_preimage, x_preimage, y_preimage = \
+                models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
+
+            r_preimage = models.lattice_to_physical([x_preimage, y_preimage, sublattice_preimage], geometry)
+            r_image = r_preimage
+
+            x_image, y_image, sublattice_image = models.physical_to_lattice(r_image, geometry)
+
+            x_image = int(np.rint(x_image)); y_image = int(np.rint(y_image))
+            x_image = (x_image % config.Ls); y_image = (y_image % config.Ls)
+
+            index = models.to_linearized_index(x_image, y_image, sublattice_image, 1 - orbit_preimage, \
+                                               config.Ls, config.n_orbitals, config.n_sublattices)
+            mapping[preindex, index] = 1.
+        assert np.sum(np.abs(mapping.dot(mapping) - np.eye(mapping.shape[0]))) < 1e-12  # T^2 = I
+        return mapping
+
 
     R = get_C3z_symmetry_map_chiral_jastrow(config)
     M = get_C2y_symmetry_map_chiral_jastrow(config)
+    TRS = get_TRS_symmetry_map_chiral_jastrow(config)
+
     jastrow_list = []
     for x_shift in range(config.Ls):
         for y_shift in range(config.Ls):
             mask = get_spatial_mask(config.Ls, x_shift, y_shift)
             for subl_valley_i in range(config.n_orbitals * config.n_sublattices):
-                for subl_valley_j in range(subl_valley_i, config.n_orbitals * config.n_sublattices):
+                for subl_valley_j in range(config.n_orbitals * config.n_sublattices):
                     jastrow_inner = np.zeros((config.n_orbitals * config.n_sublattices, config.n_orbitals * config.n_sublattices))
                     jastrow_inner[subl_valley_i, subl_valley_j] = 1.
-                    jastrow_inner[subl_valley_j, subl_valley_i] = 1.
+                    # jastrow_inner[subl_valley_j, subl_valley_i] = 1.
                     
                     J = np.kron(mask, jastrow_inner)
                     J_symm = J + R.T.dot(J).dot(R) + R.T.dot(R.T).dot(J).dot(R).dot(R)
                     J_symm = J_symm + M.T.dot(J_symm).dot(M)
+                    J_symm = J_symm + J_symm.T
+                    # J_symm = J_symm + TRS.T.dot(J_symm).dot(TRS)
                     J_symm = (J_symm > 0).astype(np.float64)
                     jastrow_list.append([J_symm, 'jastrow-{:d}-{:d}-{:d}-{:d}'.format(x_shift, y_shift, subl_valley_i, subl_valley_j)])
 
@@ -137,6 +165,7 @@ def get_jastrow_Koshino(config):
                 break
         if unique:
             jastrow_list_unique.append(J)
+    jastrow = np.sum(np.array([j[0] for j in jastrow_list_unique]) , axis = 0)
     return jastrow_list_unique[:-3]  # cut redundant Jastrows
 
 

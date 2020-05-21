@@ -12,7 +12,7 @@ except ImportError:
     pass
 
 class AuxiliaryFieldIntraorbital:
-    def __init__(self, config, K, K_inverse, K_matrix, local_workdir):
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
         self.gpu_avail = config.gpu
         self.la = np
         self.cpu = True
@@ -25,6 +25,8 @@ class AuxiliaryFieldIntraorbital:
         self.K = K
         self.K_inverse = K_inverse
         self.K_matrix = K_matrix
+        self.K_half_inverse = K_half_inverse
+        self.K_half = K_half
 
         self.partial_SVD_decompositions_up = []
         self.partial_SVD_decompositions_down = []
@@ -55,6 +57,7 @@ class AuxiliaryFieldIntraorbital:
 
         self.local_conf_combinations = [tuple([1]), tuple([-1])]
         return
+
     def get_gauge_factor_move(self, sp_index, time_slice, local_conf):
         return 1.
 
@@ -227,6 +230,13 @@ class AuxiliaryFieldIntraorbital:
         self.current_G_function_down = _update_G_seq_intra(self.current_G_function_down, self.Delta_down, sp_index, self.config.total_dof)
         return
 
+    def make_symmetric_displacement(self, M):
+        return self.K_half.dot(M).dot(self.K_half_inverse)
+
+    def get_equal_time_GF(self):
+        return self.make_symmetric_displacement(self.current_G_function_up), \
+               self.make_symmetric_displacement(self.current_G_function_down)
+
     def update_field(self, sp_index, time_slice, new_conf):
         self.configuration[time_slice, sp_index] = new_conf[0]
         return
@@ -245,6 +255,10 @@ class AuxiliaryFieldIntraorbital:
         self.current_G_function_down = cp.asnumpy(self.current_G_function_down)
         self.K = cp.asnumpy(self.K)
         self.K_inverse = cp.asnumpy(self.K_inverse)
+
+        self.K_half = cp.asnumpy(self.K_half)
+        self.K_half_inverse = cp.asnumpy(self.K_half_inverse)
+
         self.la = np
         self.configuration = cp.asnumpy(self.configuration)
         return self
@@ -257,6 +271,9 @@ class AuxiliaryFieldIntraorbital:
         self.current_G_function_down = cp.array(self.current_G_function_down)
         self.K = cp.array(self.K)
         self.K_inverse = cp.array(self.K_inverse)
+        self.K_half = cp.array(self.K_half)
+        self.K_half_inverse = cp.array(self.K_half_inverse)
+
         self.la = cp
         self.configuration = cp.asarray(self.configuration)
         return self
@@ -308,10 +325,10 @@ class AuxiliaryFieldIntraorbital:
         current_GF = 1. * GF_0.copy()
         self.left_decompositions = self._get_left_partial_SVD_decompositions(spin)
         self.right_decompositions = self._get_right_partial_SVD_decompositions(spin)
-        GFs = [1. * self.to_numpy(current_GF)]
+        GFs = [1. * self.make_symmetric_displacement(self.to_numpy(current_GF))]
         for tau in range(1, self.config.Nt):
             B = self.B_l(spin, tau - 1)
-            
+
             if tau % self.config.s_refresh != 0:
                 current_GF = B.dot(current_GF)  # just wrap-up / wrap-down
             else:  # recompute GF from scratch
@@ -327,8 +344,8 @@ class AuxiliaryFieldIntraorbital:
                 m = self.la.diag(s1_max ** -1).dot(u1.T).dot(v2.T).dot(self.la.diag(s2_max ** -1)) + \
                     self.la.diag(s1_min).dot(v1).dot(u2).dot(self.la.diag(s2_min))
                 current_GF = (v2.T).dot(self.la.diag(s2_max ** -1)).dot(self.la.linalg.inv(m)).dot(self.la.diag(s1_min)).dot(v1)
-            
-            GFs.append(1.0 * self.to_numpy(current_GF))
+
+            GFs.append(self.make_symmetric_displacement(1.0 * self.to_numpy(current_GF)))
         return np.array(GFs)
 
     ####### DEBUG ######
@@ -365,8 +382,8 @@ class AuxiliaryFieldIntraorbital:
 
 
 class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
-    def __init__(self, config, K, K_inverse, K_matrix, local_workdir):
-        super().__init__(config, K, K_inverse, K_matrix, local_workdir)
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
+        super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
         self.local_conf_combinations = [
                                     (-1, -1, -1), (-1, -1, 1), \
                                     (-1, 1, -1), (-1, 1, 1), \
@@ -480,7 +497,7 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         return
 
 class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
-    def __init__(self, config, K, K_inverse, K_matrix, local_workdir):
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
         self.eta = {
             -2 : -np.sqrt(6 + 2 * np.sqrt(6)),
             +2 : +np.sqrt(6 + 2 * np.sqrt(6)),
@@ -502,7 +519,7 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
             +1 : np.log(1 + np.sqrt(6) / 3)
         }
 
-        super().__init__(config, K, K_inverse, K_matrix, local_workdir)
+        super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
         self.local_conf_combinations = \
                                     [
                                         (-2, -1, -1), (-1, -1, -1), (1, -1, -1), (2, -1, -1), \
