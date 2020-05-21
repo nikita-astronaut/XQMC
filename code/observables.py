@@ -222,15 +222,17 @@ class Observables:
         C = Coloumb_energy(phi)
         density = total_density(phi).item()
 
+        G_up, G_down = phi.get_equal_time_GF()
+
         self.light_observables_list['⟨density⟩'].append(density)
         self.light_observables_list['⟨E_K⟩'].append(k)
         self.light_observables_list['⟨E_C⟩'].append(C)
         self.light_observables_list['⟨E_T⟩'].append((k + C))
-        self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_re'].append(np.real(np.trace(phi.current_G_function_down.dot(self.O_pm_xy))))
-        self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im'].append(np.imag(np.trace(phi.current_G_function_down.dot(self.O_pm_xy))))
-        self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re'].append(np.real(np.trace(phi.current_G_function_down.dot(self.O_mm_xy))))
-        self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im'].append(np.imag(np.trace(phi.current_G_function_down.dot(self.O_mm_xy))))
-        self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(phi.current_G_function_down, phi.current_G_function_up))
+        self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_re'].append(np.real(np.trace(G_down.dot(self.O_pm_xy))))
+        self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im'].append(np.imag(np.trace(G_down.dot(self.O_pm_xy))))
+        self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re'].append(np.real(np.trace(G_down.dot(self.O_mm_xy))))
+        self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im'].append(np.imag(np.trace(G_down.dot(self.O_mm_xy))))
+        self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(G_down, G_up))
 
         return
 
@@ -263,11 +265,13 @@ class Observables:
         self.heavy_signs_history.append(current_det_sign)
         t = time()
         phi.copy_to_GPU()
+
         phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]
         phi.current_G_function_down = phi.get_G_no_optimisation(-1, -1)[0]
-
         GFs_up = np.array(phi.get_nonequal_time_GFs(+1.0, phi.current_G_function_up))
         GFs_down = np.array(phi.get_nonequal_time_GFs(-1.0, phi.current_G_function_down))
+
+
         phi.copy_to_CPU()
         self.GF_up_stored[self.cur_buffer_size, ...] = GFs_up
         self.GF_down_stored[self.cur_buffer_size, ...] = GFs_down
@@ -490,21 +494,18 @@ def total_density(phi_field):
 # this is currently only valid for the Sorella simplest model
 def kinetic_energy(phi_field, K_matrix):
     A = np.abs(K_matrix) > 1e-6
-    G_function_up = phi_field.current_G_function_up
-    G_function_down = phi_field.current_G_function_down
+    G_function_up, G_function_down = phi.get_equal_time_GF()
 
     K_mean = phi_field.config.main_hopping * xp.einsum('ij,ji', G_function_up + G_function_down, A) / (phi_field.config.total_dof // 2)
     return K_mean
 
 def double_occupancy(h_configuration, K, config):
-    G_function_up = auxiliary_field.get_green_function(h_configuration, K, +1.0, config)
-    G_function_down = auxiliary_field.get_green_function(h_configuration, K, -1.0, config)
+    G_function_up, G_function_down = phi.get_equal_time_GF()
 
     return xp.trace(G_function_up * G_function_down) / (config.n_sublattices * config.n_orbitals * config.Ls ** 2)
 
 def SzSz_onsite(phi_field):
-    G_function_up = phi_field.current_G_function_up
-    G_function_down = phi_field.current_G_function_down
+    G_function_up, G_function_down = phi.get_equal_time_GF()
 
     return (-2.0 * xp.sum((xp.diag(G_function_up) * xp.diag(G_function_down))) + xp.sum(xp.diag(G_function_down)) + xp.sum(xp.diag(G_function_up))) / (phi_field.config.total_dof // 2)
 
@@ -519,28 +520,24 @@ def get_n_adj(K_matrix, distance):
     return xp.logical_and(seen_elements == 0, adj.dot(A) > 0) * 1.
 
 def SzSz_n_neighbor(phi, adj):
-    G_function_up = phi.current_G_function_up
-    G_function_down = phi.current_G_function_down
+    G_function_up, G_function_down = phi.get_equal_time_GF()
 
     return (xp.einsum('i,j,ij', xp.diag(G_function_up) - xp.diag(G_function_down), xp.diag(G_function_up) - xp.diag(G_function_down), adj) - \
             xp.einsum('ij,ji,ij', G_function_up, G_function_up, adj) - xp.einsum('ij,ji,ij', G_function_down, G_function_down, adj)) / xp.sum(adj)
 
 def n_up_n_down_correlator(phi, adj):
-    G_function_up = phi.current_G_function_up
-    G_function_down = phi.current_G_function_down
+    G_function_up, G_function_down = phi.get_equal_time_GF()
 
     return phi.la.einsum('i,j,ij', phi.la.diag(G_function_up), phi.la.diag(G_function_down), adj) / phi.la.sum(adj)
 
 def kinetic_energy(phi):
-    G_function_up = phi.current_G_function_up
-    G_function_down = phi.current_G_function_down
+    G_function_up, G_function_down = phi.get_equal_time_GF()
 
     return phi.la.einsum('ij,ij', phi.K_matrix, G_function_up + G_function_down) / G_function_up.shape[0]
 
 
 def Coloumb_energy(phi):
-    G_function_up = phi.current_G_function_up
-    G_function_down = phi.current_G_function_down
+    G_function_up, G_function_down = phi.get_equal_time_GF()
 
     energy_coloumb = (phi.config.U / 2.) * phi.la.sum((phi.la.diag(G_function_up) + phi.la.diag(G_function_down) - 1.) ** 2).item() \
                      / G_function_up.shape[0]
