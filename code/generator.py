@@ -79,8 +79,10 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
             
+            current_det_sign_before = current_det_sign * 1.0
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
+            assert current_det_sign_before == current_det_sign  # refresh of Green's function must preserve sign (robust)
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check = True
         phi_field.wrap_up(time_slice)
@@ -117,7 +119,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_log += np.log(np.abs(local_det_factors[idx]))
             current_gauge_factor_log += np.log(local_gauge_factors[idx])
             current_det_sign *= np.sign(local_det_factors[idx])
-
+            
             ratio = np.log(np.abs(local_det_factors[idx]))
             accepted = (new_conf != local_conf_old)
 
@@ -125,7 +127,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             if accepted:
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, new_conf)
-            if False:#need_check:
+            if False: #need_check:
                 G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                 G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
 

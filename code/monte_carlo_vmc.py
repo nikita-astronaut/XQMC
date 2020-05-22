@@ -103,17 +103,9 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
     step = S_cov_inv.dot(forces)
     '''
 
-    diag = np.sqrt(np.abs(np.diag(S_cov)))
+    S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
 
-    forces_pc = forces / diag  # below (6.52)
-    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / diag, S_cov, 1.0 / diag)
-
-    # (6.51, scale-invariant regularization)
-    S_cov_pc += config_vmc.opt_parameters[0] * np.eye(S_cov_pc.shape[0])  # (6.54)
-    S_cov_pc_inv = np.linalg.inv(S_cov_pc)
-
-    step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
-    step = step_pc / diag
+    step = np.linalg.inv(S_cov_pc).dot(forces)
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(np.mean(forces, axis = 0) ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
     return step, forces
