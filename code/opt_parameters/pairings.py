@@ -857,17 +857,18 @@ def obtain_all_pairings(config):
                          [[gap] for gap in twoorb_hex_A1_NN_triplet] + \
                          [[gap] for gap in twoorb_hex_A2_NN_singlet] + \
                          [[gap] for gap in twoorb_hex_A2_NN_triplet] + \
-                         [irrep_re_1 + irrep_re_2 + irrep_im_1 + irrep_im_2 for irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2 in \
+                         [[irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2] for irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2 in \
                              zip(twoorb_hex_E_N_singlet[0::2], twoorb_hex_E_N_singlet[1::2], twoorb_hex_E_N_singlet_im[0::2], twoorb_hex_E_N_singlet_im[1::2])] + \
-                         [irrep_re_1 + irrep_re_2 + irrep_im_1 + irrep_im_2 for irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2 in \
+                         [[irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2] for irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2 in \
                              zip(twoorb_hex_E_NN_singlet[0::2], twoorb_hex_E_NN_singlet[1::2], twoorb_hex_E_NN_singlet_im[0::2], twoorb_hex_E_NN_singlet_im[1::2])] + \
-                         [irrep_re_1 + irrep_re_2 + irrep_im_1 + irrep_im_2 for irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2 in \
+                         [[irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2] for irrep_re_1, irrep_re_2, irrep_im_1, irrep_im_2 in \
                              zip(twoorb_hex_E_NN_triplet[0::2], twoorb_hex_E_NN_triplet[1::2], twoorb_hex_E_NN_triplet_im[0::2], twoorb_hex_E_NN_triplet_im[1::2])]
 
+        print('there are in total {:d} different irreps in the Koshino model'.format(len(twoorb_hex_all)))
         names = []
         pairings = []
         for irrep in twoorb_hex_all:
-            for pairing in irrep
+            for pairing in irrep:
                 pairings.append(combine_product_terms(config, pairing))
                 names.append(pairing[-1])
         np.save('all_hex_pairings.npy', np.array(pairings))
