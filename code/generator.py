@@ -16,6 +16,7 @@ import config_generator as cv_module
 import sys
 import os
 import importlib
+import psutil
 
 # np.random.seed(0)
 # <<Borrowed>> from Tom
@@ -150,6 +151,8 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
         t = time()
         observables.measure_green_functions(phi_field, current_det_sign.item())
         print('measurement of green functions takes ', time() - t)
+        process = psutil.Process(os.getpid())
+        print('using memory', process.memory_info().rss)
     return phi_field, observables
 
 def retrieve_last_n_sweep(local_workdir):
