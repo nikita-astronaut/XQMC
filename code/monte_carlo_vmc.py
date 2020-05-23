@@ -352,7 +352,7 @@ if __name__ == "__main__":
         
 
 
-    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
+    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904))]
     if config_vmc.tests:
         if tests.perform_all_tests(config_vmc):
             print('\033[92m All tests passed successfully \033[0m', flush = True)
@@ -465,7 +465,6 @@ if __name__ == "__main__":
         energies_merged = np.concatenate(energies) 
         
         n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
-        print(occupied_numbers[0])
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps)
@@ -482,8 +481,8 @@ if __name__ == "__main__":
                 mask[-config_vmc.layout[4]:] = 1.
 
             parameters += config_vmc.opt_parameters[1] * step * mask  # lr better be ~0.01..0.1
-            if config_vmc.layout[3] == 1:  # only one pairing == working in the condensation energy regime
-                parameters[np.sum(config_vmc.layout[:3])] = 1e-4
+            #if config_vmc.layout[3] == 1:  # only one pairing == working in the condensation energy regime
+            #    parameters[np.sum(config_vmc.layout[:3])] = 1e-4
             save_parameters(parameters, n_step)
         ### END SR STEP ###
 
