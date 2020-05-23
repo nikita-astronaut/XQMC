@@ -184,6 +184,7 @@ class wavefunction_singlet():
         return U_tilde 
 
     def _construct_W_GF(self):
+        print(self.U_tilde_matrix.shape)
         U_tilde_inv = np.linalg.inv(self.U_tilde_matrix)
         return self.U_matrix.dot(U_tilde_inv)
 
