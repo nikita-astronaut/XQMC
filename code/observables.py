@@ -127,7 +127,7 @@ class Observables:
         self.gap_file.flush()
 
         ### buffer for efficient GF-measurements ###
-        self.cur_buffer_size = 0; self.max_buffer_size = 100
+        self.cur_buffer_size = 0; self.max_buffer_size = 30
         self.GF_up_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
         self.GF_down_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
 
