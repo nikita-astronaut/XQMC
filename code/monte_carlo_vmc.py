@@ -108,17 +108,9 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
     step = S_cov_inv.dot(forces)
     '''
 
-    diag = np.sqrt(np.abs(np.diag(S_cov)))
+    S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
 
-    forces_pc = forces / diag  # below (6.52)
-    S_cov_pc = np.einsum('i,ij,j->ij', 1.0 / diag, S_cov, 1.0 / diag)
-
-    # (6.51, scale-invariant regularization)
-    S_cov_pc += config_vmc.opt_parameters[0] * np.eye(S_cov_pc.shape[0])  # (6.54)
-    S_cov_pc_inv = np.linalg.inv(S_cov_pc)
-
-    step_pc = S_cov_pc_inv.dot(forces_pc)  # (6.52)
-    step = step_pc / diag
+    step = np.linalg.inv(S_cov_pc).dot(forces)
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(np.mean(forces, axis = 0) ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
     return step, forces
@@ -360,7 +352,7 @@ if __name__ == "__main__":
         
 
 
-    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
+    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904))]
     if config_vmc.tests:
         if tests.perform_all_tests(config_vmc):
             print('\033[92m All tests passed successfully \033[0m', flush = True)
@@ -385,6 +377,9 @@ if __name__ == "__main__":
         twists_per_cpu = config_vmc.n_chains / n_cpus
     elif config_vmc.twist_mesh == 'PBC':
         twists = [[1., 1.] for _ in range(config_vmc.n_chains)]
+        twists_per_cpu = config_vmc.n_chains / n_cpus
+    elif config_vmc.twist_mesh == 'APBCy':
+        twists = [[1., -1.] for _ in range(config_vmc.n_chains)]
         twists_per_cpu = config_vmc.n_chains / n_cpus
     else:    
         twists_per_cpu = config_vmc.n_chains // n_cpus
@@ -472,7 +467,6 @@ if __name__ == "__main__":
         energies_merged = np.concatenate(energies) 
         
         n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
-        print(occupied_numbers[0])
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps)
@@ -484,13 +478,13 @@ if __name__ == "__main__":
             # step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
 
             mask = np.ones(len(step))
-            if n_step < 100:  # jastrows have not converged yet
+            if n_step < 10:  # jastrows have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
 
             parameters += config_vmc.opt_parameters[1] * step * mask  # lr better be ~0.01..0.1
-            if config_vmc.layout[3] == 1:  # only one pairing == working in the condensation energy regime
-                parameters[np.sum(config_vmc.layout[:3])] = 1e-4
+            #if config_vmc.layout[3] == 1:  # only one pairing == working in the condensation energy regime
+            #    parameters[np.sum(config_vmc.layout[:3])] = 1e-4
             save_parameters(parameters, n_step)
         ### END SR STEP ###
 

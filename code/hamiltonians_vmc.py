@@ -27,9 +27,9 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         self.minus_orbital = self.plus_orbital + 1
         self.U = 1.
         self.V = 1.
-        self.W1 = 2. / 3.
-        self.W2 = 1. / 3.
-        self.W3 = 1. / 3.
+        self.W1 = 0 #2. / 3.
+        self.W2 = 0 #1. / 3.
+        self.W3 = 0 #1. / 3.
         self.JH = 0 # (self.U - self.V) / 2
         self.J = 0 # 1. / 5.
         self.epsilon = self.config.epsilon

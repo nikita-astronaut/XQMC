@@ -49,14 +49,13 @@ class wavefunction_singlet():
             else:
                 self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration()
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
-            break
-            #if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
-            #    break
-            #else:
-            #    print('the rank of this initialization is {:d}'.format(np.linalg.matrix_rank(self.U_tilde_matrix)))
-            #    print(np.linalg.det(self.U_tilde_matrix))
-            #    self.with_previous_state = False  # if previous state failed, reinitialize from scratch
-            #    print('degenerate: will retry the wave function initialisation', flush = True)
+            if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
+                break
+            else:
+                print('the rank of this initialization is {:d}'.format(np.linalg.matrix_rank(self.U_tilde_matrix)))
+                print(np.linalg.det(self.U_tilde_matrix))
+                self.with_previous_state = False  # if previous state failed, reinitialize from scratch
+                print('degenerate: will retry the wave function initialisation', flush = True)
 
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
