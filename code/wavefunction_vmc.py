@@ -53,7 +53,7 @@ class wavefunction_singlet():
                 break
             else:
                 print('the rank of this initialization is {:d}'.format(np.linalg.matrix_rank(self.U_tilde_matrix)))
-                print(np.linalg.det(self.U_tilde_matrix))
+                print('the determinant is', np.linalg.det(self.U_tilde_matrix))
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
                 print('degenerate: will retry the wave function initialisation', flush = True)
 
