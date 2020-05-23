@@ -1,10 +1,16 @@
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
 import numpy as np
 import time
 import sys
-import os
 from wavefunction_vmc import wavefunction_singlet
 import opt_parameters.pairings
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, parallel_backend
 import psutil
 from time import time
 import visualisation
@@ -14,7 +20,6 @@ from copy import deepcopy
 import os
 import pickle
 import config_vmc as cv_module
-
 
 def extract_MC_data(results, config_vmc, num_twists):
     gaps = [x[9] for x in results]
@@ -449,9 +454,11 @@ if __name__ == "__main__":
             for r in results_batched:
                 results = results + r
         else:
-            results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
-                parameters, twists[i], final_states[i], orbitals_in_use[i]) for i in range(config_vmc.n_chains))
-        print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
+            print('experiments', flush=True)
+            with parallel_backend("loky", inner_max_num_threads=1):
+                results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+                    parameters, twists[i], final_states[i], orbitals_in_use[i]) for i in range(config_vmc.n_chains))
+        print('MC chain generation {:d} took {:f}'.format(n_step, time() - t), flush = True)
         t = time() 
 
         ### print-out current energy levels ###
