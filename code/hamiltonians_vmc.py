@@ -49,6 +49,11 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[6:9]]).sum(axis = 0) * self.W2 / 2 / self.epsilon
         edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[9:12]]).sum(axis = 0) * self.W3 / 2 / self.epsilon
 
+        for i in range(edges_quadric.shape[0] // 2):
+            for j in range(edges_quadric.shape[0] // 2):
+                print(edges_quadric[2 * i:2 * i + 2, 2 * j:2 * j + 2])
+                assert len(np.unique(edges_quadric[2 * i:2 * i + 2, 2 * j:2 * j + 2])) == 1
+
         edges_J_same = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * (-self.J / 2) / self.epsilon + 0.0j
         edges_J_updown = models.apply_TBC(self.config, deepcopy(edges_J_same), inverse = False, factor = 2) / self.epsilon
         edges_J_downup = models.apply_TBC(self.config, deepcopy(edges_J_same), inverse = True, factor = 2) / self.epsilon

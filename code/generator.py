@@ -79,8 +79,10 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
             
+            current_det_sign_before = current_det_sign * 1.0
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
+            assert current_det_sign_before == current_det_sign  # refresh of Green's function must preserve sign (robust)
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check = True
         phi_field.wrap_up(time_slice)
@@ -117,7 +119,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_log += np.log(np.abs(local_det_factors[idx]))
             current_gauge_factor_log += np.log(local_gauge_factors[idx])
             current_det_sign *= np.sign(local_det_factors[idx])
-
+            
             ratio = np.log(np.abs(local_det_factors[idx]))
             accepted = (new_conf != local_conf_old)
 
@@ -125,7 +127,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             if accepted:
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, new_conf)
-            if False:#need_check:
+            if False: #need_check:
                 G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
                 G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
 
@@ -176,9 +178,14 @@ if __name__ == "__main__":
         config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
         assert V == 0 or V == U
+
+
         K_matrix = config.model(config, config.mu)[0].real
-        K_operator = scipy.linalg.expm(config.dt * K_matrix).real
+        K_operator = scipy.linalg.expm(config.dt * K_matrix).real  # exp (-dt (-K_matrix))
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
+        K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix).real
+        K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix).real
+
         local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
         local_workdir_heavy = os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
         os.makedirs(local_workdir, exist_ok=True)
@@ -186,7 +193,7 @@ if __name__ == "__main__":
         last_n_sweep_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'a')
 
         phi_field = config.field(config, K_operator, K_operator_inverse, \
-                                 K_matrix, local_workdir)
+                                 K_matrix, local_workdir, K_operator_half, K_operator_half_inverse)
         phi_field.copy_to_GPU()
         with open(os.path.join(local_workdir, 'config.py'), 'w') as target, open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
             target.write(source.read())
