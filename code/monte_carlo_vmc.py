@@ -1,7 +1,12 @@
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
 import numpy as np
 import time
 import sys
-import os
 from wavefunction_vmc import wavefunction_singlet
 import opt_parameters.pairings
 from joblib import Parallel, delayed
@@ -373,6 +378,9 @@ if __name__ == "__main__":
     elif config_vmc.twist_mesh == 'PBC':
         twists = [[1., 1.] for _ in range(config_vmc.n_chains)]
         twists_per_cpu = config_vmc.n_chains / n_cpus
+    elif config_vmc.twist_mesh == 'APBCy':
+        twists = [[1., -1.] for _ in range(config_vmc.n_chains)]
+        twists_per_cpu = config_vmc.n_chains / n_cpus
     else:    
         twists_per_cpu = config_vmc.n_chains // n_cpus
         assert twists_per_cpu * n_cpus == config_vmc.n_chains
@@ -469,7 +477,7 @@ if __name__ == "__main__":
             # step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
 
             mask = np.ones(len(step))
-            if n_step < 100:  # jastrows have not converged yet
+            if n_step < 10:  # jastrows have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
 
