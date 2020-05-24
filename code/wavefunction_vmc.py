@@ -158,13 +158,18 @@ class wavefunction_singlet():
         self.U_full = deepcopy(U).astype(np.complex128)
         self.E = E
 
-        if orbitals_in_use is not None:
-            overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
-            self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
-            print(self.lowest_energy_states)
-            print(overlap_matrix.max(axis = 0))
-        else:
-            self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
+        #if orbitals_in_use is not None:
+        #    overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
+        #    self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
+        #    print(self.lowest_energy_states)
+        #    print(overlap_matrix.max(axis = 0))
+        #else:
+        
+        if self.config.enforce_valley_orbitals:
+            plus_valley = np.einsum('ij,ij->j', self.U_full[:self.U_full.shape[0] // , ...], self.U_full[:self.U_full.shape[0] // , ...].conj())
+            print(plus_valley)
+
+        self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
 
         rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
         self.gap = -np.max(E[self.lowest_energy_states]) + np.min(E[rest_states])
