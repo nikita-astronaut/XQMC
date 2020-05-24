@@ -166,14 +166,29 @@ class wavefunction_singlet():
         #else:
         
         if self.config.enforce_valley_orbitals:
-            plus_valley = np.einsum('ij,ij->j', self.U_full[:self.U_full.shape[0] // , ...], self.U_full[:self.U_full.shape[0] // , ...].conj())
-            print(plus_valley)
+            plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj())
+            plus_valley = plus_valley > 0.99
+            assert np.sum(plus_valley) == self.config.total_dof // 2
+            assert np.sum(~plus_valley) == self.config.total_dof // 2
 
-        self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
+            # U_plus_valley = self.U_full[..., plus_valley]; U_minus_valley = self.U_full[..., ~plus_valley];
+            # E_plus_valley = self.E[plus_valley]; E_minus_valley = self.E[~plus_valley];
 
+            plus_valley_number = self.config.total_dof // 4 + self.config.valley_imbalance // 2
+            minus_valley_number = self.config.total_dof // 4 - self.config.valley_imbalance // 2
+
+            idxs_total = np.argsort(E)
+            idxs_plus = idxs_total[plus_valley][:plus_valley_number]
+            idxs_minus = idxs_total[~plus_valley][:minus_valley_number]
+
+            U = np.concatenate([self.U_full[..., idxs_plus], self.U_full[..., idxs_minus]], axis = 1)
+            self.lowest_energy_states = np.concatenate([idxs_plus, idxs_minus], axis = 0)
+        else:
+            self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
+            U = U[:, self.lowest_energy_states]  # select only occupied orbitals
+        
         rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
         self.gap = -np.max(E[self.lowest_energy_states]) + np.min(E[rest_states])
-        U = U[:, self.lowest_energy_states]  # select only occupied orbitals
         self.E_fermi = np.max(self.E[self.lowest_energy_states])
 
         self.occupied_levels = np.zeros(len(E), dtype=bool)
@@ -204,7 +219,7 @@ class wavefunction_singlet():
 
             n_holes_plus = n_holes // 2 - self.config.valley_imbalance // 2
             n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 2
-            print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
+            # print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
 
             particles_plus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2),
                                                         size = n_particles_plus, replace = False)

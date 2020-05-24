@@ -182,11 +182,18 @@ def xy_to_chiral(M, term_type, config, chiral = False):
         return M
     global U_xy_to_chiral
     if U_xy_to_chiral is None:
-        U_xy_to_chiral = np.kron(np.eye(M.shape[0] // 2), np.array([[1, 1], [1.0j, -1.0j]]) / np.sqrt(2))
+        U_xy_to_chiral = np.kron(np.eye(M.shape[0] // 2), np.array([[1, 1], [-1.0j, +1.0j]]) / np.sqrt(2))
     if term_type == 'bilinear' or term_type == 'K_matrix':
         M_chiral = U_xy_to_chiral.conj().T.dot(M).dot(U_xy_to_chiral)
     else:
         M_chiral = U_xy_to_chiral.T.dot(M).dot(U_xy_to_chiral)  # pairing
+
+    if term_type == 'pairing':
+        for i in range(M.shape[0]):
+            for j in range(M.shape[1]):
+                if M_chiral[i, j] != 0.0 and i % 2 != j % 2:
+                    print('ACHTUNG')
+    print('passed')
     if term_type == 'K_matrix':
         assert np.isclose(np.sum(np.abs(M_chiral[np.arange(0, \
             M_chiral.shape[0], 2), ...][..., np.arange(0, \
