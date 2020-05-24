@@ -187,6 +187,8 @@ def expand_tensor_product(config, sigma_l1l2, sigma_o1o2, delta_ij, spin_ij = np
     return Delta + 0.0j
 
 def combine_product_terms(config, pairing):
+    if len(pairing) == 1:
+        pairing = pairing[0]
     Delta = np.zeros((config.total_dof // 2, config.total_dof // 2)) * 1.0j
     if len(pairing) > 2:  # pairings
         for sigma_ll, sigma_oo, delta_ii, C in pairing[:-2]:
@@ -803,6 +805,7 @@ twoorb_hex_A2_NNN_singlet = None; twoorb_hex_A2_NNN_triplet = None;
 twoorb_hex_E_NNN_singlet = None; twoorb_hex_E_NNN_triplet = None; 
 
 twoorb_hex_all = None;
+twoorb_hex_all_dqmc = None;
 
 oneorb_hex_A1_N_singlet = None; oneorb_hex_A2_N_singlet = None; 
 oneorb_hex_A1_NN_singlet = None; oneorb_hex_A2_NN_triplet = None; 
@@ -834,7 +837,7 @@ def obtain_all_pairings(config):
 
     global oneorb_square_A1_N_singlet, oneorb_square_A1_NN_singlet, oneorb_square_A2_NN_singlet, oneorb_square_E_NN_triplet
 
-    global twoorb_hex_all, oneorb_hex_all, oneorb_square_all
+    global twoorb_hex_all, oneorb_hex_all, oneorb_square_all, twoorb_hex_all_dqmc
 
     C2y_symmetry_map = get_C2y_symmetry_map(config)
     if config.n_orbitals == 2 and config.n_sublattices == 2:
@@ -844,7 +847,15 @@ def obtain_all_pairings(config):
 
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
             twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
-            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet = construct_2orb_hex(config, NNN = False, real = True)
+            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet, \
+            twoorb_hex_A1_NNN_singlet, twoorb_hex_A1_NNN_triplet, twoorb_hex_A2_NNN_singlet, twoorb_hex_A2_NNN_triplet, \
+           twoorb_hex_E_NNN_singlet, twoorb_hex_E_NNN_triplet = construct_2orb_hex(config, NNN = True, real = True)
+
+        twoorb_hex_all_dqmc = twoorb_hex_A1_N_singlet + twoorb_hex_A1_N_triplet + twoorb_hex_A2_N_singlet + twoorb_hex_A2_N_triplet + twoorb_hex_E_N_singlet + \
+            twoorb_hex_A1_NN_singlet + twoorb_hex_A1_NN_triplet + twoorb_hex_A2_NN_singlet + twoorb_hex_A2_NN_triplet + \
+            twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet + \
+            twoorb_hex_A1_NNN_singlet + twoorb_hex_A1_NNN_triplet + twoorb_hex_A2_NNN_singlet + twoorb_hex_A2_NNN_triplet + \
+           twoorb_hex_E_NNN_singlet + twoorb_hex_E_NNN_triplet
 
         _, _, _, _, twoorb_hex_E_N_singlet_im, _, _, _, _, twoorb_hex_E_NN_singlet_im, twoorb_hex_E_NN_triplet_im = \
                                                                  construct_2orb_hex(config, NNN = False, real = False)
