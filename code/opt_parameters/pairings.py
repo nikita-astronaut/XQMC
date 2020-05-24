@@ -868,7 +868,7 @@ def obtain_all_pairings(config):
         pairings = []
         for irrep in twoorb_hex_all:
             for pairing in irrep
-                pairings.append(combine_product_terms(config, pairing))
+                pairings.append(combine_product_terms(config, [pairing]))
                 names.append(pairing[-1])
         np.save('all_hex_pairings.npy', np.array(pairings))
         np.save('all_hex_names.npy', np.array(names))
