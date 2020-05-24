@@ -21,6 +21,7 @@ class MC_parameters:
             for j in range(self.K_0.shape[1]):
                 if (i + j) % 2 == 1 and self.K_0[i, j] != 0.0:
                     print(i, j, self.K_0[i, j])
+                    assert not self.chiral_basis
                 #if (i + j) % 2 == 0 and self.K_0[i, j] != self.K_0[j, i]:
                 #    print(i, j, self.K_0[i, j], self.K_0[j, i])
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
@@ -31,11 +32,12 @@ class MC_parameters:
         ### interaction parameters ###
         self.epsilon = 0.3
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
-
+        self.U = 8.
 
         ### density VQMC parameters ###
         self.Ne = self.total_dof // 2 - 16
         self.valley_imbalance = 0
+        self.enforce_valley_orbitals = False
         # if PN_projection = True, the density is fixed at this number
         self.PN_projection = True  # if PN_projection = False, work in the Grand Canonial approach
         self.optimize_mu_BCS = True
@@ -61,6 +63,9 @@ class MC_parameters:
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
             self, self.chiral_basis) for g in self.pairings_list_unwrapped]
+        for name in self.pairings_list_names:
+            if '(S_1)' in name or '(S_2)' in name:
+                self.enforce_valley_orbitals = True
 
         self.name_group_dict = pairings.name_group_dict
         print(self.name_group_dict)
@@ -78,12 +83,16 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 2000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
+        self.MC_chain = 1000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = 5 * (self.total_dof // 2)
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
+<<<<<<< HEAD
         self.opt_parameters = [1e-4, 6e-2, 1.0005, 1e-3]
+=======
+        self.opt_parameters = [1e-4, 1e-2, 1.0005, 1e-3]
+>>>>>>> d2cbdf47c9c3b00401fd9f82f7aa14f3850aca36
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5
         self.generator_mode = True
@@ -96,7 +105,11 @@ class MC_parameters:
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
             np.random.uniform(-0.1, 0.1, size = self.layout[3]),  # gaps
+<<<<<<< HEAD
             np.random.uniform(0.4, 0.5, size = self.layout[4]),  # jastrows
+=======
+            np.random.uniform(0.0, 0.6, size = self.layout[4]),  # jastrows
+>>>>>>> d2cbdf47c9c3b00401fd9f82f7aa14f3850aca36
         ])
 
         self.all_names = np.concatenate([

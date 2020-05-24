@@ -875,8 +875,8 @@ def obtain_all_pairings(config):
                          [[irrep_re_1, irrep_re_2, irrep_im_1] for irrep_re_1, irrep_re_2, irrep_im_1 in \
                              zip(twoorb_hex_E_NN_triplet[0::2], twoorb_hex_E_NN_triplet[1::2], twoorb_hex_E_NN_triplet_im[0::2])]
 
-        for xi in [4, 5, 8, 9, -1, -3, -6, -7]:  # amendment for valley-charge conserving pairings
-            twoorb_hex_all[xi].append(twoorb_hex_all[0][0])
+        for xi in [4, 5, 8, 9, -1, -3, -6, -7]:  # for valley-charge conserving pairings we only need real parts (no interference)
+            del twoorb_hex_all[xi][-1]
 
         print('there are in total {:d} different irreps in the Koshino model'.format(len(twoorb_hex_all)))
         names = []
