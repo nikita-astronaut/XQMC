@@ -4,12 +4,13 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
 os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
 os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
 import numpy as np
 import time
 import sys
 from wavefunction_vmc import wavefunction_singlet
 import opt_parameters.pairings
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, parallel_backend
 import psutil
 from time import time
 import visualisation
@@ -19,7 +20,6 @@ from copy import deepcopy
 import os
 import pickle
 import config_vmc as cv_module
-
 
 def extract_MC_data(results, config_vmc, num_twists):
     gaps = [x[9] for x in results]
@@ -352,7 +352,7 @@ if __name__ == "__main__":
         
 
 
-    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
+    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904))]
     if config_vmc.tests:
         if tests.perform_all_tests(config_vmc):
             print('\033[92m All tests passed successfully \033[0m', flush = True)
@@ -449,9 +449,11 @@ if __name__ == "__main__":
             for r in results_batched:
                 results = results + r
         else:
-            results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
-                parameters, twists[i], final_states[i], orbitals_in_use[i]) for i in range(config_vmc.n_chains))
-        print('MC chain generation {:d} took {:f}'.format(n_step, time() - t))
+            print('experiments', flush=True)
+            with parallel_backend("loky", inner_max_num_threads=1):
+                results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+                    parameters, twists[i], final_states[i], orbitals_in_use[i]) for i in range(config_vmc.n_chains))
+        print('MC chain generation {:d} took {:f}'.format(n_step, time() - t), flush = True)
         t = time() 
 
         ### print-out current energy levels ###
@@ -465,7 +467,6 @@ if __name__ == "__main__":
         energies_merged = np.concatenate(energies) 
         
         n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
-        print(occupied_numbers[0])
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps)
@@ -482,8 +483,10 @@ if __name__ == "__main__":
                 mask[-config_vmc.layout[4]:] = 1.
 
             parameters += config_vmc.opt_parameters[1] * step * mask  # lr better be ~0.01..0.1
-            if config_vmc.layout[3] == 1:  # only one pairing == working in the condensation energy regime
-                parameters[np.sum(config_vmc.layout[:3])] = 1e-4
+            if config_vmc.pairings_list_names[0] == '(S_0)x(S_0&S_x)x(δ)':  # FIXME:
+                parameters[np.sum(config_vmc.layout[:3])] = 1e-4 
+            # if config_vmc.pairings_list_names[-1] == '(S_0)x(S_0&S_x)x(δ)':
+            #     parameters[np.sum(config_vmc.layout[:4]) - 1] = 1e-4
             save_parameters(parameters, n_step)
         ### END SR STEP ###
 
