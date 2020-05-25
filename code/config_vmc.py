@@ -7,7 +7,7 @@ import wavefunction_vmc as wfv
 class MC_parameters:
     def __init__(self):
     	### geometry and general settings ###
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = 8  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
@@ -35,7 +35,7 @@ class MC_parameters:
         self.U = 8.
 
         ### density VQMC parameters ###
-        self.Ne = self.total_dof // 2 - 16
+        self.Ne = 124
         self.valley_imbalance = 0
         self.enforce_valley_orbitals = False
         # if PN_projection = True, the density is fixed at this number
@@ -45,7 +45,6 @@ class MC_parameters:
         if self.PN_projection:
             assert 0.0 == self.mu
         self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0], self.n_orbitals)
-        print(self.adjacency_transition_matrix)
 
         ### other parameters ###
         self.visualisation = False; 
@@ -58,7 +57,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[-2]
+        self.pairings_list = pairings.twoorb_hex_all[4]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -100,8 +99,8 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(-0.1, 0.1, size = self.layout[3]),  # gaps
-            np.random.uniform(0.0, 0.6, size = self.layout[4]),  # jastrows
+            np.random.uniform(-0.001, 0.001, size = self.layout[3]),  # gaps
+            np.random.uniform(0.0, 0.2, size = self.layout[4]),  # jastrows
         ])
 
         self.all_names = np.concatenate([
