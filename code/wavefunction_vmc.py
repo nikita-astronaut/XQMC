@@ -186,7 +186,7 @@ class wavefunction_singlet():
         else:
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
             U = U[:, self.lowest_energy_states]  # select only occupied orbitals
-        
+
         rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
         self.gap = -np.max(E[self.lowest_energy_states]) + np.min(E[rest_states])
         self.E_fermi = np.max(self.E[self.lowest_energy_states])
@@ -196,6 +196,7 @@ class wavefunction_singlet():
 
         if E[rest_states].min() - self.E_fermi < 1e-14:
             print('open shell configuration, consider different pairing or filling!', flush = True)
+            print(self.config.enforce_valley_orbitals, E[rest_states].min(), self.E_fermi)
         return U 
 
     def _construct_U_tilde_matrix(self):
@@ -203,7 +204,6 @@ class wavefunction_singlet():
         return U_tilde 
 
     def _construct_W_GF(self):
-        print(self.U_tilde_matrix.shape)
         U_tilde_inv = np.linalg.inv(self.U_tilde_matrix)
         return self.U_matrix.dot(U_tilde_inv)
 
