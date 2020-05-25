@@ -9,6 +9,7 @@ mu = float(mu)
 
 Nt = int(Nt)
 Nc = int(Nc)
+offset = int(offset)
 
 path_to_configs = sys.argv[2]
 path_to_sbatch = sys.argv[3]
