@@ -483,10 +483,6 @@ if __name__ == "__main__":
                 mask[-config_vmc.layout[4]:] = 1.
 
             parameters += config_vmc.opt_parameters[1] * step * mask  # lr better be ~0.01..0.1
-            if config_vmc.pairings_list_names[0] == '(S_0)x(S_0&S_x)x(δ)':  # FIXME:
-                parameters[np.sum(config_vmc.layout[:3])] = 1e-4 
-            # if config_vmc.pairings_list_names[-1] == '(S_0)x(S_0&S_x)x(δ)':
-            #     parameters[np.sum(config_vmc.layout[:4]) - 1] = 1e-4
             save_parameters(parameters, n_step)
         ### END SR STEP ###
 
