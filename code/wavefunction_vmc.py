@@ -17,6 +17,8 @@ class wavefunction_singlet():
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]  
+        self.reg_gap_term = models.apply_TBC(self.config, deepcopy(self.config.reg_gap_term), inverse = False) * \
+                                             self.config.reg_gap_val
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
         self.var_f = self.var_f if not config.PN_projection else 0.
@@ -150,7 +152,7 @@ class wavefunction_singlet():
 
     def _construct_U_matrix(self, orbitals_in_use):
         T = construct_HMF(self.config, self.K_up, self.K_down, \
-                          self.pairings_list_unwrapped, self.var_params_gap, self.var_waves)
+                          self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term)
         assert np.allclose(T, T.conj().T)
         E, U = np.linalg.eigh(T)
 
@@ -213,7 +215,7 @@ class wavefunction_singlet():
         n_holes = self.config.total_dof // 4 + doping
 
 
-        if self.config.n_orbitals == 2:
+        if self.config.n_orbitals == 2 and self.config.valley_projection:
             n_particles_plus = n_particles // 2 + self.config.valley_imbalance // 2
             n_particles_minus = n_particles // 2 - self.config.valley_imbalance // 2
 
@@ -467,13 +469,17 @@ def jit_get_O_jastrow(Jastrow_A, occupancy):
     return derivatives
 
 def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
-                  var_waves):
+                  var_waves, reg_gap_term):
     Delta = pairings.get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params_gap)
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
 
     ## various local pairing terms ##
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+
+    ## regularisation ##
+    T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term
+    T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T
 
     for wave, coeff in zip(config.waves_list, var_waves):
         T += waves.waves_particle_hole(config, wave[0]) * coeff
