@@ -19,7 +19,7 @@ class MC_parameters:
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
         for i in range(self.K_0.shape[0]):
             for j in range(self.K_0.shape[1]):
-                if (i + j) % 2 == 1 and self.K_0[i, j] != 0.0:
+                if (i + j) % 2 == 1 and np.abs(self.K_0[i, j]) > 1e-9:
                     print(i, j, self.K_0[i, j])
                     assert not self.chiral_basis
                 #if (i + j) % 2 == 0 and self.K_0[i, j] != self.K_0[j, i]:
@@ -50,18 +50,14 @@ class MC_parameters:
         self.visualisation = False; 
         self.tests = True
         self.n_cpus = 4  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/1/'
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/4/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-<<<<<<< HEAD
-        self.pairings_list = pairings.twoorb_hex_all[4]
-=======
         self.pairings_list = pairings.twoorb_hex_all[0]
->>>>>>> 767c8918a71464bc4b802aee509899b2ea9305bf
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -86,12 +82,12 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 1000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
+        self.MC_chain = 2000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = 5 * (self.total_dof // 2)
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-4, 6e-2, 1.0005, 1e-3]
+        self.opt_parameters = [1e-4, 3e-2, 1.0005, 1e-3]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5
         self.generator_mode = True
