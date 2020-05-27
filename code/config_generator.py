@@ -54,7 +54,7 @@ class simulation_parameters:
 
         ### pairings parameters setting (only for measurements) ###
         pairings.obtain_all_pairings(self)
-        self.pairings_list = pairings.twoorb_hex_all
+        self.pairings_list = pairings.twoorb_hex_all_dqmc
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.max_square_pairing_distance = 1.  # on-site + NN case on hex lattice

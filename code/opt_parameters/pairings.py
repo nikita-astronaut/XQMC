@@ -852,9 +852,9 @@ def obtain_all_pairings(config):
 
         twoorb_hex_all_dqmc = twoorb_hex_A1_N_singlet + twoorb_hex_A1_N_triplet + twoorb_hex_A2_N_singlet + twoorb_hex_A2_N_triplet + twoorb_hex_E_N_singlet + \
             twoorb_hex_A1_NN_singlet + twoorb_hex_A1_NN_triplet + twoorb_hex_A2_NN_singlet + twoorb_hex_A2_NN_triplet + \
-            twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet + \
-            twoorb_hex_A1_NNN_singlet + twoorb_hex_A1_NNN_triplet + twoorb_hex_A2_NNN_singlet + twoorb_hex_A2_NNN_triplet + \
-           twoorb_hex_E_NNN_singlet + twoorb_hex_E_NNN_triplet
+            twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet# + \
+           # twoorb_hex_A1_NNN_singlet + twoorb_hex_A1_NNN_triplet + twoorb_hex_A2_NNN_singlet + twoorb_hex_A2_NNN_triplet + \
+           #twoorb_hex_E_NNN_singlet + twoorb_hex_E_NNN_triplet
 
         _, _, _, _, twoorb_hex_E_N_singlet_im, _, _, _, _, twoorb_hex_E_NN_singlet_im, twoorb_hex_E_NN_triplet_im = \
                                                                  construct_2orb_hex(config, NNN = False, real = False)

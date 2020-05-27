@@ -19,7 +19,7 @@ class MC_parameters:
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
         for i in range(self.K_0.shape[0]):
             for j in range(self.K_0.shape[1]):
-                if (i + j) % 2 == 1 and self.K_0[i, j] != 0.0:
+                if (i + j) % 2 == 1 and np.abs(self.K_0[i, j]) > 1e-9:
                     print(i, j, self.K_0[i, j])
                     assert not self.chiral_basis
                 #if (i + j) % 2 == 0 and self.K_0[i, j] != self.K_0[j, i]:
@@ -90,7 +90,7 @@ class MC_parameters:
         self.correlation = self.total_dof // 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
         self.opt_parameters = [1e-4, 6e-2, 1.0005]
-        # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate | s-wave regularisation
+        # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5
         self.generator_mode = True
 
