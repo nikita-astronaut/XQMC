@@ -4,22 +4,16 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-dt_in_inv_t1 = 1. / 40
-U_in_t1 = np.array([2.20])
-V_in_t1 = np.array([2.20])
+dt_in_inv_t1 = 1. / 20
+U_in_t1 = np.array([3.30])
+V_in_t1 = np.array([3.30])
 main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self):
         self.gpu = False
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([40])
-        self.BC_twist = False; self.twist = (1.0, 1.0)
-        self.model = models.model_hex_2orb_Koshino
-        self.n_orbitals = 2; self.n_sublattices = 2
-        self.field = auxiliary_field.AuxiliaryFieldInterorbitalAccurate
-        self.n_copy = 0
-
+        self.Ls = 10  # spatial size, the lattice will be of size Ls x Ls
+        self.Nt = np.array([106])
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
         self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.V = V_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
@@ -42,19 +36,17 @@ class simulation_parameters:
         self.n_print_frequency = 300  # write to log every n_print_frequency spin flips
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        
         self.s_refresh = 5
-        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/-0-08-3-3-40/'
-        self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-3-3-40/'
-        self.thermalization = 3000  # after how many sweeps start computing observables
-        
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc/-0-08-2-9-20-10x10/'
+        self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_heavy/-0-08-2-9-20-10x10/'
+        self.thermalization = 1000  # after how many sweeps start computing observables
         self.tests = False
         self.adj_list = models.get_adjacency_list(self)[0]
         self.n_copy = 1
 
         ### pairings parameters setting (only for measurements) ###
         pairings.obtain_all_pairings(self)
-        self.pairings_list = pairings.twoorb_hex_all
+        self.pairings_list = pairings.twoorb_hex_all_dqmc
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.max_square_pairing_distance = 1.  # on-site + NN case on hex lattice
