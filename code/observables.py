@@ -96,15 +96,21 @@ class Observables:
         self.sign_history.append(sign)
 
     def load_presaved_GF_data(self):
-        ### load pveroously stored GF data if exists ###
+        ### load previously stored GF data if exists ###
+        loaded_presaved = False
         if self.config.start_type == 'presaved' and os.path.isfile(self.G_up_sum_filename):
-            self.GF_up_sum = np.load(self.G_up_sum_filename)
-            self.GF_down_sum = np.load(self.G_down_sum_filename)
-            self.C_ijkl = np.load(self.C_ijkl_filename)
-            self.PHI_ijkl = np.load(self.PHI_ijkl_filename)
-            self.num_chi_samples = np.load(self.num_samples_filename)[0]
-            self.total_sign = np.load(self.sign_filename)[0]
-        else:
+            try:
+                self.GF_up_sum = np.load(self.G_up_sum_filename)
+                self.GF_down_sum = np.load(self.G_down_sum_filename)
+                self.C_ijkl = np.load(self.C_ijkl_filename)
+                self.PHI_ijkl = np.load(self.PHI_ijkl_filename)
+                self.num_chi_samples = np.load(self.num_samples_filename)[0]
+                self.total_sign = np.load(self.sign_filename)[0]
+                loaded_presaved = True
+            except Exception as e:
+                print('Could not loaded presaved Greens functions with exception {:s}'.format(str(e)))
+
+        if not loaded_presaved:
             self.GF_up_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
             self.GF_down_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
             self.num_chi_samples = 0

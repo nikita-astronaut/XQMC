@@ -562,10 +562,11 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
             self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
                                                           size = (self.config.Nt, self.config.total_dof // 2 // 2))  # 4-valued F.F. Assaad field
         else:
-            if os.path.isfile(self.conf_path):
+            try:
                 self.configuration = self._load_configuration()
                 print('Starting from a presaved field configuration', flush=True)
-            else:
+            except Exception as e:
+                print('Failed to load previous field configuration with error {:s}'.format(str(e)), flush=True)
                 self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
                 self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
                                                               size = (self.config.Nt, self.config.total_dof // 2 // 2))

@@ -4,7 +4,7 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-dt_in_inv_t1 = 1. / 40
+dt_in_inv_t1 = 1. / 20
 U_in_t1 = np.array([2.20])
 V_in_t1 = np.array([2.20])
 main_hopping = 1.0
@@ -12,7 +12,7 @@ main_hopping = 1.0
 class simulation_parameters:
     def __init__(self):
         self.gpu = False
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = 8  # spatial size, the lattice will be of size Ls x Ls
         self.Nt = np.array([40])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
@@ -35,14 +35,14 @@ class simulation_parameters:
         self.n_sweeps = 50000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 200  # every n-th configuration will be stored during generation
         self.save_path = './configurations/'  # where the configurations will be stored | they will have the name save_path/conf_genN.npy, where N is the generated number
-        self.n_print_frequency = 300  # write to log every n_print_frequency spin flips
+        self.n_print_frequency = 600  # write to log every n_print_frequency spin flips
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         
         self.s_refresh = 5
-        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/-0-08-3-3-40/'
-        self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-3-3-40/'
-        self.thermalization = 3000  # after how many sweeps start computing observables
+        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/-0-08-3-1-20-8x8/'
+        self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-3-1-20-8x8/'
+        self.thermalization = 1000  # after how many sweeps start computing observables
         
         self.tests = False
         self.adj_list = models.get_adjacency_list(self)[0]
