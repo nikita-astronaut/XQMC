@@ -69,6 +69,8 @@ class Observables:
         self.load_presaved_GF_data()
         self.refresh_heavy_logs()
         self.init_heavy_logs_files()
+
+        self.n_saved_times = 0
         return
 
     def init_light_log_file(self):
@@ -97,14 +99,34 @@ class Observables:
 
     def load_presaved_GF_data(self):
         ### load pveroously stored GF data if exists ###
+        loaded = False
+
+        # the data is stored in two copies to avoid the bug with file corruption
+        # upon restart we are happy to load any copy
         if self.config.start_type == 'presaved' and os.path.isfile(self.G_up_sum_filename):
-            self.GF_up_sum = np.load(self.G_up_sum_filename)
-            self.GF_down_sum = np.load(self.G_down_sum_filename)
-            self.C_ijkl = np.load(self.C_ijkl_filename)
-            self.PHI_ijkl = np.load(self.PHI_ijkl_filename)
-            self.num_chi_samples = np.load(self.num_samples_filename)[0]
-            self.total_sign = np.load(self.sign_filename)[0]
-        else:
+            try:
+                self.GF_up_sum = np.load(self.G_up_sum_filename)
+                self.GF_down_sum = np.load(self.G_down_sum_filename)
+                self.C_ijkl = np.load(self.C_ijkl_filename)
+                self.PHI_ijkl = np.load(self.PHI_ijkl_filename)
+                self.num_chi_samples = np.load(self.num_samples_filename)[0]
+                self.total_sign = np.load(self.sign_filename)[0]
+                loaded = True
+            except Exception:
+                print('Failed to load from default location: will try to load from dump')
+
+            try:
+                self.GF_up_sum = np.load(self.G_up_sum_filename + '_dump')
+                self.GF_down_sum = np.load(self.G_down_sum_filename + '_dump')
+                self.C_ijkl = np.load(self.C_ijkl_filename + '_dump')
+                self.PHI_ijkl = np.load(self.PHI_ijkl_filename + '_dump')
+                self.num_chi_samples = np.load(self.num_samples_filename + '_dump')[0]
+                self.total_sign = np.load(self.sign_filename + '_dump')[0]
+                loaded = True
+            except Exception:
+                print('Failed to load from dump location: will start from scratch')
+
+        if not loaded:
             self.GF_up_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
             self.GF_down_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
             self.num_chi_samples = 0
@@ -115,12 +137,16 @@ class Observables:
 
     def save_GF_data(self):
         ### save GF data ###
-        np.save(self.G_up_sum_filename, self.GF_up_sum)
-        np.save(self.G_down_sum_filename, self.GF_down_sum)
-        np.save(self.C_ijkl_filename, self.C_ijkl)
-        np.save(self.PHI_ijkl_filename, self.PHI_ijkl)
-        np.save(self.num_samples_filename, np.array([self.num_chi_samples]))
-        np.save(self.sign_filename, np.array([self.total_sign]))
+        addstring = '_dump' if self.n_saved_times % 2 == 0 else ''
+
+        np.save(self.G_up_sum_filename + addstring, self.GF_up_sum)
+        np.save(self.G_down_sum_filename + addstring, self.GF_down_sum)
+        np.save(self.C_ijkl_filename + addstring, self.C_ijkl)
+        np.save(self.PHI_ijkl_filename + addstring, self.PHI_ijkl)
+        np.save(self.num_samples_filename + addstring, np.array([self.num_chi_samples]))
+        np.save(self.sign_filename + addstring, np.array([self.total_sign]))
+
+        self.n_saved_times += 1
         return
 
     def refresh_heavy_logs(self):
