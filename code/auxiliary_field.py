@@ -19,7 +19,7 @@ class AuxiliaryFieldIntraorbital:
 
         self.config = config
         self.adj_list = config.adj_list
-        self.conf_path = os.path.join(local_workdir, 'last_conf.npy')
+        self.conf_path = os.path.join(local_workdir, 'last_conf')
         self._get_initial_field_configuration()
 
         self.K = K
@@ -45,6 +45,8 @@ class AuxiliaryFieldIntraorbital:
         self.sign_det_up = 0
         self.log_det_down = 0
         self.sign_det_down = 0
+
+        self.n_times_saved = 0
 
         self.refresh_checkpoints = [0]
         t = self.config.Nt % self.config.s_refresh
@@ -188,9 +190,6 @@ class AuxiliaryFieldIntraorbital:
             M = self.B_l(spin, time_slice, inverse = False).dot(M)
         return self.SVD(M)
 
-    def _load_configuration(self):
-        return np.load(self.conf_path)
-
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
             self.configuration = self.la.asarray(np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2)) * 2. - 1.0)
@@ -207,7 +206,9 @@ class AuxiliaryFieldIntraorbital:
         return
 
     def save_configuration(self):
-        return np.save(self.conf_path, self.configuration)
+        addstring = '_dump' if self.n_times_saved % 2 == 1 else ''
+        self.n_times_saved += 1
+        return np.save(self.conf_path + addstring, self.configuration)
 
     def B_l(self, spin, l, inverse = False):
         if not inverse:
@@ -407,10 +408,23 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         elif self.config.start_type == 'hot':
             self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
         else:
+            loaded = False
             if os.path.isfile(self.conf_path):
-                self.configuration = self._load_configuration()
-                print('Starting from a presaved field configuration', flush=True)
-            else:
+                try:
+                    self.configuration = np.load(self.conf_path)
+                    print('Starting from a presaved field configuration', flush=True)
+                    loaded = True
+                except Exception:
+                    print('Failed during loading of configuration from default location: try from dump')
+
+                    try:
+                        self.configuration = np.load(self.conf_path + '_dump')
+                        print('Starting from a presaved field configuration in dump', flush=True)
+                        loaded = True
+                    except Exception:
+                        print('Failed during loading of configuration from dump location: initialize from scratch')
+
+            if not loaded:
                 self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
 
         NtVolVol_shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2)
@@ -562,10 +576,23 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
             self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
                                                           size = (self.config.Nt, self.config.total_dof // 2 // 2))  # 4-valued F.F. Assaad field
         else:
-            if os.path.isfile(self.conf_path):
-                self.configuration = self._load_configuration()
-                print('Starting from a presaved field configuration', flush=True)
-            else:
+            loaded = False
+            if os.path.isfile(self.conf_path + '.npy'):
+                try:
+                    self.configuration = np.load(self.conf_path + '.npy')
+                    print('Starting from a presaved field configuration', flush=True)
+                    loaded = True
+                except Exception:
+                    print('Failed during loading of configuration from default location: try from dump')
+
+                    try:
+                        self.configuration = np.load(self.conf_path + '_dump.npy')
+                        print('Starting from a presaved field configuration in dump', flush=True)
+                        loaded = True
+                    except Exception:
+                        print('Failed during loading of configuration from dump location: initialize from scratch')
+            if not loaded:
+                print('Random initial configuration')
                 self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 3)) * 2. - 1.0
                 self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
                                                               size = (self.config.Nt, self.config.total_dof // 2 // 2))

@@ -24,13 +24,13 @@ class Observables:
         self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), open_mode)
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
 
-        self.C_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl.npy')
-        self.PHI_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl.npy')
-        self.G_up_sum_filename = os.path.join(self.local_workdir_heavy, 'G_up_sum.npy')
-        self.G_down_sum_filename = os.path.join(self.local_workdir_heavy, 'G_down_sum.npy')
+        self.C_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl')
+        self.PHI_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl')
+        self.G_up_sum_filename = os.path.join(self.local_workdir_heavy, 'G_up_sum')
+        self.G_down_sum_filename = os.path.join(self.local_workdir_heavy, 'G_down_sum')
 
-        self.sign_filename = os.path.join(self.local_workdir, 'sign.npy')
-        self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples.npy')
+        self.sign_filename = os.path.join(self.local_workdir, 'sign')
+        self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples')
 
 
         self.refresh_light_logs()
@@ -69,6 +69,8 @@ class Observables:
         self.load_presaved_GF_data()
         self.refresh_heavy_logs()
         self.init_heavy_logs_files()
+
+        self.n_saved_times = 0
         return
 
     def init_light_log_file(self):
@@ -97,14 +99,39 @@ class Observables:
 
     def load_presaved_GF_data(self):
         ### load pveroously stored GF data if exists ###
-        if self.config.start_type == 'presaved' and os.path.isfile(self.G_up_sum_filename):
-            self.GF_up_sum = np.load(self.G_up_sum_filename)
-            self.GF_down_sum = np.load(self.G_down_sum_filename)
-            self.C_ijkl = np.load(self.C_ijkl_filename)
-            self.PHI_ijkl = np.load(self.PHI_ijkl_filename)
-            self.num_chi_samples = np.load(self.num_samples_filename)[0]
-            self.total_sign = np.load(self.sign_filename)[0]
-        else:
+        loaded = False
+
+        # the data is stored in two copies to avoid the bug with file corruption
+        # upon restart we are happy to load any copy
+        if self.config.start_type == 'presaved' and os.path.isfile(self.G_up_sum_filename + '.npy'):
+            try:
+                self.GF_up_sum = np.load(self.G_up_sum_filename + '.npy')
+                self.GF_down_sum = np.load(self.G_down_sum_filename + '.npy')
+                self.C_ijkl = np.load(self.C_ijkl_filename + '.npy')
+                self.PHI_ijkl = np.load(self.PHI_ijkl_filename + '.npy')
+                self.num_chi_samples = np.load(self.num_samples_filename + '.npy')[0]
+                self.total_sign = np.load(self.sign_filename + '.npy')[0]
+
+                print('Successfully loaded saved GFs files from default location')
+                loaded = True
+            except Exception:
+                print('Failed to load from default location: will try to load from dump')
+
+                try:
+                    self.GF_up_sum = np.load(self.G_up_sum_filename + '_dump.npy')
+                    self.GF_down_sum = np.load(self.G_down_sum_filename + '_dump.npy')
+                    self.C_ijkl = np.load(self.C_ijkl_filename + '_dump.npy')
+                    self.PHI_ijkl = np.load(self.PHI_ijkl_filename + '_dump.npy')
+                    self.num_chi_samples = np.load(self.num_samples_filename + '_dump.npy')[0]
+                    self.total_sign = np.load(self.sign_filename + '_dump.npy')[0]
+
+                    print('Successfully loaded saved GFs files from dump location')
+                    loaded = True
+                except Exception:
+                    print('Failed to load from dump location: will start from scratch')
+
+        if not loaded:
+            print('Initialized GFs buffer from scratch')
             self.GF_up_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
             self.GF_down_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
             self.num_chi_samples = 0
@@ -115,19 +142,23 @@ class Observables:
 
     def save_GF_data(self):
         ### save GF data ###
-        np.save(self.G_up_sum_filename, self.GF_up_sum)
-        np.save(self.G_down_sum_filename, self.GF_down_sum)
-        np.save(self.C_ijkl_filename, self.C_ijkl)
-        np.save(self.PHI_ijkl_filename, self.PHI_ijkl)
-        np.save(self.num_samples_filename, np.array([self.num_chi_samples]))
-        np.save(self.sign_filename, np.array([self.total_sign]))
+        addstring = '_dump.npy' if self.n_saved_times % 2 == 0 else '.npy'
+
+        np.save(self.G_up_sum_filename + addstring, self.GF_up_sum)
+        np.save(self.G_down_sum_filename + addstring, self.GF_down_sum)
+        np.save(self.C_ijkl_filename + addstring, self.C_ijkl)
+        np.save(self.PHI_ijkl_filename + addstring, self.PHI_ijkl)
+        np.save(self.num_samples_filename + addstring, np.array([self.num_chi_samples]))
+        np.save(self.sign_filename + addstring, np.array([self.total_sign]))
+
+        self.n_saved_times += 1
         return
 
     def refresh_heavy_logs(self):
         self.gap_file.flush()
 
         ### buffer for efficient GF-measurements ###
-        self.cur_buffer_size = 0; self.max_buffer_size = 30
+        self.cur_buffer_size = 0; self.max_buffer_size = 20
         self.GF_up_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
         self.GF_down_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
 
