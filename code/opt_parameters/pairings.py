@@ -344,10 +344,11 @@ def construct_2orb_hex(config, NNN=True, real = True):
     [check_irrep_properties(config, E_NN_singlet[2 * i:2 * i + 2]) for i in range(len(E_NN_singlet) // 2)]
     [check_irrep_properties(config, E_NN_singlet[2 * i:2 * i + 2], chiral = True) for i in range(len(E_NN_singlet) // 2)]
 
-
     E_NN_triplet = [
         [(Xpauli, iYpauli, v2, 1.0), factor, addstring + '(S_x)x(iS_y)x(v_2)'], [(Xpauli, iYpauli, v3, 1.0), factor, addstring + '(S_x)x(iS_y)x(v_3)'],
         [(iYpauli, sigma_1, v3, 1.0), factor, addstring + '(iS_y)x(S_1)x(v_3)'], [(iYpauli, sigma_2, v2, 1.0), factor, addstring + '(iS_y)x(S_2)x(v_2)'],
+        [(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_2)'], [(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_3)'],
+        [(iYpauli, sigma_1, v1, 1.0), factor, addstring + '(iS_y)x(S_1)x(v_1)'], [(iYpauli, sigma_2, v1, 1.0), factor, addstring + '(iS_y)x(S_2)x(v_1)'],
     ]
     print('Testing the E_NN_triplet properties')
     [check_irrep_properties(config, E_NN_triplet[2 * i:2 * i + 2]) for i in range(len(E_NN_triplet) // 2)]
@@ -393,8 +394,6 @@ def construct_2orb_hex(config, NNN=True, real = True):
     E_NNN_singlet = [
         [(Ipauli, sigma_1, u1, 1.0), factor, addstring + '(S_0)x(S_1)x(u_1)'], [(Ipauli, sigma_2, u1, 1.0), factor, addstring + '(S_0)x(S_2)x(u_1)'],
         [(Ipauli, Ipauli, u2, 1.0), factor, addstring + '(S_0)x(S_0&S_x)x(u_2)'], [(Ipauli, Ipauli, u3, 1.0), factor, addstring + '(S_0)x(S_0&S_x)x(u_3)'],
-        [(iYpauli, sigma_1, v1, 1.0), factor, addstring + '(iS_y)x(S_1)x(v_1)'], [(iYpauli, sigma_2, v1, 1.0), factor, addstring + '(iS_y)x(S_2)x(v_1)'],
-        [(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_2)'], [(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_3)'],
         [(Ipauli, sigma_1, u3, 1.0), factor, addstring + '(S_0)x(S_1)x(u_3)'], [(Ipauli, sigma_2, u2, 1.0), factor, addstring + '(S_0)x(S_2)x(u_2)'],
         [(Zpauli, iYpauli, u2, 1.0), factor, addstring + '(S_z)x(iS_y&S_y)x(u_2)'], [(Zpauli, iYpauli, u3, 1.0), factor, addstring + '(S_z)x(iS_y&S_y)x(u_3)'],
     ]
