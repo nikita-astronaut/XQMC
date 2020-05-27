@@ -5,15 +5,16 @@ from opt_parameters import pairings, waves
 import pickle
 
 dt_in_inv_t1 = 1. / 20
-U_in_t1 = np.array([2.20])
-V_in_t1 = np.array([2.20])
+U_in_t1 = np.array([3.30])
+V_in_t1 = np.array([3.30])
 main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self):
         self.gpu = False
-        self.Ls = 8  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([40])
+        
+        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Nt = np.array([70])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -38,7 +39,6 @@ class simulation_parameters:
         self.n_print_frequency = 600  # write to log every n_print_frequency spin flips
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        
         self.s_refresh = 5
         self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/-0-08-3-1-20-8x8/'
         self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-3-1-20-8x8/'
@@ -50,10 +50,10 @@ class simulation_parameters:
 
         ### pairings parameters setting (only for measurements) ###
         pairings.obtain_all_pairings(self)
-        self.pairings_list = pairings.twoorb_hex_all
+        self.pairings_list = pairings.twoorb_hex_all_dqmc
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
-        self.max_square_pairing_distance = 1.  # on-site + NN case on hex lattice
+        self.max_square_pairing_distance = 1. / 3.  # on-site + NN case on hex lattice
         self.name_group_dict = {'(S_0)x(S_0&S_x)x(δ)': 3, '(S_z)x(iS_y&S_y)x(δ)': 2, '(S_x)x(S_0&S_x)x(v_1)': 3, '(iS_y)x(iS_y&S_y)x(v_1)': 3, '[(S_x)x(S_1)x(v_2)+(S_x)x(S_2)x(v_3)]': 3, '(S_0)x(S_0&S_x)x(u_1)': 3, '[(S_0)x(S_1)x(u_2)+(S_0)x(S_2)x(u_3)]': 3, '[(S_z)x(S_1)x(u_2)-(S_z)x(S_2)x(u_3)]': 3, '[(iS_y)x(S_1)x(v_2)-(iS_y)x(S_2)x(v_3)]': 2, '(S_z)x(iS_y&S_y)x(u_1)': 2, '(S_z)x(S_0&S_x)x(δ)': 1, '(S_0)x(iS_y&S_y)x(δ)': 0, '[(S_x)x(S_1)x(v_2)-(S_x)x(S_2)x(v_3)]': 1, '[(S_0)x(S_1)x(u_2)-(S_0)x(S_2)x(u_3)]': 1, '(S_z)x(S_0&S_x)x(u_1)': 1, '[(S_z)x(S_1)x(u_2)+(S_z)x(S_2)x(u_3)]': 1, '(S_x)x(iS_y&S_y)x(v_1)': 0, '(iS_y)x(S_0&S_x)x(v_1)': 0, '[(iS_y)x(S_1)x(v_2)+(iS_y)x(S_2)x(v_3)]': 0, '(S_0)x(iS_y&S_y)x(u_1)': 0, '(S_0)x(S_1)x(δ)': 11, '(S_0)x(S_2)x(δ)': 7, '(S_z)x(S_1)x(δ)': 9, '(S_z)x(S_2)x(δ)': 5, '(S_x)x(S_1)x(v_1)': 11, '(S_x)x(S_2)x(v_1)': 7, '(S_x)x(S_0&S_x)x(v_2)': 7, '(S_x)x(S_0&S_x)x(v_3)': 11, '(iS_y)x(iS_y&S_y)x(v_2)': 7, '(iS_y)x(iS_y&S_y)x(v_3)': 11, '(S_x)x(S_1)x(v_3)': 7, '(S_x)x(S_2)x(v_2)': 11, '(S_0)x(S_1)x(u_1)': 11, '(S_0)x(S_2)x(u_1)': 7, '(S_0)x(S_0&S_x)x(u_2)': 7, '(S_0)x(S_0&S_x)x(u_3)': 11, '(iS_y)x(S_1)x(v_1)': 8, '(iS_y)x(S_2)x(v_1)': 4, '(iS_y)x(S_0&S_x)x(v_2)': 4, '(iS_y)x(S_0&S_x)x(v_3)': 8, '(S_0)x(S_1)x(u_3)': 7, '(S_0)x(S_2)x(u_2)': 11, '(S_z)x(iS_y&S_y)x(u_2)': 6, '(S_z)x(iS_y&S_y)x(u_3)': 10, '(S_x)x(iS_y)x(v_2)': 4, '(S_x)x(iS_y)x(v_3)': 8, '(iS_y)x(S_1)x(v_3)': 4, '(iS_y)x(S_2)x(v_2)': 8, '(S_z)x(S_1)x(u_1)': 9, '(S_z)x(S_2)x(u_1)': 5, '(S_z)x(S_0&S_x)x(u_2)': 5, '(S_z)x(S_0&S_x)x(u_3)': 9, '(S_0)x(iS_y)x(u_2)': 4, '(S_0)x(iS_y)x(u_3)': 8, '(S_z)x(S_1)x(u_3)': 5, '(S_z)x(S_2)x(u_2)': 9}
 
         ### SDW/CDW parameters setting ###

@@ -31,7 +31,6 @@ def get_jastrow(config, orb_degenerate = False, max_distance = np.inf):
             continue
         jastrow_list.append([adj[0], 'jastrow-{:d}-{:d}-{:.2f}'.format(*adj[1:])])
 
-    del jastrow_list[-1]
     for idx, adj in enumerate(adjacency_list):
         if adj[-1] > max_distance:
             break

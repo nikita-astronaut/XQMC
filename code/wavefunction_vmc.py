@@ -17,6 +17,8 @@ class wavefunction_singlet():
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]  
+        self.reg_gap_term = models.apply_TBC(self.config, deepcopy(self.config.reg_gap_term), inverse = False) * \
+                                             self.config.reg_gap_val
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
         self.var_f = self.var_f if not config.PN_projection else 0.
@@ -49,14 +51,13 @@ class wavefunction_singlet():
             else:
                 self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration()
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
-            break
-            #if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
-            #    break
-            #else:
-            #    print('the rank of this initialization is {:d}'.format(np.linalg.matrix_rank(self.U_tilde_matrix)))
-            #    print(np.linalg.det(self.U_tilde_matrix))
-            #    self.with_previous_state = False  # if previous state failed, reinitialize from scratch
-            #    print('degenerate: will retry the wave function initialisation', flush = True)
+            if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
+                break
+            else:
+                print('the rank of this initialization is {:d}'.format(np.linalg.matrix_rank(self.U_tilde_matrix)))
+                print('the determinant is', np.linalg.det(self.U_tilde_matrix))
+                self.with_previous_state = False  # if previous state failed, reinitialize from scratch
+                print('degenerate: will retry the wave function initialisation', flush = True)
 
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
@@ -151,7 +152,7 @@ class wavefunction_singlet():
 
     def _construct_U_matrix(self, orbitals_in_use):
         T = construct_HMF(self.config, self.K_up, self.K_down, \
-                          self.pairings_list_unwrapped, self.var_params_gap, self.var_waves)
+                          self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term)
         assert np.allclose(T, T.conj().T)
         E, U = np.linalg.eigh(T)
 
@@ -159,17 +160,37 @@ class wavefunction_singlet():
         self.U_full = deepcopy(U).astype(np.complex128)
         self.E = E
 
-        if orbitals_in_use is not None:
-            overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
-            self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
-            print(self.lowest_energy_states)
-            print(overlap_matrix.max(axis = 0))
+        #if orbitals_in_use is not None:
+        #    overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
+        #    self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
+        #    print(self.lowest_energy_states)
+        #    print(overlap_matrix.max(axis = 0))
+        #else:
+        
+        if self.config.enforce_valley_orbitals:
+            plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj())
+            plus_valley = plus_valley > 0.99
+            assert np.sum(plus_valley) == self.config.total_dof // 2
+            assert np.sum(~plus_valley) == self.config.total_dof // 2
+
+            # U_plus_valley = self.U_full[..., plus_valley]; U_minus_valley = self.U_full[..., ~plus_valley];
+            # E_plus_valley = self.E[plus_valley]; E_minus_valley = self.E[~plus_valley];
+
+            plus_valley_number = self.config.total_dof // 4 + self.config.valley_imbalance // 2
+            minus_valley_number = self.config.total_dof // 4 - self.config.valley_imbalance // 2
+
+            idxs_total = np.argsort(E)
+            idxs_plus = idxs_total[plus_valley][:plus_valley_number]
+            idxs_minus = idxs_total[~plus_valley][:minus_valley_number]
+
+            U = np.concatenate([self.U_full[..., idxs_plus], self.U_full[..., idxs_minus]], axis = 1)
+            self.lowest_energy_states = np.concatenate([idxs_plus, idxs_minus], axis = 0)
         else:
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
+            U = U[:, self.lowest_energy_states]  # select only occupied orbitals
 
         rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
         self.gap = -np.max(E[self.lowest_energy_states]) + np.min(E[rest_states])
-        U = U[:, self.lowest_energy_states]  # select only occupied orbitals
         self.E_fermi = np.max(self.E[self.lowest_energy_states])
 
         self.occupied_levels = np.zeros(len(E), dtype=bool)
@@ -177,6 +198,7 @@ class wavefunction_singlet():
 
         if E[rest_states].min() - self.E_fermi < 1e-14:
             print('open shell configuration, consider different pairing or filling!', flush = True)
+            print(self.config.enforce_valley_orbitals, E[rest_states].min(), self.E_fermi)
         return U 
 
     def _construct_U_tilde_matrix(self):
@@ -193,13 +215,13 @@ class wavefunction_singlet():
         n_holes = self.config.total_dof // 4 + doping
 
 
-        if self.config.n_orbitals == 2:
+        if self.config.n_orbitals == 2 and self.config.valley_projection:
             n_particles_plus = n_particles // 2 + self.config.valley_imbalance // 2
             n_particles_minus = n_particles // 2 - self.config.valley_imbalance // 2
 
             n_holes_plus = n_holes // 2 - self.config.valley_imbalance // 2
             n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 2
-            print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
+            # print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
 
             particles_plus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2),
                                                         size = n_particles_plus, replace = False)
@@ -447,13 +469,17 @@ def jit_get_O_jastrow(Jastrow_A, occupancy):
     return derivatives
 
 def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
-                  var_waves):
+                  var_waves, reg_gap_term):
     Delta = pairings.get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params_gap)
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
 
     ## various local pairing terms ##
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+
+    ## regularisation ##
+    T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term
+    T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T
 
     for wave, coeff in zip(config.waves_list, var_waves):
         T += waves.waves_particle_hole(config, wave[0]) * coeff

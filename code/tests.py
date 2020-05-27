@@ -267,8 +267,9 @@ def test_double_move_check(config):
     print('Testing double moves ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩')
     n_agreed = 0
     n_failed = 0
-    wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
-    while n_agreed < 1000:
+    # wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+    while n_agreed < 100:
+        wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         L = len(wf.state) // 2
         i, j, k, l = np.random.randint(0, 2 * L, size = 4)
         #if i == j or i == l or k == l or k == j:
@@ -354,9 +355,9 @@ def perform_all_tests(config):
     success = success and test_all_jastrow_factors_included_only_once(config)
     success = success and test_explicit_factors_check(config)
     success = success and test_double_move_commutation_check(config)
-    success = success and test_double_move_check(config)
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
     success = success and test_onsite_gf_is_density_check(config)
     success = success and test_numerical_derivative_check(config)
+    success = success and test_double_move_check(config)
     return success
