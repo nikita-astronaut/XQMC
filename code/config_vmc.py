@@ -7,7 +7,7 @@ import wavefunction_vmc as wfv
 class MC_parameters:
     def __init__(self):
     	### geometry and general settings ###
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = 8  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
@@ -51,8 +51,8 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False; 
         self.tests = True
-        self.n_cpus = 4  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/4/'
+        self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/6/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
@@ -84,7 +84,7 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 2000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
+        self.MC_chain = 1000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = 5 * (self.total_dof // 2)
