@@ -13,7 +13,7 @@ class simulation_parameters:
     def __init__(self):
         self.gpu = False
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([40])
+        self.Nt = np.array([148])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -44,9 +44,9 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         
         self.s_refresh = 5
-        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/-0-08-3-3-40/'
-        self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-3-3-40/'
-        self.thermalization = 3000  # after how many sweeps start computing observables
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/new4'
+        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/new4'
+        self.thermalization = 1  # after how many sweeps start computing observables
         
         self.tests = False
         self.adj_list = models.get_adjacency_list(self)[0]

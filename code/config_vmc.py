@@ -7,7 +7,7 @@ import wavefunction_vmc as wfv
 class MC_parameters:
     def __init__(self):
     	### geometry and general settings ###
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = 8  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
@@ -50,9 +50,9 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.tests = False
+        self.tests = True
         self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/new16/'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/x5/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
@@ -64,9 +64,9 @@ class MC_parameters:
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
             self, self.chiral_basis) for g in self.pairings_list_unwrapped]
-        # for name in self.pairings_list_names:
-        #     if '(S_1)' in name or '(S_2)' in name:
-        #         self.enforce_valley_orbitals = True
+        for name in self.pairings_list_names:
+            if '(S_1)' in name or '(S_2)' in name:
+                self.enforce_valley_orbitals = True
 
         self.name_group_dict = pairings.name_group_dict
         print(self.name_group_dict)
@@ -84,10 +84,10 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 1000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
+        self.MC_chain = 500000; self.MC_thermalisation = 30000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
-        self.correlation = 5 * (self.total_dof // 2)
+        self.correlation = self.total_dof // 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
         self.opt_parameters = [1e-4, 6e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate | s-wave regularisation
@@ -95,9 +95,15 @@ class MC_parameters:
         self.generator_mode = True
 
         ### regularisation ###
-        self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[0][0]), 'pairing', \
-                                                self, self.chiral_basis)
-        self.reg_gap_val = 1e-4
+        if not self.enforce_valley_orbitals:
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[0][0]), 'pairing', \
+                                                    self, self.chiral_basis)
+        else:
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[12][0]), 'pairing', \
+                                                    self, self.chiral_basis) + \
+                                models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[12][1]), 'pairing', \
+                                                    self, self.chiral_basis)
+        self.reg_gap_val = 0.0
 
         ## initial values definition and layout ###
         self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -106,7 +112,7 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(-0.00001, 0.00001, size = self.layout[3]),  # gaps
+            np.random.uniform(-0.0001, 0.0001, size = self.layout[3]),  # gaps
             np.random.uniform(0.5, 0.6, size = self.layout[4]),  # jastrows
         ])
 
