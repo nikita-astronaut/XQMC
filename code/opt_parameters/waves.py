@@ -134,8 +134,8 @@ def construct_1orb_square(config):
 def waves_particle_hole(config, m):
     m_ph = m.copy()
 
-    m_ph[:m.shape[0] // 2, :m.shape[1] // 2] = models.apply_TBC(config, deepcopy(m_ph[:m.shape[0] // 2, :m.shape[1] // 2]), inverse = False)
-    m_ph[m.shape[0] // 2:, m.shape[1] // 2:] = -models.apply_TBC(config, deepcopy(m_ph[m.shape[0] // 2:, m.shape[1] // 2:]), inverse = True).T
+    m_ph[:m.shape[0] // 2, :m.shape[1] // 2] = models.apply_TBC(config, config.twist, deepcopy(m_ph[:m.shape[0] // 2, :m.shape[1] // 2]), inverse = False)
+    m_ph[m.shape[0] // 2:, m.shape[1] // 2:] = -models.apply_TBC(config, config.twist, deepcopy(m_ph[m.shape[0] // 2:, m.shape[1] // 2:]), inverse = True).T
     return m_ph
 
 

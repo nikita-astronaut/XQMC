@@ -119,19 +119,8 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
 def write_initial_logs(log_file, config_vmc):
     log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩ n_above_FS ")
 
-    if not config_vmc.PN_projection:
-        log_file.write('⟨mu_BCS⟩ ⟨fugacity⟩ ')
-    else:
-        log_file.write('⟨mu_BCS⟩ ')
-
-    for wave in config_vmc.waves_list:
-        log_file.write(wave[-1] + ' ')
-
-    for gap_name in config_vmc.pairings_list_names:
-        log_file.write(gap_name + ' ')
-    
-    for jastrow in config_vmc.jastrows_list:
-        log_file.write(jastrow[-1] + ' ')
+    for name in config_vmc.all_names:
+        log_file.write(name + ' ')
     
     log_file.write('\n')
 
@@ -155,7 +144,8 @@ def print_model_summary(config_vmc):
     print('Waves parameters: ', [wave[-1] for wave in config_vmc.waves_list])
     print('Jastrow parameters: ', [jastrow[-1] for jastrow in config_vmc.jastrows_list])
 
-    print('mu_BCS initial guess {:.3f}'.format(config_vmc.initial_parameters[0]))
+    print('mu_BCS_+ initial guess {:.3f}'.format(config_vmc.initial_parameters[0]))
+    print('mu_BCS_- initial guess {:.3f}'.format(config_vmc.initial_parameters[1]))
 
     print('Total number of optimized parameters: ', np.sum(config_vmc.layout))
     return
@@ -270,8 +260,10 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     else:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, True, final_state)
     '''
+    
     wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
                               False, None, orbitals_in_use)  # always start with bare configuration
+    
     t_steps = 0
     t = time()
     if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
@@ -352,7 +344,7 @@ if __name__ == "__main__":
         
 
 
-    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904))]
+    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
     if config_vmc.tests:
         if tests.perform_all_tests(config_vmc):
             print('\033[92m All tests passed successfully \033[0m', flush = True)
@@ -478,7 +470,7 @@ if __name__ == "__main__":
             # step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
 
             mask = np.ones(len(step))
-            if n_step < 10:  # jastrows have not converged yet
+            if n_step < 30:  # jastrows have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
 
