@@ -61,7 +61,7 @@ class MC_parameters:
         self.visualisation = False; 
         self.tests = True #True
         self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/x21/'
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/6/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
@@ -95,7 +95,7 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 1300000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
+        self.MC_chain = 1000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
