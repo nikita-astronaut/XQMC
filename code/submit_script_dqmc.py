@@ -6,6 +6,7 @@ U, V, mu, Nt, Nc, offset = [x for x in sys.argv[5:]]
 U = float(U)
 V = float(V)
 mu = float(mu)
+offset = int(offset)
 
 Nt = int(Nt)
 Nc = int(Nc)
