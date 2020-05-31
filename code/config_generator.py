@@ -40,8 +40,8 @@ class simulation_parameters:
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
-        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/-0-08-3-1-20-8x8/'
-        self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-3-1-20-8x8/'
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc/-0-08-3-1-20-6x6-2/'
+        self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_heavy/-0-08-3-1-20-6x6-2/'
         self.thermalization = 1000  # after how many sweeps start computing observables
         
         self.tests = False
