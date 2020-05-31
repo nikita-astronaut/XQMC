@@ -473,6 +473,10 @@ if __name__ == "__main__":
             if n_step < 30:  # jastrows have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
+            if n_step >= 30 and n_step < 130:
+                mask = np.zeros(len(step))
+                mask[-config_vmc.layout[4]:] = 1.
+                mask[:-config_vmc.layout[4]] = (n_step - 30) * 0.01
 
             parameters += config_vmc.opt_parameters[1] * step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)
