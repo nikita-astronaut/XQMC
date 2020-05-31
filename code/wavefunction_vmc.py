@@ -171,6 +171,7 @@ class wavefunction_singlet():
         self.E = E
 
         if self.config.enforce_particle_hole_orbitals:  # enforce all 4 spin species conservation
+            print('Initializing 1st way', flush=True)
             plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
                                                          self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
             plus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...], \
@@ -210,11 +211,12 @@ class wavefunction_singlet():
                                 self.U_full[..., idxs_plus_hole], \
                                 self.U_full[..., idxs_minus_hole]], axis = 1)
             self.lowest_energy_states = np.concatenate([idxs_plus_particle, idxs_minus_particle, idxs_plus_hole, idxs_minus_hole], axis = 0)
-            check = np.load(self.config.preassigned_orbitals_path)
-            print(self.lowest_energy_states - check)
+            #check = np.load(self.config.preassigned_orbitals_path)
+            #print(self.lowest_energy_states - check)
             #np.save(os.path.join(self.config.workdir, 'saved_orbital_indexes.npy'), self.lowest_energy_states)  # depend only on filling
 
         if self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+            print('Initializing 2nd way', flush=True)
             plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj()).real
             plus_valley = plus_valley > 0.99
             assert np.sum(plus_valley) == self.config.total_dof // 2
@@ -230,8 +232,27 @@ class wavefunction_singlet():
 
             U = np.concatenate([self.U_full[..., idxs_plus], self.U_full[..., idxs_minus]], axis = 1)
             self.lowest_energy_states = np.concatenate([idxs_plus, idxs_minus], axis = 0)
-        
+            self.occupied_levels = np.zeros(len(E), dtype=bool)
+            self.occupied_levels[self.lowest_energy_states] = True
+            plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
+            plus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...].conj()).real
+            minus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...].conj()).real
+            minus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...].conj()).real
+            plus_valley_particle = plus_valley_particle > 0.50
+            plus_valley_hole = plus_valley_hole > 0.50
+            minus_valley_particle = minus_valley_particle > 0.50
+            minus_valley_hole = minus_valley_hole > 0.50
+
+            print('Initializing Slater wf: particles_+ {:d}, particles_- {:d}, holes _+ {:d}, holes_- {:d}'.format(np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole)))
+            print('Initializing Slater wf: selected particles_+ {:d}, selected holes_+ {:d}'.format(np.sum(plus_valley_particle * self.occupied_levels), np.sum(plus_valley_hole * self.occupied_levels)))
+            print('Initializing Slater wf: selected particles_- {:d}, selected holes_- {:d}'.format(np.sum(minus_valley_particle * self.occupied_levels), np.sum(minus_valley_hole * self.occupied_levels)))
+
         if not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+            print('Initializing free way', flush=True)
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
             # print(np.argsort(E)[:self.config.total_dof // 2])
             # print(E[self.lowest_energy_states])
