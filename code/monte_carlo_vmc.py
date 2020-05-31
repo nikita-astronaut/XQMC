@@ -56,7 +56,7 @@ def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
     return step, forces, force_SR_abs_history, force_abs_history
 
 
-def make_SR_step(Os, energies, config_vmc, twists, gaps):
+def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     def remove_singularity(S):
         for i in range(S.shape[0]):
             if S[i, i] < 1e-5:
@@ -107,12 +107,17 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps):
                       np.einsum('i,j->ij', v.T[:, lambda_idx], u.T[lambda_idx, :])
     step = S_cov_inv.dot(forces)
     '''
-
-    S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
+    if n_iter < 30:
+        S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
+    else:
+        S_cov_pc = S_cov + np.max([100. * (0.9 ** (n_iter - 30)), config_vmc.opt_parameters[0]]) * np.diag(np.diag(S_cov))
+    S_cov_pc += np.eye(S_cov.shape[0]) * 1e-3
 
     step = np.linalg.inv(S_cov_pc).dot(forces)
-    print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(np.mean(forces, axis = 0) ** 2)), \
+    print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
+    print(forces[-3], step[-3], 'forces of gap')
+    print(forces, step)
     return step, forces
 
 
@@ -461,7 +466,7 @@ if __name__ == "__main__":
         n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
-            step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps)
+            step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step)
             step, forces, force_SR_abs_history, force_abs_history = \
                 clip_forces(step, forces, force_SR_abs_history, force_abs_history)
             write_intermediate_log(log_file, n_step, config_vmc.total_dof // 2, energies, densities, \
@@ -473,10 +478,10 @@ if __name__ == "__main__":
             if n_step < 30:  # jastrows have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
-            if n_step >= 30 and n_step < 130:
-                mask = np.zeros(len(step))
-                mask[-config_vmc.layout[4]:] = 1.
-                mask[:-config_vmc.layout[4]] = (n_step - 30) * 0.01
+            #if n_step >= 30 and n_step < 130:
+            #    mask = np.zeros(len(step))
+            #    mask[-config_vmc.layout[4]:] = 1.
+            #    mask[:-config_vmc.layout[4]] = (n_step - 30) * 0.01
 
             parameters += config_vmc.opt_parameters[1] * step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)
