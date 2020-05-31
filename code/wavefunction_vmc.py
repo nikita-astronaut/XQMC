@@ -231,6 +231,25 @@ class wavefunction_singlet():
             U = np.concatenate([self.U_full[..., idxs_plus], self.U_full[..., idxs_minus]], axis = 1)
             self.lowest_energy_states = np.concatenate([idxs_plus, idxs_minus], axis = 0)
         
+            self.occupied_levels = np.zeros(len(E), dtype=bool)
+            self.occupied_levels[self.lowest_energy_states] = True
+            # print('Initializing Slater wf: particles {:d}, holes {:d}'.format(np.sum(particles), np.sum(holes)))
+            # print('Initializing Slater wf: selected particles {:d}, selected holes {:d}'.format(np.sum(particles * self.occupied_levels), np.sum(holes * self.occupied_levels)))
+
+            plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
+            plus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...].conj()).real
+            minus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...].conj()).real
+            minus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...].conj()).real
+
+            print('Hole-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_hole)[-self.config.total_dof // 4:])))
+            print('Hole-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_hole)[-self.config.total_dof // 4:])))
+            print('Particle-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_particle)[-self.config.total_dof // 4:])))
+            print('Particle-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_particle)[-self.config.total_dof // 4:])))
+
         if not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
             # print(np.argsort(E)[:self.config.total_dof // 2])
@@ -257,6 +276,12 @@ class wavefunction_singlet():
                                                          self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...].conj()).real
             minus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...], \
                                                      self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...].conj()).real
+
+            print('Hole-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_hole)[-self.config.total_dof // 4:])))
+            print('Hole-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_hole)[-self.config.total_dof // 4:])))
+            print('Particle-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_particle)[-self.config.total_dof // 4:])))
+            print('Particle-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_particle)[-self.config.total_dof // 4:])))
+
             plus_valley_particle = plus_valley_particle > 0.50
             plus_valley_hole = plus_valley_hole > 0.50
             minus_valley_particle = minus_valley_particle > 0.50
