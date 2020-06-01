@@ -155,6 +155,8 @@ class wavefunction_singlet():
         T = construct_HMF(self.config, self.K_up, self.K_down, \
                           self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term)
         assert np.allclose(T, T.conj().T)
+        plus_valley = np.arange(0, self.config.total_dof, 2)
+        T[plus_valley, plus_valley] += 1e-9  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
@@ -208,8 +210,12 @@ class wavefunction_singlet():
 
         if self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             print('Initializing 2nd way', flush=True)
+            # print(self.E)
             plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj()).real
+            # print(plus_valley)
             plus_valley = plus_valley > 0.99
+            # print(np.sum(plus_valley), np.sum(~plus_valley))
+            
             assert np.sum(plus_valley) == self.config.total_dof // 2
             assert np.sum(~plus_valley) == self.config.total_dof // 2
 
