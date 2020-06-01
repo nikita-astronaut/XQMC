@@ -40,26 +40,18 @@ def extract_MC_data(results, config_vmc, num_twists):
            final_states, densities, orbitals_in_use, occupied_numbers
 
 
-def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
-    step_abs = np.sqrt(np.sum(step ** 2))
-    force_abs = np.sqrt(np.sum(forces ** 2))
-    clip_length = np.min([20, len(force_abs_history)])
-    clipped = False
-    if step_abs > 10. * np.median(force_SR_abs_history[-clip_length:]) or force_abs > 10. * np.median(force_abs_history[-clip_length:]):
-        print('Warning! The force is too high -- gradient is clipped!')
-        step = step / step_abs * 10. * np.median(force_SR_abs_history[-clip_length:])
-        force_abs = force_abs / step_abs * 10. * np.median(force_SR_abs_history[-clip_length:])
-        clipped = True
-    if not clipped:
-        force_SR_abs_history.append(step_abs)
-        force_abs_history.append(force_abs)
-    return step, forces, force_SR_abs_history, force_abs_history
+def clip_forces(clips, step):
+    for i in range(len(step)):
+        if np.abs(step[i]) > clips[i]:
+            step[i] = clips[i] * np.sign(step[i])
+    return step
+
 
 
 def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     def remove_singularity(S):
         for i in range(S.shape[0]):
-            if S[i, i] < 1e-2:
+            if S[i, i] < 1e-1:
                 S[i, :] = 0.0
                 S[:, i] = 0.0
                 S[i, i] = 1.0
@@ -122,13 +114,19 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     return step, forces
 
 
-def write_initial_logs(log_file, config_vmc):
+def write_initial_logs(log_file, force_file, force_SR_file, config_vmc):
     log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩ n_above_FS ")
+    force_file.write("⟨opt_step⟩ ")
+    force_SR_file.write("⟨opt_step⟩ ")
 
     for name in config_vmc.all_names:
         log_file.write(name + ' ')
+        force_file.write(name + ' ')
+        force_SR_file.write(name + ' ')
     
     log_file.write('\n')
+    force_file.write('\n')
+    force_SR_file.write('\n')
 
     return
 
@@ -156,7 +154,7 @@ def print_model_summary(config_vmc):
     print('Total number of optimized parameters: ', np.sum(config_vmc.layout))
     return
 
-def write_intermediate_log(log_file, n_step, vol, energies, densities, \
+def write_intermediate_log(log_file, force_file, force_SR_file, n_step, vol, energies, densities, \
                            mean_variance, acceptance, forces, step, gap, \
                            n_above_FS, parameters):
     log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e} {:d}" + " {:.7e} " * len(step) + "\n").format(n_step, \
@@ -165,6 +163,12 @@ def write_intermediate_log(log_file, n_step, vol, energies, densities, \
                     mean_variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
                     gap, n_above_FS, *parameters))
     log_file.flush()
+
+    force_file.write(("{:d}" + " {:.7e} " * len(step) + "\n").format(n_step, *forces))
+    force_file.flush()
+
+    force_SR_file.write(("{:d}" + " {:.7e} " * len(step) + "\n").format(n_step, *step))
+    force_SR_file.flush()
     return
 
 def create_obs_files(observables_names, config_vmc):
@@ -340,6 +344,7 @@ if __name__ == "__main__":
         target.write(source.read())
 
 
+    # config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
     if config_vmc.visualisation:
         visualisation.plot_DOS(config_vmc)
         visualisation.plot_fermi_surface(config_vmc)
@@ -424,6 +429,9 @@ if __name__ == "__main__":
 
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
+    force_file = open(os.path.join(local_workdir, 'force_log.dat'), 'a+')
+    force_SR_file = open(os.path.join(local_workdir, 'force_SR_log.dat'), 'a+')
+
     spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
     final_states = [False] * config_vmc.n_chains
     orbitals_in_use = [None] * config_vmc.n_chains
@@ -431,10 +439,8 @@ if __name__ == "__main__":
 
     ### write log header only if we start from some random parameters ###
     if last_step == 0 or loaded_from_external:
-        write_initial_logs(log_file, config_vmc)
+        write_initial_logs(log_file, force_file, force_SR_file, config_vmc)
 
-    force_SR_abs_history = [10000]
-    force_abs_history = [100000000]
     for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
         t = time()
         
@@ -468,23 +474,18 @@ if __name__ == "__main__":
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step)
-            step, forces, force_SR_abs_history, force_abs_history = \
-                clip_forces(step, forces, force_SR_abs_history, force_abs_history)
-            write_intermediate_log(log_file, n_step, config_vmc.total_dof // 2, energies, densities, \
+            
+            write_intermediate_log(log_file, force_file, force_SR_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, n_above_FS, parameters)  # write parameters before step not to lose the initial values
-
-            # step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
+            step = step * config_vmc.opt_parameters[1]
+            step = clip_forces(config_vmc.all_clips, step)
 
             mask = np.ones(len(step))
             if n_step < 100:  # jastrows have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
-            #if n_step >= 30 and n_step < 130:
-            #    mask = np.zeros(len(step))
-            #    mask[-config_vmc.layout[4]:] = 1.
-            #    mask[:-config_vmc.layout[4]] = (n_step - 30) * 0.01
 
-            parameters += config_vmc.opt_parameters[1] * step * mask  # lr better be ~0.01..0.1
+            parameters += step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)
         ### END SR STEP ###
 
@@ -501,4 +502,6 @@ if __name__ == "__main__":
         print('SR and logging {:d} took {:f}'.format(n_step, time() - t))
 
     log_file.close()
+    force_file.close()
+    force_SR_file.close()
     [file.close() for file in obs_files]

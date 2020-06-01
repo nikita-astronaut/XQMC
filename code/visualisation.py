@@ -47,13 +47,21 @@ def K_FT(k, K, config, R, spin_dof = 1):
     return result
 
 def plot_DOS(config):
-    E, U = np.linalg.eigh(config.model(config, 0.0, spin = +1.0)[0])
+    model = config.model(config, 0.0, spin = +1.0)[0]
+    model = models.xy_to_chiral(model, 'K_matrix', config, config.chiral_basis)  # this option is only valid for Koshino model
+
+    K_0_plus = model[:, np.arange(0, config.total_dof // 2, 2)]; K_0_plus = K_0_plus[np.arange(0, config.total_dof // 2, 2), :]
+    K_0_minus = model[:, np.arange(1, config.total_dof // 2, 2)]; K_0_minus = K_0_minus[np.arange(1, config.total_dof // 2, 2), :]
+    Ep, _ = np.linalg.eigh(K_0_plus)
+    Em, _ = np.linalg.eigh(K_0_minus)
+
     set_style()
     fig = plt.figure()
 
-    plt.hist(E, bins = np.linspace(E.min() - 0.1, E.max() + 0.1, 300))
-    for i, e in enumerate(E):
-        print(i, e)
+    plt.hist(Ep, bins = np.linspace(Ep.min() - 0.1, Ep.max() + 0.1, 300), color = 'red')
+    plt.hist(Em + 0.01, bins = np.linspace(Ep.min() - 0.1, Ep.max() + 0.1, 300), color = 'blue')
+    for ep, em in zip(Ep, Em):
+        print(ep - em)
     plt.xlabel('$dn(E) / dE$')
     plt.ylabel('$E$')
     plt.grid(True)
