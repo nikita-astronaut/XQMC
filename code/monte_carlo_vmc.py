@@ -148,8 +148,7 @@ def print_model_summary(config_vmc):
     print('Waves parameters: ', [wave[-1] for wave in config_vmc.waves_list])
     print('Jastrow parameters: ', [jastrow[-1] for jastrow in config_vmc.jastrows_list])
 
-    print('mu_BCS_+ initial guess {:.3f}'.format(config_vmc.initial_parameters[0]))
-    print('mu_BCS_- initial guess {:.3f}'.format(config_vmc.initial_parameters[1]))
+    print('mu_BCS initial guess {:.3f}'.format(config_vmc.initial_parameters[0]))
 
     print('Total number of optimized parameters: ', np.sum(config_vmc.layout))
     return

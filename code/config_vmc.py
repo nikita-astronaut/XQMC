@@ -117,18 +117,18 @@ class MC_parameters:
         self.reg_gap_val = 0.0
 
         ## initial values definition and layout ###
-        self.layout = [self.n_orbitals, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
+        self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
         ### parameters section ###
         self.initial_parameters = np.concatenate([
-            np.array([0.0, 0.0]),  # mu_BCS
+            np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
             np.random.uniform(-0.0001, 0.0001, size = self.layout[3]),  # gaps
-            np.array([1.0, 0.85]),  # jastrows
+            np.array([0.85, 1.0]),  # jastrows
         ])
 
         self.all_names = np.concatenate([
-            np.array(['mu_BCS_+', 'mu_BCS_-']),  # mu_BCS
+            np.array(['mu_BCS']),  # mu_BCS
             np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
             np.array(self.waves_list_names),  # waves
             np.array(self.pairings_list_names),  # gaps
@@ -143,7 +143,7 @@ class MC_parameters:
             np.ones(self.layout[4]) * 1e-2,  # jastrows
         ])
 
-        self.initial_parameters[:self.n_orbitals] = self.select_initial_muBCS_Koshino()
+        self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino()
 
         ### check K-matrix irrep properties ###
         pairings.check_irrep_properties(self, [[self.model(self, self.mu, spin = +1.0)[0], 'K_matrix']], \
@@ -164,7 +164,7 @@ class MC_parameters:
             twist = [1, 1]
         print(twist)
         K_0_twisted = models.apply_TBC(self, twist, deepcopy(self.K_0), inverse = False)
-        K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0), inverse = True).T
+        K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0).T, inverse = True)
         assert np.allclose(K_0_twisted, K_0_twisted.conj().T)
         assert np.allclose(K_0_twisted_holes, K_0_twisted_holes.conj().T)
         assert np.allclose(np.linalg.eigh(K_0_twisted_holes)[0], np.sort(-np.linalg.eigh(K_0_twisted)[0]))
@@ -224,7 +224,7 @@ class MC_parameters:
         print('!!!!', np.sort(np.concatenate([Em, Ep])))
 
         print('but I wanted particles_+ {:d}, holes_+ {:d}, particles_-{:d}, holes_- {:d}'.format(self.total_dof // 8 - delta + nu, self.total_dof // 8 + delta - nu, self.total_dof // 8 - delta - nu, self.total_dof // 8 + delta + nu))
-        return dEp, dEm
+        return dEp
 
     def unpack_parameters(self, parameters):
         offset = 0

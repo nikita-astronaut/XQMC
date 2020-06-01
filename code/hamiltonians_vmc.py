@@ -11,7 +11,7 @@ class HubbardHamiltonian(object):
     def __init__(self, config):
         self.config = config
         K_matrix_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
-        K_matrix_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = True).T
+        K_matrix_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
 
         self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
     def _get_edges(self):
