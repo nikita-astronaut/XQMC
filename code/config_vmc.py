@@ -12,7 +12,7 @@ class MC_parameters:
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 12; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
@@ -59,16 +59,16 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.tests = True #True
-        self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/6/'
+        self.tests = False #True
+        self.n_cpus = 12  # the number of processors to use | -1 -- take as many as available
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/8/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = []#pairings.twoorb_hex_all[15]
+        self.pairings_list = []
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -95,24 +95,24 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 1000000; self.MC_thermalisation = 3000; self.opt_raw = 1500;
+        self.MC_chain = 3000000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
-        self.correlation = (self.total_dof // 2) * 5
+        self.correlation = (self.total_dof // 2) * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-4, 1e-2, 1.0005]
+        self.opt_parameters = [1e-4, 3e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5
         self.generator_mode = True
 
         ### regularisation ###
         if not self.enforce_valley_orbitals:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[0][0]), 'pairing', \
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
                                                     self, self.chiral_basis)
         else:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[12][0]), 'pairing', \
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][0]), 'pairing', \
                                                     self, self.chiral_basis) + \
-                                models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[12][1]), 'pairing', \
+                                models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][1]), 'pairing', \
                                                     self, self.chiral_basis)
         self.reg_gap_val = 0.0
 
@@ -123,8 +123,8 @@ class MC_parameters:
             np.array([0.0, 0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(-0.01, 0.01, size = self.layout[3]),  # gaps
-            np.random.uniform(0.5, 0.6, size = self.layout[4]),  # jastrows
+            np.random.uniform(-0.0001, 0.0001, size = self.layout[3]),  # gaps
+            np.array([1.0, 0.85]),  # jastrows
         ])
 
         self.all_names = np.concatenate([
@@ -133,6 +133,14 @@ class MC_parameters:
             np.array(self.waves_list_names),  # waves
             np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
+        ])
+
+        self.all_clips = np.concatenate([
+            np.ones(self.layout[0]) * 1e-4,  # mu_BCS
+            np.array([0.0] if not self.PN_projection else []),  # fugacity
+            np.ones(self.layout[2]) * 1e-4,  # waves
+            np.ones(self.layout[3]) * 1e-4,  # gaps
+            np.ones(self.layout[4]) * 1e-2,  # jastrows
         ])
 
         self.initial_parameters[:self.n_orbitals] = self.select_initial_muBCS_Koshino()
@@ -150,7 +158,7 @@ class MC_parameters:
         # assert np.allclose(T, T.conj().T)
         if self.twist_mesh == 'Baldereschi':
             twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
-        elif self.twist_mesh == 'APBC':
+        elif self.twist_mesh == 'APBCy':
             twist = [1, -1]
         else:
             twist = [1, 1]
@@ -187,7 +195,7 @@ class MC_parameters:
         N_particles_plus_below = np.sum(Ep < 0)  # current number of + particle energies below zero
         xi = N_particles_plus_below - (self.total_dof // 8 - delta + nu)  # this many levels must be put up above FS
         print('xi_plus = {:d}'.format(xi))
-        dEp = (Ep[N_particles_plus_below - xi - 1] / 2. + Ep[N_particles_plus_below - xi] / 2.) / 1
+        dEp = (Ep[N_particles_plus_below - xi - 1] * 0.25 + Ep[N_particles_plus_below - xi] * 0.75) / 1
         #print(Ep, Ep[N_particles_plus_below - xi - 1], Ep[N_particles_plus_below - xi])
         print('initial mu_BCS_1 = {:.10f}'.format(dEp))
         print('N_[articles_plus_below before = {:d}'.format(N_particles_plus_below))
@@ -203,7 +211,7 @@ class MC_parameters:
 
         N_particles_minus_below = np.sum(Em < 0)  # current number of + particle energies below zero
         xi = N_particles_minus_below - (self.total_dof // 8 - delta - nu)  # this many levels must be put up above FS
-        dEm = (Em[N_particles_minus_below - xi - 1] / 2. + Em[N_particles_minus_below - xi] / 2.) / 1
+        dEm = (Em[N_particles_minus_below - xi - 1] * 0.25 + Em[N_particles_minus_below - xi] * 0.75) / 1
         #print(Em, Em[N_particles_minus_below - xi - 1], Em[N_particles_minus_below - xi])
         print('initial mu_BCS_2 = {:.10f}'.format(dEm))
         print('N_particles_minus_below before = {:d}'.format(N_particles_minus_below))
