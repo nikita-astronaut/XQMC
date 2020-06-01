@@ -59,7 +59,7 @@ def clip_forces(step, forces, force_SR_abs_history, force_abs_history):
 def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     def remove_singularity(S):
         for i in range(S.shape[0]):
-            if S[i, i] < 1e-5:
+            if S[i, i] < 1e-2:
                 S[i, :] = 0.0
                 S[:, i] = 0.0
                 S[i, i] = 1.0
@@ -107,17 +107,18 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
                       np.einsum('i,j->ij', v.T[:, lambda_idx], u.T[lambda_idx, :])
     step = S_cov_inv.dot(forces)
     '''
-    if n_iter < 30:
+    if n_iter < 100:
         S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
     else:
-        S_cov_pc = S_cov + np.max([100. * (0.9 ** (n_iter - 30)), config_vmc.opt_parameters[0]]) * np.diag(np.diag(S_cov))
-    S_cov_pc += np.eye(S_cov.shape[0]) * 1e-3
+        S_cov_pc = S_cov + np.max([300. * (0.95 ** (n_iter - 100)), config_vmc.opt_parameters[0]]) * np.diag(np.diag(S_cov))
+        S_cov_pc += np.eye(S_cov.shape[0]) * np.max([10. * (0.95 ** (n_iter - 100)), 1e-2])
 
     step = np.linalg.inv(S_cov_pc).dot(forces)
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
                                                                   np.sqrt(np.sum(step ** 2))))
     print(forces[-3], step[-3], 'forces of gap')
-    print(forces, step)
+    print(forces)
+    print(step)
     return step, forces
 
 
@@ -475,7 +476,7 @@ if __name__ == "__main__":
             # step = step / np.sqrt(np.sum(step ** 2))  # |step| == 1
 
             mask = np.ones(len(step))
-            if n_step < 30:  # jastrows have not converged yet
+            if n_step < 100:  # jastrows have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
             #if n_step >= 30 and n_step < 130:
