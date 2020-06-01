@@ -12,7 +12,7 @@ class MC_parameters:
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
@@ -59,16 +59,16 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.tests = True #True
-        self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/6/'
+        self.tests = False #True
+        self.n_cpus = 4  # the number of processors to use | -1 -- take as many as available
+        self.workdir = '/home/astronaut/DQMC_TBG/logs/1/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = []#pairings.twoorb_hex_all[15]
+        self.pairings_list = pairings.twoorb_hex_all[15]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -117,25 +117,33 @@ class MC_parameters:
         self.reg_gap_val = 0.0
 
         ## initial values definition and layout ###
-        self.layout = [self.n_orbitals, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
+        self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
         ### parameters section ###
         self.initial_parameters = np.concatenate([
-            np.array([0.0, 0.0]),  # mu_BCS
+            np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(-0.01, 0.01, size = self.layout[3]),  # gaps
+            np.random.uniform(-0.00001, 0.00001, size = self.layout[3]),  # gaps
             np.random.uniform(0.5, 0.6, size = self.layout[4]),  # jastrows
         ])
 
         self.all_names = np.concatenate([
-            np.array(['mu_BCS_+', 'mu_BCS_-']),  # mu_BCS
+            np.array(['mu_BCS']),  # mu_BCS
             np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
             np.array(self.waves_list_names),  # waves
             np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
         ])
 
-        self.initial_parameters[:self.n_orbitals] = self.select_initial_muBCS_Koshino()
+        self.all_clips = np.concatenate([
+            np.ones(self.layout[0]) * 1e-4,  # mu_BCS
+            np.array([0.0] if not self.PN_projection else []),  # fugacity
+            np.ones(self.layout[2]) * 1e-4,  # waves
+            np.ones(self.layout[3]) * 1e-4,  # gaps
+            np.ones(self.layout[4]) * 1e-2,  # jastrows
+        ])
+
+        self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino()
 
         ### check K-matrix irrep properties ###
         pairings.check_irrep_properties(self, [[self.model(self, self.mu, spin = +1.0)[0], 'K_matrix']], \
@@ -156,7 +164,7 @@ class MC_parameters:
             twist = [1, 1]
         print(twist)
         K_0_twisted = models.apply_TBC(self, twist, deepcopy(self.K_0), inverse = False)
-        K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0), inverse = True).T
+        K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0).T, inverse = True)
         assert np.allclose(K_0_twisted, K_0_twisted.conj().T)
         assert np.allclose(K_0_twisted_holes, K_0_twisted_holes.conj().T)
         assert np.allclose(np.linalg.eigh(K_0_twisted_holes)[0], np.sort(-np.linalg.eigh(K_0_twisted)[0]))
@@ -187,7 +195,7 @@ class MC_parameters:
         N_particles_plus_below = np.sum(Ep < 0)  # current number of + particle energies below zero
         xi = N_particles_plus_below - (self.total_dof // 8 - delta + nu)  # this many levels must be put up above FS
         print('xi_plus = {:d}'.format(xi))
-        dEp = (Ep[N_particles_plus_below - xi - 1] / 2. + Ep[N_particles_plus_below - xi] / 2.) / 1
+        dEp = (Ep[N_particles_plus_below - xi - 1] * 0.25 + Ep[N_particles_plus_below - xi] * 0.75) / 1
         #print(Ep, Ep[N_particles_plus_below - xi - 1], Ep[N_particles_plus_below - xi])
         print('initial mu_BCS_1 = {:.10f}'.format(dEp))
         print('N_[articles_plus_below before = {:d}'.format(N_particles_plus_below))
@@ -203,7 +211,7 @@ class MC_parameters:
 
         N_particles_minus_below = np.sum(Em < 0)  # current number of + particle energies below zero
         xi = N_particles_minus_below - (self.total_dof // 8 - delta - nu)  # this many levels must be put up above FS
-        dEm = (Em[N_particles_minus_below - xi - 1] / 2. + Em[N_particles_minus_below - xi] / 2.) / 1
+        dEm = (Em[N_particles_minus_below - xi - 1] * 0.25 + Em[N_particles_minus_below - xi] * 0.75) / 1
         #print(Em, Em[N_particles_minus_below - xi - 1], Em[N_particles_minus_below - xi])
         print('initial mu_BCS_2 = {:.10f}'.format(dEm))
         print('N_particles_minus_below before = {:d}'.format(N_particles_minus_below))
@@ -216,7 +224,7 @@ class MC_parameters:
         print('!!!!', np.sort(np.concatenate([Em, Ep])))
 
         print('but I wanted particles_+ {:d}, holes_+ {:d}, particles_-{:d}, holes_- {:d}'.format(self.total_dof // 8 - delta + nu, self.total_dof // 8 + delta - nu, self.total_dof // 8 - delta - nu, self.total_dof // 8 + delta + nu))
-        return dEp, dEm
+        return dEp
 
     def unpack_parameters(self, parameters):
         offset = 0

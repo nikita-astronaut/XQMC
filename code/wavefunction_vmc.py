@@ -26,15 +26,10 @@ class wavefunction_singlet():
 
 
         ### mean-field Hamiltonian precomputed elements ###
-        plus_valley = np.zeros(self.config.total_dof // 2); plus_valley[np.arange(0, self.config.total_dof // 2, 2)] = 1
-        minus_valley = np.zeros(self.config.total_dof // 2); minus_valley[np.arange(1, self.config.total_dof // 2, 2)] = 1
-
         self.K_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
-        self.K_up -= np.diag(plus_valley) * self.var_mu[0]
-        self.K_up -= np.diag(minus_valley) * self.var_mu[1]
-        self.K_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = True).T
-        self.K_down -= np.diag(plus_valley) * self.var_mu[1]
-        self.K_down -= np.diag(minus_valley) * self.var_mu[0]
+        self.K_up -= np.eye(self.config.total_dof // 2) * self.var_mu[0]
+        self.K_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
+        self.K_down -= np.eye(self.config.total_dof // 2) * self.var_mu[0]
 
         self.Jastrow_A = np.array([j[0] for j in config.jastrows_list])
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
@@ -79,10 +74,7 @@ class wavefunction_singlet():
         ### pre-computed W-matrices for fast derivative computation ###
         self.Z = jit_get_Z_factor(self.E, self.occupied_levels)
 
-        self.W_mu_1_derivative = self._get_derivative(self._construct_mu_V(np.arange(0, self.config.total_dof // 2, 2), \
-                                                                           np.arange(1, self.config.total_dof // 2, 2)))
-        self.W_mu_2_derivative = self._get_derivative(self._construct_mu_V(np.arange(1, self.config.total_dof // 2, 2), \
-                                                                           np.arange(0, self.config.total_dof // 2, 2)))
+        self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
         self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave[0])) for wave in self.config.waves_list])
@@ -130,10 +122,10 @@ class wavefunction_singlet():
         V[self.config.total_dof // 2:, :self.config.total_dof // 2] = gap.conj().T
         return V
 
-    def _construct_mu_V(self, particle_idxs, hole_idxs):
+    def _construct_mu_V(self):
         V = np.zeros(self.config.total_dof) + 0.0j
-        V[particle_idxs] = -1.0
-        V[hole_idxs + self.config.total_dof // 2] = 1.0
+        V[np.arange(0, self.config.total_dof // 2)] = -1.0
+        V[np.arange(0, self.config.total_dof // 2) + self.config.total_dof // 2] = 1.0
 
         return np.diag(V)
 
@@ -149,14 +141,13 @@ class wavefunction_singlet():
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
-        O_mu_1 = [self.get_O_pairing(self.W_mu_1_derivative) if self.config.optimize_mu_BCS else 0.0]
-        O_mu_2 = [self.get_O_pairing(self.W_mu_2_derivative) if self.config.optimize_mu_BCS else 0.0]
+        O_mu = [self.get_O_pairing(self.W_mu_derivative) if self.config.optimize_mu_BCS else 0.0]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
         O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
 
-        O = O_mu_1 + O_mu_2 + O_fugacity + O_waves + O_pairing + O_Jastrow
+        O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
 
         return np.array(O)
 
