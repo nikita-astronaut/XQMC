@@ -7,6 +7,7 @@ from numba import jit
 from numba.errors import NumbaPerformanceWarning
 import scipy
 import warnings
+import os
 
 warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 
@@ -15,9 +16,9 @@ class wavefunction_singlet():
                  with_previous_state, previous_state, orbitals_in_use = None):
         orbitals_in_use = None
         self.config = config
-        self.pairings_list_unwrapped = [models.apply_TBC(self.config, deepcopy(gap), inverse = False) \
+        self.pairings_list_unwrapped = [models.apply_TBC(self.config, self.config.twist, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]  
-        self.reg_gap_term = models.apply_TBC(self.config, deepcopy(self.config.reg_gap_term), inverse = False) * \
+        self.reg_gap_term = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.reg_gap_term), inverse = False) * \
                                              self.config.reg_gap_val
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
@@ -25,11 +26,10 @@ class wavefunction_singlet():
 
 
         ### mean-field Hamiltonian precomputed elements ###
-        self.K_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False) + \
-                        np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
-        self.K_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T + \
-                          np.eye(self.config.total_dof // 2) * (self.config.mu - self.var_mu)
-
+        self.K_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
+        self.K_up -= np.eye(self.config.total_dof // 2) * self.var_mu[0]
+        self.K_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
+        self.K_down -= np.eye(self.config.total_dof // 2) * self.var_mu[0]
 
         self.Jastrow_A = np.array([j[0] for j in config.jastrows_list])
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
@@ -58,6 +58,7 @@ class wavefunction_singlet():
                 print('the determinant is', np.linalg.det(self.U_tilde_matrix))
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
                 print('degenerate: will retry the wave function initialisation', flush = True)
+                # exit(-1)
 
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
@@ -74,7 +75,6 @@ class wavefunction_singlet():
         self.Z = jit_get_Z_factor(self.E, self.occupied_levels)
 
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
-
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
         self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave[0])) for wave in self.config.waves_list])
@@ -123,8 +123,9 @@ class wavefunction_singlet():
         return V
 
     def _construct_mu_V(self):
-        V = np.ones(self.config.total_dof) + 0.0j
-        V[:self.config.total_dof // 2] = -1.0
+        V = np.zeros(self.config.total_dof) + 0.0j
+        V[np.arange(0, self.config.total_dof // 2)] = -1.0
+        V[np.arange(0, self.config.total_dof // 2) + self.config.total_dof // 2] = 1.0
 
         return np.diag(V)
 
@@ -154,30 +155,73 @@ class wavefunction_singlet():
         T = construct_HMF(self.config, self.K_up, self.K_down, \
                           self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term)
         assert np.allclose(T, T.conj().T)
+        plus_valley = np.arange(0, self.config.total_dof, 2)
+        T[plus_valley, plus_valley] += 1e-9  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
         self.U_full = deepcopy(U).astype(np.complex128)
         self.E = E
 
-        #if orbitals_in_use is not None:
-        #    overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
-        #    self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
-        #    print(self.lowest_energy_states)
-        #    print(overlap_matrix.max(axis = 0))
-        #else:
-        
-        if self.config.enforce_valley_orbitals:
-            plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj())
+        if self.config.enforce_particle_hole_orbitals:  # enforce all 4 spin species conservation
+            print('Initializing 1st way', flush=True)
+            plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
+            plus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...].conj()).real
+            minus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...].conj()).real
+            minus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...].conj()).real
+            plus_valley_particle = plus_valley_particle > 0.99
+            plus_valley_hole = plus_valley_hole > 0.99
+            minus_valley_particle = minus_valley_particle > 0.99
+            minus_valley_hole = minus_valley_hole > 0.99
+
+            assert np.sum(plus_valley_particle) == self.config.total_dof // 4
+            assert np.sum(plus_valley_hole) == self.config.total_dof // 4
+            assert np.sum(minus_valley_particle) == self.config.total_dof // 4
+            assert np.sum(minus_valley_hole) == self.config.total_dof // 4
+            assert np.allclose(np.ones(self.config.total_dof), plus_valley_particle + plus_valley_hole + minus_valley_particle + minus_valley_hole)
+
+            doping = (self.config.total_dof // 2 - self.config.Ne) // 2
+
+            plus_valley_particle_number = self.config.total_dof // 8  - doping // 2
+            minus_valley_particle_number = self.config.total_dof // 8 - doping // 2
+            plus_valley_hole_number = self.config.total_dof // 8 + doping // 2
+            minus_valley_hole_number = self.config.total_dof // 8 + doping // 2
+            assert self.config.valley_imbalance == 0
+            # print('Construction of Slater determinant: {:d} (+) orbitals and {:d} (-) orbitals'.format(plus_valley_number, minus_valley_number))
+
+            idxs_total = np.argsort(E)
+            idxs_plus_particle = idxs_total[plus_valley_particle][:plus_valley_particle_number]
+            idxs_plus_hole = idxs_total[plus_valley_hole][:plus_valley_hole_number]
+            idxs_minus_particle = idxs_total[minus_valley_particle][:minus_valley_particle_number]
+            idxs_minus_hole = idxs_total[minus_valley_hole][:minus_valley_hole_number]
+
+            U = np.concatenate([self.U_full[..., idxs_plus_particle], \
+                                self.U_full[..., idxs_minus_particle], \
+                                self.U_full[..., idxs_plus_hole], \
+                                self.U_full[..., idxs_minus_hole]], axis = 1)
+            self.lowest_energy_states = np.concatenate([idxs_plus_particle, idxs_minus_particle, idxs_plus_hole, idxs_minus_hole], axis = 0)
+            #check = np.load(self.config.preassigned_orbitals_path)
+            #print(self.lowest_energy_states - check)
+            #np.save(os.path.join(self.config.workdir, 'saved_orbital_indexes.npy'), self.lowest_energy_states)  # depend only on filling
+
+        if self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+            print('Initializing 2nd way', flush=True)
+            # print(self.E)
+            plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj()).real
+            # print(plus_valley)
             plus_valley = plus_valley > 0.99
+            # print(np.sum(plus_valley), np.sum(~plus_valley))
+            
             assert np.sum(plus_valley) == self.config.total_dof // 2
             assert np.sum(~plus_valley) == self.config.total_dof // 2
 
-            # U_plus_valley = self.U_full[..., plus_valley]; U_minus_valley = self.U_full[..., ~plus_valley];
-            # E_plus_valley = self.E[plus_valley]; E_minus_valley = self.E[~plus_valley];
-
-            plus_valley_number = self.config.total_dof // 4 + self.config.valley_imbalance // 2
-            minus_valley_number = self.config.total_dof // 4 - self.config.valley_imbalance // 2
+            plus_valley_number = self.config.total_dof // 4 # + self.config.valley_imbalance // 2
+            minus_valley_number = self.config.total_dof // 4 # - self.config.valley_imbalance // 2
+            # print('Construction of Slater determinant: {:d} (+) orbitals and {:d} (-) orbitals'.format(plus_valley_number, minus_valley_number))
 
             idxs_total = np.argsort(E)
             idxs_plus = idxs_total[plus_valley][:plus_valley_number]
@@ -185,9 +229,80 @@ class wavefunction_singlet():
 
             U = np.concatenate([self.U_full[..., idxs_plus], self.U_full[..., idxs_minus]], axis = 1)
             self.lowest_energy_states = np.concatenate([idxs_plus, idxs_minus], axis = 0)
-        else:
+        
+            self.occupied_levels = np.zeros(len(E), dtype=bool)
+            self.occupied_levels[self.lowest_energy_states] = True
+            # print('Initializing Slater wf: particles {:d}, holes {:d}'.format(np.sum(particles), np.sum(holes)))
+            # print('Initializing Slater wf: selected particles {:d}, selected holes {:d}'.format(np.sum(particles * self.occupied_levels), np.sum(holes * self.occupied_levels)))
+
+            plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
+            plus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...].conj()).real
+            minus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...].conj()).real
+            minus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...].conj()).real
+            plus_valley_particle = plus_valley_particle > 0.50
+            plus_valley_hole = plus_valley_hole > 0.50
+            minus_valley_particle = minus_valley_particle > 0.50
+            minus_valley_hole = minus_valley_hole > 0.50
+
+            print('Initializing Slater wf: particles_+ {:d}, particles_- {:d}, holes _+ {:d}, holes_- {:d}'.format(np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole)))
+            print('Initializing Slater wf: selected particles_+ {:d}, selected holes_+ {:d}'.format(np.sum(plus_valley_particle * self.occupied_levels), np.sum(plus_valley_hole * self.occupied_levels)))
+            print('Initializing Slater wf: selected particles_- {:d}, selected holes_- {:d}'.format(np.sum(minus_valley_particle * self.occupied_levels), np.sum(minus_valley_hole * self.occupied_levels)))
+
+            print('Hole-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_hole)[-self.config.total_dof // 4:])))
+            print('Hole-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_hole)[-self.config.total_dof // 4:])))
+            print('Particle-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_particle)[-self.config.total_dof // 4:])))
+            print('Particle-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_particle)[-self.config.total_dof // 4:])))
+
+        if not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+            print('Initializing free way', flush=True)
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
+            # print(np.argsort(E)[:self.config.total_dof // 2])
+            # print(E[self.lowest_energy_states])
+            # print(E)
             U = U[:, self.lowest_energy_states]  # select only occupied orbitals
+
+            particles = np.einsum('ij,ij->j', self.U_full[:self.config.total_dof // 2, ...], self.U_full[:self.config.total_dof // 2, ...].conj()).real
+            # print('Particleness = {:.3f}'.format(np.min(np.sort(particles)[self.config.total_dof // 2:])))
+            # print(np.sort(particles))
+            # print(np.sort(E))
+            particles = particles > 0.50
+            holes = ~particles
+            self.occupied_levels = np.zeros(len(E), dtype=bool)
+            self.occupied_levels[self.lowest_energy_states] = True
+            # print('Initializing Slater wf: particles {:d}, holes {:d}'.format(np.sum(particles), np.sum(holes)))
+            # print('Initializing Slater wf: selected particles {:d}, selected holes {:d}'.format(np.sum(particles * self.occupied_levels), np.sum(holes * self.occupied_levels)))
+
+            plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
+            plus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2, self.config.total_dof, 2), ...].conj()).real
+            minus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...], \
+                                                         self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...].conj()).real
+            minus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...], \
+                                                     self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...].conj()).real
+
+            print('Hole-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_hole)[-self.config.total_dof // 4:])))
+            print('Hole-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_hole)[-self.config.total_dof // 4:])))
+            print('Particle-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_particle)[-self.config.total_dof // 4:])))
+            print('Particle-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_particle)[-self.config.total_dof // 4:])))
+
+            plus_valley_particle = plus_valley_particle > 0.50
+            plus_valley_hole = plus_valley_hole > 0.50
+            minus_valley_particle = minus_valley_particle > 0.50
+            minus_valley_hole = minus_valley_hole > 0.50
+
+            print('Initializing Slater wf: particles_+ {:d}, particles_- {:d}, holes _+ {:d}, holes_- {:d}'.format(np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole)))
+            print('Initializing Slater wf: selected particles_+ {:d}, selected holes_+ {:d}'.format(np.sum(plus_valley_particle * self.occupied_levels), np.sum(plus_valley_hole * self.occupied_levels)))
+            print('Initializing Slater wf: selected particles_- {:d}, selected holes_- {:d}'.format(np.sum(minus_valley_particle * self.occupied_levels), np.sum(minus_valley_hole * self.occupied_levels)))
+            # exit(-1)
+
+        if self.config.use_preassigned_orbitals:
+            self.lowest_energy_states = np.load(self.config.preassigned_orbitals_path)
+            U = self.U_full[:, self.lowest_energy_states]
 
         rest_states = np.setdiff1d(np.arange(len(self.E)), self.lowest_energy_states)
         self.gap = -np.max(E[self.lowest_energy_states]) + np.min(E[rest_states])
@@ -195,8 +310,9 @@ class wavefunction_singlet():
 
         self.occupied_levels = np.zeros(len(E), dtype=bool)
         self.occupied_levels[self.lowest_energy_states] = True
+        print('smallest gap denominator {:.10f}'.format(np.max(self.E[self.occupied_levels]) - np.min(self.E[~self.occupied_levels])))
 
-        if E[rest_states].min() - self.E_fermi < 1e-14:
+        if E[rest_states].min() - self.E_fermi < 1e-14 and not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             print('open shell configuration, consider different pairing or filling!', flush = True)
             print(self.config.enforce_valley_orbitals, E[rest_states].min(), self.E_fermi)
         return U 
@@ -207,6 +323,7 @@ class wavefunction_singlet():
 
     def _construct_W_GF(self):
         U_tilde_inv = np.linalg.inv(self.U_tilde_matrix)
+        print('GF_max = {:.6f}'.format(np.max(np.abs(self.U_matrix.dot(U_tilde_inv)))))
         return self.U_matrix.dot(U_tilde_inv)
 
     def _generate_configuration(self):
@@ -214,13 +331,14 @@ class wavefunction_singlet():
         n_particles = self.config.total_dof // 4 - doping
         n_holes = self.config.total_dof // 4 + doping
 
-
         if self.config.n_orbitals == 2 and self.config.valley_projection:
-            n_particles_plus = n_particles // 2 + self.config.valley_imbalance // 2
-            n_particles_minus = n_particles // 2 - self.config.valley_imbalance // 2
+            n_particles_plus = n_particles // 2 + self.config.valley_imbalance // 4
+            n_particles_minus = n_particles // 2 - self.config.valley_imbalance // 4
 
-            n_holes_plus = n_holes // 2 - self.config.valley_imbalance // 2
-            n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 2
+            n_holes_plus = n_holes // 2 - self.config.valley_imbalance // 4
+            n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 4
+
+            print('configuration start: ({:d} / {:d})_+, ({:d} / {:d})_-'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
             # print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
 
             particles_plus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2),

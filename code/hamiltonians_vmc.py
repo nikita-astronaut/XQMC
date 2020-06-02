@@ -10,8 +10,8 @@ from copy import deepcopy
 class HubbardHamiltonian(object):
     def __init__(self, config):
         self.config = config
-        K_matrix_up = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = False)
-        K_matrix_down = models.apply_TBC(self.config, deepcopy(self.config.K_0), inverse = True).T
+        K_matrix_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
+        K_matrix_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
 
         self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
     def _get_edges(self):
@@ -50,8 +50,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[9:12]]).sum(axis = 0) * self.W3 / 2 / self.epsilon
 
         edges_J_same = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * (-self.J / 2) / self.epsilon + 0.0j
-        edges_J_updown = models.apply_TBC(self.config, deepcopy(edges_J_same), inverse = False, factor = 2) / self.epsilon
-        edges_J_downup = models.apply_TBC(self.config, deepcopy(edges_J_same), inverse = True, factor = 2) / self.epsilon
+        edges_J_updown = models.apply_TBC(self.config, self.config.twist, deepcopy(edges_J_same), inverse = False, factor = 2) / self.epsilon
+        edges_J_downup = models.apply_TBC(self.config, self.config.twist, deepcopy(edges_J_same), inverse = True, factor = 2) / self.epsilon
 
         assert np.allclose(edges_J_updown, edges_J_downup.conj())
 

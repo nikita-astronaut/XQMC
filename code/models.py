@@ -208,6 +208,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     total_dof = Ls ** 2 * n_orbitals * n_sublattices * 2
     t1, t2, t5, t4 = 0.331, (-0.010 + 1.0j * 0.097), 0.119, 0.036
 
+
     K = np.zeros((total_dof // 2, total_dof // 2)) * 1.0j
     for first in range(total_dof // 2):
         for second in range(total_dof // 2):
@@ -405,8 +406,9 @@ def get_transition_matrix(PN_projection, K, n_orbitals = 1, valley_conservation=
 
     return adjacency_list
 
-@jit(nopython=True)
-def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = False, factor = 1):  # inverse = True in the case of spin--down
+@jit(nopython=True)  # TODO: check this is valid for gaps
+def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, \
+               inverse = False, factor = 1, chiral_basis=True):  # inverse = True in the case of spin--down
     x_factor = twist[0] if not inverse else 1. / twist[0]
     y_factor = twist[1] if not inverse else 1. / twist[1]
 
@@ -420,19 +422,41 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = False, factor 
 
             if np.abs(x1 - x2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
                 if x2 > x1:
-                    K[first, second] *= x_factor
+                    if chiral_basis and orbit1 == 0:
+                        K[first, second] *= x_factor
+                    elif chiral_basis and orbit1 == 1:
+                        K[first, second] *= np.conj(x_factor)
+                    else:
+                        K[first, second] *= x_factor
                 else:
-                    K[first, second] *= np.conj(x_factor)
+                    if chiral_basis and orbit2 == 0:
+                        K[first, second] *= np.conj(x_factor)
+                    elif chiral_basis and orbit2 == 1:
+                        K[first, second] *= x_factor
+                    else:
+                        K[first, second] *= np.conj(x_factor)
 
             if np.abs(y1 - y2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
                 if y2 > y1:
-                    K[first, second] *= y_factor
+                    if chiral_basis and orbit1 == 0:
+                        K[first, second] *= y_factor
+                    elif chiral_basis and orbit1 == 1:
+                        K[first, second] *= np.conj(y_factor)
+                    else:
+                        K[first, second] *= y_factor
                 else:
-                    K[first, second] *= np.conj(y_factor)
+                    if chiral_basis and orbit2 == 0:
+                        K[first, second] *= np.conj(y_factor)
+                    elif chiral_basis and orbit2 == 1:
+                        K[first, second] *= y_factor
+                    else:
+                        K[first, second] *= np.conj(y_factor)
     return K
 
-def apply_TBC(config, K, inverse = False, factor = 1):
-    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, config.twist, inverse, factor)
+
+def apply_TBC(config, twist, K, inverse = False, factor = 1, chiral_basis=True):
+    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, twist, inverse, factor, chiral_basis)
+
 
 @jit(nopython=True)
 def spatial_checkerboard(Ls):
