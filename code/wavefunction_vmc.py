@@ -165,7 +165,10 @@ class wavefunction_singlet():
         if orbitals_in_use is not None:
             overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
             self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
+            print(self.lowest_energy_states, len(self.lowest_energy_states))
             print(np.max(overlap_matrix, axis = 0), 'print maximums of overlaps')
+            U = self.U_full[:, self.lowest_energy_states]
+
         elif self.config.enforce_particle_hole_orbitals:  # enforce all 4 spin species conservation
             print('Initializing 1st way', flush=True)
             plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
