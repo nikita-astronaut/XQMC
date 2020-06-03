@@ -14,7 +14,6 @@ warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
                  with_previous_state, previous_state, orbitals_in_use = None):
-        orbitals_in_use = None
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, self.config.twist, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]  
@@ -163,7 +162,11 @@ class wavefunction_singlet():
         self.U_full = deepcopy(U).astype(np.complex128)
         self.E = E
 
-        if self.config.enforce_particle_hole_orbitals:  # enforce all 4 spin species conservation
+        if orbitals_in_use is not None:
+            overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
+            self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
+            print(np.max(overlap_matrix, axis = 0), 'print maximums of overlaps')
+        elif self.config.enforce_particle_hole_orbitals:  # enforce all 4 spin species conservation
             print('Initializing 1st way', flush=True)
             plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
                                                          self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
@@ -208,7 +211,7 @@ class wavefunction_singlet():
             #print(self.lowest_energy_states - check)
             #np.save(os.path.join(self.config.workdir, 'saved_orbital_indexes.npy'), self.lowest_energy_states)  # depend only on filling
 
-        if self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+        elif self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             print('Initializing 2nd way', flush=True)
             # print(self.E)
             plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj()).real
@@ -257,7 +260,7 @@ class wavefunction_singlet():
             print('Particle-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_particle)[-self.config.total_dof // 4:])))
             print('Particle-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_particle)[-self.config.total_dof // 4:])))
 
-        if not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+        elif not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             print('Initializing free way', flush=True)
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
             # print(np.argsort(E)[:self.config.total_dof // 2])
@@ -312,7 +315,7 @@ class wavefunction_singlet():
         self.occupied_levels[self.lowest_energy_states] = True
         print('smallest gap denominator {:.10f}'.format(np.max(self.E[self.occupied_levels]) - np.min(self.E[~self.occupied_levels])))
 
-        if E[rest_states].min() - self.E_fermi < 1e-14 and not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+        if E[rest_states].min() - self.E_fermi < 1e-14 and not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals and orbitals_in_use is None:
             print('open shell configuration, consider different pairing or filling!', flush = True)
             print(self.config.enforce_valley_orbitals, E[rest_states].min(), self.E_fermi)
         return U 
