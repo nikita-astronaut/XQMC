@@ -14,7 +14,6 @@ warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
                  with_previous_state, previous_state, orbitals_in_use = None):
-        orbitals_in_use = None
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, self.config.twist, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]  
@@ -26,15 +25,10 @@ class wavefunction_singlet():
 
 
         ### mean-field Hamiltonian precomputed elements ###
-        plus_valley = np.zeros(self.config.total_dof // 2); plus_valley[np.arange(0, self.config.total_dof // 2, 2)] = 1
-        minus_valley = np.zeros(self.config.total_dof // 2); minus_valley[np.arange(1, self.config.total_dof // 2, 2)] = 1
-
         self.K_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
-        self.K_up -= np.diag(plus_valley) * self.var_mu[0]
-        self.K_up -= np.diag(minus_valley) * self.var_mu[1]
-        self.K_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = True).T
-        self.K_down -= np.diag(plus_valley) * self.var_mu[1]
-        self.K_down -= np.diag(minus_valley) * self.var_mu[0]
+        self.K_up -= np.eye(self.config.total_dof // 2) * self.var_mu[0]
+        self.K_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
+        self.K_down -= np.eye(self.config.total_dof // 2) * self.var_mu[0]
 
         self.Jastrow_A = np.array([j[0] for j in config.jastrows_list])
         self.Jastrow = np.sum(np.array([A * factor for factor, A in zip(self.var_params_Jastrow, self.Jastrow_A)]), axis = 0)
@@ -79,10 +73,7 @@ class wavefunction_singlet():
         ### pre-computed W-matrices for fast derivative computation ###
         self.Z = jit_get_Z_factor(self.E, self.occupied_levels)
 
-        self.W_mu_1_derivative = self._get_derivative(self._construct_mu_V(np.arange(0, self.config.total_dof // 2, 2), \
-                                                                           np.arange(1, self.config.total_dof // 2, 2)))
-        self.W_mu_2_derivative = self._get_derivative(self._construct_mu_V(np.arange(1, self.config.total_dof // 2, 2), \
-                                                                           np.arange(0, self.config.total_dof // 2, 2)))
+        self.W_mu_derivative = self._get_derivative(self._construct_mu_V())
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
         self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave[0])) for wave in self.config.waves_list])
@@ -130,10 +121,10 @@ class wavefunction_singlet():
         V[self.config.total_dof // 2:, :self.config.total_dof // 2] = gap.conj().T
         return V
 
-    def _construct_mu_V(self, particle_idxs, hole_idxs):
+    def _construct_mu_V(self):
         V = np.zeros(self.config.total_dof) + 0.0j
-        V[particle_idxs] = -1.0
-        V[hole_idxs + self.config.total_dof // 2] = 1.0
+        V[np.arange(0, self.config.total_dof // 2)] = -1.0
+        V[np.arange(0, self.config.total_dof // 2) + self.config.total_dof // 2] = 1.0
 
         return np.diag(V)
 
@@ -149,14 +140,13 @@ class wavefunction_singlet():
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
-        O_mu_1 = [self.get_O_pairing(self.W_mu_1_derivative) if self.config.optimize_mu_BCS else 0.0]
-        O_mu_2 = [self.get_O_pairing(self.W_mu_2_derivative) if self.config.optimize_mu_BCS else 0.0]
+        O_mu = [self.get_O_pairing(self.W_mu_derivative) if self.config.optimize_mu_BCS else 0.0]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
         O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
 
-        O = O_mu_1 + O_mu_2 + O_fugacity + O_waves + O_pairing + O_Jastrow
+        O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
 
         return np.array(O)
 
@@ -164,13 +154,19 @@ class wavefunction_singlet():
         T = construct_HMF(self.config, self.K_up, self.K_down, \
                           self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term)
         assert np.allclose(T, T.conj().T)
+        plus_valley = np.arange(0, self.config.total_dof, 2)
+        T[plus_valley, plus_valley] += 1e-9  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number
         E, U = np.linalg.eigh(T)
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(T).dot(U)))  # U^{\dag} T U = E
         self.U_full = deepcopy(U).astype(np.complex128)
         self.E = E
 
-        if self.config.enforce_particle_hole_orbitals:  # enforce all 4 spin species conservation
+        if orbitals_in_use is not None:
+            overlap_matrix = np.abs(np.einsum('ij,ik->jk', U.conj(), orbitals_in_use))
+            self.lowest_energy_states = np.argmax(overlap_matrix, axis = 0)
+            print(np.max(overlap_matrix, axis = 0), 'print maximums of overlaps')
+        elif self.config.enforce_particle_hole_orbitals:  # enforce all 4 spin species conservation
             print('Initializing 1st way', flush=True)
             plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
                                                          self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
@@ -215,10 +211,14 @@ class wavefunction_singlet():
             #print(self.lowest_energy_states - check)
             #np.save(os.path.join(self.config.workdir, 'saved_orbital_indexes.npy'), self.lowest_energy_states)  # depend only on filling
 
-        if self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+        elif self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             print('Initializing 2nd way', flush=True)
+            # print(self.E)
             plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj()).real
+            # print(plus_valley)
             plus_valley = plus_valley > 0.99
+            # print(np.sum(plus_valley), np.sum(~plus_valley))
+            
             assert np.sum(plus_valley) == self.config.total_dof // 2
             assert np.sum(~plus_valley) == self.config.total_dof // 2
 
@@ -260,7 +260,7 @@ class wavefunction_singlet():
             print('Particle-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_particle)[-self.config.total_dof // 4:])))
             print('Particle-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_particle)[-self.config.total_dof // 4:])))
 
-        if not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+        elif not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             print('Initializing free way', flush=True)
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
             # print(np.argsort(E)[:self.config.total_dof // 2])
@@ -315,7 +315,7 @@ class wavefunction_singlet():
         self.occupied_levels[self.lowest_energy_states] = True
         print('smallest gap denominator {:.10f}'.format(np.max(self.E[self.occupied_levels]) - np.min(self.E[~self.occupied_levels])))
 
-        if E[rest_states].min() - self.E_fermi < 1e-14 and not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
+        if E[rest_states].min() - self.E_fermi < 1e-14 and not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals and orbitals_in_use is None:
             print('open shell configuration, consider different pairing or filling!', flush = True)
             print(self.config.enforce_valley_orbitals, E[rest_states].min(), self.E_fermi)
         return U 

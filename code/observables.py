@@ -482,14 +482,31 @@ class Observables:
             idx_alpha += 1
         name = os.path.join(self.local_workdir, 'chi_vertex_{:d}.npy'.format(n_sweep))
         np.save(name, (chi_vertex + chi_vertex.conj().T) / 2.)
+        name = os.path.join(self.local_workdir, 'chi_vertex_final.npy' if self.n_saved_times % 2 == 0 else 'chi_vertex_final_dump.npy')
+        np.save(name, (chi_vertex + chi_vertex.conj().T) / 2.)
+
         name = os.path.join(self.local_workdir, 'chi_total_{:d}.npy'.format(n_sweep))
         np.save(name, (chi_total + chi_total.conj().T) / 2.)
+        name = os.path.join(self.local_workdir, 'chi_total_final.npy' if self.n_saved_times % 2 == 0 else 'chi_total_final_dump.npy')
+        np.save(name, (chi_total + chi_total.conj().T) / 2.)
+
         name = os.path.join(self.local_workdir, 'Sq0_{:d}.npy'.format(n_sweep))
         np.save(name, np.array(Sq0))
+        name = os.path.join(self.local_workdir, 'Sq0_final.npy' if self.n_saved_times % 2 == 0 else 'Sq0_final_dump.npy')
+        np.save(name, np.array(Sq0))
+
+
         name = os.path.join(self.local_workdir, 'Pq0_{:d}.npy'.format(n_sweep))
         np.save(name, np.array(Pq0))
+        name = os.path.join(self.local_workdir, 'Pq0_final.npy' if self.n_saved_times % 2 == 0 else 'Pq0_final_dump.npy')
+        np.save(name, np.array(Pq0))
+ 
+
         name = os.path.join(self.local_workdir, 'corr_lengths_{:d}.npy'.format(n_sweep))
         np.save(name, np.array(corr_lengths))
+        name = os.path.join(self.local_workdir, 'corr_lengths_final.npy' if self.n_saved_times % 2 == 0 else 'corr_lengths_final_dump.npy')
+        np.save(name, np.array(corr_lengths))
+ 
 
         np.save(os.path.join(self.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
 
