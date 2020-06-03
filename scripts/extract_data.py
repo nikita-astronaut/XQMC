@@ -126,7 +126,7 @@ def get_jackknife_1d(data):
 
     n = len(means)
     means = np.array(means)
-    return means.mean(), np.sqrt((n - 1.) / n * np.sum((means - np.mean(means)) ** 2))
+    return means.mean(), np.sqrt((n - 1.) / n * np.sum(np.abs(means - np.mean(means)) ** 2))
 
 seen_prefixes = []
 max_chi_dict = {}
@@ -134,6 +134,7 @@ max_chi_dict = {}
 
 def plot_smth_whole_dirs(master_dir):
     df_gaps = pd.DataFrame(columns = ['chi_name', 'chi_val', 'chi_err', 'Nt', 'mu'])
+    df_gaps_full = pd.DataFrame(columns = ['gap_name_bra', 'gap_name_ket', 'chi_val', 'chi_err', 'Nt', 'mu'])
     df_Sq0 = pd.DataFrame(columns = ['name', 'Sq0_val', 'Sq0_err', 'Nt', 'mu'])
     df_cl = pd.DataFrame(columns = ['name', 'cl_val', 'cl_err', 'Nt', 'mu'])
     df_irreps = pd.DataFrame(columns = ['irreps_name', 'irreps_val', 'irreps_err', 'Nt', 'mu'])
@@ -189,74 +190,42 @@ def plot_smth_whole_dirs(master_dir):
             ### find last entry id for this c -- it contains the mean ###
             for _, _, files in os.walk(rootc):
                 for file in files:
-                    if 'chi_vertex_' in file:
+                    if 'chi_vertex_' in file and 'final' not in file:
                         ids.append(int(file.split('_')[-1][:-4]))
+
             if len(ids) == 0:
                 continue
+
             idx_max = np.max(ids)
             #if idx_max < 6000:
             #    continue
             print(idx_max)
+            ids = np.sort(ids)            
             
-            for _, _, files in os.walk(rootc):
-                for file in files:
-                    if 'order_' in file:
-                        name = os.path.join(rootc, file)
-                        try:
-                            order = np.load(name)[np.newaxis, ...]
-                            if np.all(~np.isnan(order)):
-                                order_accumulated.append(np.load(name))
-                                if int(file.split('_')[-1][:-4]) == idx_max:
-                                    order_accumulated_max.append(np.load(name))
-                        except:
-                            pass
-                    if 'Sq0_' in file:
-                        name = os.path.join(rootc, file)
-                        try:
-                            order = np.load(name)[np.newaxis, ...]
-                            if np.all(~np.isnan(order)):
-                                Sq0_accumulated.append(np.load(name))
-                                if int(file.split('_')[-1][:-4]) == idx_max:
-                                    Sq0_accumulated_max.append(np.load(name))
-                        except:
-                            pass
-                    if 'corr_lengths_' in file:
-                        name = os.path.join(rootc, file)
-                        try:
-                            order = np.load(name)[np.newaxis, ...]
-                            if np.all(~np.isnan(order)):
-                                corr_len_accumulated.append(np.load(name))
-                                if int(file.split('_')[-1][:-4]) == idx_max:
-                                    corr_len_accumulated_max.append(np.load(name))
-                        except:
-                            pass
-                    if 'chi_vertex_' in file:
-                        name = os.path.join(rootc, file)
-                        try:
-                            order = np.load(name)[np.newaxis, ...]
-                            if np.all(~np.isnan(order)):
-                                chi_vertex_accumulated.append(np.load(name))
-                                if int(file.split('_')[-1][:-4]) == idx_max:
-                                    chi_vertex_accumulated_max.append(np.load(name))
-                        except Exception:
-                            print(np.load(name)[np.newaxis, ...].shape)
-                            break
-                    if 'chi_total_' in file:
-                        name = os.path.join(rootc, file)
-                        try:
-                            order = np.load(name)[np.newaxis, ...]
-                            if np.all(~np.isnan(order)):
-                                chi_total_accumulated.append(np.load(name))
-                                if int(file.split('_')[-1][:-4]) == idx_max:
-                                    chi_total_accumulated_max.append(np.load(name))
-                        except:
-                            pass
-                    if 'gap_names.npy' in file:
-                        name = os.path.join(rootc, file)
-                        gap_names = np.load(name)
-                    if 'orders_names.npy' in file:
-                        name = os.path.join(rootc, file)
-                        orders_names = np.load(name)
+            def accumulate(ids, name, accumulated, accumulated_max):
+                for n in range(len(ids) - 1):
+                    file_next = os.path.join(rootc, '{:s}_{:d}.npy'.format(name, ids[n + 1]))
+                    file_prev = os.path.join(rootc, '{:s}_{:d}.npy'.format(name, ids[n]))
+                    try:
+                        data_next = np.load(file_next)
+                        data_prev = np.load(file_prev)
+                        if np.all(~np.isnan(data_next)) and np.all(~np.isnan(data_prev)):
+                            accumulated.append(data_next * (n + 1) - data_prev * n)  # FIXME: if I relaunch the orders -- this fails
+                            if n == len(ids) - 2:
+                                accumulated_max.append(data_next)
+                    except:
+                        pass
+                return accumulated, accumulated_max
+            order_accumulated, order_accumulated_max = accumulate(ids, 'order', order_accumulated, order_accumulated_max)
+            Sq0_accumulated, Sq0_accumulated_max = accumulate(ids, 'Sq0', Sq0_accumulated, Sq0_accumulated_max)
+            corr_len_accumulated, corr_len_accumulated_max = accumulate(ids, 'corr_lengths', corr_len_accumulated, corr_len_accumulated_max)
+            chi_vertex_accumulated, chi_vertex_accumulated_max = accumulate(ids, 'chi_vertex', chi_vertex_accumulated, chi_vertex_accumulated_max)
+            chi_total_accumulated, chi_total_accumulated_max = accumulate(ids, 'chi_total', chi_total_accumulated, chi_total_accumulated_max)
+            name = os.path.join(rootc, 'gap_names.npy')
+            gap_names = np.load(name)
+            name = os.path.join(rootc, 'orders_names.npy')
+            orders_names = np.load(name)
+
         chi_total_accumulated = np.array(chi_total_accumulated)
         chi_total_accumulated_max = np.array(chi_total_accumulated_max)
         chi_vertex_accumulated = np.array(chi_vertex_accumulated)
@@ -275,16 +244,22 @@ def plot_smth_whole_dirs(master_dir):
         if len(chi_vertex_accumulated) < 1:
             continue
 
+        for n, gap_name_n in enumerate(gap_names):
+            for m, gap_name_m in enumerate(gap_names):
+                corr_full_max = chi_vertex_accumulated_max[:, n, m]
+                corr_full = chi_vertex_accumulated[:, n, m]
+                if len(corr_full) > 0:
+                    c, _ = get_jackknife_1d(corr_full_max)
+                    _, e = get_jackknife_1d(corr_full)
+                    df_gaps_full.loc[len(df_gaps_full)] = [gap_name_n, gap_name_m, c, e.real, Nt, mu]
+
         for n, gap_name in enumerate(gap_names):
-            corr_diag = chi_vertex_accumulated_max[:, n, n]
+            corr_diag_max = chi_vertex_accumulated_max[:, n, n]
+            corr_diag = chi_vertex_accumulated[:, n, n]
             max_chi_dict[gap_name + str(Nt)] = chi_vertex_accumulated_max[:, n, n]
-            #import matplotlib.pyplot as plt
-            #plt.plot(corr_diag)
-            #plt.plot(corr_diag * 0)
-            #print(corr_diag)
-            #plt.show()
             if len(corr_diag) > 0:
-                c, e = get_jackknife_1d(corr_diag)
+                c, _ = get_jackknife_1d(corr_diag_max)
+                _, e = get_jackknife_1d(corr_diag)
                 df_gaps.loc[len(df_gaps)] = [gap_name, c.real, e.real, Nt, mu]
             Sq0 = Sq0_accumulated_max[:, n] # TODO
             if len(Sq0) > 0:
@@ -295,13 +270,14 @@ def plot_smth_whole_dirs(master_dir):
             cl = corr_len_accumulated_max[:, n] # TODO
             c, e = get_jackknife_1d(cl)
             df_cl.loc[len(df_gaps)] = [gap_name, c.real, e.real, Nt, mu]
-    return df_gaps, df_Sq0, df_cl, df_irreps, df_orders, df_general
+    return df_gaps_full, df_gaps, df_Sq0, df_cl, df_irreps, df_orders, df_general
 
 
-df_gaps, df_Sq0, df_cl, df_irreps, df_orders, df_general = plot_smth_whole_dirs(sys.argv[1])
+df_gaps_full, df_gaps, df_Sq0, df_cl, df_irreps, df_orders, df_general = plot_smth_whole_dirs(sys.argv[1])
 
 for data_dir in sys.argv[2:-1]:
-    df_gapsd, df_Sq0d, df_cld, df_irrepsd, df_ordersd, df_generald = plot_smth_whole_dirs(data_dir)
+    df_gaps_fulld, df_gapsd, df_Sq0d, df_cld, df_irrepsd, df_ordersd, df_generald = plot_smth_whole_dirs(data_dir)
+    df_gaps_full = pd.concat([df_gaps_full, df_gaps_fulld])
     df_gaps = pd.concat([df_gaps, df_gapsd])
     df_Sq0 = pd.concat([df_Sq0, df_Sq0d])
     df_cl = pd.concat([df_cl, df_cld])
@@ -310,6 +286,7 @@ for data_dir in sys.argv[2:-1]:
     df_general = pd.concat([df_general, df_generald])
 
 df_gaps.to_csv(os.path.join(sys.argv[-1], 'df_gaps.csv'))
+df_gaps.to_csv(os.path.join(sys.argv[-1], 'df_gaps_full.csv'))
 df_Sq0.to_csv(os.path.join(sys.argv[-1], 'df_Sq0.csv'))
 df_cl.to_csv(os.path.join(sys.argv[-1], 'df_cl.csv'))
 df_irreps.to_csv(os.path.join(sys.argv[-1], 'df_irreps.csv'))
