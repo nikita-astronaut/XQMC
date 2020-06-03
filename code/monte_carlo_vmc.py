@@ -51,7 +51,7 @@ def clip_forces(clips, step):
 def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     def remove_singularity(S):
         for i in range(S.shape[0]):
-            if S[i, i] < 1e-1:
+            if S[i, i] < 1e-4:
                 S[i, :] = 0.0
                 S[:, i] = 0.0
                 S[i, i] = 1.0
@@ -102,8 +102,8 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     if n_iter < 100:
         S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
     else:
-        S_cov_pc = S_cov + np.max([300. * (0.95 ** (n_iter - 100)), config_vmc.opt_parameters[0]]) * np.diag(np.diag(S_cov))
-        S_cov_pc += np.eye(S_cov.shape[0]) * np.max([10. * (0.95 ** (n_iter - 100)), 1e-2])
+        S_cov_pc = S_cov + np.max([100. * (0.9 ** (n_iter - 100)), config_vmc.opt_parameters[0]]) * np.diag(np.diag(S_cov))
+        S_cov_pc += np.eye(S_cov.shape[0]) * np.max([10. * (0.9 ** (n_iter - 100)), 1e-3])
 
     step = np.linalg.inv(S_cov_pc).dot(forces)
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
