@@ -286,7 +286,7 @@ for data_dir in sys.argv[2:-1]:
     df_general = pd.concat([df_general, df_generald])
 
 df_gaps.to_csv(os.path.join(sys.argv[-1], 'df_gaps.csv'))
-df_gaps.to_csv(os.path.join(sys.argv[-1], 'df_gaps_full.csv'))
+df_gaps_full.to_csv(os.path.join(sys.argv[-1], 'df_gaps_full.csv'))
 df_Sq0.to_csv(os.path.join(sys.argv[-1], 'df_Sq0.csv'))
 df_cl.to_csv(os.path.join(sys.argv[-1], 'df_cl.csv'))
 df_irreps.to_csv(os.path.join(sys.argv[-1], 'df_irreps.csv'))
