@@ -59,16 +59,16 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.tests = True #True
+        self.tests = False #True
         self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/6/'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/8/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = []#pairings.twoorb_hex_all[15]
+        self.pairings_list = pairings.twoorb_hex_all[16]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -123,7 +123,7 @@ class MC_parameters:
             np.array([0.0, 0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(-0.01, 0.01, size = self.layout[3]),  # gaps
+            np.random.uniform(-0.00001, 0.00001, size = self.layout[3]),  # gaps
             np.random.uniform(0.5, 0.6, size = self.layout[4]),  # jastrows
         ])
 
@@ -150,7 +150,7 @@ class MC_parameters:
         # assert np.allclose(T, T.conj().T)
         if self.twist_mesh == 'Baldereschi':
             twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
-        elif self.twist_mesh == 'APBC':
+        elif self.twist_mesh == 'APBCy':
             twist = [1, -1]
         else:
             twist = [1, 1]
@@ -187,7 +187,7 @@ class MC_parameters:
         N_particles_plus_below = np.sum(Ep < 0)  # current number of + particle energies below zero
         xi = N_particles_plus_below - (self.total_dof // 8 - delta + nu)  # this many levels must be put up above FS
         print('xi_plus = {:d}'.format(xi))
-        dEp = (Ep[N_particles_plus_below - xi - 1] / 2. + Ep[N_particles_plus_below - xi] / 2.) / 1
+        dEp = (Ep[N_particles_plus_below - xi - 1] * 0.25+ Ep[N_particles_plus_below - xi] * 0.75) / 1
         #print(Ep, Ep[N_particles_plus_below - xi - 1], Ep[N_particles_plus_below - xi])
         print('initial mu_BCS_1 = {:.10f}'.format(dEp))
         print('N_[articles_plus_below before = {:d}'.format(N_particles_plus_below))
@@ -203,7 +203,7 @@ class MC_parameters:
 
         N_particles_minus_below = np.sum(Em < 0)  # current number of + particle energies below zero
         xi = N_particles_minus_below - (self.total_dof // 8 - delta - nu)  # this many levels must be put up above FS
-        dEm = (Em[N_particles_minus_below - xi - 1] / 2. + Em[N_particles_minus_below - xi] / 2.) / 1
+        dEm = (Em[N_particles_minus_below - xi - 1] * 0.25 + Em[N_particles_minus_below - xi] * 0.75) / 1
         #print(Em, Em[N_particles_minus_below - xi - 1], Em[N_particles_minus_below - xi])
         print('initial mu_BCS_2 = {:.10f}'.format(dEm))
         print('N_particles_minus_below before = {:d}'.format(N_particles_minus_below))
