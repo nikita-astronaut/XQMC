@@ -42,7 +42,7 @@ class MC_parameters:
         self.U = 8.
 
         ### density VQMC parameters ###
-        self.Ne = 136
+        self.Ne = 128
         self.valley_imbalance = 0
         self.enforce_particle_hole_orbitals = False
         self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
@@ -61,7 +61,7 @@ class MC_parameters:
         self.visualisation = False; 
         self.tests = False #True
         self.n_cpus = 12  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/8/'
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/15/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
