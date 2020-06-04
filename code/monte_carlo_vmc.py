@@ -480,9 +480,10 @@ if __name__ == "__main__":
             step = clip_forces(config_vmc.all_clips, step)
 
             mask = np.ones(len(step))
-            if n_step < 20:  # jastrows have not converged yet
+            if n_step < 100:  # jastrows and mu_BCS have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
+                mask[:config_vmc.layout[0]] = 1.
 
             parameters += step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)

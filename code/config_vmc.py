@@ -12,7 +12,7 @@ class MC_parameters:
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 12; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
@@ -42,7 +42,7 @@ class MC_parameters:
         self.U = 8.
 
         ### density VQMC parameters ###
-        self.Ne = 136
+        self.Ne = 120
         self.valley_imbalance = 0
         self.enforce_particle_hole_orbitals = False
         self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
@@ -59,16 +59,16 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.tests = False #True
+        self.tests = True
         self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/8/'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/9/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[16]
+        self.pairings_list = pairings.twoorb_hex_all[12]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -95,7 +95,7 @@ class MC_parameters:
 
 
         ### optimisation parameters ###
-        self.MC_chain = 3000000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
+        self.MC_chain = 1000000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
@@ -114,21 +114,21 @@ class MC_parameters:
                                                     self, self.chiral_basis) + \
                                 models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][1]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 0.0
+        self.reg_gap_val = 3e-3  # TODO: maybe less
 
         ## initial values definition and layout ###
-        self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
+        self.layout = [2, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
         ### parameters section ###
         self.initial_parameters = np.concatenate([
-            np.array([0.0]),  # mu_BCS
+            np.array([0.0, 0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(-0.00001, 0.00001, size = self.layout[3]),  # gaps
+            np.random.uniform(0.02, 0.03, size = self.layout[3]),  # gaps
             np.random.uniform(0.86, 1.0, size = self.layout[4]),  # jastrows
         ])
 
         self.all_names = np.concatenate([
-            np.array(['mu_BCS']),  # mu_BCS
+            np.array(['mu_BCS_+', 'mu_BCS_-']),  # mu_BCS
             np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
             np.array(self.waves_list_names),  # waves
             np.array(self.pairings_list_names),  # gaps
@@ -136,10 +136,10 @@ class MC_parameters:
         ])
 
         self.all_clips = np.concatenate([
-            np.ones(self.layout[0]) * 1e-4,  # mu_BCS
+            np.ones(self.layout[0]) * 3e-4,  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
-            np.ones(self.layout[2]) * 1e-4,  # waves
-            np.ones(self.layout[3]) * 1e-4,  # gaps
+            np.ones(self.layout[2]) * 3e-4,  # waves
+            np.ones(self.layout[3]) * 3e-4,  # gaps
             np.ones(self.layout[4]) * 1e-2,  # jastrows
         ])
 
@@ -224,7 +224,7 @@ class MC_parameters:
         print('!!!!', np.sort(np.concatenate([Em, Ep])))
 
         print('but I wanted particles_+ {:d}, holes_+ {:d}, particles_-{:d}, holes_- {:d}'.format(self.total_dof // 8 - delta + nu, self.total_dof // 8 + delta - nu, self.total_dof // 8 - delta - nu, self.total_dof // 8 + delta + nu))
-        return dEp
+        return dEp, dEp + 1e-6
 
     def unpack_parameters(self, parameters):
         offset = 0

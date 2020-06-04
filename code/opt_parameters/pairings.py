@@ -859,7 +859,8 @@ def obtain_all_pairings(config):
         _, _, _, _, twoorb_hex_E_N_singlet_im, _, _, _, _, twoorb_hex_E_NN_singlet_im, twoorb_hex_E_NN_triplet_im = \
                                                                  construct_2orb_hex(config, NNN = False, real = False)
 
-        twoorb_hex_all = [[gap] for gap in twoorb_hex_A1_N_singlet] + \
+        twoorb_hex_all = [[]] + \
+                         [[gap] for gap in twoorb_hex_A1_N_singlet] + \
                          [[gap] for gap in twoorb_hex_A1_N_triplet] + \
                          [[gap] for gap in twoorb_hex_A2_N_singlet] + \
                          [[gap] for gap in twoorb_hex_A2_N_triplet] + \
