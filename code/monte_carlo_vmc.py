@@ -99,11 +99,11 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
                       np.einsum('i,j->ij', v.T[:, lambda_idx], u.T[lambda_idx, :])
     step = S_cov_inv.dot(forces)
     '''
-    if n_iter < 100:
+    if n_iter < 20:
         S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
     else:
-        S_cov_pc = S_cov + np.max([100. * (0.9 ** (n_iter - 100)), config_vmc.opt_parameters[0]]) * np.diag(np.diag(S_cov))
-        S_cov_pc += np.eye(S_cov.shape[0]) * np.max([10. * (0.9 ** (n_iter - 100)), 1e-4])
+        S_cov_pc = S_cov + np.max([10. * (0.9 ** (n_iter - 10)), config_vmc.opt_parameters[0]]) * np.diag(np.diag(S_cov))
+        S_cov_pc += np.eye(S_cov.shape[0]) * np.max([1. * (0.9 ** (n_iter - 10)), 1e-4])
 
     step = np.linalg.inv(S_cov_pc).dot(forces)
     print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
@@ -480,7 +480,7 @@ if __name__ == "__main__":
             step = clip_forces(config_vmc.all_clips, step)
 
             mask = np.ones(len(step))
-            if n_step < 100:  # jastrows have not converged yet
+            if n_step < 20:  # jastrows have not converged yet
                 mask = np.zeros(len(step))
                 mask[-config_vmc.layout[4]:] = 1.
 

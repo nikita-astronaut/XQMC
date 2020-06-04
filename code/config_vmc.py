@@ -42,7 +42,7 @@ class MC_parameters:
         self.U = 8.
 
         ### density VQMC parameters ###
-        self.Ne = 128
+        self.Ne = 136
         self.valley_imbalance = 0
         self.enforce_particle_hole_orbitals = False
         self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
@@ -60,15 +60,14 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False; 
         self.tests = False #True
-        self.n_cpus = 12  # the number of processors to use | -1 -- take as many as available
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/15/'
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/11/'
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = []
+        self.pairings_list = pairings.twoorb_hex_all[16]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -123,8 +122,8 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(-0.0001, 0.0001, size = self.layout[3]),  # gaps
-            np.array([0.85, 1.0]),  # jastrows
+            np.random.uniform(-0.00001, 0.00001, size = self.layout[3]),  # gaps
+            np.random.uniform(0.86, 1.0, size = self.layout[4]),  # jastrows
         ])
 
         self.all_names = np.concatenate([
