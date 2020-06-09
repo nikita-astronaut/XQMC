@@ -2,6 +2,7 @@ import numpy as np
 from wavefunction_vmc import wavefunction_singlet, get_wf_ratio, get_det_ratio, get_wf_ratio_double_exchange
 from copy import deepcopy
 from time import time
+import models
 
 def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     der_numerically = 2 * (np.abs(wf_2.current_ampl) - np.abs(wf_1.current_ampl)) / dt / (np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl))
@@ -21,6 +22,9 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
 def test_explicit_factors_check(config):
     # np.random.seed(14)
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+    for MC_step in range(config.MC_thermalisation):
+        wf.perform_MC_step()
+    wf.perform_explicit_GF_update()
 
     delta = np.sum(np.abs(wf.Jastrow - wf.Jastrow.T))
     success = True
@@ -35,7 +39,6 @@ def test_explicit_factors_check(config):
     for _ in range(100):
         det_initial = wf.get_cur_det()
         Jastrow_initial = wf.get_cur_Jastrow_factor()
-        
         acc = False
         ddet = 1.
         dJastrow = 1.
@@ -65,21 +68,24 @@ def test_numerical_derivative_check(config):
     success = True
     der_shift = 0
 
-    print('chemical potential derivative check...')
-    np.random.seed(11)
+    print('chemical potentials derivative check...')
+    n_passed = 0
+    for mu_idx in range(config.layout[0]):
+        np.random.seed(11)
 
-    delta = np.zeros(len(config.initial_parameters)); delta[der_shift] += 1
-    wf_1 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters - delta * dt / 2, False, None)
+        delta = np.zeros(len(config.initial_parameters)); delta[der_shift] += 1
+        wf_1 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters - delta * dt / 2, False, None)
 
-    np.random.seed(11)
-    wf_2 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters + delta * dt / 2, False, None)
+        np.random.seed(11)
+        wf_2 = wavefunction_singlet(config, config.pairings_list, config.initial_parameters + delta * dt / 2, False, None)
+        n_passed += float(compare_derivatives_numerically(wf_1, wf_2, der_shift, dt))
+        der_shift += 1
 
-    if compare_derivatives_numerically(wf_1, wf_2, der_shift, dt):
+    if n_passed == config.layout[0]:
         print('Passed')
     else:
         print('Failed!')
         success = False
-    der_shift += config.layout[0]
 
 
     print('fugacity derivative check...')
@@ -161,7 +167,12 @@ def test_single_move_check(config):
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+    #for MC_step in range(config.MC_thermalisation):
+    #    wf.perform_MC_step()
+    #wf.perform_explicit_GF_update()
+
     for _ in range(200):
+        wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         L = len(wf.state) // 2
         i, j = np.random.randint(0, 2 * L, size = 2)
 
@@ -169,7 +180,7 @@ def test_single_move_check(config):
         state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
         ratio_fast = get_wf_ratio(*state, wf.var_f, i, j)
         
-        acc = wf.perform_MC_step((i, j), enforce = True)[0]
+        acc = wf.perform_MC_step((i, j), enforce = False)[0]
         if not acc:
             continue
         wf.perform_explicit_GF_update()
@@ -349,9 +360,17 @@ def test_double_move_commutation_check(config):
 
     return success
 
+def test_BC_twist(config):
+    print('Testing BC twist with twist ' + str(config.twist))
+    for name, gap in zip(config.pairings_list_names, config.pairings_list_unwrapped):
+        assert np.allclose(gap, models.apply_TBC(config, config.twist, models.apply_TBC(config, config.twist, deepcopy(gap), inverse = False), inverse=True))
+        print('Passed {:s}'.format(name))
+    return True
+
 
 def perform_all_tests(config):
     success = True
+    success = success and test_BC_twist(config)
     success = success and test_all_jastrow_factors_included_only_once(config)
     success = success and test_explicit_factors_check(config)
     success = success and test_double_move_commutation_check(config)
@@ -359,5 +378,5 @@ def perform_all_tests(config):
     success = success and test_delayed_updates_check(config)
     success = success and test_onsite_gf_is_density_check(config)
     success = success and test_numerical_derivative_check(config)
-    success = success and test_double_move_check(config)
+    # success = success and test_double_move_check(config)
     return success
