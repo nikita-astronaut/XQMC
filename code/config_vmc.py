@@ -39,10 +39,11 @@ class MC_parameters:
         ### interaction parameters ###
         self.epsilon = 0.3
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
+        self.long_range = False
         self.U = 8.
 
         ### density VQMC parameters ###
-        self.Ne = 128
+        self.Ne = 136
         self.valley_imbalance = 0
         self.enforce_particle_hole_orbitals = False
         self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
@@ -60,8 +61,8 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False; 
         self.tests = False #True
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/14/'
-        self.n_cpus = 12  # the number of processors to use | -1 -- take as many as available
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/18/'
+        self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
 
@@ -84,7 +85,7 @@ class MC_parameters:
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
-        self.jastrows_list = jastrow.jastrow_Koshino[:2] # remove one jastrow (norm renormalization if PN is conserved)
+        self.jastrows_list = jastrow.jastrow_Koshino[:-3]
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
 
@@ -96,7 +97,7 @@ class MC_parameters:
 
         ### optimisation parameters ###
         self.MC_chain = 1500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
-        self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
+        self.optimisation_steps = 1600; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
@@ -114,7 +115,7 @@ class MC_parameters:
                                                     self, self.chiral_basis) + \
                                 models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][1]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 1e-3  # TODO: maybe less
+        self.reg_gap_val = 2e-3  # TODO: maybe less
 
         ## initial values definition and layout ###
         self.layout = [2, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -124,8 +125,9 @@ class MC_parameters:
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
             np.random.uniform(0.02, 0.03, size = self.layout[3]),  # gaps
-            np.random.uniform(0.86, 1.0, size = self.layout[4]),  # jastrows
+            np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
+        self.initial_parameters[np.array([0, 1, 4]) + np.sum(self.layout[:-1])] = 1.3
 
         self.all_names = np.concatenate([
             np.array(['mu_BCS_+', 'mu_BCS_-']),  # mu_BCS

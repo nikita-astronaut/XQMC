@@ -1,5 +1,6 @@
 import numpy as np
 import models
+from models import from_linearized_index
 from time import time
 from wavefunction_vmc import get_wf_ratio, density, get_wf_ratio_double_exchange
 from numba import jit
@@ -27,13 +28,15 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         self.minus_orbital = self.plus_orbital + 1
         self.U = 1.
         self.V = 1.
-        self.W1 = 0 #2. / 3.
-        self.W2 = 0 #1. / 3.
-        self.W3 = 0 #1. / 3.
-        self.JH = 0 # (self.U - self.V) / 2
-        self.J = 0 # 1. / 5.
+        long_range = float(config.long_range)
+
+        self.W1 = 2. / 3. * long_range
+        self.W2 = 1. / 3. * long_range
+        self.W3 = 1. / 3. * long_range
+        self.JH = 0.0# (self.U - self.V) / 2
+        self.J = -1. / 5. * long_range
         self.epsilon = self.config.epsilon
-        self.edges_quadric, self.edges_J_same, self.edges_J_updown, self.edges_J_downup = self._get_interaction()
+        self.edges_quadric, self.edges_J = self._get_interaction()
 
     def _get_interaction(self):
         # for V_{ij} n_i n_j density--density interactions
@@ -49,13 +52,9 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[6:9]]).sum(axis = 0) * self.W2 / 2 / self.epsilon
         edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[9:12]]).sum(axis = 0) * self.W3 / 2 / self.epsilon
 
-        edges_J_same = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * (-self.J / 2) / self.epsilon + 0.0j
-        edges_J_updown = models.apply_TBC(self.config, self.config.twist, deepcopy(edges_J_same), inverse = False, factor = 2) / self.epsilon
-        edges_J_downup = models.apply_TBC(self.config, self.config.twist, deepcopy(edges_J_same), inverse = True, factor = 2) / self.epsilon
+        edges_J = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.J / 2 / self.epsilon + 0.0j
 
-        assert np.allclose(edges_J_updown, edges_J_downup.conj())
-
-        return edges_quadric, edges_J_same, edges_J_updown, edges_J_downup
+        return edges_quadric, edges_J
 
     def __call__(self, wf):
         '''
@@ -82,8 +81,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
                                         get_E_J_Hund(self.minus_orbital, self.plus_orbital, wf_state, wf.var_f))
 
         if self.J != 0.0:
-            E_loc += get_E_J_Hund_long(self.edges_J_same, self.edges_J_updown, self.edges_J_updown,\
-                                       wf_state, wf.var_f)
+            E_loc += get_E_J_Hund_long(self.edges_J, wf_state, wf.var_f, self.config.twist, \
+                                       self.config.Ls, self.config.n_orbitals, self.config.n_sublattices)
         return E_loc
 
 
@@ -155,34 +154,93 @@ def get_E_J_Hund(plus_orbital, minus_orbital, wf_state, total_fugacity):
     return E_loc
 
 @jit(nopython=True)
-def get_E_J_Hund_long(edges_J_same, edges_J_updown, \
-                      edges_J_downup, wf_state, total_fugacity):
+def get_E_J_Hund_long(edges_J, wf_state, total_fugacity, twist, Ls, n_orbitals, n_sublattices):
     L = len(wf_state[3]) // 2
     E_loc = 0.0 + 0.0j
 
-    for i in range(edges_J_same.shape[0] // 2):
-        for j in range(edges_J_same.shape[1] // 2):
-            if edges_J_same[i * 2, j * 2] == 0:
+    for i in range(edges_J.shape[0] // 2):
+        for j in range(edges_J.shape[1] // 2):
+            if edges_J[i * 2, j * 2] == 0:
                 continue
 
             for orb in range(2):
-                itotal = i * 2 + orb; jtotal = i * 2 + orb
-                E_loc += edges_J_same[itotal, jtotal] * density(wf_state[2], itotal) * density(wf_state[2], jtotal)  # s1 = s2
-                E_loc += edges_J_same[itotal, jtotal] * (1 - density(wf_state[2], itotal + L)) * (1 - density(wf_state[2], jtotal + L))  # s1 = s2
-                E_loc += -edges_J_updown[itotal, jtotal] * \
-                    get_wf_ratio_double_exchange(*wf_state, total_fugacity, itotal, jtotal + L, itotal + L, jtotal)
-                E_loc += -edges_J_downup[itotal, jtotal] * \
-                    get_wf_ratio_double_exchange(*wf_state, total_fugacity, jtotal, itotal + L, jtotal + L, itotal)
+                itotal = i * 2 + orb; jtotal = j * 2 + orb
+
+                orbiti, _, xi, yi = from_linearized_index(itotal, Ls, n_orbitals, n_sublattices)
+                orbitj, _, xj, yj = from_linearized_index(jtotal, Ls, n_orbitals, n_sublattices)
+
+                factor_x_up_up = 1.0; factor_x_up_down = 1.0; factor_x_down_up = 1.0; factor_x_down_down = 1.0;
+                factor_y_up_up = 1.0; factor_y_up_down = 1.0; factor_y_down_up = 1.0; factor_y_down_down = 1.0;
+
+                if np.abs(xi - xj) > Ls // 2:
+                    factor_x_up_up = np.exp(-1.0j * twist[0] * (-1. + 2 * orb) * (+1.0) + 1.0j * twist[0] * (-1. + 2 * orb) * (+1.0))
+                    factor_x_up_down = np.exp(-1.0j * twist[0] * (-1. + 2 * orb) * (-1.0) + 1.0j * twist[0] * (-1. + 2 * orb) * (+1.0))
+                    factor_x_down_up = np.exp(-1.0j * twist[0] * (-1. + 2 * orb) * (+1.0) + 1.0j * twist[0] * (-1. + 2 * orb) * (-1.0))
+                    factor_x_down_down = np.exp(-1.0j * twist[0] * (-1. + 2 * orb) * (-1.0) + 1.0j * twist[0] * (-1. + 2 * orb) * (-1.0))
+                    if xi < xj:
+                        factor_x_up_up = np.conj(factor_x_up_up)
+                        factor_x_up_down = np.conj(factor_x_up_down)
+                        factor_x_down_up = np.conj(factor_x_down_up)
+                        factor_x_down_down = np.conj(factor_x_down_down)
+
+                if np.abs(yi - yj) > Ls // 2:
+                    factor_y_up_up = np.exp(-1.0j * twist[1] * (-1. + 2 * orb) * (+1.0) + 1.0j * twist[1] * (-1. + 2 * orb) * (+1.0))
+                    factor_y_up_down = np.exp(-1.0j * twist[1] * (-1. + 2 * orb) * (-1.0) + 1.0j * twist[1] * (-1. + 2 * orb) * (+1.0))
+                    factor_y_down_up = np.exp(-1.0j * twist[1] * (-1. + 2 * orb) * (+1.0) + 1.0j * twist[1] * (-1. + 2 * orb) * (-1.0))
+                    factor_y_down_down = np.exp(-1.0j * twist[1] * (-1. + 2 * orb) * (-1.0) + 1.0j * twist[1] * (-1. + 2 * orb) * (-1.0))
+                    if yi < yj:
+                        factor_y_up_up = np.conj(factor_y_up_up)
+                        factor_y_up_down = np.conj(factor_y_up_down)
+                        factor_y_down_up = np.conj(factor_y_down_up)
+                        factor_y_down_down = np.conj(factor_y_down_down)
+
+                E_loc += edges_J[itotal, jtotal] * density(wf_state[2], itotal) * density(wf_state[2], jtotal) * \
+                             factor_x_up_up * factor_y_up_up  # s1 = s2
+                E_loc += edges_J[itotal, jtotal] * (1 - density(wf_state[2], itotal + L)) * (1 - density(wf_state[2], jtotal + L)) * \
+                             factor_x_down_down * factor_y_down_down # s1 = s2
+                E_loc += -edges_J[itotal, jtotal] * get_wf_ratio_double_exchange(*wf_state, total_fugacity, itotal, jtotal + L, itotal + L, jtotal) * \
+                             factor_x_up_down * factor_y_up_down
+                E_loc += -edges_J[itotal, jtotal] * get_wf_ratio_double_exchange(*wf_state, total_fugacity, jtotal, itotal + L, jtotal + L, itotal) * \
+                             factor_x_down_up * factor_y_down_up
 
             for mp in range(2):
-                iplus = i * 2 + mp; iminus = i * 2 + 1 - mp; jplus = 2 * j + mp; jminus = j * 2 + 1 - mp;
-                E_loc += edges_J_same[iplus, jplus] * \
+                iplus = i * 2 + mp; iminus = i * 2 + (1 - mp); jplus = 2 * j + mp; jminus = j * 2 + (1 - mp);
+
+                _, _, xi, yi = from_linearized_index(iplus, Ls, n_orbitals, n_sublattices)
+                _, _, xj, yj = from_linearized_index(jplus, Ls, n_orbitals, n_sublattices)
+
+                factor_x_up_up = 1.0; factor_x_up_down = 1.0; factor_x_down_up = 1.0; factor_x_down_down = 1.0;
+                factor_y_up_up = 1.0; factor_y_up_down = 1.0; factor_y_down_up = 1.0; factor_y_down_down = 1.0;
+
+                if np.abs(xi - xj) > Ls // 2:
+                    factor_x_up_up = np.exp(-1.0j * twist[0] * (-1. + 2 * (1 - mp)) * (+1.0) + 1.0j * twist[0] * (-1. + 2 * mp) * (+1.0))
+                    factor_x_up_down = np.exp(-1.0j * twist[0] * (-1. + 2 * (1 - mp)) * (-1.0) + 1.0j * twist[0] * (-1. + 2 * mp) * (+1.0))
+                    factor_x_down_up = np.exp(-1.0j * twist[0] * (-1. + 2 * (1 - mp)) * (+1.0) + 1.0j * twist[0] * (-1. + 2 * mp) * (-1.0))
+                    factor_x_down_down = np.exp(-1.0j * twist[0] * (-1. + 2 * (1 - mp)) * (-1.0) + 1.0j * twist[0] * (-1. + 2 * mp) * (-1.0))
+                    if xi < xj:
+                        factor_x_up_up = np.conj(factor_x_up_up)
+                        factor_x_up_down = np.conj(factor_x_up_down)
+                        factor_x_down_up = np.conj(factor_x_down_up)
+                        factor_x_down_down = np.conj(factor_x_down_down)
+
+                if np.abs(yi - yj) > Ls // 2:
+                    factor_y_up_up = np.exp(-1.0j * twist[1] * (-1. + 2 * (1 - mp)) * (+1.0) + 1.0j * twist[1] * (-1. + 2 * mp) * (+1.0))
+                    factor_y_up_down = np.exp(-1.0j * twist[1] * (-1. + 2 * (1 - mp)) * (-1.0) + 1.0j * twist[1] * (-1. + 2 * mp) * (+1.0))
+                    factor_y_down_up = np.exp(-1.0j * twist[1] * (-1. + 2 * (1 - mp)) * (+1.0) + 1.0j * twist[1] * (-1. + 2 * mp) * (-1.0))
+                    factor_y_down_down = np.exp(-1.0j * twist[1] * (-1. + 2 * (1 - mp)) * (-1.0) + 1.0j * twist[1] * (-1. + 2 * mp) * (-1.0))
+                    if yi < yj:
+                        factor_y_up_up = np.conj(factor_y_up_up)
+                        factor_y_up_down = np.conj(factor_y_up_down)
+                        factor_y_down_up = np.conj(factor_y_down_up)
+                        factor_y_down_down = np.conj(factor_y_down_down)
+
+                E_loc += edges_J[iplus, jplus] * factor_x_up_up * factor_y_up_up * \
                     get_wf_ratio_double_exchange(*wf_state, total_fugacity, iplus, iminus, jminus, jplus)  # up-up
-                E_loc += edges_J_same[iplus, jplus] * \
+                E_loc += edges_J[iplus, jplus] * factor_x_down_down * factor_y_down_down * \
                     get_wf_ratio_double_exchange(*wf_state, total_fugacity, iminus + L, iplus + L, jplus + L, jminus + L)  # down-down
-                E_loc += -edges_J_updown[iplus, jplus] * \
+                E_loc += -edges_J[iplus, jplus] * factor_x_up_down * factor_y_up_down * \
                     get_wf_ratio_double_exchange(*wf_state, total_fugacity, iplus, jminus + L, iminus + L, jplus)  # up-down
-                E_loc += -edges_J_downup[iplus, jplus] * \
+                E_loc += -edges_J[iplus, jplus] * factor_x_down_up * factor_y_down_up * \
                     get_wf_ratio_double_exchange(*wf_state, total_fugacity, jminus, iplus + L, jplus + L, iminus)  # down-up
     return E_loc
 
