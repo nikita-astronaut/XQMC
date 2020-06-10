@@ -103,9 +103,9 @@ def construct_ui_hex(ui, delta_hex):
 
     if ui == 1:
         return (delta_hex[2] + delta_hex[5]) + (delta_hex[1] + delta_hex[4]) + (delta_hex[0] + delta_hex[3])
-    if ui == 2:
-        return (delta_hex[2] + delta_hex[5]) + omega * (delta_hex[1] + delta_hex[4]) + np.conj(omega) * (delta_hex[0] + delta_hex[3])
     if ui == 3:
+        return (delta_hex[2] + delta_hex[5]) + omega * (delta_hex[1] + delta_hex[4]) + np.conj(omega) * (delta_hex[0] + delta_hex[3])
+    if ui == 2:
         return (delta_hex[2] + delta_hex[5]) + np.conj(omega) * (delta_hex[1] + delta_hex[4]) + omega * (delta_hex[0] + delta_hex[3])
     raise ValueError("NNN has only 3 possible links numerated 1, 2, 3")
 
@@ -282,19 +282,12 @@ def construct_2orb_hex(config, NNN=True, real = True):
     A1_NN_singlet = [
         [(Xpauli, Ipauli, v1, 1.0), factor, addstring + '(S_x)x(S_0&S_x)x(v_1)'],
         [(iYpauli, iYpauli, v1, 1.0), factor, addstring + '(iS_y)x(iS_y&S_y)x(v_1)'],
-        [(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, 1.0), factor, addstring + '[(S_x)x(S_1)x(v_2)+(S_x)x(S_2)x(v_3)]'],
     ]
     print('Testing the A1_NN_singlet properties')
     [check_irrep_properties(config, A1_NN_singlet[i:i + 1]) for i in range(len(A1_NN_singlet))]
     [check_irrep_properties(config, A1_NN_singlet[i:i + 1], chiral = True) for i in range(len(A1_NN_singlet))]
     
-    A1_NN_triplet = [
-        [(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, -1.0), factor, addstring + '[(iS_y)x(S_1)x(v_2)-(iS_y)x(S_2)x(v_3)]'],
-    ]
-    print('Testing the A1_NN_triplet properties')
-    [check_irrep_properties(config, A1_NN_triplet[i:i + 1]) for i in range(len(A1_NN_triplet))]
-    [check_irrep_properties(config, A1_NN_triplet[i:i + 1], chiral = True) for i in range(len(A1_NN_triplet))]
-
+    
     A2_N_singlet = [
         [(Zpauli, Ipauli, onsite, 1), factor, addstring + '(S_z)x(S_0&S_x)x(δ)'],
     ]
@@ -310,17 +303,9 @@ def construct_2orb_hex(config, NNN=True, real = True):
     [check_irrep_properties(config, A2_N_triplet[i:i + 1], chiral = True) for i in range(len(A2_N_triplet))]
 
 
-    A2_NN_singlet = [
-        [(Xpauli, sigma_1, v2, 1.0), (Xpauli, sigma_2, v3, -1.0), factor, addstring + '[(S_x)x(S_1)x(v_2)-(S_x)x(S_2)x(v_3)]'],
-    ]
-    print('Testing the A2_NN_singlet properties')
-    [check_irrep_properties(config, A2_NN_singlet[i:i + 1]) for i in range(len(A2_NN_singlet))]
-    [check_irrep_properties(config, A2_NN_singlet[i:i + 1], chiral = True) for i in range(len(A2_NN_singlet))]
-
     A2_NN_triplet = [
         [(Xpauli, iYpauli, v1, 1.0), factor, addstring + '(S_x)x(iS_y&S_y)x(v_1)'],
         [(iYpauli, Ipauli, v1, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_1)'],
-        [(iYpauli, sigma_1, v2, 1.0), (iYpauli, sigma_2, v3, 1.0), factor, addstring + '[(iS_y)x(S_1)x(v_2)+(iS_y)x(S_2)x(v_3)]'],
     ]
     print('Testing the A2_NN_triplet properties')
     [check_irrep_properties(config, A2_NN_triplet[i:i + 1]) for i in range(len(A2_NN_triplet))]
@@ -329,6 +314,7 @@ def construct_2orb_hex(config, NNN=True, real = True):
     E_N_singlet = [
         [(Ipauli, sigma_1, onsite, 1.0), factor, addstring + '(S_0)x(S_1)x(δ)'], [(Ipauli, sigma_2, onsite, 1.0), factor, addstring + '(S_0)x(S_2)x(δ)'],
         [(Zpauli, sigma_1, onsite, 1.0), factor, addstring + '(S_z)x(S_1)x(δ)'], [(Zpauli, sigma_2, onsite, 1.0), factor, addstring + '(S_z)x(S_2)x(δ)'],
+        [(Xpauli, sigma_1, v2, 1.0), factor, addstring + '(S_x)x(S_1)x(v_2)'], [(Xpauli, sigma_2, v3, 1.0), factor, addstring + '(S_x)x(S_2)x(v_3)']
     ]
     print('Testing the E_N_singlet properties')
     [check_irrep_properties(config, E_N_singlet[2 * i:2 * i + 2]) for i in range(len(E_N_singlet) // 2)]
@@ -349,6 +335,7 @@ def construct_2orb_hex(config, NNN=True, real = True):
         [(iYpauli, sigma_1, v3, 1.0), factor, addstring + '(iS_y)x(S_1)x(v_3)'], [(iYpauli, sigma_2, v2, 1.0), factor, addstring + '(iS_y)x(S_2)x(v_2)'],
         [(iYpauli, Ipauli, v2, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_2)'], [(iYpauli, Ipauli, v3, 1.0), factor, addstring + '(iS_y)x(S_0&S_x)x(v_3)'],
         [(iYpauli, sigma_1, v1, 1.0), factor, addstring + '(iS_y)x(S_1)x(v_1)'], [(iYpauli, sigma_2, v1, 1.0), factor, addstring + '(iS_y)x(S_2)x(v_1)'],
+        [(iYpauli, sigma_1, v2, 1.0), factor, addstring + '(iS_y)x(S_1)x(v_2)'], [(iYpauli, sigma_2, v3, 1.0), factor, addstring + '(iS_y)x(S_2)x(v_3)'],
     ]
     print('Testing the E_NN_triplet properties')
     [check_irrep_properties(config, E_NN_triplet[2 * i:2 * i + 2]) for i in range(len(E_NN_triplet) // 2)]
@@ -356,7 +343,7 @@ def construct_2orb_hex(config, NNN=True, real = True):
 
     if not NNN:
         return A1_N_singlet, A1_N_triplet, A2_N_singlet, A2_N_triplet, E_N_singlet, \
-               A1_NN_singlet, A1_NN_triplet, A2_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet
+               A1_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet
 
 
     A1_NNN_singlet = [
@@ -376,9 +363,9 @@ def construct_2orb_hex(config, NNN=True, real = True):
     [check_irrep_properties(config, A1_NNN_triplet[i:i + 1], chiral = True) for i in range(len(A1_NNN_triplet))]
 
     A2_NNN_singlet = [
-        [(Ipauli, sigma_1, u2, 1.0), (Ipauli, sigma_2, u3, -1.0), factor, addstring + '[(S_0)x(S_1)x(u_2)-(S_0)x(S_2)x(u_3)]'],
+        [(Ipauli, sigma_1, u3, 1.0), (Ipauli, sigma_2, u2, -1.0), factor, addstring + '[(S_0)x(S_1)x(u_3)-(S_0)x(S_2)x(u_2)]'],
         [(Zpauli, Ipauli, u1, 1.0), factor, addstring + '(S_z)x(S_0&S_x)x(u_1)'],
-        [(Zpauli, sigma_1, u2, 1.0), (Zpauli, sigma_2, u3, 1.0), factor, addstring + '[(S_z)x(S_1)x(u_2)+(S_z)x(S_2)x(u_3)]'],
+        [(Zpauli, sigma_1, u3, 1.0), (Zpauli, sigma_2, u2, 1.0), factor, addstring + '[(S_z)x(S_1)x(u_3)+(S_z)x(S_2)x(u_2)]'],
     ]
     print('Testing the A2_NNN_singlet properties')
     [check_irrep_properties(config, A2_NNN_singlet[i:i + 1]) for i in range(len(A2_NNN_singlet))]
@@ -417,7 +404,7 @@ def construct_2orb_hex(config, NNN=True, real = True):
     #check_P_symmetry(config, A1_NN_singlet[0], A2_NN_triplet[1])
 
     return A1_N_singlet, A1_N_triplet, A2_N_singlet, A2_N_triplet, E_N_singlet, \
-           A1_NN_singlet, A1_NN_triplet, A2_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet, \
+           A1_NN_singlet, A2_NN_triplet, E_NN_singlet, E_NN_triplet, \
            A1_NNN_singlet, A1_NNN_triplet, A2_NNN_singlet, A2_NNN_triplet, E_NNN_singlet, E_NNN_triplet
 
 def construct_1orb_hex(config, real = True):
@@ -678,7 +665,6 @@ def check_P_symmetry(config, gap_singlet, gap_triplet):
 
 
 def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False):
-    return
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
     global C2y_symmetry_map_chiral, C3z_symmetry_map_chiral
     global name_group_dict
@@ -713,16 +699,16 @@ def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False)
 
         gap = combine_product_terms(config, irr) if type(irr[0]) == tuple else irr[0]
         i = 1
-        for j in range(gap.shape[1] // 2):
-            if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
-                print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'before', i, j, chiral)
-            break
+        #for j in range(gap.shape[1] // 2):
+        #    if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
+        #        print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'before', i, j, chiral)
+        #    break
         gap = models.xy_to_chiral(gap, term_type, config, chiral = chiral)  # can do nothing or make chiral transform
         i = 1
-        for j in range(gap.shape[1] // 2):
-            if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
-                print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'after', i, j, chiral)
-            break
+        #for j in range(gap.shape[1] // 2):
+        #    if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
+        #        print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'after', i, j, chiral)
+        #    break
 
         if term_type != 'pairing':
             gap_image = (reflection).dot(gap).dot(reflection.conj().T)
@@ -795,8 +781,7 @@ twoorb_hex_A1_N_singlet = None; twoorb_hex_A1_N_triplet = None;
 twoorb_hex_A2_N_singlet = None; twoorb_hex_A2_N_triplet = None;
 twoorb_hex_E_N_singlet = None;
 
-twoorb_hex_A1_NN_singlet = None; twoorb_hex_A1_NN_triplet = None; 
-twoorb_hex_A2_NN_singlet = None; twoorb_hex_A2_NN_triplet = None;
+twoorb_hex_A1_NN_singlet = None; twoorb_hex_A2_NN_triplet = None;
 twoorb_hex_E_NN_singlet = None; twoorb_hex_E_NN_triplet = None; 
 
 twoorb_hex_A1_NNN_singlet = None; twoorb_hex_A1_NNN_triplet = None; 
@@ -827,10 +812,10 @@ C4z_symmetry_map = None;
 def obtain_all_pairings(config):
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map, C3z_symmetry_map_chiral, C2y_symmetry_map_chiral
     global twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
-           twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
-           twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet,\
+           twoorb_hex_A1_NN_singlet, twoorb_hex_A2_NN_triplet, twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet,\
            twoorb_hex_A1_NNN_singlet, twoorb_hex_A1_NNN_triplet, twoorb_hex_A2_NNN_singlet, twoorb_hex_A2_NNN_triplet, \
            twoorb_hex_E_NNN_singlet, twoorb_hex_E_NNN_triplet
+
     global oneorb_hex_A1_N_singlet, oneorb_hex_A2_N_singlet, oneorb_hex_A1_NN_singlet, oneorb_hex_A2_NN_triplet, \
            oneorb_hex_E_NN_singlet, oneorb_hex_E_NN_triplet
 
@@ -845,18 +830,15 @@ def obtain_all_pairings(config):
         C2y_symmetry_map_chiral = get_C2y_symmetry_map(config, chiral=True)
 
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
-            twoorb_hex_A1_NN_singlet, twoorb_hex_A1_NN_triplet, twoorb_hex_A2_NN_singlet, twoorb_hex_A2_NN_triplet, \
-            twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet, \
-            twoorb_hex_A1_NNN_singlet, twoorb_hex_A1_NNN_triplet, twoorb_hex_A2_NNN_singlet, twoorb_hex_A2_NNN_triplet, \
-           twoorb_hex_E_NNN_singlet, twoorb_hex_E_NNN_triplet = construct_2orb_hex(config, NNN = True, real = True)
+            twoorb_hex_A1_NN_singlet, twoorb_hex_A2_NN_triplet, twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet = construct_2orb_hex(config, NNN = False, real = True)
 
         twoorb_hex_all_dqmc = twoorb_hex_A1_N_singlet + twoorb_hex_A1_N_triplet + twoorb_hex_A2_N_singlet + twoorb_hex_A2_N_triplet + twoorb_hex_E_N_singlet + \
-            twoorb_hex_A1_NN_singlet + twoorb_hex_A1_NN_triplet + twoorb_hex_A2_NN_singlet + twoorb_hex_A2_NN_triplet + \
-            twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet# + \
-           # twoorb_hex_A1_NNN_singlet + twoorb_hex_A1_NNN_triplet + twoorb_hex_A2_NNN_singlet + twoorb_hex_A2_NNN_triplet + \
-           #twoorb_hex_E_NNN_singlet + twoorb_hex_E_NNN_triplet
+            twoorb_hex_A1_NN_singlet + twoorb_hex_A2_NN_triplet + twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet
 
-        _, _, _, _, twoorb_hex_E_N_singlet_im, _, _, _, _, twoorb_hex_E_NN_singlet_im, twoorb_hex_E_NN_triplet_im = \
+        print(name_group_dict) 
+
+
+        _, _, _, _, twoorb_hex_E_N_singlet_im, _, _, twoorb_hex_E_NN_singlet_im, twoorb_hex_E_NN_triplet_im = \
                                                                  construct_2orb_hex(config, NNN = False, real = False)
 
         twoorb_hex_all = [[]] + \
@@ -865,8 +847,6 @@ def obtain_all_pairings(config):
                          [[gap] for gap in twoorb_hex_A2_N_singlet] + \
                          [[gap] for gap in twoorb_hex_A2_N_triplet] + \
                          [[gap] for gap in twoorb_hex_A1_NN_singlet] + \
-                         [[gap] for gap in twoorb_hex_A1_NN_triplet] + \
-                         [[gap] for gap in twoorb_hex_A2_NN_singlet] + \
                          [[gap] for gap in twoorb_hex_A2_NN_triplet] + \
                          [[irrep_re_1, irrep_re_2, irrep_im_1] for irrep_re_1, irrep_re_2, irrep_im_1 in \
                              zip(twoorb_hex_E_N_singlet[0::2], twoorb_hex_E_N_singlet[1::2], twoorb_hex_E_N_singlet_im[0::2])] + \
@@ -890,15 +870,6 @@ def obtain_all_pairings(config):
             print(' ')
 
         print('there are in total {:d} different irreps in the Koshino model'.format(len(twoorb_hex_all)))
-        names = []
-        pairings = []
-        for irrep in twoorb_hex_all:
-            for pairing in irrep:
-                pairings.append(combine_product_terms(config, pairing))
-                names.append(pairing[-1])
-        np.save('all_hex_pairings.npy', np.array(pairings))
-        np.save('all_hex_names.npy', np.array(names))
-
         return
 
 
