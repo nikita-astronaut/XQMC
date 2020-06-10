@@ -114,7 +114,7 @@ class MC_parameters:
                                                     self, self.chiral_basis) + \
                                 models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][1]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 3e-3  # TODO: maybe less
+        self.reg_gap_val = 1e-3  # TODO: maybe less
 
         ## initial values definition and layout ###
         self.layout = [2, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
