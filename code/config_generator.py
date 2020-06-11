@@ -5,8 +5,8 @@ from opt_parameters import pairings, waves
 import pickle
 
 dt_in_inv_t1 = 1. / 20
-U_in_t1 = np.array([3.30])
-V_in_t1 = np.array([3.30])
+U_in_t1 = np.array([3.10])
+V_in_t1 = np.array([3.10])
 main_hopping = 1.0
 
 class simulation_parameters:
@@ -14,7 +14,7 @@ class simulation_parameters:
         self.gpu = False
         
         self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([70])
+        self.Nt = np.array([60])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -27,11 +27,15 @@ class simulation_parameters:
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
         self.nu_V = None
         self.nu_U = None
+        self.BC_twist = False; self.twist = (1.0, 1.0)
         self.mu = np.array([-0.08])
         self.offset = 0
 
 
+        self.model = models.model_hex_2orb_Koshino
+        self.n_orbitals = 2
         self.field = auxiliary_field.AuxiliaryFieldInterorbitalAccurate
+        self.n_sublattices = 2
         self.start_type = 'presaved'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
         self.n_sweeps = 50000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 200  # every n-th configuration will be stored during generation
@@ -40,8 +44,8 @@ class simulation_parameters:
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
-        self.workdir = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc/-0-08-3-1-20-8x8-4/'
-        self.workdir_heavy = '/gpfs/scratch/userexternal/nastrakh/logs_dqmc_heavy/-0-08-3-1-20-8x8-4/'
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc/-0-08-4-0-20-6x6-1/'
+        self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_heavy/-0-08-4-0-20-6x6-1/'
         self.thermalization = 1000  # after how many sweeps start computing observables
         
         self.tests = False
