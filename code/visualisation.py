@@ -156,9 +156,9 @@ def plot_fermi_surface(config):
 
 def plot_all_pairings(config):
     for gap, name in zip(config.pairings_list, config.pairings_list_names):
-        gap_expanded = pairings.combine_product_terms(config, gap)
-
+        gap_expanded = models.xy_to_chiral(pairings.combine_product_terms(config, gap), 'pairing', config, config.chiral_basis)
         plot_pairing(config, gap_expanded, name)
+
 
 def plot_pairing(config, gap_expanded, name):
     geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
@@ -257,7 +257,9 @@ def plot_pairing(config, gap_expanded, name):
 
 def plot_all_waves(config):
     for wave, name in zip(config.waves_list, config.waves_list_names):
-        plot_wave(config, wave[0], name)
+        wave_chiral = models.xy_to_chiral(wave[0], 'wave', config, config.chiral_basis)
+        plot_wave(config, wave_chiral, name)
+        
 
 def plot_wave(config, wave, name):
     geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
@@ -385,16 +387,16 @@ def plot_wave(config, wave, name):
                 textshift = np.array([r2[1] - r1[1], r1[0] - r2[0]])
                 textshift = textshift / np.sqrt(np.sum(textshift ** 2) + 1e-5)
                 shiftval = 0.4 - ((orbit1 * config.n_orbitals + orbit2) + 4) * 0.1
-                plt.text(*(r2 + shiftval * textshift), labelstring_up, zorder=10, fontsize=8, color='orange')
+                plt.text(*(r2 + np.random.uniform(-0.003, 0.003, size=2) + shiftval * textshift), labelstring_up, zorder=10, fontsize=8, color='orange')
                 shiftval = 0.4 - ((orbit1 * config.n_orbitals + orbit2)) * 0.1
-                plt.text(*(r2 + shiftval * textshift), labelstring_down, zorder=10, fontsize=8, color='violet')
+                plt.text(*(r2 + np.random.uniform(-0.003, 0.003, size=2) + shiftval * textshift), labelstring_down, zorder=10, fontsize=8, color='violet')
     
     plt.xlabel('$x$')
     plt.ylabel('$y$')
     #plt.xlim([-0.5, 1.25])
     #plt.ylim([-0.75, 0.75])
     # plt.title(name + ' pairing')
-    plt.savefig('../plots/wave_' + name + '.pdf')
+    plt.savefig('../plots/' + name + '.pdf')
     plt.clf()
     return
 

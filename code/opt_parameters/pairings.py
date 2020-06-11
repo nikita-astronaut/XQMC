@@ -7,8 +7,8 @@ Xpauli = np.array([[0, 1], [1, 0]])
 iYpauli = np.array([[0, 1], [-1, 0]])
 Zpauli = np.array([[1, 0], [0, -1]])
 
-sigma_1 = (Zpauli - 1.0j * Xpauli)
-sigma_2 = (Zpauli + 1.0j * Xpauli)
+sigma_1 = (Zpauli - 1.0j * Xpauli) / 2.
+sigma_2 = (Zpauli + 1.0j * Xpauli) / 2.
 
 delta_hex_AB, delta_hex_BA = [], []
 delta_hex_NNN_AA, delta_hex_NNN_BB = [], []
@@ -665,6 +665,9 @@ def check_P_symmetry(config, gap_singlet, gap_triplet):
 
 
 def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False):
+    if term_type == 'pairing':
+        return
+
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map
     global C2y_symmetry_map_chiral, C3z_symmetry_map_chiral
     global name_group_dict
@@ -693,22 +696,12 @@ def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False)
         print(irr[-1])
         pairing_group = 0
 
-        if type(irr[0]) == tuple:
+        if term_type == 'pairing':
             print('λ_spin = {:d}'.format(check_parity(config, irr)))
             pairing_group += (check_parity(config, irr) + 1) // 2
 
         gap = combine_product_terms(config, irr) if type(irr[0]) == tuple else irr[0]
-        i = 1
-        #for j in range(gap.shape[1] // 2):
-        #    if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
-        #        print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'before', i, j, chiral)
-        #    break
         gap = models.xy_to_chiral(gap, term_type, config, chiral = chiral)  # can do nothing or make chiral transform
-        i = 1
-        #for j in range(gap.shape[1] // 2):
-        #    if np.sum(np.abs(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2])) > 0:
-        #        print(gap[2 * i:2 * i + 2, 2 * j:2 * j + 2], 'after', i, j, chiral)
-        #    break
 
         if term_type != 'pairing':
             gap_image = (reflection).dot(gap).dot(reflection.conj().T)
@@ -744,7 +737,7 @@ def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False)
             gap_decompose = combine_product_terms(config, irr_decompose) if type(irr_decompose[0]) == tuple else irr_decompose[0]
             gap_decompose = models.xy_to_chiral(gap_decompose, term_type, config, chiral = chiral)  # can do nothing or make chiral transform
             coeff = norm_sc(gap_decompose.flatten(), gap_image.flatten())
-            # print('<{:s}|R|{:s}> = '.format(irr[-1], irr_decompose[-1]) + str(coeff))
+
             if np.abs(coeff) > 1e-5:
                 if np.isclose(coeff, np.exp(2.0j * np.pi / 3)):
                     print('λ_R = ω')
@@ -755,9 +748,14 @@ def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False)
                 elif np.isclose(coeff, 1):
                     print('λ_R = 1')
                     pairing_group += 0
+                elif np.isclose(coeff, -1. / 2.):
+                    print('<{:s}|R|{:s}> = -1/2'.format(irr_decompose[-1], irr[-1]))
+                elif np.isclose(coeff, np.sqrt(3) / 2.):
+                    print('<{:s}|R|{:s}> = sqrt(3)/2'.format(irr_decompose[-1], irr[-1]))
+                elif np.isclose(coeff, -np.sqrt(3) / 2.):
+                    print('<{:s}|R|{:s}> = -sqrt(3)/2'.format(irr_decompose[-1], irr[-1]))
                 else:
-                    print(coeff)
-                    print('Strange eigenvalue R')
+                    print('Strange eigenvalue λ_R, chiral = ', chiral, coeff)
                     exit(-1)
             gap_image = gap_image - gap_decompose.flatten() * coeff
             norm = np.sum(np.abs(gap_image ** 2))
