@@ -475,7 +475,7 @@ class Observables:
                                get_order_average(order_down, order_down, self.ijkl_order, self.X_dd_ijkl, self.ik_marking, self.config.Ls) + \
                                get_order_average(order_up, order_up, self.ijkl_order, self.Z_uu_ijkl, self.ik_marking, self.config.Ls) + \
                                get_order_average(order_down, order_down, self.ijkl_order, self.Z_dd_ijkl, self.ik_marking, self.config.Ls)
-            order_correlator = order_correlator.reshape((self.config.Ls, self.config.Ls))
+            order_correlator = order_correlator.reshape((self.config.Ls, self.config.Ls, 4, 4))
 
             order_correlator /= (self.num_chi_samples * mean_signs_global * norm * N)
             self.order_observables_list[order_name + '_order'] = order_correlator
@@ -700,7 +700,7 @@ def get_gap_susceptibility(gap_alpha, gap_beta, ijkl, C_ijkl, weight):
 
 @jit(nopython=True)
 def get_order_average(order_s1, order_s2, ijkl, X_s1s2_ijkl, ik_marking, Ls):
-    corr = np.zeros(Ls * Ls) + 0.0j
+    corr = np.zeros(Ls * Ls * 16) + 0.0j
 
     for xi in range(len(ijkl)):
         i, j, k, l = ijkl[xi]
@@ -725,19 +725,25 @@ def get_ik_marking(config):
 @jit(nopython=True)
 def _get_ik_marking(Ls, n_orbitals, n_sublattices, total_dof):
     A = np.zeros((total_dof // 2, total_dof // 2), dtype = np.int64)
+
     for i in range(total_dof // 2):
         oi, si, xi, yi = models.from_linearized_index(i, Ls, n_orbitals, n_sublattices)
+
         for j in range(total_dof // 2):
             oj, sj, xj, yj = models.from_linearized_index(j, Ls, n_orbitals, n_sublattices)
 
             dx = (xi - xj) % Ls
             dy = (yi - yj) % Ls
-            index = dy * Ls + dx
-            A[i, j] = index
+            index_spatial = dy * Ls + dx
+
+            index_orbital = n_sublattices * n_sublattices * (oi * n_sublattices + si) + (oj * n_sublattices + sj)
+
+            A[i, j] = index_spatial * n_orbitals ** 2 * n_sublattices ** 2 + index_orbital
     return A
 
 
 def total_mz_squared(G_down, G_up):
     M = np.trace(G_up) - np.trace(G_down)
     vol = G_up.shape[0]
-    return (M ** 2 + np.trace((np.eye(vol) - G_up).dot(G_up)) + np.trace((np.eye(vol) - G_down).dot(G_down))) / vol ** 2
+    return (M ** 2 + np.trace((np.eye(vol) - G_up).dot(G_up)) + \
+            np.trace((np.eye(vol) - G_down).dot(G_down))) / vol ** 2
