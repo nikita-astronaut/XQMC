@@ -33,8 +33,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         self.W1 = 2. / 3. * long_range
         self.W2 = 1. / 3. * long_range
         self.W3 = 1. / 3. * long_range
-        self.JH = 0.0# (self.U - self.V) / 2
-        self.J = -1. / 5. * long_range
+        self.JH = 0.0 # (self.U - self.V) / 2
+        self.J = 0.0 #-1. / 5. * long_range
         self.epsilon = self.config.epsilon
         self.edges_quadric, self.edges_J = self._get_interaction()
 

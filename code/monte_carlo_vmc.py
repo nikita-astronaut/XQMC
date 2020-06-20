@@ -481,7 +481,7 @@ if __name__ == "__main__":
             
             write_intermediate_log(log_file, force_file, force_SR_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, n_above_FS, parameters)  # write parameters before step not to lose the initial values
-            if np.abs(gap) < 1e-6:  # if the gap is too small, SR will make gradient just 0
+            if np.abs(gap) < 1e-4:  # if the gap is too small, SR will make gradient just 0
                 step = forces
             step = step * config_vmc.opt_parameters[1]
             step = clip_forces(config_vmc.all_clips, step)
