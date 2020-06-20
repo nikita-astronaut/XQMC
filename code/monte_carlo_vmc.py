@@ -5,6 +5,10 @@ os.environ['MKL_NUM_THREADS'] = '1'
 os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
 os.environ['NUMEXPR_NUM_THREADS'] = '1'
 
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+
 import numpy as np
 import time
 import sys
@@ -71,9 +75,9 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     S_cov = np.mean(S_cov, axis = 0)
 
     eigvals, eigvecs = np.linalg.eigh(S_cov)
-    print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
-    print(eigvals)
-    print(np.diag(S_cov))
+    #print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
+    #print(eigvals)
+    #print(np.diag(S_cov))
     for val, vec in zip(eigvals, eigvecs.T):
         if np.abs(val) < 1e-6:
             print('redundancy observed:')
@@ -106,11 +110,11 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
         S_cov_pc += np.eye(S_cov.shape[0]) * np.max([1. * (0.9 ** (n_iter - 10)), 1e-4])
 
     step = np.linalg.inv(S_cov_pc).dot(forces)
-    print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
-                                                                  np.sqrt(np.sum(step ** 2))))
-    print(forces[-3], step[-3], 'forces of gap')
-    print(forces)
-    print(step)
+    #print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
+    #                                                              np.sqrt(np.sum(step ** 2))))
+    #print(forces[-3], step[-3], 'forces of gap')
+    #print(forces)
+    #print(step)
     return step, forces
 
 
@@ -330,13 +334,15 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
 
 if __name__ == "__main__":
     config_vmc_file = import_config(sys.argv[1])
-    config_vmc_import = config_vmc_file.MC_parameters()
+    config_vmc_import = config_vmc_file.MC_parameters(rank)
 
-    config_vmc = cv_module.MC_parameters()
+    config_vmc = cv_module.MC_parameters(rank)
     config_vmc.__dict__ = config_vmc_import.__dict__.copy()
 
     print_model_summary(config_vmc)
 
+    config_vmc.workdir = config_vmc.workdir + '/irrep_{:d}/'.format(rank)
+    
     os.makedirs(config_vmc.workdir, exist_ok=True)
     with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target, \
          open(sys.argv[1], 'r') as source:  # save config file to workdir (to remember!!)
@@ -403,11 +409,10 @@ if __name__ == "__main__":
     pairings_names = config_vmc.pairings_list_names
 
 
-    template = 'e_{:.2f}_Ne_{:d}'.format(config_vmc.epsilon, config_vmc.Ne) if config_vmc.PN_projection else \
-               'e_{:.2f}_mu_{:.2f}'.format(config_vmc.epsilon, config_vmc.mu)
+    # template = 'e_{:.2f}_Ne_{:d}'.format(config_vmc.epsilon, config_vmc.Ne) if config_vmc.PN_projection else \
+    #            'e_{:.2f}_mu_{:.2f}'.format(config_vmc.epsilon, config_vmc.mu)
 
-    local_workdir = os.path.join(config_vmc.workdir, template)
-    os.makedirs(local_workdir, exist_ok=True)
+    local_workdir = config_vmc.workdir
 
     obs_files = []
     loaded_from_external = False
@@ -441,7 +446,7 @@ if __name__ == "__main__":
     if last_step == 0 or loaded_from_external:
         write_initial_logs(log_file, force_file, force_SR_file, config_vmc)
 
-    for n_step in range(last_step, last_step + config_vmc.optimisation_steps):
+    for n_step in range(last_step, config_vmc.optimisation_steps):
         t = time()
         
         if twists_per_cpu > 1:
@@ -453,11 +458,10 @@ if __name__ == "__main__":
             for r in results_batched:
                 results = results + r
         else:
-            print('experiments', flush=True)
             with parallel_backend("loky", inner_max_num_threads=1):
                 results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
                     parameters, twists[i], final_states[i], orbitals_in_use[i]) for i in range(config_vmc.n_chains))
-        print('MC chain generation {:d} took {:f}'.format(n_step, time() - t), flush = True)
+        print('MC chain generationof {:d} no {:d} took {:f}'.format(rank, n_step, time() - t))
         t = time() 
 
         ### print-out current energy levels ###
@@ -477,6 +481,8 @@ if __name__ == "__main__":
             
             write_intermediate_log(log_file, force_file, force_SR_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, n_above_FS, parameters)  # write parameters before step not to lose the initial values
+            if np.abs(gap) < 1e-4:  # if the gap is too small, SR will make gradient just 0
+                step = forces
             step = step * config_vmc.opt_parameters[1]
             step = clip_forces(config_vmc.all_clips, step)
 
@@ -500,7 +506,8 @@ if __name__ == "__main__":
             create_obs_files(observables_names, config_vmc)
         
         write_observables(n_step, obs_files, observables, config_vmc)
-        print('SR and logging {:d} took {:f}'.format(n_step, time() - t))
+        if rank == 0:
+            print('SR and logging {:d} took {:f}'.format(n_step, time() - t))
 
     log_file.close()
     force_file.close()
