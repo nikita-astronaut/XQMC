@@ -37,9 +37,9 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 0.3
+        self.epsilon = 3.
+        self.xi = 1.
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
-        self.long_range = False
         self.U = 8.
 
         ### density VQMC parameters ###
@@ -60,8 +60,8 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.tests = False #True
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs/18/'
+        self.tests = True #True
+        self.workdir = '/home/astronaut/DQMC_TBG/logs/newnewnew/'
         self.n_cpus = 6  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
@@ -69,16 +69,28 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[12]
+        self.pairings_list = pairings.twoorb_hex_all_dqmc
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
             self, self.chiral_basis) for g in self.pairings_list_unwrapped]
+
+        ### SDW/CDW parameters setting ###
+        waves.obtain_all_waves(self)
+        self.waves_list = waves.hex_Koshino
+        self.waves_list_names = [w[-1] for w in self.waves_list]
+        self.waves_list_unwrapped = [wave[0] for wave in self.waves_list]
+        self.waves_list_unwrapped = [models.xy_to_chiral(w, 'wave', self, self.chiral_basis) for w in self.waves_list_unwrapped]
+
+        self.enforce_valley_orbitals = True
         if len(self.pairings_list) == 0:
             self.enforce_particle_hole_orbitals = True
         for name in self.pairings_list_names:
-            if '(S_1)' in name or '(S_2)' in name:
-                self.enforce_valley_orbitals = True
+            if '(S_1)' not in name and not '(S_2)' in name:
+                self.enforce_valley_orbitals = False
+        for name in self.waves_list_names:
+            if '(S_1)' not in name and '(S_2)' not in name:
+                self.enforce_valley_orbitals = False
 
         self.name_group_dict = pairings.name_group_dict
         print(self.name_group_dict)
@@ -87,12 +99,6 @@ class MC_parameters:
         jastrow.obtain_all_jastrows(self)
         self.jastrows_list = jastrow.jastrow_Koshino[:-3]
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
-
-
-        ### SDW/CDW parameters setting ###
-        waves.obtain_all_waves(self)
-        self.waves_list = [] # waves.hex_2orb
-        self.waves_list_names = [w[-1] for w in self.waves_list]
 
 
         ### optimisation parameters ###
@@ -115,7 +121,7 @@ class MC_parameters:
                                                     self, self.chiral_basis) + \
                                 models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][1]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 2e-3  # TODO: maybe less
+        self.reg_gap_val = 3e-4  # TODO: maybe less
 
         ## initial values definition and layout ###
         self.layout = [2, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
