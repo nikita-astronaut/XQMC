@@ -26,17 +26,26 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         super().__init__(config)
         self.plus_orbital = np.arange(0, self.config.total_dof // 2, 2)  # chiral basis now
         self.minus_orbital = self.plus_orbital + 1
-        self.U = 1.
-        self.V = 1.
-        long_range = float(config.long_range)
 
-        self.W1 = 2. / 3. * long_range
-        self.W2 = 1. / 3. * long_range
-        self.W3 = 1. / 3. * long_range
         self.JH = 0.0 # (self.U - self.V) / 2
         self.J = 0.0 #-1. / 5. * long_range
+
         self.epsilon = self.config.epsilon
+        self.xi = self.config.xi
+
         self.edges_quadric, self.edges_J = self._get_interaction()
+
+    def W_ij(self, rhat):  # https://arxiv.org/pdf/1905.01887.pdf
+        U_0 = 30 * 0.331 / self.epsilon #  look up notes
+        if rhat == 0:
+            return U_0
+
+        d = self.xi / rhat
+        ns = np.arange(-100000, 100001)
+        W = 110. / self.epsilon / rhat * np.sum((-1.) ** ns / (1 + (ns * d) ** 2) ** 0.5)
+        print('W', W)
+        return U_0 / (1. + (U_0 / W) ** 5) ** 0.2  # Ohno relations
+
 
     def _get_interaction(self):
         # for V_{ij} n_i n_j density--density interactions
@@ -44,16 +53,17 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         #  https://journals.aps.org/prb/pdf/10.1103/PhysRevB.98.081102
         #  https://arxiv.org/pdf/2003.09513.pdf
         #  term U / 2 \sum_{nu = +/-} (n_nu)^2
-        edges_quadric = np.eye(self.config.total_dof // 2) * self.U / 2.0 / self.epsilon
         #  term V / 2 n_+ n_i + n_- n_+
-        edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * self.V / 2 / self.epsilon
 
-        edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.W1 / 2 / self.epsilon
-        edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[6:9]]).sum(axis = 0) * self.W2 / 2 / self.epsilon
-        edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[9:12]]).sum(axis = 0) * self.W3 / 2 / self.epsilon
+        edges_quadric = np.eye(self.config.total_dof // 2) * self.W_ij(0) / 2.0
+        edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * self.W_ij(0) / 2
 
+        for site in range(len(self.config.adjacency_list) // 3):
+            r = np.sqrt(self.config.adjacency_list[3 * site][-1])
+            edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * self.W_ij(r) / 2
+            print('r = ', r, self.W_ij(r))
         edges_J = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.J / 2 / self.epsilon + 0.0j
-
+        exit(-1)
         return edges_quadric, edges_J
 
     def __call__(self, wf):
