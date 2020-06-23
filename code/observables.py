@@ -29,6 +29,15 @@ class Observables:
         self.G_up_sum_filename = os.path.join(self.local_workdir_heavy, 'G_up_sum')
         self.G_down_sum_filename = os.path.join(self.local_workdir_heavy, 'G_down_sum')
 
+        self.Z_uu_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Z_uu_ijkl')
+        self.Z_dd_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Z_dd_ijkl')
+
+        self.X_uu_ijkl_filename = os.path.join(self.local_workdir_heavy, 'X_uu_ijkl')
+        self.X_ud_ijkl_filename = os.path.join(self.local_workdir_heavy, 'X_ud_ijkl')
+        self.X_du_ijkl_filename = os.path.join(self.local_workdir_heavy, 'X_du_ijkl')
+        self.X_dd_ijkl_filename = os.path.join(self.local_workdir_heavy, 'X_dd_ijkl')
+
+
         self.sign_filename = os.path.join(self.local_workdir, 'sign')
         self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples')
 
@@ -103,12 +112,20 @@ class Observables:
 
         # the data is stored in two copies to avoid the bug with file corruption
         # upon restart we are happy to load any copy
-        if self.config.start_type == 'presaved' and os.path.isfile(self.G_up_sum_filename + '.npy'):
+        if self.config.start_type == 'presaved' and (os.path.isfile(self.G_up_sum_filename + '.npy') \
+                                                  or os.path.isfile(self.G_up_sum_filename + '_dump.npy')):
             try:
                 self.GF_up_sum = np.load(self.G_up_sum_filename + '.npy')
                 self.GF_down_sum = np.load(self.G_down_sum_filename + '.npy')
                 self.C_ijkl = np.load(self.C_ijkl_filename + '.npy')
                 self.PHI_ijkl = np.load(self.PHI_ijkl_filename + '.npy')
+                self.Z_uu_ijkl = np.load(self.Z_uu_ijkl_filename + '.npy')
+                self.Z_dd_ijkl = np.load(self.Z_dd_ijkl_filename + '.npy')
+                self.X_uu_ijkl = np.load(self.X_uu_ijkl_filename + '.npy')
+                self.X_ud_ijkl = np.load(self.X_ud_ijkl_filename + '.npy')
+                self.X_du_ijkl = np.load(self.X_du_ijkl_filename + '.npy')
+                self.X_dd_ijkl = np.load(self.X_dd_ijkl_filename + '.npy')
+
                 self.num_chi_samples = np.load(self.num_samples_filename + '.npy')[0]
                 self.total_sign = np.load(self.sign_filename + '.npy')[0]
 
@@ -122,6 +139,14 @@ class Observables:
                     self.GF_down_sum = np.load(self.G_down_sum_filename + '_dump.npy')
                     self.C_ijkl = np.load(self.C_ijkl_filename + '_dump.npy')
                     self.PHI_ijkl = np.load(self.PHI_ijkl_filename + '_dump.npy')
+                    self.Z_uu_ijkl = np.load(self.Z_uu_ijkl_filename + '_dump.npy')
+                    self.Z_dd_ijkl = np.load(self.Z_dd_ijkl_filename + '_dump.npy')
+                    self.X_uu_ijkl = np.load(self.X_uu_ijkl_filename + '_dump.npy')
+                    self.X_ud_ijkl = np.load(self.X_ud_ijkl_filename + '_dump.npy')
+                    self.X_du_ijkl = np.load(self.X_du_ijkl_filename + '_dump.npy')
+                    self.X_dd_ijkl = np.load(self.X_dd_ijkl_filename + '_dump.npy')
+
+
                     self.num_chi_samples = np.load(self.num_samples_filename + '_dump.npy')[0]
                     self.total_sign = np.load(self.sign_filename + '_dump.npy')[0]
 
@@ -138,6 +163,14 @@ class Observables:
             self.total_sign = 0.0
             self.C_ijkl = np.zeros(len(self.ijkl))
             self.PHI_ijkl = np.zeros(len(self.ijkl))
+
+            self.Z_uu_ijkl = np.zeros(len(self.ijkl_order))
+            self.Z_dd_ijkl = np.zeros(len(self.ijkl_order))
+
+            self.X_uu_ijkl = np.zeros(len(self.ijkl_order))
+            self.X_ud_ijkl = np.zeros(len(self.ijkl_order))
+            self.X_du_ijkl = np.zeros(len(self.ijkl_order))
+            self.X_dd_ijkl = np.zeros(len(self.ijkl_order))
         return
 
     def save_GF_data(self):
@@ -148,6 +181,15 @@ class Observables:
         np.save(self.G_down_sum_filename + addstring, self.GF_down_sum)
         np.save(self.C_ijkl_filename + addstring, self.C_ijkl)
         np.save(self.PHI_ijkl_filename + addstring, self.PHI_ijkl)
+        np.save(self.Z_uu_ijkl_filename + addstring, self.Z_uu_ijkl)
+        np.save(self.Z_dd_ijkl_filename + addstring, self.Z_dd_ijkl)
+
+        np.save(self.X_uu_ijkl_filename + addstring, self.X_uu_ijkl)
+        np.save(self.X_ud_ijkl_filename + addstring, self.X_ud_ijkl)
+        np.save(self.X_du_ijkl_filename + addstring, self.X_du_ijkl)
+        np.save(self.X_dd_ijkl_filename + addstring, self.X_dd_ijkl)
+
+
         np.save(self.num_samples_filename + addstring, np.array([self.num_chi_samples]))
         np.save(self.sign_filename + addstring, np.array([self.total_sign]))
 
@@ -161,17 +203,6 @@ class Observables:
         self.cur_buffer_size = 0; self.max_buffer_size = 20
         self.GF_up_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
         self.GF_down_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2))
-
-
-        # for order-order correlator measurement
-        self.Z_uu_ijkl = np.zeros(len(self.ijkl_order))
-        self.Z_dd_ijkl = np.zeros(len(self.ijkl_order))
-
-        self.X_uu_ijkl = np.zeros(len(self.ijkl_order))
-        self.X_ud_ijkl = np.zeros(len(self.ijkl_order))
-        self.X_du_ijkl = np.zeros(len(self.ijkl_order))
-        self.X_dd_ijkl = np.zeros(len(self.ijkl_order))
-
 
         self.gap_observables_list = OrderedDict()
         self.order_observables_list = OrderedDict()
@@ -350,13 +381,16 @@ class Observables:
         t = time()
 
         self.X_uu_ijkl += measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
-            self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
+                                               self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
+        
         self.X_ud_ijkl += measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
-            self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
+                                               self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
+        
         self.X_du_ijkl += measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
-            self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
+                                               self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
+        
         self.X_dd_ijkl += measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
-            self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
+                                               self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
         print('X_s1s2_ijkl take', time() - t)
 
         print('measurement of C_ijkl, PHI_ijkl correlators takes', time() - t)
@@ -435,15 +469,15 @@ class Observables:
 
             order_up = order[:order.shape[0] // 2, :order.shape[1] // 2]
             order_down = order[order.shape[0] // 2:, order.shape[1] // 2:]
-            order_correlator = get_order_average_disconnected(order_up, order_up, self.ijkl_order, self.X_uu_ijkl, self.ik_marking, self.config.Ls) + \
-                               get_order_average_disconnected(order_up, order_down, self.ijkl_order, self.X_ud_ijkl, self.ik_marking, self.config.Ls) + \
-                               get_order_average_disconnected(order_down, order_up, self.ijkl_order, self.X_du_ijkl, self.ik_marking, self.config.Ls) + \
-                               get_order_average_disconnected(order_down, order_down, self.ijkl_order, self.X_dd_ijkl, self.ik_marking, self.config.Ls) + \
-                               get_order_average_connected(order_up, self.ijkl_order, self.Z_uu_ijkl, self.ik_marking, self.config.Ls) + \
-                               get_order_average_connected(order_down, self.ijkl_order, self.Z_dd_ijkl, self.ik_marking, self.config.Ls)
-            order_correlator = order_correlator.reshape((self.config.Ls, self.config.Ls))
+            order_correlator = get_order_average(order_up, order_up, self.ijkl_order, self.X_uu_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average(order_up, order_down, self.ijkl_order, self.X_ud_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average(order_down, order_up, self.ijkl_order, self.X_du_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average(order_down, order_down, self.ijkl_order, self.X_dd_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average(order_up, order_up, self.ijkl_order, self.Z_uu_ijkl, self.ik_marking, self.config.Ls) + \
+                               get_order_average(order_down, order_down, self.ijkl_order, self.Z_dd_ijkl, self.ik_marking, self.config.Ls)
+            order_correlator = order_correlator.reshape((self.config.Ls, self.config.Ls, 4, 4))
 
-            order_correlator /= (len(self.heavy_signs_history) * norm * N * mean_signs)
+            order_correlator /= (self.num_chi_samples * mean_signs_global * norm * N)
             self.order_observables_list[order_name + '_order'] = order_correlator
 
         print('obtaining of observables', time() - t)
@@ -665,22 +699,12 @@ def get_gap_susceptibility(gap_alpha, gap_beta, ijkl, C_ijkl, weight):
 
 
 @jit(nopython=True)
-def get_order_average_disconnected(order_s1, order_s2, ijkl, X_s1s2_ijkl, ik_marking, Ls):
-    corr = np.zeros(Ls * Ls) + 0.0j
+def get_order_average(order_s1, order_s2, ijkl, X_s1s2_ijkl, ik_marking, Ls):
+    corr = np.zeros(Ls * Ls * 16) + 0.0j
 
     for xi in range(len(ijkl)):
         i, j, k, l = ijkl[xi]
         corr[ik_marking[i, k]] += np.conj(order_s1[i, j]) * order_s2[k, l] * X_s1s2_ijkl[xi]
-    return corr
-
-
-@jit(nopython=True)
-def get_order_average_connected(order_s, ijkl, Z_ss_ijkl, ik_marking, Ls):
-    corr = np.zeros(Ls * Ls) + 0.0j
-
-    for xi in range(len(ijkl)):
-        i, j, k, l = ijkl[xi]
-        corr[ik_marking[i, k]] += np.conj(order_s[i, j]) * order_s[k, l] * Z_ss_ijkl[xi]
     return corr
 
 
@@ -701,19 +725,25 @@ def get_ik_marking(config):
 @jit(nopython=True)
 def _get_ik_marking(Ls, n_orbitals, n_sublattices, total_dof):
     A = np.zeros((total_dof // 2, total_dof // 2), dtype = np.int64)
+
     for i in range(total_dof // 2):
         oi, si, xi, yi = models.from_linearized_index(i, Ls, n_orbitals, n_sublattices)
+
         for j in range(total_dof // 2):
             oj, sj, xj, yj = models.from_linearized_index(j, Ls, n_orbitals, n_sublattices)
 
             dx = (xi - xj) % Ls
             dy = (yi - yj) % Ls
-            index = dy * Ls + dx
-            A[i, j] = index
+            index_spatial = dy * Ls + dx
+
+            index_orbital = n_sublattices * n_sublattices * (oi * n_sublattices + si) + (oj * n_sublattices + sj)
+
+            A[i, j] = index_spatial * n_orbitals ** 2 * n_sublattices ** 2 + index_orbital
     return A
 
 
 def total_mz_squared(G_down, G_up):
     M = np.trace(G_up) - np.trace(G_down)
     vol = G_up.shape[0]
-    return (M ** 2 + np.trace((np.eye(vol) - G_up).dot(G_up)) + np.trace((np.eye(vol) - G_down).dot(G_down))) / vol ** 2
+    return (M ** 2 + np.trace((np.eye(vol) - G_up).dot(G_up)) + \
+            np.trace((np.eye(vol) - G_down).dot(G_down))) / vol ** 2
