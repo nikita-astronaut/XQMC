@@ -41,9 +41,9 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             return U_0
 
         d = self.xi / rhat
-        ns = np.arange(-100000, 100001)
+        ns = np.arange(-1000000, 1000001)
         W = 110. / self.epsilon / rhat * np.sum((-1.) ** ns / (1 + (ns * d) ** 2) ** 0.5)
-        print('W', W)
+        # print('W', W)
         return U_0 / (1. + (U_0 / W) ** 5) ** 0.2  # Ohno relations
 
 
@@ -58,12 +58,13 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         edges_quadric = np.eye(self.config.total_dof // 2) * self.W_ij(0) / 2.0
         edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * self.W_ij(0) / 2
 
+        print('initializing Coloumb parameters')
         for site in range(len(self.config.adjacency_list) // 3):
             r = np.sqrt(self.config.adjacency_list[3 * site][-1])
             edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * self.W_ij(r) / 2
-            print('r = ', r, self.W_ij(r))
+            print('V({:.2f} = {:.2f}'.format(r, self.W_ij(r)))
         edges_J = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.J / 2 / self.epsilon + 0.0j
-        exit(-1)
+        # exit(-1)
         return edges_quadric, edges_J
 
     def __call__(self, wf):
