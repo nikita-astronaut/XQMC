@@ -56,7 +56,7 @@ for i, line in enumerate(lines):
     if '#SBATCH --job-name' in line:
         lines[i] = '#SBATCH --job-name {:s}_e_{:.2f}_xi_{:.2f}_Ne_{:d}\n'.format(name, epsilon, xi, Ne)
 
-    if 'python' in line:
+    if 'python3 ' in line:
         pieces = line.split()
         pieces[-1] = config_name + '\n'
         lines[i] = ' '.join(pieces)
