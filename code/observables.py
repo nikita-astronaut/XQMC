@@ -428,14 +428,20 @@ class Observables:
         new_shape = (shape[0] * shape[1], self.n_bands, shape[2] // self.n_bands, self.n_bands, shape[3] // self.n_bands)
         G_up_prepared = np.einsum('ijkl,i->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape)
         G_down_prepared = self.GF_down_stored[:self.cur_buffer_size, ...].reshape(new_shape)
+        print('reshaped', time() - t)
         G_up_prepared_ft = np.einsum('xc,abcde,ey->abxdy', self.U_ft_space.conj().T, G_up_prepared, self.U_ft_space)
+        print('fourier', time() - t)
         G_down_prepared_ft = np.einsum('xc,abcde,ey->abxdy', self.U_ft_space.conj().T, G_down_prepared, self.U_ft_space)
+        print('fourier', time() - t)
         G_down_prepared_ft = G_down_prepared_ft[:, :, self.invert_momenta, :, :]
         G_down_prepared_ft = G_down_prepared_ft[:, :, :, :, self.invert_momenta]
+        print('inverted', time() - t)
 
         G_up_prepared_ft = G_up_prepared_ft.transpose((1, 3, 0, 2, 4))
         G_down_prepared_ft = G_down_prepared_ft.transpose((1, 3, 0, 2, 4))
+        print('transposed', time() - t)
         self.chi_ijkl_total = self.config.dt * np.einsum('ikabc,jlabc->ijklbc', G_up_prepared_ft, G_down_prepared_ft) / self.total_sign
+        print('contracted', time() - t)
 
         print('chi_ijkl_total take', time() - t)
 
