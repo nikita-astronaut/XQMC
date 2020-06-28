@@ -194,7 +194,7 @@ class Observables:
             self.X_du_ijkl = np.zeros(len(self.ijkl_order))
             self.X_dd_ijkl = np.zeros(len(self.ijkl_order))
 
-            self.chi_ijkl_total = np.zeros((self.n_bands, self.n_bands, n_bands, self.n_bands, self.config.Ls ** 2, self.config.Ls ** 2))
+            self.chi_ijkl_total = np.zeros((self.n_bands, self.n_bands, self.n_bands, self.n_bands, self.config.Ls ** 2, self.config.Ls ** 2))
             self.chi_ijkl_free = np.zeros((self.n_bands, self.n_bands, self.n_bands, self.n_bands, self.config.Ls ** 2, self.config.Ls ** 2))
         return
 
