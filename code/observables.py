@@ -37,6 +37,9 @@ class Observables:
         self.X_du_ijkl_filename = os.path.join(self.local_workdir_heavy, 'X_du_ijkl')
         self.X_dd_ijkl_filename = os.path.join(self.local_workdir_heavy, 'X_dd_ijkl')
 
+        self.chi_ijkl_total_filename = os.path.join(self.local_workdir_heavy, 'chi_ijkl_total')
+        self.chi_ijkl_free_filename = os.path.join(self.local_workdir_heavy, 'chi_ijkl_free')
+
 
         self.sign_filename = os.path.join(self.local_workdir, 'sign')
         self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples')
@@ -74,6 +77,21 @@ class Observables:
 
         self.violation_vals = []
         self.violation_signs = []
+
+        ### for fourier transforms ###
+        self.n_bands = self.config.n_sublattices * self.config.n_orbitals
+        k_mesh = np.meshgrid(np.arange(self.config.Ls) / self.config.Ls, np.arange(self.config.Ls) / self.config.Ls)
+        r_mesh = np.meshgrid(np.arange(self.config.Ls), np.arange(self.config.Ls))
+
+        self.U_ft_space = np.exp(2. * np.pi * 1.0j * np.outer(k_mesh[0].flatten(), r_mesh[0].flatten()) + \
+                                 2. * np.pi * 1.0j * np.outer(k_mesh[1].flatten(), r_mesh[1].flatten())) / self.config.Ls
+        self.invert_momenta = np.zeros(self.config.Ls ** 2, dtype=np.int64)
+        for k in range(self.config.Ls ** 2):
+            kx = k // self.config.Ls
+            ky = k % self.config.Ls
+            q = ((-kx) % self.config.Ls) * self.config.Ls + ((-ky) % self.config.Ls)
+            self.invert_momenta[k] = q
+        assert np.allclose(self.invert_momenta[self.invert_momenta], np.arange(self.config.Ls ** 2))
 
         self.load_presaved_GF_data()
         self.refresh_heavy_logs()
@@ -125,6 +143,8 @@ class Observables:
                 self.X_ud_ijkl = np.load(self.X_ud_ijkl_filename + '.npy')
                 self.X_du_ijkl = np.load(self.X_du_ijkl_filename + '.npy')
                 self.X_dd_ijkl = np.load(self.X_dd_ijkl_filename + '.npy')
+                self.chi_ijkl_total = np.load(self.chi_ijkl_total_filename + '.npy')
+                self.chi_ijkl_free = np.load(self.chi_ijkl_free_filename + '.npy')
 
                 self.num_chi_samples = np.load(self.num_samples_filename + '.npy')[0]
                 self.total_sign = np.load(self.sign_filename + '.npy')[0]
@@ -145,6 +165,8 @@ class Observables:
                     self.X_ud_ijkl = np.load(self.X_ud_ijkl_filename + '_dump.npy')
                     self.X_du_ijkl = np.load(self.X_du_ijkl_filename + '_dump.npy')
                     self.X_dd_ijkl = np.load(self.X_dd_ijkl_filename + '_dump.npy')
+                    self.chi_ijkl_total = np.load(self.chi_ijkl_total_filename + '_dump.npy')
+                    self.chi_ijkl_free = np.load(self.chi_ijkl_free_filename + '_dump.npy')
 
 
                     self.num_chi_samples = np.load(self.num_samples_filename + '_dump.npy')[0]
@@ -171,6 +193,9 @@ class Observables:
             self.X_ud_ijkl = np.zeros(len(self.ijkl_order))
             self.X_du_ijkl = np.zeros(len(self.ijkl_order))
             self.X_dd_ijkl = np.zeros(len(self.ijkl_order))
+
+            self.chi_ijkl_total = np.zeros((self.n_bands, self.n_bands, self.n_bands, self.n_bands, self.config.Ls ** 2, self.config.Ls ** 2))
+            self.chi_ijkl_free = np.zeros((self.n_bands, self.n_bands, self.n_bands, self.n_bands, self.config.Ls ** 2, self.config.Ls ** 2))
         return
 
     def save_GF_data(self):
@@ -188,6 +213,8 @@ class Observables:
         np.save(self.X_ud_ijkl_filename + addstring, self.X_ud_ijkl)
         np.save(self.X_du_ijkl_filename + addstring, self.X_du_ijkl)
         np.save(self.X_dd_ijkl_filename + addstring, self.X_dd_ijkl)
+        np.save(self.chi_ijkl_free_filename + addstring, self.chi_ijkl_free)
+        np.save(self.chi_ijkl_total_filename + addstring, self.chi_ijkl_total)
 
 
         np.save(self.num_samples_filename + addstring, np.array([self.num_chi_samples]))
@@ -393,10 +420,49 @@ class Observables:
                                                self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
         print('X_s1s2_ijkl take', time() - t)
 
-        print('measurement of C_ijkl, PHI_ijkl correlators takes', time() - t)
+
+
+        ### chi_ijkl_total ###
+        t = time()
+        shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
+        new_shape = (shape[0] * shape[1], self.n_bands, shape[2] // self.n_bands, self.n_bands, shape[3] // self.n_bands)
+        
+        G_up_prepared = np.einsum('ijkl,i->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape).transpose((1, 3, 0, 2, 4))
+        G_down_prepared = self.GF_down_stored[:self.cur_buffer_size, ...].reshape(new_shape).transpose((1, 3, 0, 2, 4))
+        print(G_up_prepared.shape)
+        G_up_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_up_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
+        G_down_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_down_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
+        print(G_up_prepared_ft.shape)
+
+        G_down_prepared_ft = G_down_prepared_ft[:, :, :, self.invert_momenta, :]
+        G_down_prepared_ft = G_down_prepared_ft[:, :, :, :, self.invert_momenta]
+
+        self.chi_ijkl_total = self.config.dt * np.einsum('ikabc,jlabc->ijklbc', G_up_prepared_ft, G_down_prepared_ft) / self.total_sign
+        print('chi_ijkl_total take', time() - t)
+
+
         self.GF_up_sum += np.einsum('ijkl,i->jkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs)
         self.GF_down_sum += np.einsum('ijkl,i->jkl', self.GF_down_stored[:self.cur_buffer_size, ...], signs)
         self.cur_buffer_size = 0
+
+
+
+        ### chi_ijkl_free ###
+        t = time()
+        shape = self.GF_up_sum.shape
+        new_shape = (shape[0], self.n_bands, shape[1] // self.n_bands, self.n_bands, shape[2] // self.n_bands)
+        G_up_prepared = self.GF_up_sum.reshape(new_shape).transpose((1, 3, 0, 2, 4))
+        G_down_prepared = self.GF_down_sum.reshape(new_shape).transpose((1, 3, 0, 2, 4))
+
+        G_up_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_up_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
+        G_down_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_down_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
+
+        G_down_prepared_ft = G_down_prepared_ft[:, :, :, self.invert_momenta, :]
+        G_down_prepared_ft = G_down_prepared_ft[:, :, :, :, self.invert_momenta]
+
+        self.chi_ijkl_free = self.config.dt * np.einsum('ikabc,jlabc->ijklbc', G_up_prepared_ft, G_down_prepared_ft) / self.total_sign ** 2
+
+        print('chi_ijkl_free take', time() - t)
         return
 
 

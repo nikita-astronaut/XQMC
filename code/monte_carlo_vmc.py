@@ -15,6 +15,8 @@ import sys
 from wavefunction_vmc import wavefunction_singlet
 import opt_parameters.pairings
 from joblib import Parallel, delayed, parallel_backend
+import joblib
+print('joblib version', joblib.__version__)
 import psutil
 from time import time
 import visualisation
@@ -437,7 +439,7 @@ if __name__ == "__main__":
     force_file = open(os.path.join(local_workdir, 'force_log.dat'), 'a+')
     force_SR_file = open(os.path.join(local_workdir, 'force_SR_log.dat'), 'a+')
 
-    spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
+    # spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
     final_states = [False] * config_vmc.n_chains
     orbitals_in_use = [None] * config_vmc.n_chains
 
@@ -466,8 +468,8 @@ if __name__ == "__main__":
 
         ### print-out current energy levels ###
         E = results[0][7]
-        spectral_file.write(("{:.7f} " * len(E) + '\n').format(*E))
-        spectral_file.flush()
+        # spectral_file.write(("{:.7f} " * len(E) + '\n').format(*E))
+        # spectral_file.flush()
         ### MC chains data extraction ###
         gaps, gap, energies, mean_variance, Os, acceptance, \
             final_states, densities, orbitals_in_use, occupied_numbers = \
@@ -477,6 +479,12 @@ if __name__ == "__main__":
         n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
+            mask = np.ones(np.sum(config_vmc.layout))
+            if n_step < 200:  # jastrows and mu_BCS have not converged yet
+                mask = np.zeros(np.sum(config_vmc.layout))
+                mask[-config_vmc.layout[4]:] = 1.
+                mask[:config_vmc.layout[0]] = 1.
+
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step)
             
             write_intermediate_log(log_file, force_file, force_SR_file, n_step, config_vmc.total_dof // 2, energies, densities, \
@@ -485,12 +493,6 @@ if __name__ == "__main__":
                 step = forces
             step = step * config_vmc.opt_parameters[1]
             step = clip_forces(config_vmc.all_clips, step)
-
-            mask = np.ones(len(step))
-            if n_step < 100:  # jastrows and mu_BCS have not converged yet
-                mask = np.zeros(len(step))
-                mask[-config_vmc.layout[4]:] = 1.
-                mask[:config_vmc.layout[0]] = 1.
 
             parameters += step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)
