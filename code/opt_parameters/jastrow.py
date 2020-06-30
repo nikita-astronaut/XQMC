@@ -167,6 +167,15 @@ def get_jastrow_Koshino(config):
     jastrow = np.sum(np.array([j[0] for j in jastrow_list_unique]) , axis = 0)
     return jastrow_list_unique[:-3]  # cut redundant Jastrows
 
+def get_jastrow_Koshino_simple_TRS(config):
+    jastrow_list = []
+
+    for site in range(len(config.adjacency_list) // 3):
+        r = np.sqrt(config.adjacency_list[3 * site][-1])
+        jastrow_list.append([np.array([adj[0] for adj in config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0), 'J({:.2f})'.format(r)])
+
+    return jastrow_list[:-1]  # cut redundant Jastrows
+
 
 jastrow_on_site_1orb = None
 jastrow_long_range_1orb = None
@@ -174,10 +183,11 @@ jastrow_long_range_2orb_degenerate = None
 jastrow_long_range_2orb_nondegenerate = None
 jastrow_Koshino = None
 jastrow_Koshino_Gutzwiller = None
+jastrow_Koshino_simple = None
 
 def obtain_all_jastrows(config):
     global jastrow_on_site_1orb, jastrow_long_range_1orb, \
-           jastrow_long_range_2orb_degenerate, jastrow_long_range_2orb_nondegenerate, jastrow_Koshino, jastrow_Koshino_Gutzwiller
+           jastrow_long_range_2orb_degenerate, jastrow_long_range_2orb_nondegenerate, jastrow_Koshino, jastrow_Koshino_Gutzwiller, jastrow_Koshino_simple
 
     if config.n_orbitals == 1:
         jastrow_on_site_1orb = get_jastrow(config, orb_degenerate = False, max_distance = 0.1)
@@ -188,5 +198,6 @@ def obtain_all_jastrows(config):
         jastrow_long_range_2orb_nondegenerate = get_jastrow(config, orb_degenerate = False)
         jastrow_Koshino = get_jastrow_Koshino(config)
         jastrow_Koshino_Gutzwiller = [jastrow_Koshino[0], jastrow_Koshino[1], jastrow_Koshino[4]]  # only on-site orders
+        jastrow_Koshino_simple = get_jastrow_Koshino_simple_TRS(config)
         return
     raise NotImplementedError()

@@ -64,6 +64,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             r = np.sqrt(self.config.adjacency_list[3 * site][-1])
             edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * self.W_ij(r) / 2
             print('V({:.2f}) = {:.2f}'.format(r, self.W_ij(r)))
+
+        # np.save('test_edges.npy', edges_quadric)
         edges_J = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.J / 2 / self.epsilon + 0.0j
         return edges_quadric, edges_J
 
