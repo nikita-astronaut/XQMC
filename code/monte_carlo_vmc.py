@@ -105,11 +105,11 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
                       np.einsum('i,j->ij', v.T[:, lambda_idx], u.T[lambda_idx, :])
     step = S_cov_inv.dot(forces)
     '''
-    if n_iter < 20:
-        S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
-    else:
-        S_cov_pc = S_cov + np.max([10. * (0.9 ** (n_iter - 10)), config_vmc.opt_parameters[0]]) * np.diag(np.diag(S_cov))
-        S_cov_pc += np.eye(S_cov.shape[0]) * np.max([1. * (0.9 ** (n_iter - 10)), 1e-4])
+    #if n_iter < 20:
+    #    S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
+    #else:
+    S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
+    S_cov_pc += np.eye(S_cov.shape[0]) * 1e-3
 
     step = np.linalg.inv(S_cov_pc).dot(forces)
     #print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
@@ -281,14 +281,12 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     
     t_steps = 0
     t = time()
-    if not wf.with_previous_state or n_iter < 30:  # for first iterations we thermalize anyway (because everything is varying too fast)
-        for MC_step in range(config_vmc.MC_thermalisation):
-            wf.perform_MC_step()
-    else:
-        for MC_step in range(config_vmc.MC_thermalisation):  # else thermalize a little bit
-            wf.perform_MC_step()
-    t_steps += time() - t
+    for MC_step in range(config_vmc.MC_thermalisation):
+        #t = time()
+        acc = wf.perform_MC_step(demand_accept = False)[0]
+        #print('MC step takes {:.10f}, accepted = {:b}'.format(time() - t, acc))
 
+    t_steps += time() - t
     energies = []
     Os = []
     acceptance = []
@@ -312,11 +310,13 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
             energies.append(hamiltonian(wf))
             densities.append(wf.total_density())
             t_energies += time() - t
+            #print('energies take {:.10f}'.format(time() - t))
 
             t = time()
             if config_vmc.generator_mode:  # forces only if necessary
                 Os.append(wf.get_O())
             t_forces += time() - t
+            #print('forces take {:.10f}'.format(time() - t))
 
         t = time()
         if MC_step % config_vmc.observables_frequency == 0 and n_iter > config_vmc.thermalization \
@@ -325,12 +325,13 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
             observables.append(obs)
         t_observables += time() - t
 
-        t = time()
-        acceptance.append(wf.perform_MC_step()[0])
+        #t = time()
+        acceptance.append(wf.perform_MC_step(demand_accept = False)[0])
+        #print('MC step take {:.10f}'.format(time() - t))
         t_steps += time() - t
     # print('t_chain = ', time() - tc)
-    # print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
-    # print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
+    #print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
+    #print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
     return energies, Os, acceptance, wf.get_state(), observables, \
            names, wf.U_matrix, wf.E, densities, wf.gap
 
