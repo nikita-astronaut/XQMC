@@ -12,7 +12,7 @@ class MC_parameters:
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 1; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 3; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
@@ -55,13 +55,15 @@ class MC_parameters:
 
         if self.PN_projection:
             assert 0.0 == self.mu
-        self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, \
-                                           self.model(self, 0.0, spin = +1.0)[0], self.n_orbitals, valley_conservation=self.valley_projection)
+        self.adjacency_transition_matrix = models.get_transition_matrix_range(self, self.model(self, 0.0, spin = +1.0)[0], \
+                                            self.PN_projection, self.n_orbitals, valley_conservation=self.valley_projection) 
+        #self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, \
+        #                                   self.model(self, 0.0, spin = +1.0)[0], self.n_orbitals, valley_conservation=self.valley_projection)
 
         ### other parameters ###
         self.visualisation = False; 
-        self.workdir = '/home/astronaut/DQMC_TBG/logs/newnewnew/'
-        self.tests = False #True
+        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs/newnewnew/'
+        self.tests = True #True
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
@@ -97,8 +99,8 @@ class MC_parameters:
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
-        self.jastrows_list = jastrow.jastrow_Koshino_Gutzwiller 
-        #self.jastrows_list = jastrow.jastrow_Koshino[:-3]
+        #self.jastrows_list = jastrow.jastrow_Koshino_Gutzwiller 
+        self.jastrows_list = jastrow.jastrow_Koshino_simple
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
 
@@ -110,7 +112,7 @@ class MC_parameters:
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-4, 6e-2, 1.0005]
+        self.opt_parameters = [1e-4, 2e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5
         self.generator_mode = True
@@ -122,9 +124,10 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis) + \
+
                                 models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][1]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 3e-4
+        self.reg_gap_val = 1e-3
 
         ## initial values definition and layout ###
         self.layout = [2, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -138,9 +141,9 @@ class MC_parameters:
         ])
         
         if len(self.jastrows_list_names) > 3:
-            self.initial_parameters[np.array([0, 1, 4]) + np.sum(self.layout[:-1])] = 1.3
+            self.initial_parameters[np.sum(self.layout[:-1])] = 1.2
         else:
-            self.initial_parameters[-self.layout[-1]:] = 1.3
+            self.initial_parameters[-self.layout[-1]:] = 0.5
 
         self.all_names = np.concatenate([
             np.array(['mu_BCS_+', 'mu_BCS_-']),  # mu_BCS
@@ -155,7 +158,7 @@ class MC_parameters:
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.ones(self.layout[2]) * 3e-4,  # waves
             np.ones(self.layout[3]) * 3e-4,  # gaps
-            np.ones(self.layout[4]) * 1e-2,  # jastrows
+            np.ones(self.layout[4]) * 2e-2,  # jastrows
         ])
 
         self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino()
