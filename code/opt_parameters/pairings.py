@@ -665,6 +665,7 @@ def check_P_symmetry(config, gap_singlet, gap_triplet):
 
 
 def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False):
+    return
     if term_type == 'pairing':
         return
 
