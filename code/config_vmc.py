@@ -12,7 +12,7 @@ class MC_parameters:
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 1; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
@@ -37,13 +37,13 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 3.
+        self.epsilon = 3.00
         self.xi = 1.
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 8.
 
         ### density VQMC parameters ###
-        self.Ne = 132
+        self.Ne = 136
         self.valley_imbalance = 0
         self.enforce_particle_hole_orbitals = False
         self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
@@ -60,8 +60,8 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.workdir = '/home/astronaut/DQMC_TBG/logs/newnewnew/'
         self.tests = False #True
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs//6x6_Gutzwiller_onsite_smallreg/e_0-20_Ne_136/'
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
@@ -74,6 +74,20 @@ class MC_parameters:
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
             self, self.chiral_basis) for g in self.pairings_list_unwrapped]
+        if len(self.pairings_list) == 0:
+            self.enforce_valley_orbitals = True
+        for name in self.pairings_list_names:
+            if '(S_1)' in name or '(S_2)' in name:
+                self.enforce_valley_orbitals = True
+
+        self.name_group_dict = pairings.name_group_dict
+        print(self.name_group_dict)
+
+        ### jastrow parameters setting ###
+        jastrow.obtain_all_jastrows(self)
+        self.jastrows_list = jastrow.jastrow_Koshino_simple
+        #self.jastrows_list = jastrow.jastrow_Koshino[:-3]
+        self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
 
         ### SDW/CDW parameters setting ###
@@ -82,35 +96,13 @@ class MC_parameters:
         self.waves_list_names = [w[-1] for w in self.waves_list]
         self.waves_list_unwrapped = []
 
-        self.enforce_valley_orbitals = True
-        if len(self.pairings_list) == 0:
-            self.enforce_valley_orbitals = True
-        for name in self.pairings_list_names:
-            if '(S_1)' not in name and not '(S_2)' in name:
-                self.enforce_valley_orbitals = False
-        #for name in self.waves_list_names:
-        #    if '(S_1)' not in name and '(S_2)' not in name:
-        #        self.enforce_valley_orbitals = False
-
-        self.name_group_dict = pairings.name_group_dict
-        print(self.name_group_dict)
-
-        ### jastrow parameters setting ###
-        jastrow.obtain_all_jastrows(self)
-        self.jastrows_list = jastrow.jastrow_Koshino_Gutzwiller 
-        #self.jastrows_list = jastrow.jastrow_Koshino[:-3]
-        self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
-
-
-        
-
         ### optimisation parameters ###
         self.MC_chain = 1500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
         self.optimisation_steps = 1600; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-4, 6e-2, 1.0005]
+        self.opt_parameters = [1e-4, 2e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 5
         self.generator_mode = True
@@ -124,7 +116,7 @@ class MC_parameters:
                                                     self, self.chiral_basis) + \
                                 models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][1]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 3e-4
+        self.reg_gap_val = 1e-3
 
         ## initial values definition and layout ###
         self.layout = [2, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -138,7 +130,7 @@ class MC_parameters:
         ])
         
         if len(self.jastrows_list_names) > 3:
-            self.initial_parameters[np.array([0, 1, 4]) + np.sum(self.layout[:-1])] = 1.3
+            self.initial_parameters[np.sum(self.layout[:-1])] = 1.3
         else:
             self.initial_parameters[-self.layout[-1]:] = 1.3
 
