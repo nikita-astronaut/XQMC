@@ -12,7 +12,8 @@ class MC_parameters:
         self.mu = 0.0
         self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 3; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 8; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
@@ -38,7 +39,7 @@ class MC_parameters:
 
         ### interaction parameters ###
         self.epsilon = 3.
-        self.xi = 1.
+        self.xi = 0.5
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 8.
 
@@ -107,14 +108,14 @@ class MC_parameters:
         
 
         ### optimisation parameters ###
-        self.MC_chain = 1500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
+        self.MC_chain = 1500000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
         self.optimisation_steps = 1600; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-4, 2e-2, 1.0005]
+        self.opt_parameters = [1e-3, 4e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
-        self.n_delayed_updates = 5
+        self.n_delayed_updates = 1
         self.generator_mode = True
 
         ### regularisation ###
@@ -124,7 +125,6 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis) + \
-
                                 models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][1]), 'pairing', \
                                                     self, self.chiral_basis)
         self.reg_gap_val = 1e-3
@@ -136,14 +136,12 @@ class MC_parameters:
             np.array([0.0, 0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.005, 0.005, size = self.layout[3]),  # gaps
+            np.random.uniform(-0.01, 0.01, size = self.layout[3]),  # gaps
             np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
         
-        if len(self.jastrows_list_names) > 3:
-            self.initial_parameters[np.sum(self.layout[:-1])] = 1.2
-        else:
-            self.initial_parameters[-self.layout[-1]:] = 0.5
+        self.initial_parameters[np.sum(self.layout[:-1])] = 1.2
+        self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5
 
         self.all_names = np.concatenate([
             np.array(['mu_BCS_+', 'mu_BCS_-']),  # mu_BCS
@@ -158,7 +156,7 @@ class MC_parameters:
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.ones(self.layout[2]) * 3e-4,  # waves
             np.ones(self.layout[3]) * 3e-4,  # gaps
-            np.ones(self.layout[4]) * 2e-2,  # jastrows
+            np.ones(self.layout[4]) * 3e-2,  # jastrows
         ])
 
         self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino()

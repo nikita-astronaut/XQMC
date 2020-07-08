@@ -91,7 +91,7 @@ class wavefunction_singlet():
 
 
         ### random numbers for random moves ###
-        self._rnd_size = 20000
+        self._rnd_size = 100000
         self._refresh_rnd()
 
         self.accepted = 0
@@ -102,7 +102,8 @@ class wavefunction_singlet():
     def _refresh_rnd(self):
         self.random_numbers_acceptance = np.random.random(size = self._rnd_size)
         self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = self._rnd_size)
-        self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = self._rnd_size)
+        # self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = self._rnd_size)
+        self.random_numbers_direction = np.random.randint(0, int(1e+6), size = self._rnd_size)
         return
 
     def get_cur_Jastrow_factor(self):
@@ -386,36 +387,60 @@ class wavefunction_singlet():
 
         return occupied_sites, empty_sites, place_in_string
 
-    def perform_MC_step(self, proposed_move = None, enforce = False):
-        self.MC_step_index += 1
-        rnd_index = self.MC_step_index % self._rnd_size
-        #if ind_index == 0:
-        #    self._refresh_rnd()        
+ 
+    
 
-        if proposed_move == None:
-            moved_site_idx = self.random_numbers_move[rnd_index]
-            moved_site = self.occupied_sites[moved_site_idx]
-            empty_site = self.adjacency_list[moved_site][self.random_numbers_direction[rnd_index]]
-        else:  # only in testmode
-            moved_site, empty_site = proposed_move
-            moved_site_idx = self.place_in_string[moved_site]
-            if empty_site not in self.empty_sites or moved_site not in self.occupied_sites:
-                return False, 1, moved_site, empty_site
+    def perform_MC_step(self, proposed_move = None, enforce = False, demand_accept = False):
+        if demand_accept:
+            t = time()
+            MC_step_index_previous = self.MC_step_index
+            moved_site, moved_site_idx, empty_site, det_ratio, Jastrow_ratio, self.MC_step_index = \
+                _find_acceptance(self.MC_step_index, self._rnd_size, self.adjacency_list, self.state, self.random_numbers_direction,\
+                                 self.W_GF, self.Jastrow, self.occupancy, self.var_f, self.random_numbers_acceptance, self.random_numbers_move, self.occupied_sites)
+            print('N_accept attempts = {:d}'.format(self.MC_step_index - MC_step_index_previous))
+            print('time to find move = {:.10f}'.format(time() - t))
+        else:
+            self.MC_step_index += 1
+            rnd_index = self.MC_step_index % self._rnd_size
+        
+            if proposed_move == None:
+                moved_site_idx = self.random_numbers_move[rnd_index]
+                moved_site = self.occupied_sites[moved_site_idx]
+                # t = time()
+                empty_site = _choose_empty_site(self.adjacency_list[moved_site], \
+                                                self.state, \
+                                                self.random_numbers_direction[rnd_index])
+                # print('choose_site = {:.10f}'.format(time() - t))
+            else:  # only in testmode
+                moved_site, empty_site = proposed_move
+                moved_site_idx = self.place_in_string[moved_site]
+                if empty_site not in self.empty_sites or moved_site not in self.occupied_sites:
+                    return False, 1, moved_site, empty_site
 
-        if empty_site not in self.empty_sites:
-            self.rejected_filled += 1
-            return False, 1, 1, moved_site, empty_site
+            if empty_site < 0:
+                # self.rejected_filled += 1
+                #print('rejected by filling')
+                return False, 1, 1, moved_site, empty_site
 
-        # t = time()
-        det_ratio = self.W_GF[empty_site, moved_site_idx] + np.dot(self.a_update_list[empty_site, :self.n_stored_updates],
-                                                                   self.b_update_list[moved_site_idx, :self.n_stored_updates])
-        Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, \
-                                          self.var_f, moved_site, empty_site)
 
-        # self.wf += time() - t
-        if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[self.MC_step_index % self._rnd_size]:
-            self.rejected_factor += 1
-            return False, 1, 1, moved_site, empty_site
+            #t = time()
+            det_ratio = self.W_GF[empty_site, moved_site_idx]# + np.dot(self.a_update_list[empty_site, :self.n_stored_updates],
+                                                             #          self.b_update_list[moved_site_idx, :self.n_stored_updates])
+
+            #print('det = {:.10f}'.format(time() - t))
+            #t = time()
+            Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, \
+                                              self.var_f, moved_site, empty_site)
+            #print('jastrow = {:.10f}'.format(time() - t))
+            #t = time()
+
+            # self.wf += time() - t
+            # if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index]:
+            if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index]:
+                #self.rejected_factor += 1
+                #print('rejected by factor', self.n_stored_updates)
+                #print('overhead_after = {:.10f}'.format(time() - t))
+                return False, 1, 1, moved_site, empty_site
 
         self.accepted += 1
         # t = time()
@@ -638,3 +663,42 @@ def _jit_delayed_update(a_update_list, b_update_list, n_stored_updates, \
     b_new = -(b_new - delta) / W_Kl  # (5.95)
 
     return a_new, b_new
+
+@jit(nopython=True)
+def _choose_empty_site(adjacency, state, rnd):
+    avail = [0]
+    for adj in adjacency:
+        if state[adj] == 0:
+            avail.append(adj)
+
+    if len(avail) == 1:
+        return -1
+    return avail[1 + (rnd % (len(avail) - 1))]
+
+
+@jit(nopython=True)
+def _find_acceptance(MC_step_index, _rnd_size, adjacency_list, state, random_numbers_direction, \
+                     W_GF, Jastrow, occupancy, var_f, random_numbers_acceptance, random_numbers_move, occupied_sites):
+    accepted = False
+    while not accepted:
+        MC_step_index += 1
+        rnd_index = MC_step_index % _rnd_size
+
+        moved_site_idx = random_numbers_move[rnd_index]
+        moved_site = occupied_sites[moved_site_idx]
+        empty_site = _choose_empty_site(adjacency_list[moved_site], \
+                                        state, \
+                                        random_numbers_direction[rnd_index])
+
+        if empty_site < 0:
+            continue
+
+
+        det_ratio = W_GF[empty_site, moved_site_idx]
+
+        Jastrow_ratio = get_Jastrow_ratio(Jastrow, occupancy, state, var_f, moved_site, empty_site)
+
+        if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < random_numbers_acceptance[rnd_index]:
+            continue
+        accepted = True
+    return moved_site, moved_site_idx, empty_site, det_ratio, Jastrow_ratio, MC_step_index
