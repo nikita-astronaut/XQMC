@@ -62,6 +62,50 @@ def test_explicit_factors_check(config):
     return success
 
 
+def test_particle_hole(config):
+    success = True
+    parameters = config.initial_parameters
+    parameters[:config.layout[0]] *= 0  # set mu_BCS = 0, otherwise no ph-symmetry
+    #parameters *= 0.
+
+    print('Particle-hole symmetry of the hamiltonian with twist check...') 
+    wf_ph = wavefunction_singlet(config, config.pairings_list, parameters, False, None, particle_hole=False)
+    HMF = wf_ph.T
+    spectrum, _ = np.linalg.eigh(HMF)
+    if np.allclose(spectrum, -spectrum[::-1]):
+        print('Passed')
+    else:
+        success = False
+        print('Failed')
+
+    print('Particle-hole symmetry of the wave function check...')
+    n_passed = 0
+    
+    for _ in range(200):
+        seed = np.random.randint(0, 1000)
+        np.random.seed(seed)
+
+        config.twist = [np.exp(2.0j * np.pi * 0.1904 * 1e-3), np.exp(2.0j * np.pi * (0.1904 + 0.10) * 1e-3)]
+        wf_ph = wavefunction_singlet(config, config.pairings_list, parameters, False, None, particle_hole=False)
+
+        np.random.seed(seed)
+        #config.twist = [np.exp(-2.0j * np.pi * 0.1904), np.exp(-2.0j * np.pi * (0.1904 + 0.10))]
+        wf_hp = wavefunction_singlet(config, config.pairings_list, parameters, False, None, particle_hole=True)
+
+        n_passed += float(np.isclose(wf_ph.current_ampl, wf_hp.current_ampl))
+        if not (np.abs(np.abs(wf_ph.current_ampl / wf_hp.current_ampl) - 1.0) < 1e-8):
+            print('Failed', wf_ph.current_ampl / wf_hp.current_ampl)
+            print('Failed', wf_ph.current_det / wf_hp.current_det)
+        else:
+            print('Passed', np.angle(wf_ph.current_ampl / wf_hp.current_ampl))
+    if n_passed == 200:
+        print('Passed')
+    else:
+        print('Failed!')
+        success = False
+    return success
+
+
 def test_numerical_derivative_check(config):
     print(config.twist)
     dt = 1e-7
@@ -370,6 +414,7 @@ def test_BC_twist(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_particle_hole(config)
     success = success and test_BC_twist(config)
     success = success and test_all_jastrow_factors_included_only_once(config)
     success = success and test_explicit_factors_check(config)
