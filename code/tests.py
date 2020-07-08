@@ -414,6 +414,7 @@ def test_BC_twist(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_numerical_derivative_check(config)
     success = success and test_particle_hole(config)
     success = success and test_BC_twist(config)
     success = success and test_all_jastrow_factors_included_only_once(config)
@@ -422,6 +423,6 @@ def perform_all_tests(config):
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
     success = success and test_onsite_gf_is_density_check(config)
-    success = success and test_numerical_derivative_check(config)
+    
     # success = success and test_double_move_check(config)
     return success

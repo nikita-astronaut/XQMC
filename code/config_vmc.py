@@ -63,7 +63,7 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs/newnewnew/'
+        self.workdir = '/home/astronaut/DQMC_TBG/logs/newnewnew/'
         self.tests = True #True
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
@@ -124,16 +124,14 @@ class MC_parameters:
                                                     self, self.chiral_basis)
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
-                                                    self, self.chiral_basis) + \
-                                models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][1]), 'pairing', \
                                                     self, self.chiral_basis)
         self.reg_gap_val = 1e-3
 
         ## initial values definition and layout ###
-        self.layout = [2, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
+        self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
         ### parameters section ###
         self.initial_parameters = np.concatenate([
-            np.array([0.0, 0.0]),  # mu_BCS
+            np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
             np.random.uniform(-0.01, 0.01, size = self.layout[3]),  # gaps
@@ -144,7 +142,7 @@ class MC_parameters:
         self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5
 
         self.all_names = np.concatenate([
-            np.array(['mu_BCS_+', 'mu_BCS_-']),  # mu_BCS
+            np.array(['mu_BCS']),  # mu_BCS
             np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
             np.array(self.waves_list_names),  # waves
             np.array(self.pairings_list_names),  # gaps
@@ -240,7 +238,7 @@ class MC_parameters:
         print('!!!!', np.sort(np.concatenate([Em, Ep])))
 
         print('but I wanted particles_+ {:d}, holes_+ {:d}, particles_-{:d}, holes_- {:d}'.format(self.total_dof // 8 - delta + nu, self.total_dof // 8 + delta - nu, self.total_dof // 8 - delta - nu, self.total_dof // 8 + delta + nu))
-        return dEp, dEp + 1e-6
+        return dEp
 
     def unpack_parameters(self, parameters):
         offset = 0

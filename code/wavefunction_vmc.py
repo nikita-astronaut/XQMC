@@ -34,10 +34,10 @@ class wavefunction_singlet():
         minus_valley_mesh = np.zeros(self.config.total_dof // 2); minus_valley_mesh[minus_valley] = 1
         self.K_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
         self.K_up -= np.diag(plus_valley_mesh) * self.var_mu[0]
-        self.K_up -= np.diag(minus_valley_mesh) * self.var_mu[1]
+        self.K_up -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-6)
         self.K_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
         self.K_down -= np.diag(plus_valley_mesh) * self.var_mu[0]
-        self.K_down -= np.diag(minus_valley_mesh) * self.var_mu[1]
+        self.K_down -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-6)
 
         assert np.allclose(self.K_up, self.K_down.conj())
         #print(np.linalg.eigh(self.K_up)[0])
@@ -89,8 +89,7 @@ class wavefunction_singlet():
         ### pre-computed W-matrices for fast derivative computation ###
         self.Z = jit_get_Z_factor(self.E, self.occupied_levels)
 
-        self.W_mu_p_derivative = self._get_derivative(self._construct_mu_V(plus_valley))
-        self.W_mu_m_derivative = self._get_derivative(self._construct_mu_V(minus_valley))
+        self.W_mu_derivative = self._get_derivative(self._construct_mu_V(np.arange(0, self.config.total_dof // 2)))
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
         self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave)) \
@@ -159,14 +158,13 @@ class wavefunction_singlet():
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
-        O_mu_p = [self.get_O_pairing(self.W_mu_p_derivative) if self.config.optimize_mu_BCS else 0.0]
-        O_mu_m = [self.get_O_pairing(self.W_mu_m_derivative) if self.config.optimize_mu_BCS else 0.0]
+        O_mu = [self.get_O_pairing(self.W_mu_derivative) if self.config.optimize_mu_BCS else 0.0]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
         O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
 
-        O = O_mu_p + O_mu_m + O_fugacity + O_waves + O_pairing + O_Jastrow
+        O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
 
         return np.array(O)
 
