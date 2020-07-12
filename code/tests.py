@@ -251,14 +251,15 @@ def test_delayed_updates_check(config):
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
     for _ in range(200):
-        initial_ampl = wf.current_ampl
-        for step in range(10):
-            wf.perform_MC_step()
+        current_ampl = wf.current_ampl
+        for step in range(1000):
+            acc, detr, jastrr = wf.perform_MC_step()[:3]
+            current_ampl *= detr * jastrr
         wf.perform_explicit_GF_update()
         final_ampl = wf.current_ampl
         final_ampl_solid = wf.get_cur_Jastrow_factor() * wf.get_cur_det()
 
-        if np.isclose(final_ampl_solid, final_ampl):
+        if np.isclose(final_ampl_solid, final_ampl) and np.isclose(current_ampl, final_ampl):
             n_agreed += 1
         else:
             print('Delayed updates test failed:', final_ampl, final_ampl_solid)
@@ -414,6 +415,7 @@ def test_BC_twist(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_delayed_updates_check(config)
     success = success and test_numerical_derivative_check(config)
     success = success and test_particle_hole(config)
     success = success and test_BC_twist(config)
@@ -421,7 +423,6 @@ def perform_all_tests(config):
     success = success and test_explicit_factors_check(config)
     success = success and test_double_move_commutation_check(config)
     success = success and test_single_move_check(config)
-    success = success and test_delayed_updates_check(config)
     success = success and test_onsite_gf_is_density_check(config)
     
     # success = success and test_double_move_check(config)
