@@ -415,7 +415,7 @@ def get_transition_matrix_range(config, K, PN_projection, n_orbitals = 1, valley
     adjacency_matrix = np.zeros(K.shape)
     unit_matrix = np.eye(n_orbitals) if valley_conservation else np.ones((n_orbitals, n_orbitals))
     distances = get_adjacency_list(config, orbital_mod=False)[0]
-    for dist in distances[:3]:
+    for dist in distances[:2]:
         adjacency_matrix += np.kron(dist, unit_matrix)
     adjacency_matrix[np.arange(K.shape[0]), np.arange(K.shape[0])] = 0.0
     

@@ -54,8 +54,15 @@ class wavefunction_singlet():
         self.U_matrix = self._construct_U_matrix(orbitals_in_use)
         self.with_previous_state = with_previous_state
         self.MC_step_index = 0
+
         self.update = 0.
         self.wf = 0.
+        self.t_jastrow = 0
+        self.t_det = 0
+        self.t_choose_site = 0
+        self.t_overhead_after = 0
+        self.t_gf_update = 0
+        self.t_ab = 0
 
         while True:
             if self.with_previous_state:
@@ -77,6 +84,7 @@ class wavefunction_singlet():
 
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
+        # print(self.W_GF.dtype, 'GF dtype')
 
         self.a_update_list = np.zeros((self.W_GF.shape[0], self.config.n_delayed_updates), dtype=np.complex128)
         self.b_update_list = np.zeros((self.W_GF.shape[1], self.config.n_delayed_updates), dtype=np.complex128)
@@ -176,6 +184,7 @@ class wavefunction_singlet():
         plus_valley = np.arange(0, self.config.total_dof, 2)
         self.T[plus_valley, plus_valley] += 1e-9  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number
         E, U = np.linalg.eigh(self.T)
+        #print(E.dtype, U.dtype, 'type of energy and U')
 
         assert(np.allclose(np.diag(E), U.conj().T.dot(self.T).dot(U)))  # U^{\dag} T U = E
         self.U_full = deepcopy(U).astype(np.complex128)
@@ -349,7 +358,7 @@ class wavefunction_singlet():
     def _construct_W_GF(self):
         U_tilde_inv = np.linalg.inv(self.U_tilde_matrix)
         # print('GF_max = {:.6f}'.format(np.max(np.abs(self.U_matrix.dot(U_tilde_inv)))))
-        return self.U_matrix.dot(U_tilde_inv)
+        return self.U_matrix.dot(U_tilde_inv)#.astype(np.complex64)
 
     def _generate_configuration(self, particle_hole):
         doping = (self.config.total_dof // 2 - self.config.Ne) // 2  # k
@@ -421,11 +430,12 @@ class wavefunction_singlet():
             if proposed_move == None:
                 moved_site_idx = self.random_numbers_move[rnd_index]
                 moved_site = self.occupied_sites[moved_site_idx]
-                # t = time()
+                t = time()
                 empty_site = _choose_empty_site(self.adjacency_list[moved_site], \
                                                 self.state, \
                                                 self.random_numbers_direction[rnd_index])
-                # print('choose_site = {:.10f}'.format(time() - t))
+                self.t_choose_site += time() - t
+                #print('choose_site = {:.10f}'.format(time() - t))
             else:  # only in testmode
                 moved_site, empty_site = proposed_move
                 moved_site_idx = self.place_in_string[moved_site]
@@ -438,27 +448,30 @@ class wavefunction_singlet():
                 return False, 1, 1, moved_site, empty_site
 
 
-            #t = time()
-            det_ratio = self.W_GF[empty_site, moved_site_idx]# + np.dot(self.a_update_list[empty_site, :self.n_stored_updates],
-                                                             #          self.b_update_list[moved_site_idx, :self.n_stored_updates])
+            t = time()
+            det_ratio = self.W_GF[empty_site, moved_site_idx] + np.dot(self.a_update_list[empty_site, :self.n_stored_updates],
+                                                                       self.b_update_list[moved_site_idx, :self.n_stored_updates])
 
+            self.t_det += time() - t
             #print('det = {:.10f}'.format(time() - t))
-            #t = time()
+            t = time()
             Jastrow_ratio = get_Jastrow_ratio(self.Jastrow, self.occupancy, self.state, \
                                               self.var_f, moved_site, empty_site)
             #print('jastrow = {:.10f}'.format(time() - t))
-            #t = time()
+            self.t_jastrow += time() - t
+            t = time()
 
             # self.wf += time() - t
             # if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index]:
             if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index]:
                 #self.rejected_factor += 1
                 #print('rejected by factor', self.n_stored_updates)
+                self.t_overhead_after += time() - t
                 #print('overhead_after = {:.10f}'.format(time() - t))
                 return False, 1, 1, moved_site, empty_site
 
         self.accepted += 1
-        # t = time()
+        #t = time()
         self.current_ampl *= det_ratio * Jastrow_ratio
         self.current_det *= det_ratio
         # print(self.current_det, self.current_ampl, self.get_cur_Jastrow_factor())
@@ -486,15 +499,24 @@ class wavefunction_singlet():
             print((self.current_ampl / self.current_det - jastrow) / jastrow)
             exit(-1)
         '''
+        #print('t before updates = {:.10f}'.format(time() - t))
+        t = time()
+
         a_new, b_new = _jit_delayed_update(self.a_update_list, self.b_update_list, self.n_stored_updates, \
                                            self.W_GF, empty_site, moved_site_idx)
         self.a_update_list[..., self.n_stored_updates] = a_new
         self.b_update_list[..., self.n_stored_updates] = b_new
         self.n_stored_updates += 1
+        self.t_ab += time() - t
+        #print('t create a, b = {:.10f}'.format(time() - t))
+        t = time()
 
         if self.n_stored_updates == self.config.n_delayed_updates:
             self.perform_explicit_GF_update()
 
+        #print('t update GF = {:.10f}'.format(time() - t))
+        #t = time()
+        self.t_gf_update += time() - t
         # self.update += time() - t 
         return True, det_ratio, Jastrow_ratio, moved_site, empty_site
 
@@ -502,7 +524,9 @@ class wavefunction_singlet():
     def perform_explicit_GF_update(self):
         if self.n_stored_updates == 0:
             return
-        self.W_GF += self.a_update_list[..., :self.n_stored_updates].dot(self.b_update_list[..., :self.n_stored_updates].T)  # (5.97)
+        #self.W_GF = _jit_perform_explicit_GF_update(self.W_GF, self.a_update_list[..., :self.n_stored_updates], self.b_update_list[..., :self.n_stored_updates])# += self.a_update_list[..., :self.n_stored_updates].dot(self.b_update_list[..., :self.n_stored_updates].T)  # (5.97)
+        self.W_GF = self.W_GF + self.a_update_list[..., :self.n_stored_updates].dot(self.b_update_list[..., :self.n_stored_updates].T)
+
 
         self.a_update_list *= 0.0j
         self.b_update_list *= 0.0j
@@ -511,6 +535,15 @@ class wavefunction_singlet():
 
     def get_state(self):
         return self.occupied_sites, self.empty_sites, self.place_in_string
+
+@jit(nopython=True)
+def _jit_perform_explicit_GF_update(W, a, b):
+    for i in range(W.shape[0]):
+        for j in range(W.shape[1]):
+            buff = 0.0 + 0.0j
+            for k in range(a.shape[1]):
+                W[i, j] += a[i, k] * b[j, k]
+    return W
 
 # had to move it outside of the class to speed-up with numba (jitclass is hard!)
 @jit(nopython=True)
