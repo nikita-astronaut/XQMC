@@ -266,7 +266,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, \
 def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
                          parameters, twist, final_state = False, orbitals_in_use = None):
     config_vmc.twist = tuple(twist)
-  
+    t = time()
     hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
 
     ''' 
@@ -278,10 +278,13 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     
     wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
                               False, None, orbitals_in_use)  # always start with bare configuration
-    
+    print('Init takes {:.10f}'.format(time() - t))
+
     t_steps = 0
     t = time()
+    n_steps = 0
     for MC_step in range(config_vmc.MC_thermalisation):
+        n_steps += 1
         #t = time()
         acc = wf.perform_MC_step(demand_accept = False)[0]
         #print('MC step takes {:.10f}, accepted = {:b}'.format(time() - t, acc))
@@ -301,6 +304,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     precision_factor = 1. if config_vmc.opt_raw > n_iter else 4.
     tc = time()
     for MC_step in range(int(precision_factor * config_vmc.MC_chain * (config_vmc.opt_parameters[2] ** n_iter))):
+        n_steps += 1
         if MC_step % config_vmc.correlation == 0:
             t = time()
             wf.perform_explicit_GF_update()
@@ -330,7 +334,15 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
         #print('MC step take {:.10f}'.format(time() - t))
         t_steps += time() - t
     # print('t_chain = ', time() - tc)
-    #print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
+    print(t_update, t_observables, t_energies, t_forces, t_steps, wf.update, wf.wf, twist)
+    print(wf.t_jastrow / n_steps, wf.t_det / n_steps, wf.t_choose_site / n_steps, wf.t_overhead_after / n_steps, wf.t_gf_update / np.sum(acceptance), wf.t_ab / np.sum(acceptance))
+    print(wf.t_jastrow, wf.t_det, wf.t_choose_site, wf.t_overhead_after, wf.t_gf_update, wf.t_ab, flush=True)
+    #        self.t_jastrow = 0
+    #    self.t_det = 0
+    #    self.t_choose_site = 0
+    #    self.t_overhead_after = 0
+    #    self.t_gf_update = 0
+    #    self.t_ab = 0
     #print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
     return energies, Os, acceptance, wf.get_state(), observables, \
            names, wf.U_matrix, wf.E, densities, wf.gap
@@ -364,7 +376,7 @@ if __name__ == "__main__":
         
 
 
-    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
+    # config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
     if config_vmc.tests:
         if tests.perform_all_tests(config_vmc):
             print('\033[92m All tests passed successfully \033[0m', flush = True)

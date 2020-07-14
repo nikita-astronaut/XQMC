@@ -665,6 +665,7 @@ def check_P_symmetry(config, gap_singlet, gap_triplet):
 
 
 def check_irrep_properties(config, irrep, term_type = 'pairing', chiral = False):
+    return
     #if term_type == 'pairing':
     #    return
 
@@ -863,13 +864,8 @@ def obtain_all_pairings(config):
                         need_cut = True
             if need_cut:
                 del twoorb_hex_all[idx][-1]
-        for idx, element in enumerate(twoorb_hex_all):
-            print('Irrep optimisation No. {:d}'.format(idx))
-            for gap in element:
-                print(gap[-1])
-            print(' ')
-
-        print('there are in total {:d} different irreps in the Koshino model'.format(len(twoorb_hex_all)))
+                ### create TRS combination ###
+                twoorb_hex_all[idx] = [[twoorb_hex_all[idx][0][0], twoorb_hex_all[idx][1][0], 1, twoorb_hex_all[idx][0][-1].replace('S_1', 'S_pm')]]
          
         Koshino_united = [twoorb_hex_all[0], \
                                  twoorb_hex_all[12] + twoorb_hex_all[11], \
@@ -882,6 +878,16 @@ def obtain_all_pairings(config):
                                  twoorb_hex_all[13] + twoorb_hex_all[14] + twoorb_hex_all[16] + twoorb_hex_all[18], \
                                 ]
         
+        #for irrep in Koshino_united:  # make TRS symmetric explicitly
+
+
+        for idx, element in enumerate(twoorb_hex_all):
+            print('Irrep optimisation No. {:d}'.format(idx))
+            for gap in element:
+                print(gap[-1])
+            print(' ')
+
+        print('there are in total {:d} different irreps in the Koshino model'.format(len(twoorb_hex_all)))
         return
 
 

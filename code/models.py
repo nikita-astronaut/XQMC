@@ -209,7 +209,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     n_orbitals = 2
     n_sublattices = 2
     total_dof = Ls ** 2 * n_orbitals * n_sublattices * 2
-    t1, t2, t5, t4 = 0.331, (-0.010 + 1.0j * 0.097), 0.119, 0.036
+    t1, t2, t5, t4 = 0.331, (-0.010 * 0 + 1.0j * 0.097), 0.119, 0.036
 
 
     K = np.zeros((total_dof // 2, total_dof // 2)) * 1.0j
@@ -415,7 +415,7 @@ def get_transition_matrix_range(config, K, PN_projection, n_orbitals = 1, valley
     adjacency_matrix = np.zeros(K.shape)
     unit_matrix = np.eye(n_orbitals) if valley_conservation else np.ones((n_orbitals, n_orbitals))
     distances = get_adjacency_list(config, orbital_mod=False)[0]
-    for dist in distances[:3]:
+    for dist in distances[:2]:
         adjacency_matrix += np.kron(dist, unit_matrix)
     adjacency_matrix[np.arange(K.shape[0]), np.arange(K.shape[0])] = 0.0
     

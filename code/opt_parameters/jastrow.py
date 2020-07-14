@@ -174,7 +174,7 @@ def get_jastrow_Koshino_simple_TRS(config):
         r = np.sqrt(config.adjacency_list[3 * site][-1])
         jastrow_list.append([np.array([adj[0] for adj in config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0), 'J({:.2f})'.format(r)])
 
-    return jastrow_list[:-1]  # cut redundant Jastrows
+    return jastrow_list[:2]  # only NN and nearest-neighbors  # cut redundant Jastrows
 
 
 jastrow_on_site_1orb = None
