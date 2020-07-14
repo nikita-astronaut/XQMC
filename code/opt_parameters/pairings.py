@@ -866,7 +866,10 @@ def obtain_all_pairings(config):
                 del twoorb_hex_all[idx][-1]
                 ### create TRS combination ###
                 twoorb_hex_all[idx] = [[twoorb_hex_all[idx][0][0], twoorb_hex_all[idx][1][0], 1, twoorb_hex_all[idx][0][-1].replace('S_1', 'S_pm')]]
-         
+            if len(element) == 3:
+                twoorb_hex_all[idx] = [twoorb_hex_all[idx][0]]
+
+ 
         Koshino_united = [twoorb_hex_all[0], \
                                  twoorb_hex_all[12] + twoorb_hex_all[11], \
                                  twoorb_hex_all[10], \

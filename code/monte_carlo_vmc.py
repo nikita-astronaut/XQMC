@@ -67,6 +67,8 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     forces = np.array([-2 * (np.einsum('i,ik->k', energies_theta.conj(), Os_theta) / len(energies_theta) - np.mean(energies_theta.conj()) * Os_mean_theta).real for \
                        energies_theta, Os_theta, Os_mean_theta in zip(energies, Os, Os_mean)])  # all forces calculated independently for every twist angle
     forces = np.mean(forces, axis = 0)  # after calculation of the force independently for every twist angle, we average over all forces
+    #forces = forces / 36. * config_vmc.Ls ** 2
+
 
     ### SR STEP ###
     Os_mean = [np.repeat(Os_mean_theta[np.newaxis, ...], len(Os_theta), axis = 0) for Os_mean_theta, Os_theta in zip(Os_mean, Os)]
@@ -349,9 +351,9 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
 
 if __name__ == "__main__":
     config_vmc_file = import_config(sys.argv[1])
-    config_vmc_import = config_vmc_file.MC_parameters(rank)
+    config_vmc_import = config_vmc_file.MC_parameters(int(sys.argv[2]), rank)
 
-    config_vmc = cv_module.MC_parameters(rank)
+    config_vmc = cv_module.MC_parameters(int(sys.argv[2]), rank)
     config_vmc.__dict__ = config_vmc_import.__dict__.copy()
 
     print_model_summary(config_vmc)

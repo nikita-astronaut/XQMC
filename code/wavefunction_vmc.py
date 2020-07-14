@@ -77,6 +77,7 @@ class wavefunction_singlet():
                 break
             else:
                 print('the rank of this initialization is {:d}'.format(np.linalg.matrix_rank(self.U_tilde_matrix)))
+                print('dimensions are', self.U_tilde_matrix.shape)
                 print('the determinant is', np.linalg.det(self.U_tilde_matrix))
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
                 print('degenerate: will retry the wave function initialisation', flush = True)
@@ -372,7 +373,7 @@ class wavefunction_singlet():
             n_holes_plus = n_holes // 2 - self.config.valley_imbalance // 4
             n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 4
 
-            #print('configuration start: ({:d} / {:d})_+, ({:d} / {:d})_-'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
+            print('configuration start: ({:d} / {:d})_+, ({:d} / {:d})_-'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
             # print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
 
             particles_plus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2),
@@ -389,6 +390,8 @@ class wavefunction_singlet():
                 particles_minus, holes_minus = holes_minus - self.config.total_dof // 2, particles_minus + self.config.total_dof // 2
 
             occupied_sites = np.concatenate([particles_plus, particles_minus, holes_plus, holes_minus])        
+            print('N occupied sites = {:d}'.format(len(occupied_sites)))
+
         else:
             occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
                                                         size = n_particles, replace = False)
