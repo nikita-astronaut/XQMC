@@ -425,14 +425,13 @@ class Observables:
         ### chi_ijkl_total ###
         t = time()
         shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
-        new_shape = (shape[0] * shape[1], self.n_bands, shape[2] // self.n_bands, self.n_bands, shape[3] // self.n_bands)
+        new_shape = (shape[0] * shape[1], shape[2] // self.n_bands, self.n_bands, shape[3] // self.n_bands, self.n_bands)
         
-        G_up_prepared = np.einsum('ijkl,i->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape).transpose((1, 3, 0, 2, 4))
-        G_down_prepared = self.GF_down_stored[:self.cur_buffer_size, ...].reshape(new_shape).transpose((1, 3, 0, 2, 4))
-        print(G_up_prepared.shape)
+        G_up_prepared = np.einsum('ijkl,i->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape).transpose((2, 4, 0, 1, 3))
+        G_down_prepared = self.GF_down_stored[:self.cur_buffer_size, ...].reshape(new_shape).transpose((2, 4, 0, 1, 3))
+
         G_up_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_up_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
         G_down_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_down_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
-        print(G_up_prepared_ft.shape)
 
         G_down_prepared_ft = G_down_prepared_ft[:, :, :, self.invert_momenta, :]
         G_down_prepared_ft = G_down_prepared_ft[:, :, :, :, self.invert_momenta]
@@ -450,9 +449,10 @@ class Observables:
         ### chi_ijkl_free ###
         t = time()
         shape = self.GF_up_sum.shape
-        new_shape = (shape[0], self.n_bands, shape[1] // self.n_bands, self.n_bands, shape[2] // self.n_bands)
-        G_up_prepared = self.GF_up_sum.reshape(new_shape).transpose((1, 3, 0, 2, 4))
-        G_down_prepared = self.GF_down_sum.reshape(new_shape).transpose((1, 3, 0, 2, 4))
+        new_shape = (shape[0], shape[1] // self.n_bands, self.n_bands, shape[2] // self.n_bands, self.n_bands)
+
+        G_up_prepared = self.GF_up_sum.reshape(new_shape).transpose((2, 4, 0, 1, 3))
+        G_down_prepared = self.GF_down_sum.reshape(new_shape).transpose((4, 2, 0, 1, 3))
 
         G_up_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_up_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
         G_down_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_down_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))

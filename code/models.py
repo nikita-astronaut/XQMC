@@ -398,7 +398,28 @@ def get_transition_matrix(PN_projection, K, n_orbitals = 1, valley_conservation=
             if K[i * n_orbitals, j * n_orbitals] != 0.0:
                 adjacency_matrix[i * n_orbitals:i * n_orbitals + n_orbitals, \
                                  j * n_orbitals:j * n_orbitals + n_orbitals] = np.eye(n_orbitals)  # valley-charge conservation
+    
 
+
+    big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
+    if not PN_projection:  # not only particle-conserving moves
+        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(adjacency_matrix.shape[0]))
+        # on-site pariticle<->hole transitions
+
+    adjacency_list = [np.where(big_adjacency_matrix[:, i] > 0)[0] \
+                      for i in range(big_adjacency_matrix.shape[1])]
+
+    return adjacency_list
+
+def get_transition_matrix_range(config, K, PN_projection, n_orbitals = 1, valley_conservation=True):
+    adjacency_matrix = np.zeros(K.shape)
+    unit_matrix = np.eye(n_orbitals) if valley_conservation else np.ones((n_orbitals, n_orbitals))
+    distances = get_adjacency_list(config, orbital_mod=False)[0]
+    for dist in distances[:3]:
+        adjacency_matrix += np.kron(dist, unit_matrix)
+    adjacency_matrix[np.arange(K.shape[0]), np.arange(K.shape[0])] = 0.0
+    
+    
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
     if not PN_projection:  # not only particle-conserving moves
         big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(adjacency_matrix.shape[0]))
