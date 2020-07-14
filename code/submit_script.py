@@ -2,7 +2,7 @@ import subprocess
 import os
 import sys
 
-epsilon, xi, name, Ne = [x for x in sys.argv[5:]]
+epsilon, xi, name, Ne, Ls = [x for x in sys.argv[5:]]
 xi = float(xi)
 epsilon = float(epsilon)
 
@@ -58,7 +58,8 @@ for i, line in enumerate(lines):
 
     if 'python3 ' in line:
         pieces = line.split()
-        pieces[-1] = config_name + '\n'
+        pieces[-2] = config_name
+        pieces[-1] = Ls + '\n'
         lines[i] = ' '.join(pieces)
 sbatch_file.close()
 f = open(path_to_sbatch, 'w')

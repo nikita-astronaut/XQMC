@@ -6,13 +6,13 @@ import wavefunction_vmc as wfv
 from copy import deepcopy
 
 class MC_parameters:
-    def __init__(self, irrep_idx):
+    def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
-        self.Ls = 6  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.mu = 0.0
-        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
+        self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 8; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
@@ -64,7 +64,7 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False; 
         self.workdir = '/home/astronaut/DQMC_TBG/logs/newnewnew/'
-        self.tests = True #True
+        self.tests = False#True #True
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
@@ -113,9 +113,9 @@ class MC_parameters:
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-3, 4e-2, 1.0005]
+        self.opt_parameters = [1e-3, 5e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
-        self.n_delayed_updates = 1
+        self.n_delayed_updates = 20
         self.generator_mode = True
 
         ### regularisation ###
@@ -125,7 +125,7 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 1e-3
+        self.reg_gap_val = 5e-4
 
         ## initial values definition and layout ###
         self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -134,7 +134,7 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(-0.01, 0.01, size = self.layout[3]),  # gaps
+            np.random.uniform(0.03, 0.04, size = self.layout[3]),  # gaps
             np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
         
