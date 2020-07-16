@@ -407,6 +407,11 @@ if __name__ == "__main__":
     elif config_vmc.twist_mesh == 'APBCy':
         twists = [[1., -1.] for _ in range(config_vmc.n_chains)]
         twists_per_cpu = config_vmc.n_chains / n_cpus
+    elif config_vmc.twist_mesh == 'reals':
+        assert config_vmc.n_chains == 4
+        twists = [[1, 1], [1, -1], [-1, 1], [-1, -1]]
+        twists_per_cpu = config_vmc.n_chains / n_cpus
+        assert twists_per_cpu == 1
     else:    
         twists_per_cpu = config_vmc.n_chains // n_cpus
         assert twists_per_cpu * n_cpus == config_vmc.n_chains
