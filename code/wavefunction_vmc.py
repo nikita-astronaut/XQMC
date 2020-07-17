@@ -167,7 +167,7 @@ class wavefunction_singlet():
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
-        O_mu = [self.get_O_pairing(self.W_mu_derivative) if self.config.optimize_mu_BCS else 0.0]
+        O_mu = [self.get_O_pairing(self.W_mu_derivative)]
         O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
@@ -293,10 +293,11 @@ class wavefunction_singlet():
             #print('Initializing Slater wf: selected particles_- {:d}, selected holes_- {:d}'.format(np.sum(minus_valley_particle * self.occupied_levels), np.sum(minus_valley_hole * self.occupied_levels)))
 
         elif not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
-            #print('Initializing free way', flush=True)
+            # print('Initializing free way', flush=True)
+
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
             # print(np.argsort(E)[:self.config.total_dof // 2])
-            print(E[self.lowest_energy_states])
+            #print(E[self.lowest_energy_states])
             # print(E)
             U = U[:, self.lowest_energy_states]  # select only occupied orbitals
 
@@ -319,7 +320,7 @@ class wavefunction_singlet():
                                                          self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...].conj()).real
             minus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...], \
                                                      self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...].conj()).real
-
+            #print(plus_valley_particle, plus_valley_hole, minus_valley_particle, minus_valley_hole)
             #print('Hole-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_hole)[-self.config.total_dof // 4:])))
             #print('Hole-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_hole)[-self.config.total_dof // 4:])))
             #print('Particle-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_particle)[-self.config.total_dof // 4:])))
@@ -333,6 +334,9 @@ class wavefunction_singlet():
             #print('Initializing Slater wf: particles_+ {:d}, particles_- {:d}, holes _+ {:d}, holes_- {:d}'.format(np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole)))
             #print('Initializing Slater wf: selected particles_+ {:d}, selected holes_+ {:d}'.format(np.sum(plus_valley_particle * self.occupied_levels), np.sum(plus_valley_hole * self.occupied_levels)))
             #print('Initializing Slater wf: selected particles_- {:d}, selected holes_- {:d}'.format(np.sum(minus_valley_particle * self.occupied_levels), np.sum(minus_valley_hole * self.occupied_levels)))
+            
+            #exit(-1)
+
             # exit(-1)
 
         if self.config.use_preassigned_orbitals:
@@ -373,7 +377,7 @@ class wavefunction_singlet():
             n_holes_plus = n_holes // 2 - self.config.valley_imbalance // 4
             n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 4
 
-            print('configuration start: ({:d} / {:d})_+, ({:d} / {:d})_-'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
+            #print('configuration start: ({:d} / {:d})_+, ({:d} / {:d})_-'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
             # print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
 
             particles_plus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2),
@@ -390,7 +394,7 @@ class wavefunction_singlet():
                 particles_minus, holes_minus = holes_minus - self.config.total_dof // 2, particles_minus + self.config.total_dof // 2
 
             occupied_sites = np.concatenate([particles_plus, particles_minus, holes_plus, holes_minus])        
-            print('N occupied sites = {:d}'.format(len(occupied_sites)))
+            #print('N occupied sites = {:d}'.format(len(occupied_sites)))
 
         else:
             occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
@@ -437,6 +441,7 @@ class wavefunction_singlet():
                 empty_site = _choose_empty_site(self.adjacency_list[moved_site], \
                                                 self.state, \
                                                 self.random_numbers_direction[rnd_index])
+                # print(moved_site, self.adjacency_list[moved_site])
                 self.t_choose_site += time() - t
                 #print('choose_site = {:.10f}'.format(time() - t))
             else:  # only in testmode
@@ -466,7 +471,14 @@ class wavefunction_singlet():
 
             # self.wf += time() - t
             # if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index]:
-            if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index]:
+            #if np.abs(empty_site - moved_site) >= 144:
+            #    print('ph-non conserving move!', np.abs(det_ratio) ** 2, (Jastrow_ratio ** 2))
+            #    print(np.sum(np.abs(self.W_GF) > 1e-5))
+            #else:
+            #    print(np.abs(det_ratio) ** 2, (Jastrow_ratio ** 2))
+
+
+            if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index] and not enforce:
                 #self.rejected_factor += 1
                 #print('rejected by factor', self.n_stored_updates)
                 self.t_overhead_after += time() - t
@@ -490,6 +502,7 @@ class wavefunction_singlet():
         self.state[moved_site] = 0
         self.state[empty_site] = 1
         self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
+
         # print('valley polarisation', np.sum(self.occupancy[np.arange(0, len(self.occupancy), 2)] - self.occupancy[np.arange(0, len(self.occupancy), 2) + 1]))
         # print('sublattice polarisation', np.sum(self.occupancy[np.arange(0, len(self.occupancy), 4)] + self.occupancy[np.arange(0, len(self.occupancy), 4) + 1] - \
         #                                         self.occupancy[np.arange(0, len(self.occupancy), 4) + 2] + self.occupancy[np.arange(0, len(self.occupancy), 4) + 3] ))

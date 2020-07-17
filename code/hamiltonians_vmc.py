@@ -76,6 +76,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             where j ~ i are the all indixes having non-zero matrix element with i H_{ij}
         '''
 
+        assert wf.n_stored_updates == 0
+
         E_loc = 0.0 + 0.0j
         base_state = wf.state
         particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
@@ -85,9 +87,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
         E_loc += np.dot(particles - holes, self.edges_quadric.dot(particles - holes))
 
-        #E_loc += get_E_C_Koshino(base_state[:len(base_state) // 2], base_state[len(base_state) // 2:], \
-        #                         self.config.total_dof // 2, self.config.U, self.config.V)
-
+        E_loc -= self.config.mu * np.sum(particles - holes)
         # on-site Hund term https://arxiv.org/pdf/2003.09513.pdf (Eq. 2)
         if self.JH != 0.0:
             E_loc += -self.config.JH * (get_E_J_Hund(self.plus_orbital, self.minus_orbital, wf_state, wf.var_f) + \

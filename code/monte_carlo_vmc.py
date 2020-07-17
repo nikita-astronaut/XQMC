@@ -378,12 +378,15 @@ if __name__ == "__main__":
         
 
 
-    # config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
+    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
     if config_vmc.tests:
-        if tests.perform_all_tests(config_vmc):
-            print('\033[92m All tests passed successfully \033[0m', flush = True)
-        else:
-            print('\033[91m Warning: some of the tests failed! \033[0m', flush = True)
+        if rank == 0:
+            if tests.perform_all_tests(config_vmc):
+                print('\033[92m All tests passed successfully \033[0m', flush = True)
+            else:
+                print('\033[91m Warning: some of the tests failed! \033[0m', flush = True)
+    comm.Barrier()
+
     n_cpus_max = psutil.cpu_count(logical = True) 
     print('max available CPUs:', n_cpus_max)
     n_cpus = config_vmc.n_cpus
@@ -500,7 +503,7 @@ if __name__ == "__main__":
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 200:  # jastrows and mu_BCS have not converged yet
+            if n_step < 20:  # jastrows and mu_BCS have not converged yet
                 mask = np.zeros(np.sum(config_vmc.layout))
                 mask[-config_vmc.layout[4]:] = 1.
                 mask[:config_vmc.layout[0]] = 1.

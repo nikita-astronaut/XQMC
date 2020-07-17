@@ -9,14 +9,14 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.mu = 0.0
-        self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
+        self.Ne = 132  # self.Ne is used as a guide to choose mu and mu_BCS if PN_projection=False
+        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
-        self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, self.mu, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
+        self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, 0.0, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
         for i in range(self.K_0.shape[0]):
@@ -39,32 +39,23 @@ class MC_parameters:
 
         ### interaction parameters ###
         self.epsilon = 3.
-        self.xi = 0.5
+        self.xi = 0.1
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 8.
 
         ### density VQMC parameters ###
-        self.Ne = 132
         self.valley_imbalance = 0
         self.enforce_particle_hole_orbitals = False
         self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
         self.use_preassigned_orbitals = False; self.preassigned_orbitals_path = '/home/astronaut/Documents/DQMC_TBG/logs/x11/saved_orbital_indexes.npy'
         self.valley_projection = True  # project onto valley imbalance = ...
-        # if PN_projection = True, the density is fixed at this number
-        self.PN_projection = True  # if PN_projection = False, work in the Grand Canonial approach
-        self.optimize_mu_BCS = True
 
-        if self.PN_projection:
-            assert 0.0 == self.mu
-        self.adjacency_transition_matrix = models.get_transition_matrix_range(self, self.model(self, 0.0, spin = +1.0)[0], \
-                                            self.PN_projection, self.n_orbitals, valley_conservation=self.valley_projection) 
-        #self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, \
-        #                                   self.model(self, 0.0, spin = +1.0)[0], self.n_orbitals, valley_conservation=self.valley_projection)
+        self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
         self.visualisation = False; 
         self.workdir = '/home/astronaut/DQMC_TBG/logs/newnewnew/'
-        self.tests = False#True #True
+        self.tests = True #True
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
@@ -72,7 +63,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[irrep_idx]
+        self.pairings_list = pairings.twoorb_hex_all[1]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -85,15 +76,16 @@ class MC_parameters:
         self.waves_list_names = [w[-1] for w in self.waves_list]
         self.waves_list_unwrapped = []
 
+
         self.enforce_valley_orbitals = True
-        if len(self.pairings_list) == 0:
-            self.enforce_valley_orbitals = True
         for name in self.pairings_list_names:
-            if '(S_1)' not in name and not '(S_2)' in name:
+            if 'S_pm' not in name:
                 self.enforce_valley_orbitals = False
-        #for name in self.waves_list_names:
-        #    if '(S_1)' not in name and '(S_2)' not in name:
-        #        self.enforce_valley_orbitals = False
+
+
+        self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0], \
+                                            self.n_orbitals, valley_conservation_K=self.valley_projection, 
+                                            valley_conservation_Delta=self.enforce_valley_orbitals)
 
         self.name_group_dict = pairings.name_group_dict
         print(self.name_group_dict)
@@ -125,7 +117,7 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 5e-4
+        self.reg_gap_val = 3e-3
 
         ## initial values definition and layout ###
         self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -141,6 +133,11 @@ class MC_parameters:
         self.initial_parameters[np.sum(self.layout[:-1])] = 1.2
         self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5
 
+        if not self.PN_projection:
+            f = -np.sum(np.array([A[0] * factor for factor, A in \
+                        zip(self.initial_parameters[-self.layout[4]:], self.jastrows_list)])) / (self.total_dof // 2)
+            self.initial_parameters[self.layout[0]] = f
+
         self.all_names = np.concatenate([
             np.array(['mu_BCS']),  # mu_BCS
             np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
@@ -151,16 +148,17 @@ class MC_parameters:
 
         self.all_clips = np.concatenate([
             np.ones(self.layout[0]) * 3e-4,  # mu_BCS
-            np.array([0.0] if not self.PN_projection else []),  # fugacity
+            np.array([3e-1] if not self.PN_projection else []),  # fugacity
             np.ones(self.layout[2]) * 3e-4,  # waves
             np.ones(self.layout[3]) * 3e-4,  # gaps
             np.ones(self.layout[4]) * 3e-2,  # jastrows
         ])
 
         self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino()
+        self.mu = self.initial_parameters[0]
 
         ### check K-matrix irrep properties ###
-        pairings.check_irrep_properties(self, [[self.model(self, self.mu, spin = +1.0)[0], 'K_matrix']], \
+        pairings.check_irrep_properties(self, [[self.model(self, 0.0, spin = +1.0)[0], 'K_matrix']], \
             term_type = 'K_matrix', chiral = self.chiral_basis)
 
     def select_initial_muBCS_Koshino(self, parameters = []):

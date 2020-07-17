@@ -219,12 +219,13 @@ def test_single_move_check(config):
         wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         L = len(wf.state) // 2
         i, j = np.random.randint(0, 2 * L, size = 2)
+        j = i + 144
 
         initial_ampl = wf.current_ampl
         state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
         ratio_fast = get_wf_ratio(*state, wf.var_f, i, j)
         
-        acc = wf.perform_MC_step((i, j), enforce = False)[0]
+        acc = wf.perform_MC_step((i, j), enforce = True)[0]
         if not acc:
             continue
         wf.perform_explicit_GF_update()
@@ -233,6 +234,9 @@ def test_single_move_check(config):
 
         if np.isclose(final_ampl / initial_ampl, ratio_fast) and np.isclose(final_ampl_solid, final_ampl):
             n_agreed += 1
+            if np.abs(i - j) >= 144:
+                print('WOW MOTHERFUCKER', final_ampl / initial_ampl, ratio_fast, final_ampl_solid, final_ampl)
+
         else:
             print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
             n_failed += 1
@@ -415,14 +419,15 @@ def test_BC_twist(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
     success = success and test_numerical_derivative_check(config)
-    success = success and test_particle_hole(config)
+    #success = success and test_particle_hole(config)
     success = success and test_BC_twist(config)
     success = success and test_all_jastrow_factors_included_only_once(config)
     success = success and test_explicit_factors_check(config)
     success = success and test_double_move_commutation_check(config)
-    success = success and test_single_move_check(config)
+    
     success = success and test_onsite_gf_is_density_check(config)
     
     # success = success and test_double_move_check(config)

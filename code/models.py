@@ -389,22 +389,23 @@ def _model_square_1orb(Ls, twist, mu, spin):
 def model_square_1orb(config, mu, spin = +1.0):
     return _model_square_1orb(config.Ls, config.twist, mu, spin)
 
-@jit(nopython = True)
-def get_transition_matrix(PN_projection, K, n_orbitals = 1, valley_conservation=True):
+#@jit(nopython = True)
+def get_transition_matrix(PN_projection, K, n_orbitals = 1, \
+                          valley_conservation_K=True, valley_conservation_Delta=True):
     adjacency_matrix = np.zeros(K.shape)
-    unit_matrix = np.eye(n_orbitals) if valley_conservation else np.ones((n_orbitals, n_orbitals))
+    unit_matrix = np.eye(n_orbitals) if valley_conservation_K else np.ones((n_orbitals, n_orbitals))
     for i in range(K.shape[0] // n_orbitals):
         for j in range(K.shape[0] // n_orbitals):
             if K[i * n_orbitals, j * n_orbitals] != 0.0:
                 adjacency_matrix[i * n_orbitals:i * n_orbitals + n_orbitals, \
                                  j * n_orbitals:j * n_orbitals + n_orbitals] = np.eye(n_orbitals)  # valley-charge conservation
-    
-
-
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
-    if not PN_projection:  # not only particle-conserving moves
-        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(adjacency_matrix.shape[0]))
-        # on-site pariticle<->hole transitions
+
+    if not PN_projection:
+        adjacency_matrix_Delta = np.kron(np.eye(K.shape[0] // n_orbitals), \
+            np.eye(n_orbitals) if valley_conservation_Delta else np.array([[0, 1], [1, 0]]))
+        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), adjacency_matrix_Delta)
+        
 
     adjacency_list = [np.where(big_adjacency_matrix[:, i] > 0)[0] \
                       for i in range(big_adjacency_matrix.shape[1])]
@@ -422,7 +423,7 @@ def get_transition_matrix_range(config, K, PN_projection, n_orbitals = 1, valley
     
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
     if not PN_projection:  # not only particle-conserving moves
-        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(adjacency_matrix.shape[0]))
+        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), adjacency_matrix) # np.eye(adjacency_matrix.shape[0]))
         # on-site pariticle<->hole transitions
 
     adjacency_list = [np.where(big_adjacency_matrix[:, i] > 0)[0] \
