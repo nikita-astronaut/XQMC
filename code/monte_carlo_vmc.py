@@ -261,7 +261,7 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, \
     for twist, final_state, o in zip(twists, final_states, orbitals_in_use):
         t = time()
         res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state, o))
-        # print('one chain takes =', time() - t)
+        print('one chain takes =', time() - t)
     return res
 
 
@@ -270,7 +270,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     config_vmc.twist = tuple(twist)
     t = time()
     hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
-
+    print('H init takes {:.10f}'.format(time() - t))
     ''' 
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)
@@ -278,9 +278,11 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, True, final_state)
     '''
     
+
+    t = time() 
     wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
                               False, None, orbitals_in_use)  # always start with bare configuration
-    print('Init takes {:.10f}'.format(time() - t))
+    print('WF Init takes {:.10f}'.format(time() - t))
 
     t_steps = 0
     t = time()
@@ -415,19 +417,20 @@ if __name__ == "__main__":
         twists = [[1, 1], [1, -1], [-1, 1], [-1, -1]]
         twists_per_cpu = config_vmc.n_chains / n_cpus
         assert twists_per_cpu == 1
-    else:    
-        twists_per_cpu = config_vmc.n_chains // n_cpus
-        assert twists_per_cpu * n_cpus == config_vmc.n_chains
-        
+    elif config_vmc.twist_mesh == 'uniform':
+        L = 4
         twists = []
-        L = int(np.sqrt(config_vmc.n_chains))
         for i_x in range(L):
-            for i_y in range(L):                
+            for i_y in range(L):
                 twists.append([np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_x / L)), np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_y / L))])
+        twists_per_cpu = len(twists) // n_cpus
+    else:
+        print('Twist {:s} is not supported'.format(config_vmc.twist_mesh))
+        exit(-1)
 
     print('Number of twists: {:d}, number of chains {:d}, twists per cpu {:2f}'.format(len(twists), config_vmc.n_chains, twists_per_cpu))
 
-    config_vmc.MC_chain = config_vmc.MC_chain // config_vmc.n_chains # the MC_chain contains the total required number of samples
+    config_vmc.MC_chain = config_vmc.MC_chain // len(twists) # the MC_chain contains the total required number of samples
     config_vmc.MC_thermalisation = config_vmc.MC_thermalisation
 
     pairings_list = config_vmc.pairings_list
@@ -475,13 +478,14 @@ if __name__ == "__main__":
         t = time()
         
         if twists_per_cpu > 1:
-            results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
-                parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
-                final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
-                orbitals_in_use = orbitals_in_use[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
-            results = []
-            for r in results_batched:
-                results = results + r
+            with parallel_backend("loky", inner_max_num_threads=1):
+                results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+                    parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
+                    final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
+                    orbitals_in_use = orbitals_in_use[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
+                results = []
+                for r in results_batched:
+                    results = results + r
         else:
             with parallel_backend("loky", inner_max_num_threads=1):
                 results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \

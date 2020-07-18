@@ -10,23 +10,20 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.Ne = 132  # self.Ne is used as a guide to choose mu and mu_BCS if PN_projection=False
-        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
+        self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, 0.0, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
-        for i in range(self.K_0.shape[0]):
-            for j in range(self.K_0.shape[1]):
-                if (i + j) % 2 == 1 and np.abs(self.K_0[i, j]) > 1e-9:
-                    print(i, j, self.K_0[i, j])
-                    assert not self.chiral_basis
-                #if (i + j) % 2 == 0 and self.K_0[i, j] != self.K_0[j, i]:
-                #    print(i, j, self.K_0[i, j], self.K_0[j, i])
+        check_chirality(self.K_0, self.chiral_basis)
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
+
+        self.far_indices = models._jit_get_far_indices(self.Ls, self.total_dof, self.n_sublattices, self.n_orbitals)
+
         Efull, _ = np.linalg.eigh(self.K_0)
         K_0_plus = self.K_0[:, np.arange(0, self.total_dof // 2, 2)]; K_0_plus = K_0_plus[np.arange(0, self.total_dof // 2, 2), :]
         K_0_minus = self.K_0[:, np.arange(1, self.total_dof // 2, 2)]; K_0_minus = K_0_minus[np.arange(1, self.total_dof // 2, 2), :]
@@ -50,7 +47,7 @@ class MC_parameters:
         self.use_preassigned_orbitals = False; self.preassigned_orbitals_path = '/home/astronaut/Documents/DQMC_TBG/logs/x11/saved_orbital_indexes.npy'
         self.valley_projection = True  # project onto valley imbalance = ...
 
-        self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
+        self.PN_projection = True #False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
         self.visualisation = False; 
@@ -63,7 +60,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[1]
+        self.pairings_list = pairings.twoorb_hex_all[irrep_idx]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -249,3 +246,12 @@ class MC_parameters:
         assert offset == len(parameters)
 
         return mu, fugacity, waves, gap, jastrow
+
+
+def check_chirality(K_0, chiral_basis):
+    for i in range(K_0.shape[0]):
+        for j in range(K_0.shape[1]):
+            if (i + j) % 2 == 1 and np.abs(K_0[i, j]) > 1e-9:
+                print(i, j, K_0[i, j])
+                assert not chiral_basis
+    return

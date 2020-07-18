@@ -11,8 +11,10 @@ from copy import deepcopy
 class HubbardHamiltonian(object):
     def __init__(self, config):
         self.config = config
+        t = time()
         K_matrix_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
         K_matrix_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
+        print('apply pbc takes {:.15f}'.format(time() - t))
 
         self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
     def _get_edges(self):
@@ -41,7 +43,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             return U_0
 
         d = self.xi / rhat
-        ns = np.arange(-1000000, 1000001)
+        ns = np.arange(-100000, 100001)
         W = 110. / self.epsilon / rhat * np.sum((-1.) ** ns / (1 + (ns * d) ** 2) ** 0.5)
         # print('W', W)
         return U_0 / (1. + (U_0 / W) ** 5) ** 0.2  # Ohno relations
@@ -60,10 +62,12 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         print('V({:.2f}) = {:.2f}'.format(0.0, self.W_ij(0)))
 
+        t = time()
         for site in range(1, len(self.config.adjacency_list) // 3):  # on-site accounted already
             r = np.sqrt(self.config.adjacency_list[3 * site][-1])
             edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * self.W_ij(r) / 2
             print('V({:.2f}) = {:.2f}'.format(r, self.W_ij(r)))
+        print('loop takes', time() - t)
 
         # np.save('test_edges.npy', edges_quadric)
         edges_J = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.J / 2 / self.epsilon + 0.0j
