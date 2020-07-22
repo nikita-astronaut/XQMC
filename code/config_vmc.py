@@ -11,6 +11,8 @@ class MC_parameters:
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.Ne = 132  # self.Ne is used as a guide to choose mu and mu_BCS if PN_projection=False
         self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
+        self.L_twists_uniform = 4
+
         assert self.BC_twist  # this is always true
         self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
@@ -51,8 +53,8 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False; 
-        self.workdir = '/home/astronaut/DQMC_TBG/logs/newnewnew/'
-        self.tests = True #True
+        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs/newnew'
+        self.tests = False #True
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
@@ -97,7 +99,7 @@ class MC_parameters:
         
 
         ### optimisation parameters ###
-        self.MC_chain = 1500000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
+        self.MC_chain = 2000000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
         self.optimisation_steps = 1600; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
@@ -114,7 +116,7 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 3e-3
+        self.reg_gap_val = 1e-4
 
         ## initial values definition and layout ###
         self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -123,7 +125,7 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.03, 0.04, size = self.layout[3]),  # gaps
+            np.random.uniform(0.003, 0.003, size = self.layout[3]),  # gaps
             np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
         

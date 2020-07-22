@@ -418,7 +418,7 @@ if __name__ == "__main__":
         twists_per_cpu = config_vmc.n_chains / n_cpus
         assert twists_per_cpu == 1
     elif config_vmc.twist_mesh == 'uniform':
-        L = 4
+        L = config_vmc.L_twists_uniform
         twists = []
         for i_x in range(L):
             for i_y in range(L):

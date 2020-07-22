@@ -245,7 +245,7 @@ class wavefunction_singlet():
 
         elif self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             #print('Initializing 2nd way', flush=True)
-            # print(self.E)
+            #print(self.E)
             plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj()).real
             # print(plus_valley)
             plus_valley = plus_valley > 0.99
@@ -256,7 +256,7 @@ class wavefunction_singlet():
 
             plus_valley_number = self.config.total_dof // 4 # + self.config.valley_imbalance // 2
             minus_valley_number = self.config.total_dof // 4 # - self.config.valley_imbalance // 2
-            # print('Construction of Slater determinant: {:d} (+) orbitals and {:d} (-) orbitals'.format(plus_valley_number, minus_valley_number))
+            #print('Construction of Slater determinant: {:d} (+) orbitals and {:d} (-) orbitals'.format(plus_valley_number, minus_valley_number))
 
             idxs_total = np.argsort(E)
             idxs_plus = idxs_total[plus_valley][:plus_valley_number]
@@ -267,8 +267,8 @@ class wavefunction_singlet():
         
             self.occupied_levels = np.zeros(len(E), dtype=bool)
             self.occupied_levels[self.lowest_energy_states] = True
-            # print('Initializing Slater wf: particles {:d}, holes {:d}'.format(np.sum(particles), np.sum(holes)))
-            # print('Initializing Slater wf: selected particles {:d}, selected holes {:d}'.format(np.sum(particles * self.occupied_levels), np.sum(holes * self.occupied_levels)))
+            #print('Initializing Slater wf: particles {:d}, holes {:d}'.format(np.sum(particles), np.sum(holes)))
+            #print('Initializing Slater wf: selected particles {:d}, selected holes {:d}'.format(np.sum(particles * self.occupied_levels), np.sum(holes * self.occupied_levels)))
 
             plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
                                                          self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
@@ -291,7 +291,6 @@ class wavefunction_singlet():
             #print('Initializing Slater wf: particles_+ {:d}, particles_- {:d}, holes _+ {:d}, holes_- {:d}'.format(np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole)))
             #print('Initializing Slater wf: selected particles_+ {:d}, selected holes_+ {:d}'.format(np.sum(plus_valley_particle * self.occupied_levels), np.sum(plus_valley_hole * self.occupied_levels)))
             #print('Initializing Slater wf: selected particles_- {:d}, selected holes_- {:d}'.format(np.sum(minus_valley_particle * self.occupied_levels), np.sum(minus_valley_hole * self.occupied_levels)))
-
         elif not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             # print('Initializing free way', flush=True)
 
@@ -378,7 +377,7 @@ class wavefunction_singlet():
             n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 4
 
             #print('configuration start: ({:d} / {:d})_+, ({:d} / {:d})_-'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
-            # print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
+            #print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
 
             particles_plus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2),
                                                         size = n_particles_plus, replace = False)
@@ -395,7 +394,7 @@ class wavefunction_singlet():
 
             occupied_sites = np.concatenate([particles_plus, particles_minus, holes_plus, holes_minus])        
             #print('N occupied sites = {:d}'.format(len(occupied_sites)))
-
+            #exit(-1)
         else:
             occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
                                                         size = n_particles, replace = False)
@@ -448,7 +447,7 @@ class wavefunction_singlet():
                 moved_site, empty_site = proposed_move
                 moved_site_idx = self.place_in_string[moved_site]
                 if empty_site not in self.empty_sites or moved_site not in self.occupied_sites:
-                    return False, 1, moved_site, empty_site
+                    return False, 1, 1, moved_site, empty_site
 
             if empty_site < 0:
                 # self.rejected_filled += 1

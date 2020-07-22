@@ -248,6 +248,47 @@ def test_single_move_check(config):
 
     return success
 
+
+def test_chain_moves(config):
+    success = True
+    print('Testing chain of moves \\prod_{move} ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
+    n_agreed = 0
+    n_failed = 0
+
+    for _ in range(200):
+        wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+        ratio_acc = 1. + 0.0j
+        initial_ampl = wf.current_ampl
+
+        for move in range(300):
+            L = len(wf.state) // 2
+            #i, j = np.random.randint(0, 2 * L, size = 2)
+
+            state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
+
+            acc, det_ratio, j_ratio = wf.perform_MC_step()[:3]
+            #print(ratio_acc, det_ratio, j_ratio)
+            ratio_acc *= (det_ratio * j_ratio)
+
+        wf.perform_explicit_GF_update()
+        final_ampl = wf.current_ampl
+        final_ampl_solid = wf.get_cur_Jastrow_factor() * wf.get_cur_det()
+
+        if np.isclose(final_ampl / initial_ampl, ratio_acc) and np.isclose(final_ampl_solid, final_ampl):
+            n_agreed += 1
+
+        else:
+            print('chain ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_acc)
+            n_failed += 1
+            success = False
+    if n_failed == 0:
+        print('Passed')
+    else:
+        print('Failed on samples:', n_failed)
+
+    return success
+
+
 def test_delayed_updates_check(config):
     success = True
     print('Testing delayed updates')
@@ -419,6 +460,7 @@ def test_BC_twist(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_chain_moves(config)
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
     success = success and test_numerical_derivative_check(config)
