@@ -26,6 +26,9 @@ from copy import deepcopy
 import os
 import pickle
 import config_vmc as cv_module
+from numba.errors import NumbaPendingDeprecationWarning
+import warnings
+warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 
 def extract_MC_data(results, config_vmc, num_twists):
     gaps = [x[9] for x in results]
@@ -54,7 +57,7 @@ def clip_forces(clips, step):
 
 
 
-def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
+def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     def remove_singularity(S):
         for i in range(S.shape[0]):
             if S[i, i] < 1e-4:
@@ -64,11 +67,14 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
         return S
 
     Os_mean = [np.mean(Os_theta, axis = 0) for Os_theta in Os]
-    forces = np.array([-2 * (np.einsum('i,ik->k', energies_theta.conj(), Os_theta) / len(energies_theta) - np.mean(energies_theta.conj()) * Os_mean_theta).real for \
-                       energies_theta, Os_theta, Os_mean_theta in zip(energies, Os, Os_mean)])  # all forces calculated independently for every twist angle
+    forces = np.array([-2 * (np.einsum('i,ik->k', energies_theta.conj() - np.mean(energies_theta.conj()), Os_theta) / len(energies_theta) ) for \
+                       energies_theta, Os_theta in zip(energies, Os)])  # all forces calculated independently for every twist angle
     forces = np.mean(forces, axis = 0)  # after calculation of the force independently for every twist angle, we average over all forces
-    #forces = forces / 36. * config_vmc.Ls ** 2
 
+    print(forces, 'FORCES --- are they real?')
+    forces = forces.real
+    #forces = forces / 36. * config_vmc.Ls ** 2
+    print('E_im = {:.10f} +/- {:.10f}'.format(np.mean(np.array(energies)), np.std(np.array(energies).flatten())))
 
     ### SR STEP ###
     Os_mean = [np.repeat(Os_mean_theta[np.newaxis, ...], len(Os_theta), axis = 0) for Os_mean_theta, Os_theta in zip(Os_mean, Os)]
@@ -77,6 +83,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
 
     S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     S_cov = np.mean(S_cov, axis = 0)
+    print(S_cov)
 
     eigvals, eigvecs = np.linalg.eigh(S_cov)
     #print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
@@ -117,8 +124,8 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     #print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
     #                                                              np.sqrt(np.sum(step ** 2))))
     #print(forces[-3], step[-3], 'forces of gap')
-    #print(forces)
-    #print(step)
+    print(forces)
+    print(step)
     return step, forces
 
 
@@ -507,19 +514,21 @@ if __name__ == "__main__":
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 20:  # jastrows and mu_BCS have not converged yet
+            if n_step < 60:  # jastrows and mu_BCS have not converged yet
                 mask = np.zeros(np.sum(config_vmc.layout))
                 mask[-config_vmc.layout[4]:] = 1.
-                mask[:config_vmc.layout[0]] = 1.
+                # mask[:config_vmc.layout[0]] = 1.
+            Os = [np.einsum('ik,k->ik', Os_theta, mask) for Os_theta in Os]
 
-            step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step)
+            step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step, mask)
             
             write_intermediate_log(log_file, force_file, force_SR_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, n_above_FS, parameters)  # write parameters before step not to lose the initial values
-            if np.abs(gap) < 1e-4:  # if the gap is too small, SR will make gradient just 0
-                step = forces
+            #if np.abs(gap) < 1e-4:  # if the gap is too small, SR will make gradient just 0
+            #    step = forces
+            #step = forces * config_vmc.opt_parameters[1]
             step = step * config_vmc.opt_parameters[1]
-            step = clip_forces(config_vmc.all_clips, step)
+            #step = clip_forces(config_vmc.all_clips, step)
 
             parameters += step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)

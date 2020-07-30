@@ -15,7 +15,26 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     if not result:
         print('Warning! The numerical derivative w.r. to one of the parameters did not match the analytical expression! :', der_numerically, der_analytically)
     else:
-        print('Passed: {:.5f} / {:.5f}'.format(der_numerically, der_analytically.real)) 
+        print('Passed real: {:.5f} / {:.5f}'.format(der_numerically, der_analytically.real)) 
+
+
+    U_1 = wf_1.U_matrix
+    U_2 = wf_2.U_matrix
+    extra_phase = np.angle(np.linalg.det(np.dot(U_1.T.conj(), U_2)))
+    der_numerically_k = np.argmin([np.abs((np.angle(wf_2.current_ampl) - extra_phase - np.angle(wf_1.current_ampl) + 2 * np.pi * k) / dt) for k in range(-1, 2)])
+
+    der_numerically = (np.angle(wf_2.current_ampl) - extra_phase - np.angle(wf_1.current_ampl) + 2 * np.pi * (-1 + der_numerically_k)) / dt
+    der_analytically = 0.5 * wf_1.get_O()[der_idx] + 0.5 * wf_2.get_O()[der_idx]
+
+    if np.abs(der_analytically) < 1e-6 and np.abs(der_numerically) < 1e-6:
+        return True
+
+
+    result = np.isclose(der_numerically, der_analytically.imag, rtol=1e-5, atol=1e-5)
+    if not result:
+        print('Warning! The numerical derivative w.r. to one of the parameters did not match the analytical expression! :', der_numerically, der_analytically)
+    else:
+        print('Passed imag: {:.5f} / {:.5f}'.format(der_numerically, der_analytically.imag))
 
     return result
 
@@ -219,7 +238,6 @@ def test_single_move_check(config):
         wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         L = len(wf.state) // 2
         i, j = np.random.randint(0, 2 * L, size = 2)
-        j = i + 144
 
         initial_ampl = wf.current_ampl
         state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
@@ -234,8 +252,9 @@ def test_single_move_check(config):
 
         if np.isclose(final_ampl / initial_ampl, ratio_fast) and np.isclose(final_ampl_solid, final_ampl):
             n_agreed += 1
-            if np.abs(i - j) >= 144:
-                print('WOW MOTHERFUCKER', final_ampl / initial_ampl, ratio_fast, final_ampl_solid, final_ampl)
+            print(ratio_fast)
+            #if np.abs(i - j) >= 144:
+            #    print('WOW MOTHERFUCKER', final_ampl / initial_ampl, ratio_fast, final_ampl_solid, final_ampl)
 
         else:
             print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
@@ -460,6 +479,7 @@ def test_BC_twist(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_numerical_derivative_check(config)
     success = success and test_chain_moves(config)
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
