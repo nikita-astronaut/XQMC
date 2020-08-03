@@ -472,7 +472,7 @@ if __name__ == "__main__":
     force_file = open(os.path.join(local_workdir, 'force_log.dat'), 'a+')
     force_SR_file = open(os.path.join(local_workdir, 'force_SR_log.dat'), 'a+')
 
-    # spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
+    spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
     final_states = [False] * config_vmc.n_chains
     orbitals_in_use = [None] * config_vmc.n_chains
 
@@ -502,8 +502,8 @@ if __name__ == "__main__":
 
         ### print-out current energy levels ###
         E = results[0][7]
-        # spectral_file.write(("{:.7f} " * len(E) + '\n').format(*E))
-        # spectral_file.flush()
+        spectral_file.write(str(n_step) + ' ' + ("{:.7f} " * len(E) + '\n').format(*E))
+        spectral_file.flush()
         ### MC chains data extraction ###
         gaps, gap, energies, mean_variance, Os, acceptance, \
             final_states, densities, orbitals_in_use, occupied_numbers = \
@@ -514,7 +514,7 @@ if __name__ == "__main__":
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 60:  # jastrows and mu_BCS have not converged yet
+            if n_step < 20:  # jastrows and mu_BCS have not converged yet
                 mask = np.zeros(np.sum(config_vmc.layout))
                 mask[-config_vmc.layout[4]:] = 1.
                 # mask[:config_vmc.layout[0]] = 1.
@@ -550,4 +550,6 @@ if __name__ == "__main__":
     log_file.close()
     force_file.close()
     force_SR_file.close()
+    spectral_file.close()
+
     [file.close() for file in obs_files]
