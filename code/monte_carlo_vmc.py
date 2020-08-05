@@ -431,6 +431,8 @@ if __name__ == "__main__":
             for i_y in range(L):
                 twists.append([np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_x / L)), np.exp(1.0j * np.pi * (-1. + 1. / L + 2. * i_y / L))])
         twists_per_cpu = len(twists) // n_cpus
+        if twists_per_cpu * n_cpus < len(twists):
+            twists_per_cpu += 1
     else:
         print('Twist {:s} is not supported'.format(config_vmc.twist_mesh))
         exit(-1)
@@ -438,7 +440,6 @@ if __name__ == "__main__":
     print('Number of twists: {:d}, number of chains {:d}, twists per cpu {:2f}'.format(len(twists), config_vmc.n_chains, twists_per_cpu))
 
     config_vmc.MC_chain = config_vmc.MC_chain // len(twists) # the MC_chain contains the total required number of samples
-    config_vmc.MC_thermalisation = config_vmc.MC_thermalisation
 
     pairings_list = config_vmc.pairings_list
     pairings_names = config_vmc.pairings_list_names
@@ -473,8 +474,8 @@ if __name__ == "__main__":
     force_SR_file = open(os.path.join(local_workdir, 'force_SR_log.dat'), 'a+')
 
     spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
-    final_states = [False] * config_vmc.n_chains
-    orbitals_in_use = [None] * config_vmc.n_chains
+    final_states = [False] * len(twists)
+    orbitals_in_use = [None] * len(twists)
 
 
     ### write log header only if we start from some random parameters ###
@@ -486,16 +487,21 @@ if __name__ == "__main__":
         
         if twists_per_cpu > 1:
             with parallel_backend("loky", inner_max_num_threads=1):
-                results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
-                    parameters, twists = twists[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
-                    final_states = final_states[i * twists_per_cpu:(i + 1) * twists_per_cpu], \
-                    orbitals_in_use = orbitals_in_use[i * twists_per_cpu:(i + 1) * twists_per_cpu]) for i in range(n_cpus))
+                results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, deepcopy(config_vmc), pairings_list, \
+                    parameters, twists = twists[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
+                    final_states = final_states[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
+                    orbitals_in_use = orbitals_in_use[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])]) for i in range(n_cpus))
+                for i in range(n_cpus):
+                    print(i * twists_per_cpu, np.min([(i + 1) * twists_per_cpu, len(twists)]))
                 results = []
-                for r in results_batched:
+                for i, r in enumerate(results_batched):
                     results = results + r
+                    print('obtained {:d} results from {:d} cpu'.format(len(r), i))
+                print('obtained in total {:d} results'.format(len(results)))
+                print(len(twists))
         else:
             with parallel_backend("loky", inner_max_num_threads=1):
-                results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step - last_step, deepcopy(config_vmc), pairings_list, \
+                results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step, deepcopy(config_vmc), pairings_list, \
                     parameters, twists[i], final_states[i], orbitals_in_use[i]) for i in range(config_vmc.n_chains))
         print('MC chain generationof {:d} no {:d} took {:f}'.format(rank, n_step, time() - t))
         t = time() 
