@@ -56,7 +56,8 @@ class MC_parameters:
         self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs/newnew'
         self.tests = False #True
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
-        self.load_parameters = True; self.load_parameters_path = None
+        self.load_parameters = True; 
+        self.load_parameters_path = None
         self.offset = 0
 
 
@@ -104,7 +105,7 @@ class MC_parameters:
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-3, 5e-2, 1.0005]
+        self.opt_parameters = [1e-3, 2e-2, 1.0005]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 20
         self.generator_mode = True
@@ -116,7 +117,7 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 1e-4
+        self.reg_gap_val = 0.003
 
         ## initial values definition and layout ###
         self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -125,7 +126,7 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.003, 0.003, size = self.layout[3]),  # gaps
+            np.random.uniform(0.03, 0.03, size = self.layout[3]),  # gaps
             np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
         
@@ -146,11 +147,11 @@ class MC_parameters:
         ])
 
         self.all_clips = np.concatenate([
-            np.ones(self.layout[0]) * 3e-4,  # mu_BCS
+            np.ones(self.layout[0]) * 3e+4,  # mu_BCS
             np.array([3e-1] if not self.PN_projection else []),  # fugacity
-            np.ones(self.layout[2]) * 3e-4,  # waves
-            np.ones(self.layout[3]) * 3e-4,  # gaps
-            np.ones(self.layout[4]) * 3e-2,  # jastrows
+            np.ones(self.layout[2]) * 3e+4,  # waves
+            np.ones(self.layout[3]) * 3e+4,  # gaps
+            np.ones(self.layout[4]) * 3e+4,  # jastrows
         ])
 
         self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino()
@@ -243,7 +244,10 @@ class MC_parameters:
         fugacity = None if self.PN_projection else parameters[offset]; offset += self.layout[1]
 
         waves = parameters[offset:offset + self.layout[2]]; offset += self.layout[2]
-        gap = parameters[offset:offset + self.layout[3]]; offset += self.layout[3]
+        if self.layout[3] == 0:  # UGLY BUT WORKS
+            gap = parameters[offset:offset + self.layout[3]]; offset += 1
+        else:
+            gap = parameters[offset:offset + self.layout[3]]; offset += self.layout[3]
         jastrow = parameters[offset:offset + self.layout[4]]; offset += self.layout[4]
         assert offset == len(parameters)
 
