@@ -128,6 +128,8 @@ class hamiltonian_1orb_shortrange(HubbardHamiltonian):
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
+        E_loc -= self.config.mu * np.sum(density)
+
         return E_loc + 0.5 * self.config.U * np.sum(density ** 2)
 
 @jit(nopython=True)
