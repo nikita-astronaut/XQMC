@@ -519,9 +519,9 @@ if __name__ == "__main__":
         n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
-            mask = np.ones(np.sum(config_vmc.layout))
+            mask = np.ones(len(parameters))
             if n_step < 20:  # jastrows and mu_BCS have not converged yet
-                mask = np.zeros(np.sum(config_vmc.layout))
+                mask = np.zeros(len(parameters))
                 mask[-config_vmc.layout[4]:] = 1.
                 # mask[:config_vmc.layout[0]] = 1.
             Os = [np.einsum('ik,k->ik', Os_theta, mask) for Os_theta in Os]

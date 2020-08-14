@@ -10,7 +10,7 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.Ne = 132  # self.Ne is used as a guide to choose mu and mu_BCS if PN_projection=False
-        self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
+        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         self.L_twists_uniform = 4
 
         assert self.BC_twist  # this is always true
@@ -164,7 +164,7 @@ class MC_parameters:
     def select_initial_muBCS_Koshino(self, parameters = []):
         if len(parameters) == 0:
             parameters = self.initial_parameters
-        _, _, waves, gap, _ = self.unpack_parameters(parameters)
+        #_, _, waves, gap, _ = self.unpack_parameters(parameters, mode_setting = True)
         # T = wfv.construct_HMF(self, self.K_0, self.K_0.T, self.pairings_list_unwrapped, gap, waves, self.reg_gap_term)
 
         # assert np.allclose(T, T.conj().T)
@@ -244,11 +244,13 @@ class MC_parameters:
         fugacity = None if self.PN_projection else parameters[offset]; offset += self.layout[1]
 
         waves = parameters[offset:offset + self.layout[2]]; offset += self.layout[2]
-        if self.layout[3] == 0:  # UGLY BUT WORKS
+        if self.layout[3] == 0 and self.load_parameters_path is not None:  # UGLY BUT WORKS
             gap = parameters[offset:offset + self.layout[3]]; offset += 1
         else:
             gap = parameters[offset:offset + self.layout[3]]; offset += self.layout[3]
+
         jastrow = parameters[offset:offset + self.layout[4]]; offset += self.layout[4]
+        print(offset, len(parameters), self.layout)
         assert offset == len(parameters)
 
         return mu, fugacity, waves, gap, jastrow
