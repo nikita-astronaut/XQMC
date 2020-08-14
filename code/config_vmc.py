@@ -9,12 +9,12 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = 132  # self.Ne is used as a guide to choose mu and mu_BCS if PN_projection=False
+        self.Ne = 112
         self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
-        self.L_twists_uniform = 4
+        self.L_twists_uniform = 6
 
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
@@ -37,8 +37,8 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 3.
-        self.xi = 0.1
+        self.epsilon = 3.00
+        self.xi = 0.01
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 8.
 
@@ -49,12 +49,12 @@ class MC_parameters:
         self.use_preassigned_orbitals = False; self.preassigned_orbitals_path = '/home/astronaut/Documents/DQMC_TBG/logs/x11/saved_orbital_indexes.npy'
         self.valley_projection = True  # project onto valley imbalance = ...
 
-        self.PN_projection = True #False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
+        self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
         self.visualisation = False; 
-        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs/newnew'
-        self.tests = False #True
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
+        self.tests = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; self.load_parameters_path = None
         self.offset = 0
@@ -62,7 +62,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[irrep_idx]
+        self.pairings_list = pairings.twoorb_hex_all[0]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -92,21 +92,21 @@ class MC_parameters:
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
         #self.jastrows_list = jastrow.jastrow_Koshino_Gutzwiller 
-        self.jastrows_list = jastrow.jastrow_Koshino_simple
+        self.jastrows_list = jastrow.jastrow_Koshino_simple[:1]
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
 
         
 
         ### optimisation parameters ###
-        self.MC_chain = 2000000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
+        self.MC_chain = 500000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
         self.optimisation_steps = 1600; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-3, 5e-2, 1.0005]
+        self.opt_parameters = [1e-3, 4e-2, 1.00]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
-        self.n_delayed_updates = 20
+        self.n_delayed_updates = 10
         self.generator_mode = True
 
         ### regularisation ###
@@ -116,7 +116,7 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis)
-        self.reg_gap_val = 1e-4
+        self.reg_gap_val = 0.03
 
         ## initial values definition and layout ###
         self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -125,17 +125,27 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.003, 0.003, size = self.layout[3]),  # gaps
+            np.random.uniform(0.03, 0.03, size = self.layout[3]),  # gaps
             np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
+
+        '''
+        self.parameter_fixing = np.concatenate([
+            np.array([None]),  # mu_BCS
+            np.array(] if not self.PN_projection else []),  # fugacity
+            np.array([False] * size = self.layout[2]),  # waves
+            np.array([False] * size = self.layout[3]),  # gaps
+            np.array([False] * size = self.layout[4]),  # jastrows
+        ])
+        '''
         
         self.initial_parameters[np.sum(self.layout[:-1])] = 1.2
-        self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5
+        #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         if not self.PN_projection:
             f = -np.sum(np.array([A[0] * factor for factor, A in \
                         zip(self.initial_parameters[-self.layout[4]:], self.jastrows_list)])) / (self.total_dof // 2)
-            self.initial_parameters[self.layout[0]] = f
+            self.initial_parameters[self.layout[0]] = 0.0 #f
 
         self.all_names = np.concatenate([
             np.array(['mu_BCS']),  # mu_BCS
@@ -146,21 +156,22 @@ class MC_parameters:
         ])
 
         self.all_clips = np.concatenate([
-            np.ones(self.layout[0]) * 3e-4,  # mu_BCS
-            np.array([3e-1] if not self.PN_projection else []),  # fugacity
-            np.ones(self.layout[2]) * 3e-4,  # waves
-            np.ones(self.layout[3]) * 3e-4,  # gaps
-            np.ones(self.layout[4]) * 3e-2,  # jastrows
+            np.ones(self.layout[0]) * 3e+4,  # mu_BCS
+            np.array([3e+4] if not self.PN_projection else []),  # fugacity
+            np.ones(self.layout[2]) * 3e+4,  # waves
+            np.ones(self.layout[3]) * 3e+4,  # gaps
+            np.ones(self.layout[4]) * 3e+4,  # jastrows
         ])
 
-        self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino()
-        self.mu = self.initial_parameters[0]
+        self.initial_parameters[:self.layout[0]] = 0.0 #self.select_initial_muBCS_Koshino() # FIXME
+        self.mu = -1.5  # self.initial_parameters[0]
+        self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
         ### check K-matrix irrep properties ###
         pairings.check_irrep_properties(self, [[self.model(self, 0.0, spin = +1.0)[0], 'K_matrix']], \
             term_type = 'K_matrix', chiral = self.chiral_basis)
 
-    def select_initial_muBCS_Koshino(self, parameters = []):
+    def select_initial_muBCS_Koshino(self, Ne, parameters = []):
         if len(parameters) == 0:
             parameters = self.initial_parameters
         _, _, waves, gap, _ = self.unpack_parameters(parameters)
@@ -173,7 +184,9 @@ class MC_parameters:
             twist = [1, -1]
         else:
             twist = [1, 1]
-        print(twist)
+        #twist = [1.0j, -1.0j]
+        #print(twist)
+
         K_0_twisted = models.apply_TBC(self, twist, deepcopy(self.K_0), inverse = False)
         K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0).T, inverse = True)
         assert np.allclose(K_0_twisted, K_0_twisted.conj().T)
@@ -190,13 +203,13 @@ class MC_parameters:
 
         K_0_plus_holes = K_0_twisted_holes[:, np.arange(0, self.total_dof // 2, 2)]; K_0_plus_holes = K_0_plus_holes[np.arange(0, self.total_dof // 2, 2), :]
         K_0_minus_holes = K_0_twisted_holes[:, np.arange(1, self.total_dof // 2, 2)]; K_0_minus_holes = K_0_minus_holes[np.arange(1, self.total_dof // 2, 2), :]
-        print(np.linalg.eigh(K_0_plus)[0] -  np.sort(-np.linalg.eigh(K_0_minus_holes)[0]))
+        #print(np.linalg.eigh(K_0_plus)[0] -  np.sort(-np.linalg.eigh(K_0_minus_holes)[0]))
         assert np.allclose(np.linalg.eigh(K_0_plus)[0], np.sort(-np.linalg.eigh(K_0_minus_holes)[0]))
         assert np.allclose(np.linalg.eigh(K_0_minus)[0], np.sort(-np.linalg.eigh(K_0_plus_holes)[0]))
 
 
         nu = self.valley_imbalance // 4
-        delta = (self.total_dof // 2 - self.Ne) // 4
+        delta = (self.total_dof // 2 - Ne) // 4
 
         Ep, _ = np.linalg.eigh(K_0_plus)  # particle energies
         Ep = np.sort(Ep)
@@ -205,17 +218,17 @@ class MC_parameters:
 
         N_particles_plus_below = np.sum(Ep < 0)  # current number of + particle energies below zero
         xi = N_particles_plus_below - (self.total_dof // 8 - delta + nu)  # this many levels must be put up above FS
-        print('xi_plus = {:d}'.format(xi))
+        #print('xi_plus = {:d}'.format(xi))
         dEp = (Ep[N_particles_plus_below - xi - 1] * 0.25 + Ep[N_particles_plus_below - xi] * 0.75) / 1
         #print(Ep, Ep[N_particles_plus_below - xi - 1], Ep[N_particles_plus_below - xi])
-        print('initial mu_BCS_1 = {:.10f}'.format(dEp))
-        print('N_[articles_plus_below before = {:d}'.format(N_particles_plus_below))
-        print(Ep)
-        print('N_holes_minus_below before = {:d}'.format(np.sum(np.linalg.eigh(K_0_minus_holes)[0] < 0)))
+        #print('initial mu_BCS_1 = {:.10f}'.format(dEp))
+        #print('N_[articles_plus_below before = {:d}'.format(N_particles_plus_below))
+        #print(Ep)
+        #print('N_holes_minus_below before = {:d}'.format(np.sum(np.linalg.eigh(K_0_minus_holes)[0] < 0)))
         Ep, _ = np.linalg.eigh(K_0_plus - np.eye(K_0_plus.shape[0]) * dEp)  # particle energies
         N_particles_plus_below = np.sum(Ep < 0)  # number after proper mu_BCS subtraction
-        print('N_particles_plus_below after = {:d}'.format(N_particles_plus_below))
-        print('N_holes_minus_below after = {:d}'.format(np.sum(np.linalg.eigh(K_0_minus_holes + np.eye(K_0_plus.shape[0]) * dEp)[0] < 0)))
+        #print('N_particles_plus_below after = {:d}'.format(N_particles_plus_below))
+        #print('N_holes_minus_below after = {:d}'.format(np.sum(np.linalg.eigh(K_0_minus_holes + np.eye(K_0_plus.shape[0]) * dEp)[0] < 0)))
         # print('holes', np.linalg.eigh(-K_0_plus_holes.T + np.eye(K_0_plus.shape[0]) * dEp)[0])
         # print('particles', Ep)
 
@@ -224,18 +237,28 @@ class MC_parameters:
         xi = N_particles_minus_below - (self.total_dof // 8 - delta - nu)  # this many levels must be put up above FS
         dEm = (Em[N_particles_minus_below - xi - 1] * 0.25 + Em[N_particles_minus_below - xi] * 0.75) / 1
         #print(Em, Em[N_particles_minus_below - xi - 1], Em[N_particles_minus_below - xi])
-        print('initial mu_BCS_2 = {:.10f}'.format(dEm))
-        print('N_particles_minus_below before = {:d}'.format(N_particles_minus_below))
-        print('N_holes_minus_below befire = {:d}'.format(np.sum(np.linalg.eigh(K_0_plus_holes)[0] < 0)))
+        #print('initial mu_BCS_2 = {:.10f}'.format(dEm))
+        #print('N_particles_minus_below before = {:d}'.format(N_particles_minus_below))
+        #print('N_holes_minus_below before = {:d}'.format(np.sum(np.linalg.eigh(K_0_plus_holes)[0] < 0)))
         Em, _ = np.linalg.eigh(K_0_minus - np.eye(K_0_minus.shape[0]) * dEm)  # particle energies
         N_particles_minus_below = np.sum(Em < 0)  # number after proper mu_BCS subtraction
-        print('N_particles_minus_below after = {:d}'.format(N_particles_minus_below))
-        print('N_holes_plus_below after = {:d}'.format(np.sum(np.linalg.eigh(K_0_plus_holes + np.eye(K_0_minus.shape[0]) * dEm)[0] < 0)))
+        #print('N_particles_minus_below after = {:d}'.format(N_particles_minus_below))
+        #print('N_holes_plus_below after = {:d}'.format(np.sum(np.linalg.eigh(K_0_plus_holes + np.eye(K_0_minus.shape[0]) * dEm)[0] < 0)))
 
-        print('!!!!', np.sort(np.concatenate([Em, Ep])))
+        #print('!!!!', np.sort(np.concatenate([Em, Ep])))
 
-        print('but I wanted particles_+ {:d}, holes_+ {:d}, particles_-{:d}, holes_- {:d}'.format(self.total_dof // 8 - delta + nu, self.total_dof // 8 + delta - nu, self.total_dof // 8 - delta - nu, self.total_dof // 8 + delta + nu))
+        #print('but I wanted particles_+ {:d}, holes_+ {:d}, particles_-{:d}, holes_- {:d}'.format(self.total_dof // 8 - delta + nu, self.total_dof // 8 + delta - nu, self.total_dof // 8 - delta - nu, self.total_dof // 8 + delta + nu))
+
+        #print(dEp)
         return dEp
+
+    def guess_mu_BCS_approximate(self, density):
+        densities = np.linspace(0, self.total_dof // 2, (self.total_dof // 2 + 4) // 4) / (self.total_dof // 2)
+        print(densities * self.total_dof // 2)
+        idx = np.argmin(np.abs(densities - density))
+        print(densities[idx])
+        return self.select_initial_muBCS_Koshino(int(densities[idx] * (self.total_dof // 2)))
+
 
     def unpack_parameters(self, parameters):
         offset = 0
