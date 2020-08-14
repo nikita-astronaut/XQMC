@@ -56,7 +56,8 @@ class MC_parameters:
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
         self.tests = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
-        self.load_parameters = True; self.load_parameters_path = None
+        self.load_parameters = True; 
+        self.load_parameters_path = None
         self.offset = 0
 
 
@@ -266,7 +267,10 @@ class MC_parameters:
         fugacity = None if self.PN_projection else parameters[offset]; offset += self.layout[1]
 
         waves = parameters[offset:offset + self.layout[2]]; offset += self.layout[2]
-        gap = parameters[offset:offset + self.layout[3]]; offset += self.layout[3]
+        if self.layout[3] == 0:  # UGLY BUT WORKS
+            gap = parameters[offset:offset + self.layout[3]]; offset += 1
+        else:
+            gap = parameters[offset:offset + self.layout[3]]; offset += self.layout[3]
         jastrow = parameters[offset:offset + self.layout[4]]; offset += self.layout[4]
         assert offset == len(parameters)
 
