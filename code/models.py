@@ -252,7 +252,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
 
 
     K = K + K.conj().T
-    K = K - mu * np.eye(K.shape[0])
+    # K = K - mu * np.eye(K.shape[0])
 
     inverse = False if spin > 0 else True
     return K, n_orbitals, n_sublattices 

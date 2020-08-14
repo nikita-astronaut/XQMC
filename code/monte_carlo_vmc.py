@@ -28,6 +28,8 @@ import pickle
 import config_vmc as cv_module
 from numba.errors import NumbaPendingDeprecationWarning
 import warnings
+import models
+
 warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 
 def extract_MC_data(results, config_vmc, num_twists):
@@ -81,17 +83,17 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     S_cov = [(np.einsum('nk,nl->kl', (Os_theta - Os_mean_theta).conj(), (Os_theta - Os_mean_theta)) / Os_theta.shape[0]).real \
              for Os_mean_theta, Os_theta in zip(Os_mean, Os)]  # SR_matrix is computed independently for every twist angle theta
 
-    S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
+    # S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     S_cov = np.mean(S_cov, axis = 0)
     print(S_cov)
 
     eigvals, eigvecs = np.linalg.eigh(S_cov)
     #print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
-    #print(eigvals)
-    #print(np.diag(S_cov))
+    print('S_cov eigvals = ', eigvals)
+    print(np.diag(S_cov))
     for val, vec in zip(eigvals, eigvecs.T):
         if np.abs(val) < 1e-6:
-            print('redundancy observed:')
+            print('redundancy observed:', vec)
             for val, name in zip(vec, config_vmc.all_names):
                 if np.abs(val) > 1e-1:
                     print(name, val)
@@ -263,21 +265,27 @@ def import_config(filename: str):
     return module
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, \
-                        twists, final_states, orbitals_in_use):
+                        twists, final_states, orbitals_in_use, \
+                        K_matrices_up, K_matrices_down, regs):
     res = []
-    for twist, final_state, o in zip(twists, final_states, orbitals_in_use):
+    for twist, final_state, o, K_up, K_down, reg in zip(twists, final_states, orbitals_in_use, \
+                                                        K_matrices_up, K_matrices_down, regs):
         t = time()
-        res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, twist, final_state, o))
-        print('one chain takes =', time() - t)
+        res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, \
+                                        parameters, twist, final_state, o, \
+                                        K_up, K_down, reg))
+        print('one chain takes =', time() - t, flush = True)
     return res
 
 
 def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
-                         parameters, twist, final_state = False, orbitals_in_use = None):
+                         parameters, twist, final_state = False, orbitals_in_use = None,
+                         K_up = None, K_down = None, reg = None):
     config_vmc.twist = tuple(twist)
     t = time()
-    hamiltonian = config_vmc.hamiltonian(config_vmc)  # the Hubbard Hamiltonian will be initialized with the 
+    hamiltonian = config_vmc.hamiltonian(config_vmc, K_up, K_down)  # the Hubbard Hamiltonian will be initialized with the 
     print('H init takes {:.10f}'.format(time() - t))
+    # print(K_up, K_down, flush=True)
     ''' 
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, False, None)
@@ -288,7 +296,8 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
 
     t = time() 
     wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
-                              False, None, orbitals_in_use)  # always start with bare configuration
+                              False, None, orbitals_in_use, \
+                              False, K_up, K_down, reg)  # always start with bare configuration
     print('WF Init takes {:.10f}'.format(time() - t))
 
     t_steps = 0
@@ -436,8 +445,14 @@ if __name__ == "__main__":
     else:
         print('Twist {:s} is not supported'.format(config_vmc.twist_mesh))
         exit(-1)
-
+    print(twists)
     print('Number of twists: {:d}, number of chains {:d}, twists per cpu {:2f}'.format(len(twists), config_vmc.n_chains, twists_per_cpu))
+    K_matrices_up = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.K_0), inverse = False) for twist in twists]
+    K_matrices_down = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.K_0).T, inverse = True) for twist in twists]
+    reg_terms = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.reg_gap_term), inverse = False) * \
+                 config_vmc.reg_gap_val for twist in twists]
+
+
 
     config_vmc.MC_chain = config_vmc.MC_chain // len(twists) # the MC_chain contains the total required number of samples
 
@@ -466,6 +481,7 @@ if __name__ == "__main__":
     else:
         parameters = config_vmc.initial_parameters
         last_step = 0
+    #parameters[1] = 6e-3  #DEBUG FIXME
     # parameters[0] = config_vmc.select_initial_muBCS(parameters = parameters) # FIXME: add flag for this (correct mu_BCS on relaunch) ??
 
  
@@ -487,22 +503,40 @@ if __name__ == "__main__":
         
         if twists_per_cpu > 1:
             with parallel_backend("loky", inner_max_num_threads=1):
-                results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)(n_step, deepcopy(config_vmc), pairings_list, \
-                    parameters, twists = twists[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
-                    final_states = final_states[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
-                    orbitals_in_use = orbitals_in_use[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])]) for i in range(n_cpus))
-                for i in range(n_cpus):
-                    print(i * twists_per_cpu, np.min([(i + 1) * twists_per_cpu, len(twists)]))
+                results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)( \
+                        n_step, \
+                        deepcopy(config_vmc), \
+                        pairings_list, \
+                        parameters, \
+                        twists = twists[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
+                        final_states = final_states[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
+                        orbitals_in_use = orbitals_in_use[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
+                        K_matrices_up = K_matrices_up[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
+                        K_matrices_down = K_matrices_down[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
+                        regs = reg_terms[i * twists_per_cpu:np.min([(i + 1) * twists_per_cpu, len(twists)])], \
+                    ) for i in range(n_cpus))
+                #for i in range(n_cpus):
+                #    print(i * twists_per_cpu, np.min([(i + 1) * twists_per_cpu, len(twists)]))
                 results = []
                 for i, r in enumerate(results_batched):
                     results = results + r
                     print('obtained {:d} results from {:d} cpu'.format(len(r), i))
                 print('obtained in total {:d} results'.format(len(results)))
-                print(len(twists))
+                #print(len(twists))
         else:
             with parallel_backend("loky", inner_max_num_threads=1):
-                results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)(n_step, deepcopy(config_vmc), pairings_list, \
-                    parameters, twists[i], final_states[i], orbitals_in_use[i]) for i in range(config_vmc.n_chains))
+                results = Parallel(n_jobs=config_vmc.n_chains)(delayed(_get_MC_chain_result)( \
+                        n_step, \
+                        deepcopy(config_vmc), \
+                        pairings_list, \
+                        parameters, \
+                        twists[i], \
+                        final_states[i], \
+                        orbitals_in_use[i], \
+                        K_matrices_up[i], \
+                        K_matrices_down[i], \
+                        reg_terms[i], \
+                    ) for i in range(config_vmc.n_chains))
         print('MC chain generationof {:d} no {:d} took {:f}'.format(rank, n_step, time() - t))
         t = time() 
 
@@ -520,10 +554,12 @@ if __name__ == "__main__":
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 20:  # jastrows and mu_BCS have not converged yet
+            if n_step < 1:  # jastrows and mu_BCS have not converged yet
                 mask = np.zeros(np.sum(config_vmc.layout))
                 mask[-config_vmc.layout[4]:] = 1.
-                # mask[:config_vmc.layout[0]] = 1.
+                #mask[:config_vmc.layout[0]] = 1.
+            #mask[1] = 0.0  # fugacity is not optimized in the meantime
+
             Os = [np.einsum('ik,k->ik', Os_theta, mask) for Os_theta in Os]
 
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step, mask)
