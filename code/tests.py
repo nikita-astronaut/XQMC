@@ -15,7 +15,26 @@ def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     if not result:
         print('Warning! The numerical derivative w.r. to one of the parameters did not match the analytical expression! :', der_numerically, der_analytically)
     else:
-        print('Passed: {:.5f} / {:.5f}'.format(der_numerically, der_analytically.real)) 
+        print('Passed real: {:.5f} / {:.5f}'.format(der_numerically, der_analytically.real)) 
+
+
+    U_1 = wf_1.U_matrix
+    U_2 = wf_2.U_matrix
+    extra_phase = np.angle(np.linalg.det(np.dot(U_1.T.conj(), U_2)))
+    der_numerically_k = np.argmin([np.abs((np.angle(wf_2.current_ampl) - extra_phase - np.angle(wf_1.current_ampl) + 2 * np.pi * k) / dt) for k in range(-1, 2)])
+
+    der_numerically = (np.angle(wf_2.current_ampl) - extra_phase - np.angle(wf_1.current_ampl) + 2 * np.pi * (-1 + der_numerically_k)) / dt
+    der_analytically = 0.5 * wf_1.get_O()[der_idx] + 0.5 * wf_2.get_O()[der_idx]
+
+    if np.abs(der_analytically) < 1e-6 and np.abs(der_numerically) < 1e-6:
+        return True
+
+
+    result = np.isclose(der_numerically, der_analytically.imag, rtol=1e-5, atol=1e-5)
+    if not result:
+        print('Warning! The numerical derivative w.r. to one of the parameters did not match the analytical expression! :', der_numerically, der_analytically)
+    else:
+        print('Passed imag: {:.5f} / {:.5f}'.format(der_numerically, der_analytically.imag))
 
     return result
 
@@ -224,7 +243,7 @@ def test_single_move_check(config):
         state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
         ratio_fast = get_wf_ratio(*state, wf.var_f, i, j)
         
-        acc = wf.perform_MC_step((i, j), enforce = False)[0]
+        acc = wf.perform_MC_step((i, j), enforce = True)[0]
         if not acc:
             continue
         wf.perform_explicit_GF_update()
@@ -233,6 +252,10 @@ def test_single_move_check(config):
 
         if np.isclose(final_ampl / initial_ampl, ratio_fast) and np.isclose(final_ampl_solid, final_ampl):
             n_agreed += 1
+            print(ratio_fast)
+            #if np.abs(i - j) >= 144:
+            #    print('WOW MOTHERFUCKER', final_ampl / initial_ampl, ratio_fast, final_ampl_solid, final_ampl)
+
         else:
             print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
             n_failed += 1
@@ -245,6 +268,7 @@ def test_single_move_check(config):
     return success
 
 
+<<<<<<< HEAD
 def test_gf_means_correct(config):
     success = True
     print('Testing Greens function ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
@@ -267,14 +291,39 @@ def test_gf_means_correct(config):
         acc = wf.perform_MC_step((i, j), enforce = False)[0]
         if not acc:
             continue
+=======
+def test_chain_moves(config):
+    success = True
+    print('Testing chain of moves \\prod_{move} ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
+    n_agreed = 0
+    n_failed = 0
+
+    for _ in range(200):
+        wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+        ratio_acc = 1. + 0.0j
+        initial_ampl = wf.current_ampl
+
+        for move in range(300):
+            L = len(wf.state) // 2
+            #i, j = np.random.randint(0, 2 * L, size = 2)
+
+            state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
+
+            acc, det_ratio, j_ratio, i, j = wf.perform_MC_step()
+            #print(ratio_acc, det_ratio, j_ratio)
+            ratio_acc *= (det_ratio * j_ratio)
+            #if i > L and j < L:
+            #    print('non-conserving move')
+
         wf.perform_explicit_GF_update()
         final_ampl = wf.current_ampl
         final_ampl_solid = wf.get_cur_Jastrow_factor() * wf.get_cur_det()
 
-        if np.isclose(final_ampl / initial_ampl, ratio_fast) and np.isclose(final_ampl_solid, final_ampl):
+        if np.isclose(final_ampl / initial_ampl, ratio_acc) and np.isclose(final_ampl_solid, final_ampl):
             n_agreed += 1
+
         else:
-            print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
+            print('chain ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_acc)
             n_failed += 1
             success = False
     if n_failed == 0:
@@ -292,14 +341,15 @@ def test_delayed_updates_check(config):
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
     for _ in range(200):
-        initial_ampl = wf.current_ampl
-        for step in range(10):
-            wf.perform_MC_step()
+        current_ampl = wf.current_ampl
+        for step in range(1000):
+            acc, detr, jastrr = wf.perform_MC_step()[:3]
+            current_ampl *= detr * jastrr
         wf.perform_explicit_GF_update()
         final_ampl = wf.current_ampl
         final_ampl_solid = wf.get_cur_Jastrow_factor() * wf.get_cur_det()
 
-        if np.isclose(final_ampl_solid, final_ampl):
+        if np.isclose(final_ampl_solid, final_ampl) and np.isclose(current_ampl, final_ampl):
             n_agreed += 1
         else:
             print('Delayed updates test failed:', final_ampl, final_ampl_solid)
@@ -456,13 +506,16 @@ def test_BC_twist(config):
 def perform_all_tests(config):
     success = True
     success = success and test_numerical_derivative_check(config)
-    success = success and test_particle_hole(config)
+    success = success and test_chain_moves(config)
+    success = success and test_single_move_check(config)
+    success = success and test_delayed_updates_check(config)
+    success = success and test_numerical_derivative_check(config)
+    #success = success and test_particle_hole(config)
     success = success and test_BC_twist(config)
     success = success and test_all_jastrow_factors_included_only_once(config)
     success = success and test_explicit_factors_check(config)
     success = success and test_double_move_commutation_check(config)
-    success = success and test_single_move_check(config)
-    success = success and test_delayed_updates_check(config)
+    
     success = success and test_onsite_gf_is_density_check(config)
     
     # success = success and test_double_move_check(config)

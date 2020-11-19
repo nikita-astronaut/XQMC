@@ -9,6 +9,7 @@ G_square = 2 * np.pi * np.array([[1, 0], [0, 1]])
 
 U_xy_to_chiral = None
 
+
 @jit(nopython=True)
 def diff_modulo(x, y, L, d):
     if d >= 0:
@@ -177,6 +178,18 @@ def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
 def to_linearized_index(x, y, sublattice, orbit, L, n_orbitals, n_sublattices = 2):
     return orbit + n_orbitals * (sublattice + n_sublattices * (y + x * L))
 
+@jit(nopython=True)
+def _jit_get_far_indices(Ls, total_dof, n_sublattices, n_orbitals):
+    far_indices = [(0, 0)]
+    for first in range(total_dof // 2):
+        for second in range(total_dof // 2):
+            _, _, x1, y1 = from_linearized_index(first, Ls, n_orbitals, n_sublattices)
+            _, _, x2, y2 = from_linearized_index(second, Ls, n_orbitals, n_sublattices)
+            if np.abs(x1 - x2) > Ls // 2 or np.abs(y1 - y2) > Ls // 2:
+                far_indices.append((first, second))
+    return far_indices[1:]
+
+
 def xy_to_chiral(M, term_type, config, chiral = False):
     if not chiral:
         return M
@@ -239,10 +252,11 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
 
 
     K = K + K.conj().T
-    K = K - mu * np.eye(K.shape[0])
+    # K = K - mu * np.eye(K.shape[0])
 
     inverse = False if spin > 0 else True
-    return _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, inverse = inverse), n_orbitals, n_sublattices
+    return K, n_orbitals, n_sublattices 
+#_apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, inverse = inverse), n_orbitals, n_sublattices
 
 
 def model_hex_2orb_Koshino(config, mu, spin = +1.0):
@@ -389,22 +403,23 @@ def _model_square_1orb(Ls, twist, mu, spin):
 def model_square_1orb(config, mu, spin = +1.0):
     return _model_square_1orb(config.Ls, config.twist, mu, spin)
 
-@jit(nopython = True)
-def get_transition_matrix(PN_projection, K, n_orbitals = 1, valley_conservation=True):
+#@jit(nopython = True)
+def get_transition_matrix(PN_projection, K, n_orbitals = 1, \
+                          valley_conservation_K=True, valley_conservation_Delta=True):
     adjacency_matrix = np.zeros(K.shape)
-    unit_matrix = np.eye(n_orbitals) if valley_conservation else np.ones((n_orbitals, n_orbitals))
+    unit_matrix = np.eye(n_orbitals) if valley_conservation_K else np.ones((n_orbitals, n_orbitals))
     for i in range(K.shape[0] // n_orbitals):
         for j in range(K.shape[0] // n_orbitals):
             if K[i * n_orbitals, j * n_orbitals] != 0.0:
                 adjacency_matrix[i * n_orbitals:i * n_orbitals + n_orbitals, \
                                  j * n_orbitals:j * n_orbitals + n_orbitals] = np.eye(n_orbitals)  # valley-charge conservation
-    
-
-
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
-    if not PN_projection:  # not only particle-conserving moves
-        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(adjacency_matrix.shape[0]))
-        # on-site pariticle<->hole transitions
+
+    if not PN_projection:
+        adjacency_matrix_Delta = np.kron(np.eye(K.shape[0] // n_orbitals), \
+            np.eye(n_orbitals) if valley_conservation_Delta else np.array([[0, 1], [1, 0]]))
+        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), adjacency_matrix_Delta)
+        
 
     adjacency_list = [np.where(big_adjacency_matrix[:, i] > 0)[0] \
                       for i in range(big_adjacency_matrix.shape[1])]
@@ -415,14 +430,14 @@ def get_transition_matrix_range(config, K, PN_projection, n_orbitals = 1, valley
     adjacency_matrix = np.zeros(K.shape)
     unit_matrix = np.eye(n_orbitals) if valley_conservation else np.ones((n_orbitals, n_orbitals))
     distances = get_adjacency_list(config, orbital_mod=False)[0]
-    for dist in distances[:3]:
+    for dist in distances[:2]:
         adjacency_matrix += np.kron(dist, unit_matrix)
     adjacency_matrix[np.arange(K.shape[0]), np.arange(K.shape[0])] = 0.0
     
     
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
     if not PN_projection:  # not only particle-conserving moves
-        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), np.eye(adjacency_matrix.shape[0]))
+        big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), adjacency_matrix) # np.eye(adjacency_matrix.shape[0]))
         # on-site pariticle<->hole transitions
 
     adjacency_list = [np.where(big_adjacency_matrix[:, i] > 0)[0] \
@@ -431,7 +446,7 @@ def get_transition_matrix_range(config, K, PN_projection, n_orbitals = 1, valley
     return adjacency_list
 
 @jit(nopython=True)  # TODO: check this is valid for gaps
-def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, \
+def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, \
                inverse = False, factor = 1, chiral_basis=True):  # inverse = True in the case of spin--down
     x_factor = twist[0] if not inverse else 1. / twist[0]
     y_factor = twist[1] if not inverse else 1. / twist[1]
@@ -439,47 +454,47 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, \
     if factor != 1:
         x_factor = x_factor ** factor
         y_factor = y_factor ** factor
-    for first in range(K.shape[0]):
-        for second in np.where(np.abs(K[first, :]) > 0)[0]:
-            orbit1, sublattice1, x1, y1 = from_linearized_index(first, Ls, n_orbitals, n_sublattices)
-            orbit2, sublattice2, x2, y2 = from_linearized_index(second, Ls, n_orbitals, n_sublattices)
+    for first, second in far_indices:
+        orbit1, sublattice1, x1, y1 = from_linearized_index(first, Ls, n_orbitals, n_sublattices)
+        orbit2, sublattice2, x2, y2 = from_linearized_index(second, Ls, n_orbitals, n_sublattices)
 
-            if np.abs(x1 - x2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
-                if x2 > x1:
-                    if chiral_basis and orbit1 == 0:
-                        K[first, second] *= x_factor
-                    elif chiral_basis and orbit1 == 1:
-                        K[first, second] *= np.conj(x_factor)
-                    else:
-                        K[first, second] *= x_factor
+        if np.abs(x1 - x2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
+            if x2 > x1:
+                if chiral_basis and orbit1 == 0:
+                    K[first, second] *= x_factor
+                elif chiral_basis and orbit1 == 1:
+                    K[first, second] *= np.conj(x_factor)
                 else:
-                    if chiral_basis and orbit2 == 0:
-                        K[first, second] *= np.conj(x_factor)
-                    elif chiral_basis and orbit2 == 1:
-                        K[first, second] *= x_factor
-                    else:
-                        K[first, second] *= np.conj(x_factor)
+                    K[first, second] *= x_factor
+            else:
+                if chiral_basis and orbit2 == 0:
+                    K[first, second] *= np.conj(x_factor)
+                elif chiral_basis and orbit2 == 1:
+                    K[first, second] *= x_factor
+                else:
+                    K[first, second] *= np.conj(x_factor)
 
-            if np.abs(y1 - y2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
-                if y2 > y1:
-                    if chiral_basis and orbit1 == 0:
-                        K[first, second] *= y_factor
-                    elif chiral_basis and orbit1 == 1:
-                        K[first, second] *= np.conj(y_factor)
-                    else:
-                        K[first, second] *= y_factor
+        if np.abs(y1 - y2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
+            if y2 > y1:
+                if chiral_basis and orbit1 == 0:
+                    K[first, second] *= y_factor
+                elif chiral_basis and orbit1 == 1:
+                    K[first, second] *= np.conj(y_factor)
                 else:
-                    if chiral_basis and orbit2 == 0:
-                        K[first, second] *= np.conj(y_factor)
-                    elif chiral_basis and orbit2 == 1:
-                        K[first, second] *= y_factor
-                    else:
-                        K[first, second] *= np.conj(y_factor)
+                    K[first, second] *= y_factor
+            else:
+                if chiral_basis and orbit2 == 0:
+                    K[first, second] *= np.conj(y_factor)
+                elif chiral_basis and orbit2 == 1:
+                    K[first, second] *= y_factor
+                else:
+                    K[first, second] *= np.conj(y_factor)
     return K
 
 
 def apply_TBC(config, twist, K, inverse = False, factor = 1, chiral_basis=True):
-    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, twist, inverse, factor, chiral_basis)
+    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, \
+                      twist, config.far_indices, inverse, factor, chiral_basis)
 
 
 @jit(nopython=True)

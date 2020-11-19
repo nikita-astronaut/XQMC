@@ -6,13 +6,16 @@ from wavefunction_vmc import get_wf_ratio, density, get_wf_ratio_double_exchange
 from numba import jit
 from time import time
 import scipy
+import scipy.linalg
 from copy import deepcopy
 
 class HubbardHamiltonian(object):
-    def __init__(self, config):
+    def __init__(self, config, K_up = None, K_down = None):
         self.config = config
-        K_matrix_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
-        K_matrix_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
+        t = time()
+        K_matrix_up = K_up if K_up is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
+        K_matrix_down = K_down if K_down is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
+        print('apply pbc takes {:.15f}'.format(time() - t))
 
         self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
     def _get_edges(self):
@@ -22,8 +25,8 @@ class HubbardHamiltonian(object):
 
 
 class hamiltonian_Koshino(HubbardHamiltonian):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, K_up = None, K_down = None):
+        super().__init__(config, K_up, K_down)
         self.plus_orbital = np.arange(0, self.config.total_dof // 2, 2)  # chiral basis now
         self.minus_orbital = self.plus_orbital + 1
 
@@ -41,10 +44,11 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             return U_0
 
         d = self.xi / rhat
-        ns = np.arange(-1000000, 1000001)
+        ns = np.arange(-100000, 100001)
         W = 110. / self.epsilon / rhat * np.sum((-1.) ** ns / (1 + (ns * d) ** 2) ** 0.5)
+        res = U_0 / (1. + (U_0 / W) ** 5) ** 0.2
         # print('W', W)
-        return U_0 / (1. + (U_0 / W) ** 5) ** 0.2  # Ohno relations
+        return res if res > 0.05 else 0.0  # Ohno relations
 
 
     def _get_interaction(self):
@@ -60,10 +64,12 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         print('V({:.2f}) = {:.2f}'.format(0.0, self.W_ij(0)))
 
+        t = time()
         for site in range(1, len(self.config.adjacency_list) // 3):  # on-site accounted already
             r = np.sqrt(self.config.adjacency_list[3 * site][-1])
             edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * self.W_ij(r) / 2
             print('V({:.2f}) = {:.2f}'.format(r, self.W_ij(r)))
+        #print('loop takes', time() - t)
 
         # np.save('test_edges.npy', edges_quadric)
         edges_J = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.J / 2 / self.epsilon + 0.0j
@@ -76,6 +82,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             where j ~ i are the all indixes having non-zero matrix element with i H_{ij}
         '''
 
+        assert wf.n_stored_updates == 0
+
         E_loc = 0.0 + 0.0j
         base_state = wf.state
         particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
@@ -85,9 +93,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
         E_loc += np.dot(particles - holes, self.edges_quadric.dot(particles - holes))
 
-        #E_loc += get_E_C_Koshino(base_state[:len(base_state) // 2], base_state[len(base_state) // 2:], \
-        #                         self.config.total_dof // 2, self.config.U, self.config.V)
-
+        E_loc -= self.config.mu * np.sum(particles - holes)
         # on-site Hund term https://arxiv.org/pdf/2003.09513.pdf (Eq. 2)
         if self.JH != 0.0:
             E_loc += -self.config.JH * (get_E_J_Hund(self.plus_orbital, self.minus_orbital, wf_state, wf.var_f) + \
@@ -123,6 +129,8 @@ class hamiltonian_1orb_shortrange(HubbardHamiltonian):
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
+        E_loc -= self.config.mu * np.sum(density)
+
         return E_loc + 0.5 * self.config.U * np.sum(density ** 2)
 
 @jit(nopython=True)
