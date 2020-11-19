@@ -268,6 +268,30 @@ def test_single_move_check(config):
     return success
 
 
+<<<<<<< HEAD
+def test_gf_means_correct(config):
+    success = True
+    print('Testing Greens function ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
+    n_agreed = 0
+    n_failed = 0
+    wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+    #for MC_step in range(config.MC_thermalisation):
+    #    wf.perform_MC_step()
+    #wf.perform_explicit_GF_update()
+
+    for _ in range(200):
+        wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+        L = len(wf.state) // 2
+        i, j = np.random.randint(0, 2 * L, size = 2)
+
+        initial_ampl = wf.current_ampl
+        state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
+        ratio_fast = get_wf_ratio(*state, wf.var_f, i, j)
+        
+        acc = wf.perform_MC_step((i, j), enforce = False)[0]
+        if not acc:
+            continue
+=======
 def test_chain_moves(config):
     success = True
     print('Testing chain of moves \\prod_{move} ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
