@@ -310,6 +310,36 @@ def test_chain_moves(config):
     return success
 
 
+def test_chiral_gap_preserves_something(config):
+    success = True
+    print('Testing that some elements of H_MF are zero')
+    n_agreed = 0
+    n_failed = 0 
+
+    for _ in range(200):
+        wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+        i, j = np.random.randint(0, config.total_dof // 2, size = 2)
+        j += config.total_dof // 2
+        acc, det_ratio, j_ratio, i, j = wf.perform_MC_step(proposed_move = (i, j), enforce=True)
+        if not acc:
+            continue
+
+        if config.enforce_valley_orbitals:
+            if np.abs(det_ratio) > 1e-10 and (i + j) % 2 == 1:
+                n_failed += 1
+        if not config.enforce_valley_orbitals:
+            if np.abs(det_ratio) > 1e-10 and (i + j) % 2 == 0:
+                n_failed += 1
+                print(i, j, det_ratio)
+    if n_failed == 0:
+        print('Passed')
+    else:
+        print('Failed on samples:', n_failed)
+        success = False
+    exit(-1)
+    return success
+
+
 def test_delayed_updates_check(config):
     success = True
     print('Testing delayed updates')
@@ -481,6 +511,7 @@ def test_BC_twist(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_chiral_gap_preserves_something(config)
     success = success and test_numerical_derivative_check(config)
     success = success and test_chain_moves(config)
     success = success and test_single_move_check(config)
