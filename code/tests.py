@@ -244,6 +244,47 @@ def test_single_move_check(config):
 
     return success
 
+
+def test_gf_means_correct(config):
+    success = True
+    print('Testing Greens function ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
+    n_agreed = 0
+    n_failed = 0
+    wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+    #for MC_step in range(config.MC_thermalisation):
+    #    wf.perform_MC_step()
+    #wf.perform_explicit_GF_update()
+
+    for _ in range(200):
+        wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+        L = len(wf.state) // 2
+        i, j = np.random.randint(0, 2 * L, size = 2)
+
+        initial_ampl = wf.current_ampl
+        state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
+        ratio_fast = get_wf_ratio(*state, wf.var_f, i, j)
+        
+        acc = wf.perform_MC_step((i, j), enforce = False)[0]
+        if not acc:
+            continue
+        wf.perform_explicit_GF_update()
+        final_ampl = wf.current_ampl
+        final_ampl_solid = wf.get_cur_Jastrow_factor() * wf.get_cur_det()
+
+        if np.isclose(final_ampl / initial_ampl, ratio_fast) and np.isclose(final_ampl_solid, final_ampl):
+            n_agreed += 1
+        else:
+            print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
+            n_failed += 1
+            success = False
+    if n_failed == 0:
+        print('Passed')
+    else:
+        print('Failed on samples:', n_failed)
+
+    return success
+
+
 def test_delayed_updates_check(config):
     success = True
     print('Testing delayed updates')
