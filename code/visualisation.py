@@ -491,24 +491,65 @@ def is_commensurate(L, k):
         return True
     return False
 
-def get_MFH(config, only_free = False):
+def get_MFH(config, mu_given = None, gap_given = None, only_free = False):
     K_up = config.model(config, config.mu, spin = +1.0)[0]
     K_up = models.xy_to_chiral(K_up, 'K_matrix', config, config.chiral_basis)
     K_down = config.model(config, config.mu, spin = -1.0)[0].T
     K_down = models.xy_to_chiral(K_down, 'K_matrix', config, config.chiral_basis)
 
+    mu, fugacity, waves, gap, jastrow = config.unpack_parameters(config.initial_parameters)
+
+    if mu_given is not None:
+        Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, gap)
+        print(gap)
+        Ts = []
+
+        for dmu in mu_given:
+            T = scipy.linalg.block_diag(K_up - np.eye(K_up.shape[0]) * (mu + dmu), -(K_down - np.eye(K_down.shape[0]) * (mu + dmu))) + 0.0j
+            T[:config.total_dof // 2, config.total_dof // 2:] = Delta
+            T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+            Ts.append(T.copy() * 1.)
+
+            Deltaonly = T * 0.0
+            Deltaonly[:config.total_dof // 2, config.total_dof // 2:] = Delta
+            Deltaonly[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+
+            eigenvalues, eigenvectors = np.linalg.eigh(Ts[-1])
+            idxs = np.argsort(np.abs(eigenvalues))[:2]
+            vplus = eigenvectors[:, idxs[0]]
+            vminus = eigenvectors[:, idxs[1]]
+            print(dmu, np.abs(np.dot(vplus.conj(), np.dot(Deltaonly, vminus))), np.trace(np.dot(Deltaonly, Deltaonly.T.conj())))
+
+        return Ts
+
+
+    K_up -= np.eye(K_up.shape[0]) * mu
+    K_down -= np.eye(K_down.shape[0]) * mu
+
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
     if only_free:
         return T
 
-    mu, fugacity, waves, gap, jastrow = config.unpack_parameters(config.initial_parameters)
+    
 
-    Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, gap)
+    if gap_given is None:
+        Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, gap)
 
     
-    T[:config.total_dof // 2, config.total_dof // 2:] = Delta
-    T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
-    return T
+        T[:config.total_dof // 2, config.total_dof // 2:] = Delta
+        T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+        return T
+
+    else:
+        Ts = []
+        Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, [1])
+        for gap in gap_given:
+            T_gap = T.copy() * 1.0
+    
+            T_gap[:config.total_dof // 2, config.total_dof // 2:] = Delta * gap
+            T_gap[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T * gap
+            Ts.append(T_gap.copy() * 1.0)
+        return Ts
 
 
 def plot_MF_spectrum_profile(config):
@@ -550,4 +591,47 @@ def plot_MF_spectrum_profile(config):
     #plt.plot([0, 97], [0, 0], ls = '--', color = 'black')
     #plt.xlim([0, 97])
     plt.grid(True)
+    plt.show()
+
+
+
+def plot_levels_evolution_gap(config):
+    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+    if geometry == 'square':
+        print('Not supported!')
+        exit(-1)
+    gaps = np.linspace(0, 1e-1, 100)
+
+
+    eigvls = []
+    MFHs = get_MFH(config, gap_given = gaps)
+    eigvls = [np.linalg.eigh(MFH)[0] for MFH in MFHs]
+    eigvls = np.array(eigvls).T
+    for level in eigvls:
+        #print(level)
+        plt.plot(gaps, level)
+
+    plt.grid(True, ls='--', color='black', alpha=0.15)
+    plt.ylim([-0.1, 0.1])
+    plt.show()
+
+
+def plot_levels_evolution_mu(config):
+    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+    if geometry == 'square':
+        print('Not supported!')
+        exit(-1)
+    dmus = np.linspace(-0.9, 0.9, 1000)
+
+
+    eigvls = []
+    MFHs = get_MFH(config, mu_given = dmus)
+    eigvls = [np.linalg.eigh(MFH)[0] for MFH in MFHs]
+    eigvls = np.array(eigvls).T
+    for level in eigvls:
+        #print(level)
+        plt.plot(dmus, level)
+
+    plt.grid(True, ls='--', color='black', alpha=0.15)
+    plt.ylim([-0.01, 0.01])
     plt.show()

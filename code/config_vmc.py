@@ -9,8 +9,8 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = 112
-        self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
+        self.Ne = 6 ** 2 * 4 - 0 * 4
+        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         self.L_twists_uniform = 6
 
         assert self.BC_twist  # this is always true
@@ -52,7 +52,7 @@ class MC_parameters:
         self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
-        self.visualisation = False; 
+        self.visualisation = True; 
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
         self.tests = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
@@ -63,7 +63,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[0]
+        self.pairings_list = pairings.twoorb_hex_all[13]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -77,7 +77,7 @@ class MC_parameters:
         self.waves_list_unwrapped = []
 
 
-        self.enforce_valley_orbitals = True
+        self.enforce_valley_orbitals = False # FIXME
         for name in self.pairings_list_names:
             if 'S_pm' not in name:
                 self.enforce_valley_orbitals = False
@@ -112,11 +112,11 @@ class MC_parameters:
 
         ### regularisation ###
         if not self.enforce_valley_orbitals:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
-                                                    self, self.chiral_basis)
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][0]), 'pairing', \
+                                                    self, self.chiral_basis)  # FIXME
         else:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
-                                                    self, self.chiral_basis)
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][0]), 'pairing', \
+                                                    self, self.chiral_basis) # FIXME
         self.reg_gap_val = 0.03
 
         ## initial values definition and layout ###
@@ -126,7 +126,7 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.03, 0.03, size = self.layout[3]),  # gaps
+            np.random.uniform(0.1, 0.1, size = self.layout[3]),  # gaps
             np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
 
@@ -164,9 +164,9 @@ class MC_parameters:
             np.ones(self.layout[4]) * 3e+4,  # jastrows
         ])
 
-        self.initial_parameters[:self.layout[0]] = 0.0 #self.select_initial_muBCS_Koshino() # FIXME
-        self.mu = -1.5  # self.initial_parameters[0]
-        self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
+        self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino(self.Ne)
+        self.mu = self.initial_parameters[0]
+        #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
         ### check K-matrix irrep properties ###
         pairings.check_irrep_properties(self, [[self.model(self, 0.0, spin = +1.0)[0], 'K_matrix']], \
@@ -186,9 +186,10 @@ class MC_parameters:
         else:
             twist = [1, 1]
         #twist = [1.0j, -1.0j]
-        #print(twist)
+        print(twist)
 
         K_0_twisted = models.apply_TBC(self, twist, deepcopy(self.K_0), inverse = False)
+
         K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0).T, inverse = True)
         assert np.allclose(K_0_twisted, K_0_twisted.conj().T)
         assert np.allclose(K_0_twisted_holes, K_0_twisted_holes.conj().T)
@@ -198,12 +199,17 @@ class MC_parameters:
             for j in range(K_0_twisted.shape[1]):
                 if (i + j) % 2 == 1 and np.abs(K_0_twisted[i, j]) > 1e-12:
                     print(i, j)
+                    exit(-1)  # chiral basis check failed
 
         K_0_plus = K_0_twisted[:, np.arange(0, self.total_dof // 2, 2)]; K_0_plus = K_0_plus[np.arange(0, self.total_dof // 2, 2), :]
         K_0_minus = K_0_twisted[:, np.arange(1, self.total_dof // 2, 2)]; K_0_minus = K_0_minus[np.arange(1, self.total_dof // 2, 2), :]
 
-        K_0_plus_holes = K_0_twisted_holes[:, np.arange(0, self.total_dof // 2, 2)]; K_0_plus_holes = K_0_plus_holes[np.arange(0, self.total_dof // 2, 2), :]
-        K_0_minus_holes = K_0_twisted_holes[:, np.arange(1, self.total_dof // 2, 2)]; K_0_minus_holes = K_0_minus_holes[np.arange(1, self.total_dof // 2, 2), :]
+        K_0_plus_holes = K_0_twisted_holes[:, np.arange(0, self.total_dof // 2, 2)]; 
+        K_0_plus_holes = K_0_plus_holes[np.arange(0, self.total_dof // 2, 2), :]
+        
+        K_0_minus_holes = K_0_twisted_holes[:, np.arange(1, self.total_dof // 2, 2)]; 
+        K_0_minus_holes = K_0_minus_holes[np.arange(1, self.total_dof // 2, 2), :]
+        
         #print(np.linalg.eigh(K_0_plus)[0] -  np.sort(-np.linalg.eigh(K_0_minus_holes)[0]))
         assert np.allclose(np.linalg.eigh(K_0_plus)[0], np.sort(-np.linalg.eigh(K_0_minus_holes)[0]))
         assert np.allclose(np.linalg.eigh(K_0_minus)[0], np.sort(-np.linalg.eigh(K_0_plus_holes)[0]))
@@ -219,30 +225,31 @@ class MC_parameters:
 
         N_particles_plus_below = np.sum(Ep < 0)  # current number of + particle energies below zero
         xi = N_particles_plus_below - (self.total_dof // 8 - delta + nu)  # this many levels must be put up above FS
-        #print('xi_plus = {:d}'.format(xi))
-        dEp = (Ep[N_particles_plus_below - xi - 1] * 0.25 + Ep[N_particles_plus_below - xi] * 0.75) / 1
-        #print(Ep, Ep[N_particles_plus_below - xi - 1], Ep[N_particles_plus_below - xi])
-        #print('initial mu_BCS_1 = {:.10f}'.format(dEp))
-        #print('N_[articles_plus_below before = {:d}'.format(N_particles_plus_below))
+        print('xi_plus = {:d}'.format(xi))
+        dEp = (Ep[N_particles_plus_below - xi - 1] * 0.49 + Ep[N_particles_plus_below - xi] * 0.51) / 1
+        print(Ep, Ep[N_particles_plus_below - xi - 1], Ep[N_particles_plus_below - xi])
+        print('initial mu_BCS = {:.10f}'.format(dEp))
+        #exit(-1)
+        print('N_particles_plus_below before = {:d}'.format(N_particles_plus_below))
         #print(Ep)
         #print('N_holes_minus_below before = {:d}'.format(np.sum(np.linalg.eigh(K_0_minus_holes)[0] < 0)))
         Ep, _ = np.linalg.eigh(K_0_plus - np.eye(K_0_plus.shape[0]) * dEp)  # particle energies
         N_particles_plus_below = np.sum(Ep < 0)  # number after proper mu_BCS subtraction
-        #print('N_particles_plus_below after = {:d}'.format(N_particles_plus_below))
+        print('N_particles_plus_below after = {:d}'.format(N_particles_plus_below))
         #print('N_holes_minus_below after = {:d}'.format(np.sum(np.linalg.eigh(K_0_minus_holes + np.eye(K_0_plus.shape[0]) * dEp)[0] < 0)))
         # print('holes', np.linalg.eigh(-K_0_plus_holes.T + np.eye(K_0_plus.shape[0]) * dEp)[0])
         # print('particles', Ep)
 
 
-        N_particles_minus_below = np.sum(Em < 0)  # current number of + particle energies below zero
-        xi = N_particles_minus_below - (self.total_dof // 8 - delta - nu)  # this many levels must be put up above FS
-        dEm = (Em[N_particles_minus_below - xi - 1] * 0.25 + Em[N_particles_minus_below - xi] * 0.75) / 1
+        #N_particles_minus_below = np.sum(Em < 0)  # current number of + particle energies below zero
+        #xi = N_particles_minus_below - (self.total_dof // 8 - delta - nu)  # this many levels must be put up above FS
+        #dEm = (Em[N_particles_minus_below - xi - 1] * 0.49 + Em[N_particles_minus_below - xi] * 0.51) / 1
         #print(Em, Em[N_particles_minus_below - xi - 1], Em[N_particles_minus_below - xi])
         #print('initial mu_BCS_2 = {:.10f}'.format(dEm))
         #print('N_particles_minus_below before = {:d}'.format(N_particles_minus_below))
         #print('N_holes_minus_below before = {:d}'.format(np.sum(np.linalg.eigh(K_0_plus_holes)[0] < 0)))
-        Em, _ = np.linalg.eigh(K_0_minus - np.eye(K_0_minus.shape[0]) * dEm)  # particle energies
-        N_particles_minus_below = np.sum(Em < 0)  # number after proper mu_BCS subtraction
+        #Em, _ = np.linalg.eigh(K_0_minus - np.eye(K_0_minus.shape[0]) * dEm)  # particle energies
+        #N_particles_minus_below = np.sum(Em < 0)  # number after proper mu_BCS subtraction
         #print('N_particles_minus_below after = {:d}'.format(N_particles_minus_below))
         #print('N_holes_plus_below after = {:d}'.format(np.sum(np.linalg.eigh(K_0_plus_holes + np.eye(K_0_minus.shape[0]) * dEm)[0] < 0)))
 
@@ -250,7 +257,7 @@ class MC_parameters:
 
         #print('but I wanted particles_+ {:d}, holes_+ {:d}, particles_-{:d}, holes_- {:d}'.format(self.total_dof // 8 - delta + nu, self.total_dof // 8 + delta - nu, self.total_dof // 8 - delta - nu, self.total_dof // 8 + delta + nu))
 
-        #print(dEp)
+        print(dEp)
         return dEp
 
     def guess_mu_BCS_approximate(self, density):
@@ -267,10 +274,10 @@ class MC_parameters:
         fugacity = None if self.PN_projection else parameters[offset]; offset += self.layout[1]
 
         waves = parameters[offset:offset + self.layout[2]]; offset += self.layout[2]
-        if self.layout[3] == 0:  # UGLY BUT WORKS
-            gap = parameters[offset:offset + self.layout[3]]; offset += 1
-        else:
-            gap = parameters[offset:offset + self.layout[3]]; offset += self.layout[3]
+        #if self.layout[3] == 0:  # UGLY BUT WORKS
+        #    gap = parameters[offset:offset + self.layout[3]]; offset += 1
+        #else:
+        gap = parameters[offset:offset + self.layout[3]]; offset += self.layout[3]
         jastrow = parameters[offset:offset + self.layout[4]]; offset += self.layout[4]
         assert offset == len(parameters)
 

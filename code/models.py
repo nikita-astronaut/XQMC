@@ -493,7 +493,8 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, \
 
 
 def apply_TBC(config, twist, K, inverse = False, factor = 1, chiral_basis=True):
-    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, twist, config.far_indices, inverse, factor, chiral_basis)
+    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, \
+                      twist, config.far_indices, inverse, factor, chiral_basis)
 
 
 @jit(nopython=True)
