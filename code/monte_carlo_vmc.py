@@ -385,7 +385,7 @@ if __name__ == "__main__":
         target.write(source.read())
 
 
-    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
+    #config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
     if config_vmc.visualisation:
         visualisation.plot_levels_evolution_mu(config_vmc)
         print(config_vmc.twist)

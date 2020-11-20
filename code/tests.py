@@ -268,7 +268,6 @@ def test_single_move_check(config):
     return success
 
 
-<<<<<<< HEAD
 def test_gf_means_correct(config):
     success = True
     print('Testing Greens function ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
@@ -291,7 +290,6 @@ def test_gf_means_correct(config):
         acc = wf.perform_MC_step((i, j), enforce = False)[0]
         if not acc:
             continue
-=======
 def test_chain_moves(config):
     success = True
     print('Testing chain of moves \\prod_{move} ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
