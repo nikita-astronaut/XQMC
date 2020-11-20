@@ -60,7 +60,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         #  term V / 2 n_+ n_i + n_- n_+
 
         edges_quadric = np.eye(self.config.total_dof // 2) * self.W_ij(0) / 2.0
-        edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * self.W_ij(0) / 2.
+        edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * self.W_ij(0) / 2.0
+
 
         print('V({:.2f}) = {:.2f}'.format(0.0, self.W_ij(0)))
 

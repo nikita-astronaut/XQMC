@@ -3,6 +3,8 @@ from wavefunction_vmc import wavefunction_singlet, get_wf_ratio, get_det_ratio, 
 from copy import deepcopy
 from time import time
 import models
+from visualisation import K_FT
+
 
 def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     der_numerically = 2 * (np.abs(wf_2.current_ampl) - np.abs(wf_1.current_ampl)) / dt / (np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl))
@@ -47,14 +49,14 @@ def test_explicit_factors_check(config):
 
     delta = np.sum(np.abs(wf.Jastrow - wf.Jastrow.T))
     success = True
-    print('Testing the Jastrow matrix is symmetric')
+    print('Testing the Jastrow matrix is symmetric', flush=True)
     if np.isclose(delta, 0.0, rtol=1e-11, atol=1e-11):
         print('Passed')
     else:
         print('Failed:', np.sum(np.abs(delta)))
 
 
-    print('Testing det and jastrow factors')
+    print('Testing det and jastrow factors', flush=True)
     for _ in range(100):
         det_initial = wf.get_cur_det()
         Jastrow_initial = wf.get_cur_Jastrow_factor()
@@ -87,7 +89,7 @@ def test_particle_hole(config):
     parameters[:config.layout[0]] *= 0  # set mu_BCS = 0, otherwise no ph-symmetry
     #parameters *= 0.
 
-    print('Particle-hole symmetry of the hamiltonian with twist check...') 
+    print('Particle-hole symmetry of the hamiltonian with twist check...', flush=True) 
     wf_ph = wavefunction_singlet(config, config.pairings_list, parameters, False, None, particle_hole=False)
     HMF = wf_ph.T
     spectrum, _ = np.linalg.eigh(HMF)
@@ -97,7 +99,7 @@ def test_particle_hole(config):
         success = False
         print('Failed')
 
-    print('Particle-hole symmetry of the wave function check...')
+    print('Particle-hole symmetry of the wave function check...', flush=True)
     n_passed = 0
     
     for _ in range(200):
@@ -131,7 +133,7 @@ def test_numerical_derivative_check(config):
     success = True
     der_shift = 0
 
-    print('chemical potentials derivative check...')
+    print('chemical potentials derivative check...', flush=True)
     n_passed = 0
     for mu_idx in range(config.layout[0]):
         np.random.seed(11)
@@ -151,7 +153,7 @@ def test_numerical_derivative_check(config):
         success = False
 
 
-    print('fugacity derivative check...')
+    print('fugacity derivative check...', flush=True)
     if not config.PN_projection:
         np.random.seed(11)
         delta = np.zeros(len(config.initial_parameters)); delta[der_shift] += 1
@@ -167,7 +169,7 @@ def test_numerical_derivative_check(config):
 
     der_shift += config.layout[1]
 
-    print('waves derivative check...')
+    print('waves derivative check...', flush=True)
     n_passed = 0
     for waves_idx in range(config.layout[2]):
         np.random.seed(11)
@@ -186,7 +188,7 @@ def test_numerical_derivative_check(config):
         success = False
 
 
-    print('Pairings derivative check...')
+    print('Pairings derivative check...', flush=True)
     n_passed = 0
     for gap_idx in range(config.layout[3]):
         np.random.seed(11)
@@ -204,7 +206,7 @@ def test_numerical_derivative_check(config):
         success = False
 
 
-    print('Jastrow derivative check...')
+    print('Jastrow derivative check...', flush=True)
     n_passed = 0
     for jastrow_idx in range(config.layout[4]):
         np.random.seed(11)
@@ -226,7 +228,7 @@ def test_numerical_derivative_check(config):
 
 def test_single_move_check(config):
     success = True
-    print('Testing simple moves ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
+    print('Testing simple moves ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩', flush=True)
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
@@ -268,16 +270,11 @@ def test_single_move_check(config):
     return success
 
 
-<<<<<<< HEAD
 def test_gf_means_correct(config):
     success = True
-    print('Testing Greens function ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
+    print('Testing Greens function ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩', flush=True)
     n_agreed = 0
     n_failed = 0
-    wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
-    #for MC_step in range(config.MC_thermalisation):
-    #    wf.perform_MC_step()
-    #wf.perform_explicit_GF_update()
 
     for _ in range(200):
         wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
@@ -291,10 +288,10 @@ def test_gf_means_correct(config):
         acc = wf.perform_MC_step((i, j), enforce = False)[0]
         if not acc:
             continue
-=======
+
 def test_chain_moves(config):
     success = True
-    print('Testing chain of moves \\prod_{move} ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩')
+    print('Testing chain of moves \\prod_{move} ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩', flush=True)
     n_agreed = 0
     n_failed = 0
 
@@ -336,7 +333,7 @@ def test_chain_moves(config):
 
 def test_chiral_gap_preserves_something(config):
     success = True
-    print('Testing that some elements of H_MF are zero')
+    print('Testing that some elements of H_MF are zero', flush=True)
     n_agreed = 0
     n_failed = 0 
 
@@ -347,10 +344,11 @@ def test_chiral_gap_preserves_something(config):
         acc, det_ratio, j_ratio, i, j = wf.perform_MC_step(proposed_move = (i, j), enforce=True)
         if not acc:
             continue
-
         if config.enforce_valley_orbitals:
             if np.abs(det_ratio) > 1e-10 and (i + j) % 2 == 1:
                 n_failed += 1
+                print(i, j, det_ratio, flush=True)
+    
         if not config.enforce_valley_orbitals:
             if np.abs(det_ratio) > 1e-10 and (i + j) % 2 == 0:
                 n_failed += 1
@@ -360,13 +358,13 @@ def test_chiral_gap_preserves_something(config):
     else:
         print('Failed on samples:', n_failed)
         success = False
-    exit(-1)
+    # exit(-1)
     return success
 
 
 def test_delayed_updates_check(config):
     success = True
-    print('Testing delayed updates')
+    print('Testing delayed updates', flush=True)
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
@@ -395,11 +393,12 @@ def test_delayed_updates_check(config):
 
 def test_onsite_gf_is_density_check(config):
     success = True
-    print('Testing ⟨x|d^{\\dag}_i d_i|Ф⟩ / ⟨x|Ф⟩ = n_i')
+    print('Testing ⟨x|d^{\\dag}_i d_i|Ф⟩ / ⟨x|Ф⟩ = n_i', flush=True)
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
-    while n_agreed < 5:
+
+    while n_agreed < 50:
         L = len(wf.state) // 2
         i = np.random.randint(0, 2 * L)
 
@@ -422,7 +421,7 @@ def test_onsite_gf_is_density_check(config):
     return success
 
 def test_all_jastrow_factors_included_only_once(config):
-    print('Testing all Jastrow correlations included only once')
+    print('Testing all Jastrow correlations included only once', flush=True)
     factors = config.adjacency_list
     success = True
 
@@ -440,7 +439,7 @@ def test_all_jastrow_factors_included_only_once(config):
 
 def test_double_move_check(config):
     success = True
-    print('Testing double moves ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩')
+    print('Testing double moves ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩', flush=True)
     n_agreed = 0
     n_failed = 0
     # wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
@@ -492,7 +491,7 @@ def test_double_move_check(config):
 
 def test_double_move_commutation_check(config):
     success = True
-    print('Testing fast double updates have correct commutation properties...')
+    print('Testing fast double updates have correct commutation properties...', flush=True)
     n_agreed = 0
     n_failed = 0
     wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
@@ -526,15 +525,56 @@ def test_double_move_commutation_check(config):
     return success
 
 def test_BC_twist(config):
-    print('Testing BC twist with twist ' + str(config.twist))
+    twist = np.exp(2.0j * np.pi * np.random.uniform(0, 1, size=2))
+    print('Testing BC twist is invertable, with twist ' + str(twist), flush=True)
     for name, gap in zip(config.pairings_list_names, config.pairings_list_unwrapped):
-        assert np.allclose(gap, models.apply_TBC(config, config.twist, models.apply_TBC(config, config.twist, deepcopy(gap), inverse = False), inverse=True))
+        assert np.allclose(gap, models.apply_TBC(config, twist, models.apply_TBC(config, twist, deepcopy(gap), inverse = False), inverse=True))
         print('Passed {:s}'.format(name))
+
+    twist_2 = np.exp(2.0j * np.pi * np.random.uniform(0, 1, size=2))
+    print('Testing BC twist is U(1) representation, with twists ' + str(twist) + ' ' + str(twist_2), flush=True)
+    for name, gap in zip(config.pairings_list_names, config.pairings_list_unwrapped):
+        assert np.allclose(models.apply_TBC(config, twist_2, models.apply_TBC(config, twist, deepcopy(gap), inverse = False), inverse=False), \
+                models.apply_TBC(config, twist, models.apply_TBC(config, twist_2, deepcopy(gap), inverse = False), inverse=False))
+        print('Passed {:s}'.format(name))
+    print('Passed', flush=True)
     return True
+
+def test_FT_BC_twist(config):
+    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
+    if geometry == 'hexagonal':
+        R = models.R_hexagonal
+        G = models.G_hexagonal
+    else:
+        R = models.R_square
+        G = models.G_square
+
+    K0 = config.K_0
+
+    twist = 2.0 * np.pi * np.random.uniform(0, 1, size=2) 
+    k_real_square = 2.0 * np.pi * np.random.uniform(0, 1, size=2) * 0
+    k_real_hex = np.einsum('ji,j->i', G, k_real_square / 2 / np.pi)
+
+    K0_ft = K_FT(k_real_hex, K0, config, R)  # fourier with k
+    K0_twisted = models.apply_TBC(config, np.exp(1.0j * twist), deepcopy(K0), inverse = False)  # twist BC with \theta
+    K0_twisted_ft = K_FT(np.einsum('ji,j->i', G, (k_real_square - twist) / 2 / np.pi), K0_twisted, config, R)  # fourier with k - \theta
+
+    print(twist)
+    print(k_real_square)
+    print(np.linalg.eigh(K0_ft)[0])
+    print(np.linalg.eigh(K0_twisted_ft)[0])
+
+    assert np.allclose(K0_ft, K0_twisted_ft)  # should agree (probably)
+
+    print('Passed', flush=True)
+    return True
+
 
 
 def perform_all_tests(config):
     success = True
+    success = success and test_BC_twist(config)
+    success = success and test_FT_BC_twist(config)
     success = success and test_chiral_gap_preserves_something(config)
     success = success and test_numerical_derivative_check(config)
     success = success and test_chain_moves(config)

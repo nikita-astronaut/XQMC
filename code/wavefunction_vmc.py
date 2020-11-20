@@ -4,7 +4,7 @@ from opt_parameters import pairings, waves
 import models
 from copy import deepcopy
 from numba import jit
-from numba.errors import NumbaPerformanceWarning
+from numba.core.errors import NumbaPerformanceWarning
 import scipy
 import warnings
 import os
