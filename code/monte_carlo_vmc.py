@@ -26,11 +26,13 @@ from copy import deepcopy
 import os
 import pickle
 import config_vmc as cv_module
-from numba.errors import NumbaPendingDeprecationWarning
+from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
 import warnings
+
 import models
 
 warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
+warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 def extract_MC_data(results, config_vmc, num_twists):
     gaps = [x[9] for x in results]
@@ -388,8 +390,6 @@ if __name__ == "__main__":
     #config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
     if config_vmc.visualisation:
         visualisation.plot_levels_evolution_mu(config_vmc)
-        print(config_vmc.twist)
-        exit(-1)
         visualisation.plot_all_waves(config_vmc)
         visualisation.plot_DOS(config_vmc)
         visualisation.plot_fermi_surface(config_vmc)
