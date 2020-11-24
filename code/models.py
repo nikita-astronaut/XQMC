@@ -412,7 +412,7 @@ def get_transition_matrix(PN_projection, K, n_orbitals = 1, \
         for j in range(K.shape[0] // n_orbitals):
             if K[i * n_orbitals, j * n_orbitals] != 0.0:
                 adjacency_matrix[i * n_orbitals:i * n_orbitals + n_orbitals, \
-                                 j * n_orbitals:j * n_orbitals + n_orbitals] = np.eye(n_orbitals)  # valley-charge conservation
+                                 j * n_orbitals:j * n_orbitals + n_orbitals] = unit_matrix  # valley-charge conservation
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
 
     if not PN_projection:
