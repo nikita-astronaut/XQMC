@@ -4,7 +4,7 @@ from opt_parameters import pairings, waves
 import models
 from copy import deepcopy
 from numba import jit
-from numba.errors import NumbaPerformanceWarning
+from numba.core.errors import NumbaPerformanceWarning
 import scipy
 import warnings
 import os
@@ -38,6 +38,7 @@ class wavefunction_singlet():
         self.K_up = K_up if K_up is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
         self.K_up -= np.diag(plus_valley_mesh) * self.var_mu[0]
         self.K_up -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-6)
+
         self.K_down = K_down if K_down is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
         self.K_down -= np.diag(plus_valley_mesh) * self.var_mu[0]
         self.K_down -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-6)

@@ -222,7 +222,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     n_orbitals = 2
     n_sublattices = 2
     total_dof = Ls ** 2 * n_orbitals * n_sublattices * 2
-    t1, t2, t5, t4 = 0.331, (-0.010 + 1.0j * 0.097), 0.119, 0.036
+    t1, t2, t5, t4 = 0.331, (-0.010 * 0 + 1.0j * 0.097 * 0), 0.119 * 0, 0.036 * 0
 
 
     K = np.zeros((total_dof // 2, total_dof // 2)) * 1.0j
@@ -493,7 +493,8 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, \
 
 
 def apply_TBC(config, twist, K, inverse = False, factor = 1, chiral_basis=True):
-    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, twist, config.far_indices, inverse, factor, chiral_basis)
+    return _apply_TBC(config.Ls, config.n_orbitals, config.n_sublattices, K, \
+                      twist, config.far_indices, inverse, factor, chiral_basis)
 
 
 @jit(nopython=True)

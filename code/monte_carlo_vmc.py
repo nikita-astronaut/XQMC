@@ -26,11 +26,13 @@ from copy import deepcopy
 import os
 import pickle
 import config_vmc as cv_module
-from numba.errors import NumbaPendingDeprecationWarning
+from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
 import warnings
+
 import models
 
 warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
+warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 def extract_MC_data(results, config_vmc, num_twists):
     gaps = [x[9] for x in results]
@@ -241,7 +243,7 @@ def load_parameters(filename):
     params_dict = pickle.load(open(filename, "rb"))
     return params_dict['parameters'], params_dict['step_no']
 
-# <<Borrowed>> from Tom
+
 def import_config(filename: str):
     import importlib
 
@@ -263,6 +265,7 @@ def import_config(filename: str):
     module = importlib.import_module(module_name)
     sys.path.pop(0)
     return module
+
 
 def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, \
                         twists, final_states, orbitals_in_use, \
@@ -390,12 +393,12 @@ def run_simulation():
         target.write(source.read())
 
 
-    # config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
+    #config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
     if config_vmc.visualisation:
+        visualisation.plot_levels_evolution_mu(config_vmc)
         visualisation.plot_all_waves(config_vmc)
         visualisation.plot_DOS(config_vmc)
         visualisation.plot_fermi_surface(config_vmc)
-        visualisation.plot_all_waves(config_vmc)
         visualisation.plot_all_waves(config_vmc)
         visualisation.plot_all_Jastrow(config_vmc)
         visualisation.plot_MF_spectrum_profile(config_vmc)
