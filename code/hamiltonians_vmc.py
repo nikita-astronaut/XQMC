@@ -6,14 +6,15 @@ from wavefunction_vmc import get_wf_ratio, density, get_wf_ratio_double_exchange
 from numba import jit
 from time import time
 import scipy
+import scipy.linalg
 from copy import deepcopy
 
 class HubbardHamiltonian(object):
-    def __init__(self, config):
+    def __init__(self, config, K_up = None, K_down = None):
         self.config = config
         t = time()
-        K_matrix_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
-        K_matrix_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
+        K_matrix_up = K_up if K_up is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
+        K_matrix_down = K_down if K_down is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
         print('apply pbc takes {:.15f}'.format(time() - t))
 
         self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
@@ -24,8 +25,8 @@ class HubbardHamiltonian(object):
 
 
 class hamiltonian_Koshino(HubbardHamiltonian):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, K_up = None, K_down = None):
+        super().__init__(config, K_up, K_down)
         self.plus_orbital = np.arange(0, self.config.total_dof // 2, 2)  # chiral basis now
         self.minus_orbital = self.plus_orbital + 1
 
@@ -43,7 +44,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             return U_0
 
         d = self.xi / rhat
-        ns = np.arange(-1000000, 1000001)
+        ns = np.arange(-100000, 100001)
         W = 110. / self.epsilon / rhat * np.sum((-1.) ** ns / (1 + (ns * d) ** 2) ** 0.5)
         res = U_0 / (1. + (U_0 / W) ** 5) ** 0.2
         # print('W', W)
@@ -128,6 +129,8 @@ class hamiltonian_1orb_shortrange(HubbardHamiltonian):
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
+        E_loc -= self.config.mu * np.sum(density)
+
         return E_loc + 0.5 * self.config.U * np.sum(density ** 2)
 
 @jit(nopython=True)

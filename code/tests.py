@@ -285,9 +285,11 @@ def test_chain_moves(config):
 
             state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
-            acc, det_ratio, j_ratio = wf.perform_MC_step()[:3]
+            acc, det_ratio, j_ratio, i, j = wf.perform_MC_step()
             #print(ratio_acc, det_ratio, j_ratio)
             ratio_acc *= (det_ratio * j_ratio)
+            #if i > L and j < L:
+            #    print('non-conserving move')
 
         wf.perform_explicit_GF_update()
         final_ampl = wf.current_ampl
