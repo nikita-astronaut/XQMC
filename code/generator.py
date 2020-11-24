@@ -83,7 +83,8 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_sign_before = current_det_sign * 1.0
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
-            assert current_det_sign_before == current_det_sign  # refresh of Green's function must preserve sign (robust)
+            if current_det_sign_before != current_det_sign:  # refresh of Green's function must preserve sign (robust)
+                print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used')
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check = True
         phi_field.wrap_up(time_slice)
@@ -211,7 +212,8 @@ if __name__ == "__main__":
             print('total sweep takes ', time() - t)
             phi_field.save_configuration()
             observables.print_std_logs(n_sweep)
-            observables.write_light_observables(phi_field.config, n_sweep)
+            if observables.n_cumulants > 0:
+                observables.write_light_observables(phi_field.config, n_sweep)
             last_n_sweep_log.write(str(n_sweep) + '\n'); last_n_sweep_log.flush()
             if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
                 t = time()
