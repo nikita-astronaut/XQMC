@@ -9,8 +9,8 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = 6 ** 2 * 4 - 0 * 4
-        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
+        self.Ne = Ls ** 2 * 4# - 2 *  4
+        self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
         self.L_twists_uniform = 6
 
         assert self.BC_twist  # this is always true
@@ -19,8 +19,11 @@ class MC_parameters:
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, 0.0, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
+        print(np.unique(self.K_0))
+
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
+        print(np.unique(self.K_0))
         check_chirality(self.K_0, self.chiral_basis)
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
 
@@ -54,7 +57,7 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = True; 
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
-        self.tests = False
+        self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; 
         self.load_parameters_path = None
@@ -126,7 +129,7 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.1, 0.1, size = self.layout[3]),  # gaps
+            np.random.uniform(0.01, 0.01, size = self.layout[3]),  # gaps
             np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
 

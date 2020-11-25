@@ -346,7 +346,7 @@ class Observables:
         self.global_average_sign = (self.global_average_sign * self.global_average_sign_measurements + \
                                     np.sum(signs)) / (self.global_average_sign_measurements + len(signs))
         self.global_average_sign_measurements += len(signs)
-        self.refresh_light_logs()
+        self.refresh_light_logs()  # TODO: keep sign-averaged observables and accumulate them forever
         return
 
     def measure_green_functions(self, phi, current_det_sign):
