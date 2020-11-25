@@ -183,9 +183,9 @@ def generate_Imada_format_Koshino(config, U):
     np.save('tx.npy', tx)
     np.save('ty.npy', ty)
 
-    valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(8)])
+    valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.Ls ** 2 * 2)])
     rotation = np.array([0, 1, 14, 15, 8, 9, 6, 7, 12, 13, 2, 3, 4, 5, 10, 11])
-    assert np.allclose(valley[valley], np.arange(16))
+    #assert np.allclose(valley[valley], np.arange(16))
     assert np.allclose(rotation[rotation[rotation]], np.arange(16))
 
     symmetries = [np.arange(len(tx)), tx, ty, ty[tx]]

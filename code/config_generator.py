@@ -4,9 +4,15 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
+<<<<<<< HEAD
 dt_in_inv_t1 = 1. / 10
 U_in_t1 = np.array([1.00])
 V_in_t1 = np.array([1.00])
+=======
+dt_in_inv_t1 = 1. / 20
+U_in_t1 = np.array([0.500])
+V_in_t1 = np.array([0.500])
+>>>>>>> 944e05184c4699272e9583333aa0672e1a84eaca
 main_hopping = 1.0
 
 class simulation_parameters:
@@ -14,7 +20,7 @@ class simulation_parameters:
         self.gpu = False
         
         self.Ls = 2  # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([160])
+        self.Nt = np.array([640])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -41,9 +47,9 @@ class simulation_parameters:
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
-        self.workdir = '/home/astronaut/DQMC_TBG/logs_dqmc/testing/'
-        self.workdir_heavy = '/home/astronaut/DQMC_TBG/logs/testing/'
-        self.thermalization = 10000  # after how many sweeps start computing observables
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/tests/'
+        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/tests/'
+        self.thermalization = 100000  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]
@@ -51,7 +57,7 @@ class simulation_parameters:
 
         ### pairings parameters setting (only for measurements) ###
         pairings.obtain_all_pairings(self)
-        self.pairings_list = pairings.twoorb_hex_all_dqmc
+        self.pairings_list = []#pairings.twoorb_hex_all_dqmc
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.max_square_pairing_distance = 1. / 3.  # on-site + NN case on hex lattice

@@ -61,7 +61,7 @@ def clip_forces(clips, step):
 
 
 
-def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
+def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
     def remove_singularity(S):
         for i in range(S.shape[0]):
             if S[i, i] < 1e-4:
@@ -235,7 +235,7 @@ def perform_transition_analysis(Es, U_vecs, current_labels, config):
     # print('remainings:', [np.sum(np.abs(A[:, j]) ** 2) for j in range(A.shape[1])])
     return new_labels.astype(np.int64)
 
-def save_parameters(parameters, step_no):
+def save_parameters(parameters, local_workdir, step_no):
     params_dict = {'parameters' : parameters, 'step_no' : step_no}
     return pickle.dump(params_dict, open(os.path.join(local_workdir, 'last_opt_params.p'), "wb"))
 
@@ -298,9 +298,14 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     
 
     t = time() 
-    wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
-                              False, None, orbitals_in_use, \
-                              False, K_up, K_down, reg)  # always start with bare configuration
+    if final_state == False:
+        wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
+                                  False, None, orbitals_in_use, \
+                                  False, K_up, K_down, reg)
+    else:
+        wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
+                                  True, final_state, orbitals_in_use, \
+                                  False, K_up, K_down, reg)
     print('WF Init takes {:.10f}'.format(time() - t))
 
     t_steps = 0
@@ -370,8 +375,9 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     return energies, Os, acceptance, wf.get_state(), observables, \
            names, wf.U_matrix, wf.E, densities, wf.gap
 
-if __name__ == "__main__":
+def run_simulation():
     config_vmc_file = import_config(sys.argv[1])
+    # mu_BCS_fixed = - 1. /80 * rank # FIXME
     config_vmc_import = config_vmc_file.MC_parameters(int(sys.argv[2]), rank)
 
     config_vmc = cv_module.MC_parameters(int(sys.argv[2]), rank)
@@ -379,7 +385,7 @@ if __name__ == "__main__":
 
     print_model_summary(config_vmc)
 
-    config_vmc.workdir = config_vmc.workdir + '/irrep_{:d}/'.format(rank)
+    config_vmc.workdir = config_vmc.workdir + '/irrep_{:d}_delta_{:.3f}/'.format(rank, config_vmc.reg_gap_val)
     
     os.makedirs(config_vmc.workdir, exist_ok=True)
     with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target, \
@@ -486,7 +492,8 @@ if __name__ == "__main__":
         last_step = 0
     #parameters[1] = 6e-3  #DEBUG FIXME
     # parameters[0] = config_vmc.select_initial_muBCS(parameters = parameters) # FIXME: add flag for this (correct mu_BCS on relaunch) ??
-
+    #if in_parameters is not None:
+    #    parameters = in_parameters
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
     force_file = open(os.path.join(local_workdir, 'force_log.dat'), 'a+')
@@ -501,7 +508,9 @@ if __name__ == "__main__":
     if last_step == 0 or loaded_from_external:
         write_initial_logs(log_file, force_file, force_SR_file, config_vmc)
 
-    for n_step in range(last_step, config_vmc.optimisation_steps):
+    #for n_step in range(last_step, config_vmc.optimisation_steps):
+    n_step = last_step
+    while n_step < config_vmc.optimisation_steps:
         t = time()
         
         if twists_per_cpu > 1:
@@ -556,16 +565,17 @@ if __name__ == "__main__":
         n_above_FS = len(np.setdiff1d(occupied_numbers[0], np.arange(config_vmc.total_dof // 2)))
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
-            mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 1:  # jastrows and mu_BCS have not converged yet
-                mask = np.zeros(np.sum(config_vmc.layout))
-                mask[-config_vmc.layout[4]:] = 1.
-                #mask[:config_vmc.layout[0]] = 1.
-            #mask[1] = 0.0  # fugacity is not optimized in the meantime
+            #mask = np.ones(np.sum(config_vmc.layout))
+            #if n_step < 1:  # jastrows and mu_BCS have not converged yet
+            #    mask = np.zeros(np.sum(config_vmc.layout))
+            #    mask[-config_vmc.layout[4]:] = 1.
+            #    #mask[:config_vmc.layout[0]] = 1.
+            # mask[0] = 0.0  # muBCS is not optimized in the meantime FIXME
+            #mask[1] = 0.0  # fugacity is fixed to 0  # FIXME
 
-            Os = [np.einsum('ik,k->ik', Os_theta, mask) for Os_theta in Os]
+            Os = [np.einsum('ik,k->ik', Os_theta, config_vmc.mask) for Os_theta in Os]
 
-            step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step, mask)
+            step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step)
             
             write_intermediate_log(log_file, force_file, force_SR_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, n_above_FS, parameters)  # write parameters before step not to lose the initial values
@@ -575,8 +585,13 @@ if __name__ == "__main__":
             step = step * config_vmc.opt_parameters[1]
             #step = clip_forces(config_vmc.all_clips, step)
 
-            parameters += step * mask  # lr better be ~0.01..0.1
-            save_parameters(parameters, n_step)
+            parameters += step * config_vmc.mask  # lr better be ~0.01..0.1
+
+            parameters = np.maximum(parameters, config_vmc.low_bounds)
+            parameters = np.minimum(parameters, config_vmc.high_bounds)
+
+            save_parameters(parameters, local_workdir, n_step)
+            n_step += 1
         ### END SR STEP ###
 
 
@@ -598,3 +613,8 @@ if __name__ == "__main__":
     spectral_file.close()
 
     [file.close() for file in obs_files]
+    return parameters
+
+if __name__ == "__main__":
+    run_simulation()
+
