@@ -4,24 +4,29 @@ import hamiltonians_vmc
 from opt_parameters import pairings, jastrow, waves
 import wavefunction_vmc as wfv
 from copy import deepcopy
+from scipy import interpolate
+
 
 class MC_parameters:
+    # def __init__(self, Ls, irrep_idx, mu_BCS_fixed = None):
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = 4 * Ls ** 2 - 4 * 4
+        self.Ne = Ls ** 2 * 4# - 2 *  4
         self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
-        self.L_twists_uniform = Ls
+        self.L_twists_uniform = 6
 
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 6; 
-        assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, 0.0, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
+        print(np.unique(self.K_0))
+
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
+        print(np.unique(self.K_0))
         check_chirality(self.K_0, self.chiral_basis)
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
 
@@ -46,16 +51,16 @@ class MC_parameters:
         ### density VQMC parameters ###
         self.valley_imbalance = 0
         self.enforce_particle_hole_orbitals = False
-        self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
+        # self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
         self.use_preassigned_orbitals = False; self.preassigned_orbitals_path = '/home/astronaut/Documents/DQMC_TBG/logs/x11/saved_orbital_indexes.npy'
         self.valley_projection = True  # project onto valley imbalance = ...
 
         self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
-        self.visualisation = False; 
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/test_GCTBG7/'
-        self.tests = False; self.test_gaps = False;
+        self.visualisation = True; 
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
+        self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; 
         self.load_parameters_path = None
@@ -106,9 +111,9 @@ class MC_parameters:
         self.MC_chain = 500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
         self.optimisation_steps = 1600; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
-        self.correlation = (self.total_dof // 2) * 2
+        self.correlation = (self.total_dof // 2) * 6
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-3, 4e-2, 1.00]
+        self.opt_parameters = [1e-3, 3e-2, 1.00]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 10
         self.generator_mode = True
@@ -125,14 +130,16 @@ class MC_parameters:
         ## initial values definition and layout ###
         #self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
         self.layout = [1, 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
-        ### parameters section ###
+        
+        self.initial_parameters = np.array([mu_BCS, 0, 0.006, g])
+
         self.initial_parameters = np.concatenate([
             np.array([0.0]),  # mu_BCS
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
             np.random.uniform(0.2, 0.2, size = self.layout[3]),  # gaps
-            np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
+            np.random.uniform(0.2, 0.2, size = self.layout[4]),  # jastrows
         ])
 
         '''
@@ -180,7 +187,7 @@ class MC_parameters:
     def select_initial_muBCS_Koshino(self, Ne, parameters = []):
         if len(parameters) == 0:
             parameters = self.initial_parameters
-        _, _, waves, gap, _ = self.unpack_parameters(parameters)
+        #_, _, waves, gap, _ = self.unpack_parameters(parameters, mode_setting = True)
         # T = wfv.construct_HMF(self, self.K_0, self.K_0.T, self.pairings_list_unwrapped, gap, waves, self.reg_gap_term)
 
         # assert np.allclose(T, T.conj().T)
@@ -284,11 +291,9 @@ class MC_parameters:
         fugacity = None if self.PN_projection else parameters[offset]; offset += self.layout[1]
 
         waves = parameters[offset:offset + self.layout[2]]; offset += self.layout[2]
-        #if self.layout[3] == 0:  # UGLY BUT WORKS
-        #    gap = parameters[offset:offset + self.layout[3]]; offset += 1
-        #else:
         gap = parameters[offset:offset + self.layout[3]]; offset += self.layout[3]
         jastrow = parameters[offset:offset + self.layout[4]]; offset += self.layout[4]
+        print(offset, len(parameters), self.layout)
         assert offset == len(parameters)
 
         return mu, fugacity, waves, gap, jastrow

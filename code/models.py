@@ -185,7 +185,7 @@ def _jit_get_far_indices(Ls, total_dof, n_sublattices, n_orbitals):
         for second in range(total_dof // 2):
             _, _, x1, y1 = from_linearized_index(first, Ls, n_orbitals, n_sublattices)
             _, _, x2, y2 = from_linearized_index(second, Ls, n_orbitals, n_sublattices)
-            if np.abs(x1 - x2) > Ls // 2 or np.abs(y1 - y2) > Ls // 2:
+            if np.abs(x1 - x2) >= Ls // 2 or np.abs(y1 - y2) >= Ls // 2:
                 far_indices.append((first, second))
     return far_indices[1:]
 
@@ -237,6 +237,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
             if orbit1 == orbit2 and nearest_neighbor_hexagonal(r1, r2, Ls)[0] and sublattice1 == 0 and sublattice2 == 1:
                 K[first, second] = t1
 
+
             if orbit2 == orbit1 and fifth_nearest_neighbor(r1, r2, Ls) and sublattice2 == sublattice1:
                 K[first, second] = np.real(t2)
             if orbit2 != orbit1 and fifth_nearest_neighbor(r1, r2, Ls) and sublattice2 == sublattice1:
@@ -250,8 +251,9 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
             if orbit1 == orbit2 and sixth_nearest_neighbor(r1, r2, Ls) and sublattice1 == 1 and sublattice2 == 0:
                 K[first, second] = t4
 
-
+    print(K)
     K = K + K.conj().T
+    print(K)
     # K = K - mu * np.eye(K.shape[0])
 
     inverse = False if spin > 0 else True
@@ -412,7 +414,7 @@ def get_transition_matrix(PN_projection, K, n_orbitals = 1, \
         for j in range(K.shape[0] // n_orbitals):
             if K[i * n_orbitals, j * n_orbitals] != 0.0:
                 adjacency_matrix[i * n_orbitals:i * n_orbitals + n_orbitals, \
-                                 j * n_orbitals:j * n_orbitals + n_orbitals] = np.eye(n_orbitals)  # valley-charge conservation
+                                 j * n_orbitals:j * n_orbitals + n_orbitals] = unit_matrix  # valley-charge conservation
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
 
     if not PN_projection:

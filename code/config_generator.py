@@ -4,9 +4,15 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
+<<<<<<< HEAD
+dt_in_inv_t1 = 1. / 10
+U_in_t1 = np.array([1.00])
+V_in_t1 = np.array([1.00])
+=======
 dt_in_inv_t1 = 1. / 20
 U_in_t1 = np.array([0.500])
 V_in_t1 = np.array([0.500])
+>>>>>>> 944e05184c4699272e9583333aa0672e1a84eaca
 main_hopping = 1.0
 
 class simulation_parameters:
@@ -32,10 +38,7 @@ class simulation_parameters:
         self.offset = 0
 
 
-        self.model = models.model_hex_2orb_Koshino
-        self.n_orbitals = 2
         self.field = auxiliary_field.AuxiliaryFieldInterorbitalAccurate
-        self.n_sublattices = 2
         self.start_type = 'hot'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
         self.n_sweeps = 50000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 200  # every n-th configuration will be stored during generation
