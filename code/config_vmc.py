@@ -9,12 +9,13 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = 6 ** 2 * 4 - 0 * 4
-        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
-        self.L_twists_uniform = 6
+        self.Ne = 4 * Ls ** 2 - 4 * 4
+        self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
+        self.L_twists_uniform = Ls
 
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 6; 
+        assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
@@ -37,10 +38,10 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 3.00
-        self.xi = 0.01
+        self.epsilon = 9.93 / 4.
+        self.xi = 0.001
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
-        self.U = 8.
+        self.U = 0.
 
         ### density VQMC parameters ###
         self.valley_imbalance = 0
@@ -52,9 +53,9 @@ class MC_parameters:
         self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
-        self.visualisation = True; 
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
-        self.tests = False
+        self.visualisation = False; 
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/test_GCTBG7/'
+        self.tests = False; self.test_gaps = False;
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; 
         self.load_parameters_path = None
@@ -77,16 +78,15 @@ class MC_parameters:
         self.waves_list_unwrapped = []
 
 
-        self.enforce_valley_orbitals = False # FIXME
+        self.enforce_valley_orbitals = True
         for name in self.pairings_list_names:
             if 'S_pm' not in name:
                 self.enforce_valley_orbitals = False
 
-
         self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0], \
-                                            self.n_orbitals, valley_conservation_K=self.valley_projection, 
-                                            valley_conservation_Delta=self.enforce_valley_orbitals)
-
+                                            self.n_orbitals, valley_conservation_K = self.valley_projection, 
+                                            valley_conservation_Delta = self.enforce_valley_orbitals)
+        print(self.adjacency_transition_matrix)
         self.name_group_dict = pairings.name_group_dict
         print(self.name_group_dict)
 
@@ -94,13 +94,16 @@ class MC_parameters:
         jastrow.obtain_all_jastrows(self)
         #self.jastrows_list = jastrow.jastrow_Koshino_Gutzwiller 
         self.jastrows_list = jastrow.jastrow_Koshino_simple[:1]
+        #print(self.jastrows_list, 'jastrow')
+        print(np.sum(self.jastrows_list[0][0]))
+
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
 
         
 
         ### optimisation parameters ###
-        self.MC_chain = 500000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
+        self.MC_chain = 500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
         self.optimisation_steps = 1600; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 2
@@ -117,16 +120,18 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][0]), 'pairing', \
                                                     self, self.chiral_basis) # FIXME
-        self.reg_gap_val = 0.03
+        self.reg_gap_val = 0.000
 
         ## initial values definition and layout ###
-        self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
+        #self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
+        self.layout = [1, 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
         ### parameters section ###
         self.initial_parameters = np.concatenate([
             np.array([0.0]),  # mu_BCS
-            np.array([0.0] if not self.PN_projection else []),  # fugacity
+            #np.array([0.0] if not self.PN_projection else []),  # fugacity
+            np.array([]),  # no fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.1, 0.1, size = self.layout[3]),  # gaps
+            np.random.uniform(0.2, 0.2, size = self.layout[3]),  # gaps
             np.random.uniform(0.01, 0.01, size = self.layout[4]),  # jastrows
         ])
 
@@ -140,17 +145,17 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[np.sum(self.layout[:-1])] = 1.2
+        self.initial_parameters[np.sum(self.layout[:-1])] = 2.
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
-        if not self.PN_projection:
-            f = -np.sum(np.array([A[0] * factor for factor, A in \
-                        zip(self.initial_parameters[-self.layout[4]:], self.jastrows_list)])) / (self.total_dof // 2)
-            self.initial_parameters[self.layout[0]] = 0.0 #f
+        #if not self.PN_projection:
+        #    f = -np.sum(np.array([A[0] * factor for factor, A in \
+        #                zip(self.initial_parameters[-self.layout[4]:], self.jastrows_list)])) / (self.total_dof // 2)
+        #    self.initial_parameters[self.layout[0]] = 0.0 #f
 
         self.all_names = np.concatenate([
             np.array(['mu_BCS']),  # mu_BCS
-            np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
+            #np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
             np.array(self.waves_list_names),  # waves
             np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
@@ -158,14 +163,14 @@ class MC_parameters:
 
         self.all_clips = np.concatenate([
             np.ones(self.layout[0]) * 3e+4,  # mu_BCS
-            np.array([3e+4] if not self.PN_projection else []),  # fugacity
+            #np.array([3e+4] if not self.PN_projection else []),  # fugacity
             np.ones(self.layout[2]) * 3e+4,  # waves
             np.ones(self.layout[3]) * 3e+4,  # gaps
             np.ones(self.layout[4]) * 3e+4,  # jastrows
         ])
 
         self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino(self.Ne)
-        self.mu = self.initial_parameters[0]
+        self.mu = -3.0 #self.initial_parameters[0]
         #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
         ### check K-matrix irrep properties ###
@@ -189,6 +194,11 @@ class MC_parameters:
         print(twist)
 
         K_0_twisted = models.apply_TBC(self, twist, deepcopy(self.K_0), inverse = False)
+        energies = np.linalg.eigh(K_0_twisted)[0]
+        print('energy_free_theory = ', np.sum(np.sort(energies)[:self.total_dof // 2 // 2] * 2 / (self.total_dof // 2)))
+        
+
+
 
         K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0).T, inverse = True)
         assert np.allclose(K_0_twisted, K_0_twisted.conj().T)
@@ -291,3 +301,4 @@ def check_chirality(K_0, chiral_basis):
                 print(i, j, K_0[i, j])
                 assert not chiral_basis
     return
+
