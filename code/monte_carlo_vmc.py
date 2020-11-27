@@ -10,6 +10,9 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 
 import numpy as np
+np.set_printoptions(linewidth=np.inf)
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 import time
 import sys
 from wavefunction_vmc import wavefunction_singlet
@@ -73,6 +76,10 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     Os_mean = [np.mean(Os_theta, axis = 0) for Os_theta in Os]
     forces = np.array([-2 * (np.einsum('i,ik->k', energies_theta.conj() - np.mean(energies_theta.conj()), Os_theta) / len(energies_theta) ) for \
                        energies_theta, Os_theta in zip(energies, Os)])  # all forces calculated independently for every twist angle
+    for i in range(forces.shape[0]):
+        print(i, repr(forces[i]))
+        #print(np.sort(np.abs(energies[i].conj() - np.mean(energies[i].conj())))))
+        #print(np.sort(np.abs(Os[i][:, 0])))
     forces = np.mean(forces, axis = 0)  # after calculation of the force independently for every twist angle, we average over all forces
 
     print(forces, 'FORCES --- are they real?')
@@ -189,6 +196,12 @@ def write_intermediate_log(log_file, force_file, force_SR_file, n_step, vol, ene
     force_SR_file.flush()
     return
 
+def write_gaps_log(gaps_file, gaps, step):
+    gaps_file.write(("{:d}" + " {:.7e} " * len(gaps) + "\n").format(step, *gaps))
+    gaps_file.flush()
+
+    return
+
 def create_obs_files(observables_names, config_vmc):
     for obs_name in observables_names:
         obs_files.append(open(os.path.join(local_workdir, obs_name + '.dat'), 'a+'))
@@ -271,19 +284,21 @@ def get_MC_chain_result(n_iter, config_vmc, pairings_list, parameters, \
                         twists, final_states, orbitals_in_use, \
                         K_matrices_up, K_matrices_down, regs):
     res = []
+    idx = 0
     for twist, final_state, o, K_up, K_down, reg in zip(twists, final_states, orbitals_in_use, \
                                                         K_matrices_up, K_matrices_down, regs):
         t = time()
         res.append(_get_MC_chain_result(n_iter, config_vmc, pairings_list, \
                                         parameters, twist, final_state, o, \
-                                        K_up, K_down, reg))
+                                        K_up, K_down, reg, idx))
         print('one chain takes =', time() - t, flush = True)
+        idx += 1
     return res
 
 
 def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
                          parameters, twist, final_state = False, orbitals_in_use = None,
-                         K_up = None, K_down = None, reg = None):
+                         K_up = None, K_down = None, reg = None, twist_id = 0):
     config_vmc.twist = tuple(twist)
     t = time()
     hamiltonian = config_vmc.hamiltonian(config_vmc, K_up, K_down)  # the Hubbard Hamiltonian will be initialized with the 
@@ -297,10 +312,16 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     '''
     
 
-    t = time() 
-    wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
+    t = time()
+    if final_state == False:
+        wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
                               False, None, orbitals_in_use, \
                               False, K_up, K_down, reg)  # always start with bare configuration
+    else:
+        print('With presaved state')
+        wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
+                              True, final_state, orbitals_in_use, \
+                              False, K_up, K_down, reg)
     print('WF Init takes {:.10f}'.format(time() - t))
 
     t_steps = 0
@@ -324,6 +345,9 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     observables = []
     names = []
 
+    plus_densities = []
+    minus_densities = []
+
     precision_factor = 1. if config_vmc.opt_raw > n_iter else 4.
     tc = time()
     for MC_step in range(int(precision_factor * config_vmc.MC_chain * (config_vmc.opt_parameters[2] ** n_iter))):
@@ -336,6 +360,8 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
             t = time()
             energies.append(hamiltonian(wf))
             densities.append(wf.total_density())
+            plus_densities.append(wf.total_plus_density())
+            minus_densities.append(wf.total_minus_density())
             t_energies += time() - t
             #print('energies take {:.10f}'.format(time() - t))
 
@@ -367,6 +393,27 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     #    self.t_gf_update = 0
     #    self.t_ab = 0
     #print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
+    
+    U = wf.U_matrix
+    plus_valley_particle = np.einsum('ij,ij->j', U[np.arange(0, config_vmc.total_dof // 2, 2), ...], \
+                                                 U[np.arange(0, config_vmc.total_dof // 2, 2), ...].conj()).real
+    plus_valley_hole = np.einsum('ij,ij->j', U[np.arange(config_vmc.total_dof // 2, config_vmc.total_dof, 2), ...], \
+                                             U[np.arange(config_vmc.total_dof // 2, config_vmc.total_dof, 2), ...].conj()).real
+    minus_valley_particle = np.einsum('ij,ij->j', U[np.arange(1, config_vmc.total_dof // 2, 2), ...], \
+                                                  U[np.arange(1, config_vmc.total_dof // 2, 2), ...].conj()).real
+    minus_valley_hole = np.einsum('ij,ij->j', U[np.arange(config_vmc.total_dof // 2 + 1, config_vmc.total_dof, 2), ...], \
+                                              U[np.arange(config_vmc.total_dof // 2 + 1, config_vmc.total_dof, 2), ...].conj()).real
+    thr = 0.99
+    plus_valley_particle = plus_valley_particle > thr
+    plus_valley_hole = plus_valley_hole > thr
+    minus_valley_particle = minus_valley_particle > thr
+    minus_valley_hole = minus_valley_hole > thr
+
+    print(twist, np.mean(np.abs(wf.wf_ampls)), np.mean(acceptance), wf.gap, np.mean(densities), np.std(densities), \
+          np.mean(plus_densities), np.std(plus_densities), np.mean(minus_densities), np.std(minus_densities), 'wave function ampl!', \
+          np.mean(np.abs(np.abs(Os)[:, 0])), \
+          np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole), \
+          np.sum(plus_valley_particle + plus_valley_hole + minus_valley_particle + minus_valley_hole))
     return energies, Os, acceptance, wf.get_state(), observables, \
            names, wf.U_matrix, wf.E, densities, wf.gap
 
@@ -490,6 +537,7 @@ if __name__ == "__main__":
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
     force_file = open(os.path.join(local_workdir, 'force_log.dat'), 'a+')
+    gaps_file = open(os.path.join(local_workdir, 'gaps_log.dat'), 'a+')
     force_SR_file = open(os.path.join(local_workdir, 'force_SR_log.dat'), 'a+')
 
     spectral_file = open(os.path.join(local_workdir, 'spectral_log.dat'), 'a+')
@@ -557,10 +605,10 @@ if __name__ == "__main__":
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 1:  # jastrows and mu_BCS have not converged yet
+            if n_step < 100:  # jastrows and mu_BCS have not converged yet
                 mask = np.zeros(np.sum(config_vmc.layout))
                 mask[-config_vmc.layout[4]:] = 1.
-                #mask[:config_vmc.layout[0]] = 1.
+                mask[:config_vmc.layout[0]] = 1.
             #mask[1] = 0.0  # fugacity is not optimized in the meantime
 
             Os = [np.einsum('ik,k->ik', Os_theta, mask) for Os_theta in Os]
@@ -569,6 +617,9 @@ if __name__ == "__main__":
             
             write_intermediate_log(log_file, force_file, force_SR_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, n_above_FS, parameters)  # write parameters before step not to lose the initial values
+
+            write_gaps_log(gaps_file, gaps, n_step)
+
             #if np.abs(gap) < 1e-4:  # if the gap is too small, SR will make gradient just 0
             #    step = forces
             #step = forces * config_vmc.opt_parameters[1]
@@ -577,6 +628,8 @@ if __name__ == "__main__":
 
             parameters += step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)
+
+            parameters[1] = parameters[1] if parameters[1] > 1e-3 else 1e-3
         ### END SR STEP ###
 
 

@@ -598,6 +598,46 @@ def get_C3z_symmetry_map(config, chiral = False):
     return mapping + 0.0j
 
 
+def get_Tx_symmetry_map(config, chiral = False):
+    mapping = np.zeros((config.total_dof // 2, config.total_dof // 2)) + 0.0j  # trivial mapping
+
+
+    for preindex in range(config.total_dof // 2):
+        orbit_preimage, sublattice_preimage, x_preimage, y_preimage = \
+            models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
+
+        index = models.to_linearized_index((x_preimage + 1) % config.Ls, y_preimage, sublattice_preimage, orbit_preimage, \
+                                           config.Ls, config.n_orbitals, config.n_sublattices)
+        mapping[preindex, index] += 1.
+
+    trivial = np.eye(config.total_dof // 2)
+    for i in range(config.Ls):
+        trivial = trivial.dot(mapping)
+    assert np.allclose(trivial, np.eye(config.total_dof // 2))
+    return mapping + 0.0j
+
+def get_Ty_symmetry_map(config, chiral = False):
+    mapping = np.zeros((config.total_dof // 2, config.total_dof // 2)) + 0.0j  # trivial mapping
+
+
+    for preindex in range(config.total_dof // 2):
+        orbit_preimage, sublattice_preimage, x_preimage, y_preimage = \
+            models.from_linearized_index(preindex, config.Ls, config.n_orbitals, config.n_sublattices)
+
+        index = models.to_linearized_index(x_preimage, (y_preimage + 1) % config.Ls, sublattice_preimage, orbit_preimage, \
+                                           config.Ls, config.n_orbitals, config.n_sublattices)
+        mapping[preindex, index] += 1.
+
+    trivial = np.eye(config.total_dof // 2)
+    for i in range(config.Ls):
+        trivial = trivial.dot(mapping)
+    assert np.allclose(trivial, np.eye(config.total_dof // 2))
+    return mapping + 0.0j
+
+
+
+
+
 def get_C4z_symmetry_map(config):
     assert config.n_sublattices == 1
     geometry = 'square'
@@ -811,6 +851,8 @@ C2y_symmetry_map = None; C2y_symmetry_map_chiral = None;
 C3z_symmetry_map = None; C3z_symmetry_map_chiral = None;
 C4z_symmetry_map = None;
 
+Tx_symmetry_map = None; Ty_symmetry_map = None;
+
 def obtain_all_pairings(config):
     global C2y_symmetry_map, C3z_symmetry_map, C4z_symmetry_map, C3z_symmetry_map_chiral, C2y_symmetry_map_chiral
     global twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
@@ -826,6 +868,11 @@ def obtain_all_pairings(config):
     global twoorb_hex_all, oneorb_hex_all, oneorb_square_all, twoorb_hex_all_dqmc, Koshino_united
 
     C2y_symmetry_map = get_C2y_symmetry_map(config)
+
+    global Tx_symmetry_map, Ty_symmetry_map
+    Tx_symmetry_map = get_Tx_symmetry_map(config)
+    Ty_symmetry_map = get_Ty_symmetry_map(config)
+
     if config.n_orbitals == 2 and config.n_sublattices == 2:
         C3z_symmetry_map = get_C3z_symmetry_map(config)
         C3z_symmetry_map_chiral = get_C3z_symmetry_map(config, chiral=True)

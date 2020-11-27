@@ -10,7 +10,7 @@ from numba import jit
 @jit(nopython=True)
 def get_orb(L, mod):
     orb_ij = []; orb_k = []; n_orb = 0
-    matrix = np.zeros((4 * L ** 2,4 * L ** 2), dtype=np.int64)
+    matrix = np.zeros((4 * L ** 2, 4 * L ** 2), dtype=np.int64)
     seen_shifts = []
     matrix = np.zeros((4 * L ** 2, 4 * L ** 2), dtype=np.int64)
     for i in range(4 * L ** 2):
@@ -138,11 +138,11 @@ def generate_Imada_format_Koshino(config, U):
     H = config.hamiltonian(config_vmc)
     K0 = config.K_0 # already chiral
 
-    np.save('K0.npy', K0)
-    np.save('H_edges.npy', H.edges_quadric)
+    np.save('K0_{:d}.npy'.format(config.Ls), K0)
+    np.save('H_edges_{:d}.npy'.format(config.Ls), H.edges_quadric)
 
-    mod = 2
-    path = os.path.join(config.workdir, 'imada_format_L_{:d}_Ne_{:d}_U_{:.3f}'.format(config.Ls, config.Ne, U))
+    mod = 1
+    path = os.path.join(config.workdir, 'imada_format_L_{:d}_Ne_{:d}_U_{:.3f}_onlyNN'.format(config.Ls, config.Ne, U))
     os.makedirs(path, exist_ok=True)
 
 
@@ -180,15 +180,17 @@ def generate_Imada_format_Koshino(config, U):
 
     tx, ty = np.array(tx), np.array(ty)
     assert np.allclose(tx[ty], ty[tx])
-    np.save('tx.npy', tx)
-    np.save('ty.npy', ty)
+    np.save('tx_{:d}.npy'.format(config.Ls), tx)
+    np.save('ty_{:d}.npy'.format(config.Ls), ty)
 
-    valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(8)])
-    rotation = np.array([0, 1, 14, 15, 8, 9, 6, 7, 12, 13, 2, 3, 4, 5, 10, 11])
-    assert np.allclose(valley[valley], np.arange(16))
-    assert np.allclose(rotation[rotation[rotation]], np.arange(16))
+    valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.Ls ** 2 * 2)])
+    #rotation = np.array([0, 1, 14, 15, 8, 9, 6, 7, 12, 13, 2, 3, 4, 5, 10, 11])
+    #assert np.allclose(valley[valley], np.arange(16))
+    #assert np.allclose(rotation[rotation[rotation]], np.arange(16))
 
-    symmetries = [np.arange(len(tx)), tx, ty, ty[tx]]
+
+    symmetries = [np.arange(len(tx))]
+    #symmetries = [np.arange(len(tx)), tx, ty, ty[tx]]
 
     symmetries = symmetries + [symm[valley] for symm in symmetries]
     #symmetries = symmetries + [symm[rotation] for symm in symmetries] + [symm[rotation[rotation]] for symm in symmetries]
@@ -284,9 +286,11 @@ def generate_Imada_format_Koshino(config, U):
         assert np.allclose(matrix_jastrows_trans, matrix_jastrows)
 
 
+    real_jastrow = True
+
     f.write('=============================================\n')
     f.write('NJastrowIdx         {:d}\n'.format(n_jastrows))
-    f.write('ComplexType          1\n')
+    f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
     f.write('=============================================\n')
     f.write('=============================================\n')
     for ij, k in zip(jastrow_ij, jastrow_k):
@@ -307,7 +311,7 @@ def generate_Imada_format_Koshino(config, U):
     f.write('======================\n')
     for i in range(n_jastrows):
         f.write('{:d} {:.10f}  {:.10f}\n'.format(i, \
-                np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0)))
+                np.random.uniform(0.0, 1.0) / 10, np.random.uniform(0.0, 1.0) / 10 if not real_jastrow else 0.0))
     f.close()
 
 
@@ -323,11 +327,11 @@ def generate_Imada_format_Koshino(config, U):
 
 
 
-    f = open(os.path.join(path, 'gutzwilleridx.def'), 'w')  # FIXME: impose sublattice structure too
+    f = open(os.path.join(path, 'gutzwilleridx.def'), 'w')
 
     f.write('=============================================\n')
     f.write('NGutzwillerIdx          {:d}\n'.format(4 * mod ** 2))
-    f.write('ComplexType          1\n')
+    f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
     f.write('=============================================\n')
     f.write('=============================================\n')
 
@@ -338,8 +342,8 @@ def generate_Imada_format_Koshino(config, U):
         mody = yi % mod
 
         idx = mod ** 2 * (si * 2 + oi) + mod * modx + mody
-        f.write('    {:d}      {:d}\n'.format(i, idx))
-    for i in range(16):
+        f.write('    {:d}      {:d}\n'.format(i, 0))#idx))
+    for i in range(4 * mod ** 2):
         f.write('    {:d}      1\n'.format(i))
     f.close()
 
@@ -350,8 +354,8 @@ def generate_Imada_format_Koshino(config, U):
     f.write('======================\n')
     f.write('== i_j_GutzwillerIdx  ===\n')
     f.write('======================\n')
-    for i in range(4):
-        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0)))
+    for i in range(4 * mod ** 2):
+        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0) / 10, np.random.uniform(0.0, 1.0) / 10 if not real_jastrow else 0.0))
     f.close()
 
 
@@ -407,7 +411,7 @@ def generate_Imada_format_Koshino(config, U):
 
     f.write('=============================================\n')
     f.write('NOrbitalIdx         {:d}\n'.format(n_orbits))
-    f.write('ComplexType          1\n')
+    f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
     f.write('=============================================\n')
     f.write('=============================================\n')
 
@@ -424,7 +428,7 @@ def generate_Imada_format_Koshino(config, U):
     f.write('== i_j_OrbitalIdx  ===\n')
     f.write('======================\n')
     for i in range(n_orbits):
-        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0)))
+        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0) if not real_jastrow else 0.0))
 
 
 
@@ -507,12 +511,12 @@ def generate_Imada_format_Koshino(config, U):
     f.write('NSPGaussLeg    8\n')
     f.write('NSPStot        0\n')
     f.write('NMPTrans       {:d}\n'.format(len(symmetries)))
-    f.write('NSROptItrStep  400\n')
+    f.write('NSROptItrStep  1000\n')
     f.write('NSROptItrSmp   40\n')
     f.write('DSROptRedCut   0.0010000000\n')
     f.write('DSROptStaDel   0.0200000000\n')
     f.write('DSROptStepDt   0.0200000000\n')
-    f.write('NVMCWarmUp     100\n')
+    f.write('NVMCWarmUp     400\n')
     f.write('NVMCInterval   1\n')
     f.write('NVMCSample     4000\n')
     f.write('NExUpdatePath  0\n')
