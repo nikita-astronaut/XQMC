@@ -312,7 +312,6 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     '''
     
 
-<<<<<<< HEAD
     t = time()
     if final_state == False:
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
@@ -323,17 +322,6 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
         wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
                               True, final_state, orbitals_in_use, \
                               False, K_up, K_down, reg)
-=======
-    t = time() 
-    if final_state == False:
-        wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
-                                  False, None, orbitals_in_use, \
-                                  False, K_up, K_down, reg)
-    else:
-        wf = wavefunction_singlet(config_vmc, pairings_list, parameters, \
-                                  True, final_state, orbitals_in_use, \
-                                  False, K_up, K_down, reg)
->>>>>>> 0d2ee0469b4df943a538c4ff864e0d58ca27d3b0
     print('WF Init takes {:.10f}'.format(time() - t))
 
     t_steps = 0
@@ -642,20 +630,10 @@ def run_simulation():
             step = step * config_vmc.opt_parameters[1]
             #step = clip_forces(config_vmc.all_clips, step)
 
-<<<<<<< HEAD
             parameters += step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, n_step)
 
             parameters[1] = parameters[1] if parameters[1] > 1e-3 else 1e-3
-=======
-            parameters += step * config_vmc.mask  # lr better be ~0.01..0.1
-
-            parameters = np.maximum(parameters, config_vmc.low_bounds)
-            parameters = np.minimum(parameters, config_vmc.high_bounds)
-
-            save_parameters(parameters, local_workdir, n_step)
-            n_step += 1
->>>>>>> 0d2ee0469b4df943a538c4ff864e0d58ca27d3b0
         ### END SR STEP ###
 
 
