@@ -6,13 +6,12 @@ import wavefunction_vmc as wfv
 from copy import deepcopy
 from scipy import interpolate
 
-
 class MC_parameters:
     # def __init__(self, Ls, irrep_idx, mu_BCS_fixed = None):
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = Ls ** 2 * 4# - 2 *  4
+        self.Ne = Ls ** 2 * 4 # - 2 *  4
         self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
         self.L_twists_uniform = 4
 
@@ -60,7 +59,7 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False;
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
-        self.tests = False; self.test_gaps = False
+        self.tests = True; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; 
         self.load_parameters_path = None
@@ -69,7 +68,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[13]
+        self.pairings_list = pairings.twoorb_hex_all[13] # 13
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -120,12 +119,12 @@ class MC_parameters:
 
         ### regularisation ###
         if not self.enforce_valley_orbitals:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][0]), 'pairing', \
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
                                                     self, self.chiral_basis)  # FIXME
         else:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[13][0]), 'pairing', \
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
                                                     self, self.chiral_basis) # FIXME
-        self.reg_gap_val = 0.000
+        self.reg_gap_val = 0.003
 
         ## initial values definition and layout ###
         #self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
@@ -137,7 +136,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.2, 0.2, size = self.layout[3]),  # gaps
+            np.random.uniform(0.00, 0.00, size = self.layout[3]),  # gaps
             np.random.uniform(0.2, 0.2, size = self.layout[4]),  # jastrows
         ])
 

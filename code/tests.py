@@ -4,7 +4,7 @@ from copy import deepcopy
 from time import time
 import models
 from visualisation import K_FT
-
+from opt_parameters import pairings
 
 def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     der_numerically = 2 * (np.abs(wf_2.current_ampl) - np.abs(wf_1.current_ampl)) / dt / (np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl))
@@ -288,6 +288,171 @@ def test_gf_means_correct(config):
         acc = wf.perform_MC_step((i, j), enforce = False)[0]
         if not acc:
             continue
+
+
+
+def test_gf_symmetry(config):
+    print('Testing WF symmetry ⟨x|S|Ф⟩ = U ⟨x|Ф⟩', flush=True)
+    n_agreed = 0
+    n_failed = 0
+
+    C3z = np.argmax(np.abs(pairings.C3z_symmetry_map_chiral), axis = 0)
+    C2y = np.argmax(np.abs(pairings.C2y_symmetry_map_chiral), axis = 0)
+    Tx = np.argmax(np.abs(pairings.Tx_symmetry_map), axis = 0)
+    Ty = np.argmax(np.abs(pairings.Ty_symmetry_map), axis = 0)
+
+    print(C3z)
+
+    TRS = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.total_dof // 2)])
+    PHS = np.concatenate([np.arange(config.total_dof // 2, config.total_dof), np.arange(0, config.total_dof // 2)], axis = 0)
+
+    C3z = np.concatenate([C3z, C3z + config.total_dof // 2])
+    C2y = np.concatenate([C2y, C2y + config.total_dof // 2])
+    Tx = np.concatenate([Tx, Tx + config.total_dof // 2])
+    Ty = np.concatenate([Ty, Ty + config.total_dof // 2])
+
+    parameters = config.initial_parameters.copy()
+    parameters[0] = 0;  # to ensure particle-hole symmetry
+    for _ in range(200):
+        wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
+        ampl = wf.get_cur_det() * wf.get_cur_Jastrow_factor()
+        occ_sites, _, _ = wf.get_state()
+        conf = np.zeros(config.total_dof); conf[occ_sites] = 1
+        
+        assert len(C3z) == len(conf)
+        conf_new = conf[C3z]
+        occ_new = np.where(conf_new > 0)[0]
+        assert len(occ_new) == len(occ_sites)
+
+        place_in_string = (np.zeros(config.total_dof) - 1).astype(np.int64)
+        place_in_string[occ_new] = np.arange(len(occ_new))
+        empty_sites = np.arange(config.total_dof); empty_sites[occ_new] = -1; empty_sites = set(empty_sites[empty_sites > -0.5])
+
+        wf_transformed = wavefunction_singlet(config, config.pairings_list, \
+                                              config.initial_parameters, True, (occ_new, empty_sites, place_in_string))
+        ampl_new = wf_transformed.get_cur_det() * wf_transformed.get_cur_Jastrow_factor()
+
+        if np.isclose(np.abs(ampl / ampl_new), 1):
+            n_agreed += 1
+            print('passed C3z', ampl / ampl_new)
+        else:
+            n_failed += 1
+            print('failed C3z!', ampl, ampl_new, ampl / ampl_new, \
+                                 wf.get_cur_det() / wf_transformed.get_cur_det(), \
+                                 wf.get_cur_Jastrow_factor() / wf_transformed.get_cur_Jastrow_factor())
+            #exit(-1)
+
+        conf_new = conf[C2y]
+        occ_new = np.where(conf_new > 0)[0]
+
+        place_in_string = (np.zeros(config.total_dof) - 1).astype(np.int64)
+        place_in_string[occ_new] = np.arange(len(occ_new))
+        empty_sites = np.arange(config.total_dof); empty_sites[occ_new] = -1; empty_sites = set(empty_sites[empty_sites > -0.5])
+
+        wf_transformed = wavefunction_singlet(config, config.pairings_list, \
+                                              config.initial_parameters, True, (occ_new, empty_sites, place_in_string))
+        ampl_new = wf_transformed.get_cur_det() * wf_transformed.get_cur_Jastrow_factor()
+
+        if np.isclose(np.abs(ampl / ampl_new), 1):
+            n_agreed += 1
+            print('passed C2y', ampl / ampl_new)
+        else:
+            n_failed += 1
+            print('failed C2y!', ampl, ampl_new, ampl / ampl_new, \
+                                 wf.get_cur_det() / wf_transformed.get_cur_det(), \
+                                 wf.get_cur_Jastrow_factor() / wf_transformed.get_cur_Jastrow_factor())
+
+
+        conf_new = conf[Tx]
+        occ_new = np.where(conf_new > 0)[0]
+
+        place_in_string = (np.zeros(config.total_dof) - 1).astype(np.int64)
+        place_in_string[occ_new] = np.arange(len(occ_new))
+        empty_sites = np.arange(config.total_dof); empty_sites[occ_new] = -1; empty_sites = set(empty_sites[empty_sites > -0.5])
+
+        wf_transformed = wavefunction_singlet(config, config.pairings_list, \
+                                              config.initial_parameters, True, (occ_new, empty_sites, place_in_string))
+        ampl_new = wf_transformed.get_cur_det() * wf_transformed.get_cur_Jastrow_factor()
+
+        if np.isclose(np.abs(ampl / ampl_new), 1):
+            n_agreed += 1
+            print('passed Tx', ampl / ampl_new)
+        else:
+            n_failed += 1
+            print('failed Tx!', ampl, ampl_new, ampl / ampl_new, \
+                                 wf.get_cur_det() / wf_transformed.get_cur_det(), \
+                                 wf.get_cur_Jastrow_factor() / wf_transformed.get_cur_Jastrow_factor())
+
+
+
+        conf_new = conf[Ty]
+        occ_new = np.where(conf_new > 0)[0]
+
+        place_in_string = (np.zeros(config.total_dof) - 1).astype(np.int64)
+        place_in_string[occ_new] = np.arange(len(occ_new))
+        empty_sites = np.arange(config.total_dof); empty_sites[occ_new] = -1; empty_sites = set(empty_sites[empty_sites > -0.5])
+
+        wf_transformed = wavefunction_singlet(config, config.pairings_list, \
+                                              config.initial_parameters, True, (occ_new, empty_sites, place_in_string))
+        ampl_new = wf_transformed.get_cur_det() * wf_transformed.get_cur_Jastrow_factor()
+
+        if np.isclose(np.abs(ampl / ampl_new), 1):
+            n_agreed += 1
+            print('passed Ty', ampl / ampl_new)
+        else:
+            n_failed += 1
+            print('failed Ty!', ampl, ampl_new, ampl / ampl_new, \
+                                 wf.get_cur_det() / wf_transformed.get_cur_det(), \
+                                 wf.get_cur_Jastrow_factor() / wf_transformed.get_cur_Jastrow_factor())
+
+
+
+
+        conf_new = conf[TRS]
+        occ_new = np.where(conf_new > 0)[0]
+
+        place_in_string = (np.zeros(config.total_dof) - 1).astype(np.int64)
+        place_in_string[occ_new] = np.arange(len(occ_new))
+        empty_sites = np.arange(config.total_dof); empty_sites[occ_new] = -1; empty_sites = set(empty_sites[empty_sites > -0.5])
+
+        wf_transformed = wavefunction_singlet(config, config.pairings_list, \
+                                              config.initial_parameters, True, (occ_new, empty_sites, place_in_string))
+        ampl_new = wf_transformed.get_cur_det() * wf_transformed.get_cur_Jastrow_factor()
+
+        if np.isclose(np.abs(ampl / ampl_new), 1):
+            n_agreed += 1
+            print('passed TRS', ampl / ampl_new)
+        else:
+            n_failed += 1
+            print('failed TRS!', ampl, ampl_new, ampl / ampl_new, \
+                                 wf.get_cur_det() / wf_transformed.get_cur_det(), \
+                                 wf.get_cur_Jastrow_factor() / wf_transformed.get_cur_Jastrow_factor())
+
+        conf_new = conf[PHS]
+        occ_new = np.where(conf_new > 0)[0]
+
+        place_in_string = (np.zeros(config.total_dof) - 1).astype(np.int64)
+        place_in_string[occ_new] = np.arange(len(occ_new))
+        empty_sites = np.arange(config.total_dof); empty_sites[occ_new] = -1; empty_sites = set(empty_sites[empty_sites > -0.5])
+
+        wf_transformed = wavefunction_singlet(config, config.pairings_list, \
+                                              config.initial_parameters, True, (occ_new, empty_sites, place_in_string), ph_test = True)
+        ampl_new = wf_transformed.get_cur_det() * wf_transformed.get_cur_Jastrow_factor()
+
+        if np.isclose(np.abs(ampl / ampl_new), 1):
+            n_agreed += 1
+            print('passed PHS', ampl / ampl_new, ampl)
+        else:
+            n_failed += 1
+            print('failed PHS!', ampl, ampl_new, ampl / ampl_new, \
+                                 wf.get_cur_det() / wf_transformed.get_cur_det(), \
+                                 wf.get_cur_Jastrow_factor() / wf_transformed.get_cur_Jastrow_factor())
+
+
+
+    return n_failed == 0
+
+
 def test_chain_moves(config):
     success = True
     print('Testing chain of moves \\prod_{move} ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩', flush=True)
@@ -572,6 +737,7 @@ def test_FT_BC_twist(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_gf_symmetry(config)
     success = success and test_BC_twist(config)
     success = success and test_FT_BC_twist(config)
     success = success and test_chiral_gap_preserves_something(config)

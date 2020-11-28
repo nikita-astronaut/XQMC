@@ -16,8 +16,9 @@ class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
                  with_previous_state, previous_state, \
                  orbitals_in_use = None, particle_hole = False, \
-                 K_up = None, K_down = None, reg = None):
+                 K_up = None, K_down = None, reg = None, ph_test = False):
         self.particle_hole = particle_hole
+        self.ph_test = ph_test
         orbitals_in_use = None  # TODO
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, self.config.twist, deepcopy(gap), inverse = False) \
@@ -195,8 +196,10 @@ class wavefunction_singlet():
 
     def _construct_U_matrix(self, orbitals_in_use):
         self.T = construct_HMF(self.config, self.K_up, self.K_down, \
-                          self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term, \
-                          particle_hole = self.particle_hole)
+                               self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term, \
+                               particle_hole = self.particle_hole)
+        if self.ph_test:
+            self.T = self.T.conj()
         assert np.allclose(self.T, self.T.conj().T)
         plus_valley = np.arange(0, self.config.total_dof, 2)
         self.T[plus_valley, plus_valley] += 1e-9  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number

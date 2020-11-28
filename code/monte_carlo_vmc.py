@@ -435,7 +435,7 @@ def run_simulation():
         target.write(source.read())
 
 
-    #config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
+    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904))]
     if config_vmc.visualisation:
         visualisation.plot_levels_evolution_mu(config_vmc)
         visualisation.plot_all_waves(config_vmc)
@@ -447,7 +447,7 @@ def run_simulation():
         
 
 
-    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
+    config_vmc.twist = [1, 1] #[np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.10))]
     if config_vmc.tests:
         if rank == 0:
             if tests.perform_all_tests(config_vmc):
