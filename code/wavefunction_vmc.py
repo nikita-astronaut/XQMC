@@ -27,7 +27,7 @@ class wavefunction_singlet():
 
 
         self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
-        self.var_f = self.var_f if not config.PN_projection else 0.
+        self.var_f = 0.#self.var_f if not config.PN_projection else 0.
 
         # print(K_up, K_down)
         ### mean-field Hamiltonian precomputed elements ###
@@ -37,11 +37,11 @@ class wavefunction_singlet():
         minus_valley_mesh = np.zeros(self.config.total_dof // 2); minus_valley_mesh[minus_valley] = 1
         self.K_up = K_up if K_up is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
         self.K_up -= np.diag(plus_valley_mesh) * self.var_mu[0]
-        self.K_up -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-6)
+        self.K_up -= np.diag(minus_valley_mesh) * (self.var_mu[0])# + 1e-6)
 
         self.K_down = K_down if K_down is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
         self.K_down -= np.diag(plus_valley_mesh) * self.var_mu[0]
-        self.K_down -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-6)
+        self.K_down -= np.diag(minus_valley_mesh) * (self.var_mu[0])# + 1e-6)
 
         assert np.allclose(self.K_up, self.K_down.conj())
         #print(np.linalg.eigh(self.K_up)[0])
@@ -68,6 +68,9 @@ class wavefunction_singlet():
         self.t_gf_update = 0
         self.t_ab = 0
 
+        ### debug
+        self.wf_ampls = []
+
         while True:
             if self.with_previous_state:
                 self.occupied_sites, self.empty_sites, self.place_in_string = previous_state
@@ -76,6 +79,7 @@ class wavefunction_singlet():
                 self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
             else:
                 self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration(particle_hole)
+                print('fresh state')
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
             if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
                 break
@@ -136,6 +140,11 @@ class wavefunction_singlet():
     def total_density(self):
         return np.sum(self.occupancy) + self.config.total_dof // 2
 
+    def total_plus_density(self):
+        return np.sum(self.occupancy[np.arange(0, self.config.total_dof // 2, 2)]) + self.config.total_dof // 2 // 2
+    def total_minus_density(self):
+        return np.sum(self.occupancy[np.arange(1, self.config.total_dof // 2, 2)]) + self.config.total_dof // 2 // 2
+
     def get_cur_det(self):
         return np.linalg.det(self._construct_U_tilde_matrix())
 
@@ -174,12 +183,13 @@ class wavefunction_singlet():
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
         O_mu = [self.get_O_pairing(self.W_mu_derivative)]
-        O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
+        O_fugacity = []#[self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
         O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
 
-        O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
+        #O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
+        O = O_mu + O_waves + O_pairing + O_Jastrow
 
         return np.array(O)
 
@@ -428,6 +438,7 @@ class wavefunction_singlet():
     
 
     def perform_MC_step(self, proposed_move = None, enforce = False, demand_accept = False):
+        self.wf_ampls.append(self.current_ampl)
         if demand_accept:
             t = time()
             MC_step_index_previous = self.MC_step_index
@@ -497,6 +508,9 @@ class wavefunction_singlet():
         self.current_det *= det_ratio
         # print(self.current_det, self.current_ampl, self.get_cur_Jastrow_factor())
         self.occupied_sites[moved_site_idx] = empty_site
+
+        if np.abs(empty_site - moved_site) > self.config.Ls ** 2 * 4:
+            assert (empty_site - moved_site) % 2 == 1
 
 
         self.empty_sites.remove(empty_site)

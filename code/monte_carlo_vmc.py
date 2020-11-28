@@ -615,7 +615,7 @@ def run_simulation():
                 mask[:config_vmc.layout[0]] = 1.
             #mask[1] = 0.0  # fugacity is not optimized in the meantime
 
-            Os = [np.einsum('ik,k->ik', Os_theta, config_vmc.mask) for Os_theta in Os]
+            # Os = [np.einsum('ik,k->ik', Os_theta, config_vmc.mask) for Os_theta in Os]
 
             step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step)
             
@@ -631,7 +631,7 @@ def run_simulation():
             #step = clip_forces(config_vmc.all_clips, step)
 
             parameters += step * mask  # lr better be ~0.01..0.1
-            save_parameters(parameters, n_step)
+            save_parameters(parameters, config_vmc.workdir, n_step)
 
             parameters[1] = parameters[1] if parameters[1] > 1e-3 else 1e-3
         ### END SR STEP ###

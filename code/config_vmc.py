@@ -14,7 +14,7 @@ class MC_parameters:
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.Ne = Ls ** 2 * 4# - 2 *  4
         self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
-        self.L_twists_uniform = 6
+        self.L_twists_uniform = 4
 
         assert self.BC_twist  # this is always true
         self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
@@ -58,7 +58,7 @@ class MC_parameters:
         self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
-        self.visualisation = True; 
+        self.visualisation = False;
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
         self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
@@ -131,7 +131,6 @@ class MC_parameters:
         #self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
         self.layout = [1, 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
         
-        self.initial_parameters = np.array([mu_BCS, 0, 0.006, g])
 
         self.initial_parameters = np.concatenate([
             np.array([0.0]),  # mu_BCS
