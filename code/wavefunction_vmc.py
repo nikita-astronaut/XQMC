@@ -16,19 +16,28 @@ class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
                  with_previous_state, previous_state, \
                  orbitals_in_use = None, particle_hole = False, \
-                 K_up = None, K_down = None, reg = None, ph_test = False):
+                 K_up = None, K_down = None, reg = None, ph_test = False, trs_test = False):
         self.particle_hole = particle_hole
         self.ph_test = ph_test
-        orbitals_in_use = None  # TODO
+        self.trs_test = trs_test
+        orbitals_in_use = None  # FIXME
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, self.config.twist, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
+
+        self.hoppings_list_TBC_up = [models.apply_TBC(self.config, self.config.twist, deepcopy(h), inverse = False) \
+                                     for h in self.config.hoppings]
+        self.hoppings_list_TBC_down = [models.apply_TBC(self.config, self.config.twist, deepcopy(h).T, inverse = True) \
+                                       for h in self.config.hoppings]
+
+
         self.reg_gap_term = reg if reg is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.reg_gap_term), inverse = False) * \
                                                         self.config.reg_gap_val
 
 
-        self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
-        self.var_f = 0.#self.var_f if not config.PN_projection else 0.
+        self.var_mu, self.var_f, self.var_hoppings, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
+
+        self.var_f = 0. #self.var_f if not config.PN_projection else 0.
 
         # print(K_up, K_down)
         ### mean-field Hamiltonian precomputed elements ###
@@ -112,8 +121,12 @@ class wavefunction_singlet():
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V(np.arange(0, self.config.total_dof // 2)))
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
-        self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave)) \
-                                             for wave in self.config.waves_list_unwrapped])
+        #self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave)) \
+        #                                     for wave in self.config.waves_list_unwrapped])
+        self.W_hoppings_derivatives = np.array([self._get_derivative(self._construct_hopping_V(h_up, h_down)) \
+                                                for h_up, h_down in zip(self.hoppings_list_TBC_up, self.hoppings_list_TBC_down)])
+
+
         ### allowed 1-particle moves ###
         self.adjacency_list = self.config.adjacency_transition_matrix 
 
@@ -164,6 +177,14 @@ class wavefunction_singlet():
         V[self.config.total_dof // 2:, :self.config.total_dof // 2] = gap.conj().T
         return V
 
+    def _construct_hopping_V(self, h_up, h_down):
+        V = np.zeros((self.config.total_dof, self.config.total_dof)) * 1.0j  # (6.91) in S. Sorella book
+        V[:self.config.total_dof // 2, :self.config.total_dof // 2] = h_up
+        V[self.config.total_dof // 2:, self.config.total_dof // 2:] = -h_down
+
+        assert np.allclose(V, V.conj().T)
+        return V
+
     def _construct_mu_V(self, valley):
         V = np.zeros(self.config.total_dof) + 0.0j
         V[valley] = -1.0
@@ -187,19 +208,22 @@ class wavefunction_singlet():
         O_fugacity = []#[self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
-        O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
+        #O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
+        O_hoppings = jit_get_O_pairing(self.W_hoppings_derivatives, self.W_GF_complete.T) if len(self.W_hoppings_derivatives) > 0 else []
 
         #O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
-        O = O_mu + O_waves + O_pairing + O_Jastrow
+        O = O_mu + O_hoppings + O_pairing + O_Jastrow
 
         return np.array(O)
 
     def _construct_U_matrix(self, orbitals_in_use):
         self.T = construct_HMF(self.config, self.K_up, self.K_down, \
-                               self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term, \
-                               particle_hole = self.particle_hole)
+                               self.pairings_list_unwrapped, self.var_params_gap, self.hoppings_list_TBC_up, self.hoppings_list_TBC_down, \
+                               self.var_hoppings, self.reg_gap_term, \
+                               particle_hole = self.particle_hole, ph_test = self.ph_test, trs_test = self.trs_test)
+
         if self.ph_test:
-            self.T = self.T.conj()
+            self.T = -self.T.conj()
         assert np.allclose(self.T, self.T.conj().T)
         plus_valley = np.arange(0, self.config.total_dof, 2)
         self.T[plus_valley, plus_valley] += 1e-9  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number
@@ -714,21 +738,29 @@ def jit_get_O_jastrow(Jastrow_A, occupancy):
         derivatives.append(-0.5 * occupancy.dot(Jastrow_A[k].dot(occupancy)))
     return derivatives
 
-def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
-                  var_waves, reg_gap_term, particle_hole = False):
+def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap, \
+                  hoppings_list_TBC_up, hoppings_list_TBC_down,
+                  var_hoppings, reg_gap_term, particle_hole = False, ph_test = False, trs_test = False):
     Delta = pairings.get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params_gap)
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
+
+    for hop_up, hop_down, coeff in zip(hoppings_list_TBC_up, hoppings_list_TBC_down, var_hoppings):
+        T[:config.total_dof // 2, :config.total_dof // 2] += hop_up * coeff
+        T[config.total_dof // 2:, config.total_dof // 2:] += -hop_down * coeff
+
+
+    if trs_test:
+        T = T.conj()
 
     ## various local pairing terms ##
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta if not particle_hole else Delta.conj().T
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T if not particle_hole else Delta
 
     ## regularisation ##
-    T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term
-    T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T
+    T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
+    T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
 
-    for wave, coeff in zip(config.waves_list_unwrapped, var_waves):
-        T += waves.waves_particle_hole(config, wave) * coeff
+    
     return T
 
 @jit(nopython = True)

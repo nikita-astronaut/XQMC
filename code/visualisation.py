@@ -647,12 +647,22 @@ def plot_levels_evolution_mu(config):
 
 
     eigvls = []
+    gaps = []
     MFHs = get_MFH(config, mu_given = dmus)
     eigvls = [np.linalg.eigh(MFH)[0] for MFH in MFHs]
+    for point in eigvls:
+        gap = (np.sort(point)[config.total_dof // 2] - np.sort(point)[config.total_dof // 2 - 1]) / 2
+        gaps.append(gap)
     eigvls = np.array(eigvls).T
     for level in eigvls:
         #print(level)
         plt.plot(dmus, level)
+
+    plt.grid(True, ls='--', color='black', alpha=0.15)
+    #plt.ylim([-0.03, 0.03])
+    plt.show()
+
+    plt.plot(dmus, gaps)
 
     plt.grid(True, ls='--', color='black', alpha=0.15)
     #plt.ylim([-0.03, 0.03])

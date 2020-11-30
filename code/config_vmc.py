@@ -1,7 +1,7 @@
 import models
 import numpy as np
 import hamiltonians_vmc
-from opt_parameters import pairings, jastrow, waves
+from opt_parameters import pairings, jastrow, waves, hoppings
 import wavefunction_vmc as wfv
 from copy import deepcopy
 from scipy import interpolate
@@ -34,6 +34,8 @@ class MC_parameters:
         Efull, _ = np.linalg.eigh(self.K_0)
         K_0_plus = self.K_0[:, np.arange(0, self.total_dof // 2, 2)]; K_0_plus = K_0_plus[np.arange(0, self.total_dof // 2, 2), :]
         K_0_minus = self.K_0[:, np.arange(1, self.total_dof // 2, 2)]; K_0_minus = K_0_minus[np.arange(1, self.total_dof // 2, 2), :]
+
+        assert np.allclose(K_0_plus, np.conj(K_0_minus))
         Eplus, _ = np.linalg.eigh(K_0_plus)
         Eminus, _ = np.linalg.eigh(K_0_minus)
         assert np.allclose(Efull, np.sort(np.concatenate([Eplus, Eminus])))
@@ -54,7 +56,7 @@ class MC_parameters:
         self.use_preassigned_orbitals = False; self.preassigned_orbitals_path = '/home/astronaut/Documents/DQMC_TBG/logs/x11/saved_orbital_indexes.npy'
         self.valley_projection = True  # project onto valley imbalance = ...
 
-        self.PN_projection = False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
+        self.PN_projection = True  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
         self.visualisation = False;
@@ -64,7 +66,7 @@ class MC_parameters:
         self.load_parameters = True; 
         self.load_parameters_path = None
         self.offset = 0
-
+        self.all_distances = models.get_distances_list(self)
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
@@ -74,6 +76,15 @@ class MC_parameters:
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
             self, self.chiral_basis) for g in self.pairings_list_unwrapped]
 
+
+        ### hoppings parameters setting ###
+        all_Koshino_hoppings_real = hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
+        all_Koshino_hoppings_complex = hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
+        self.hoppings = [h[-1] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
+        self.hopping_names = [h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
+        for h in self.hoppings:
+            projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
+            print(projection)
 
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
@@ -119,24 +130,24 @@ class MC_parameters:
 
         ### regularisation ###
         if not self.enforce_valley_orbitals:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[5][0]), 'pairing', \
                                                     self, self.chiral_basis)  # FIXME
         else:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[5][0]), 'pairing', \
                                                     self, self.chiral_basis) # FIXME
-        self.reg_gap_val = 0.003
+        self.reg_gap_val = 0.1
 
         ## initial values definition and layout ###
         #self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
-        self.layout = [1, 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
+        self.layout = [1, 0, len(self.hoppings), len(self.pairings_list), len(self.jastrows_list)]
         
 
         self.initial_parameters = np.concatenate([
             np.array([0.0]),  # mu_BCS
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
-            np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.1, 0.1, size = self.layout[3]),  # gaps
+            np.random.uniform(-0.01, 0.01, size = self.layout[2]),  # hoppings
+            np.random.uniform(0.00, 0.00, size = self.layout[3]),  # gaps
             np.random.uniform(0.2, 0.2, size = self.layout[4]),  # jastrows
         ])
 
@@ -150,7 +161,7 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[np.sum(self.layout[:-1])] = 2.
+        self.initial_parameters[np.sum(self.layout[:-1])] = 0.3
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:
@@ -161,7 +172,8 @@ class MC_parameters:
         self.all_names = np.concatenate([
             np.array(['mu_BCS']),  # mu_BCS
             #np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
-            np.array(self.waves_list_names),  # waves
+            #np.array(self.waves_list_names),  # waves
+            np.array(self.hopping_names),  # hopping matrices
             np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
         ])
