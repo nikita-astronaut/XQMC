@@ -171,7 +171,7 @@ def print_model_summary(config_vmc):
      else 'Work in Canonical Approach at <n> = {:.2f}'.format(config_vmc.Ne / config_vmc.total_dof * 2))
 
     print('Gap parameters: ', config_vmc.pairings_list_names)
-    print('Waves parameters: ', [wave[-1] for wave in config_vmc.waves_list])
+    print('Hopping parameters: ', [hopping for hopping in config_vmc.hopping_names])
     print('Jastrow parameters: ', [jastrow[-1] for jastrow in config_vmc.jastrows_list])
 
     print('mu_BCS initial guess {:.3f}'.format(config_vmc.initial_parameters[0]))
@@ -435,8 +435,8 @@ def run_simulation():
         target.write(source.read())
 
 
-    config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
     if config_vmc.visualisation:
+        config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
         visualisation.plot_levels_evolution_mu(config_vmc)
         visualisation.plot_all_waves(config_vmc)
         visualisation.plot_DOS(config_vmc)

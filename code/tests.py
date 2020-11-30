@@ -152,7 +152,7 @@ def test_numerical_derivative_check(config):
         print('Failed!')
         success = False
 
-
+    '''
     print('fugacity derivative check...', flush=True)
     if not config.PN_projection:
         np.random.seed(11)
@@ -168,8 +168,9 @@ def test_numerical_derivative_check(config):
             success = False
 
     der_shift += config.layout[1]
+    '''
 
-    print('waves derivative check...', flush=True)
+    print('hoppings derivative check...', flush=True)
     n_passed = 0
     for waves_idx in range(config.layout[2]):
         np.random.seed(11)
@@ -416,7 +417,7 @@ def test_gf_symmetry(config):
         empty_sites = np.arange(config.total_dof); empty_sites[occ_new] = -1; empty_sites = set(empty_sites[empty_sites > -0.5])
 
         wf_transformed = wavefunction_singlet(config, config.pairings_list, \
-                                              config.initial_parameters, True, (occ_new, empty_sites, place_in_string))
+                                              config.initial_parameters, True, (occ_new, empty_sites, place_in_string), trs_test = True)
         ampl_new = wf_transformed.get_cur_det() * wf_transformed.get_cur_Jastrow_factor()
 
         if np.isclose(np.abs(ampl / ampl_new), 1):
@@ -738,10 +739,10 @@ def test_FT_BC_twist(config):
 def perform_all_tests(config):
     success = True
     success = success and test_gf_symmetry(config)
+    success = success and test_numerical_derivative_check(config)
     success = success and test_BC_twist(config)
     success = success and test_FT_BC_twist(config)
     success = success and test_chiral_gap_preserves_something(config)
-    success = success and test_numerical_derivative_check(config)
     success = success and test_chain_moves(config)
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
