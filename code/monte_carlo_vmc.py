@@ -532,7 +532,7 @@ def run_simulation():
     else:
         parameters = config_vmc.initial_parameters
         last_step = 0
-    #parameters[1] = 6e-3  #DEBUG FIXME
+    # parameters[1] = 5e-3  # FIXME
     # parameters[0] = config_vmc.select_initial_muBCS(parameters = parameters) # FIXME: add flag for this (correct mu_BCS on relaunch) ??
     #if in_parameters is not None:
     #    parameters = in_parameters
@@ -609,7 +609,7 @@ def run_simulation():
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 100:  # jastrows and mu_BCS have not converged yet
+            if n_step < 50:  # jastrows and mu_BCS have not converged yet
                 mask = np.zeros(np.sum(config_vmc.layout))
                 mask[-config_vmc.layout[4]:] = 1.
                 mask[:config_vmc.layout[0]] = 1.
@@ -632,13 +632,12 @@ def run_simulation():
 
             parameters += step * mask  # lr better be ~0.01..0.1
             save_parameters(parameters, config_vmc.workdir, n_step)
-
-            parameters[1] = parameters[1] if parameters[1] > 1e-3 else 1e-3
         ### END SR STEP ###
 
 
         observables = np.concatenate([np.array(x[4]) for x in results], axis = 0)
         observables_names = results[0][5]
+        n_step += 1
         if len(observables_names) == 0:
             continue
 
