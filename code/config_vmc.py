@@ -13,10 +13,10 @@ class MC_parameters:
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.Ne = Ls ** 2 * 4 # - 2 *  4
         self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
-        self.L_twists_uniform = 4
+        self.L_twists_uniform = 6
 
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
@@ -58,8 +58,8 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False;
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
-        self.tests = True; self.test_gaps = False
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/6x6/irrep_5/'
+        self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; 
         self.load_parameters_path = None
@@ -68,7 +68,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[13] # 13
+        self.pairings_list = pairings.twoorb_hex_all[5] # 13
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -107,8 +107,8 @@ class MC_parameters:
         
 
         ### optimisation parameters ###
-        self.MC_chain = 500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
-        self.optimisation_steps = 1600; self.thermalization = 13000; self.obs_calc_frequency = 20
+        self.MC_chain = 1000000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
+        self.optimisation_steps = 16000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 6
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
@@ -136,7 +136,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.1, 0.1, size = self.layout[2]),  # waves
-            np.random.uniform(0.00, 0.00, size = self.layout[3]),  # gaps
+            np.random.uniform(0.1, 0.1, size = self.layout[3]),  # gaps
             np.random.uniform(0.2, 0.2, size = self.layout[4]),  # jastrows
         ])
 
@@ -175,7 +175,7 @@ class MC_parameters:
         ])
 
         self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino(self.Ne)
-        self.mu = -3.0 #self.initial_parameters[0]
+        self.mu = -12.0 #self.initial_parameters[0]
         #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
         ### check K-matrix irrep properties ###
