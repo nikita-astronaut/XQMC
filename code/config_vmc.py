@@ -12,7 +12,7 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.Ne = Ls ** 2 * 4 # - 2 *  4
-        self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
+        self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
         self.L_twists_uniform = 4
 
         assert self.BC_twist  # this is always true
@@ -44,7 +44,7 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 9.93 / 4.
+        self.epsilon = 9.93 / 1.
         self.xi = 0.001
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 0.
@@ -60,8 +60,8 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False;
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
-        self.tests = True; self.test_gaps = False
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/test_4x4/'
+        self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; 
         self.load_parameters_path = None
@@ -82,9 +82,9 @@ class MC_parameters:
         all_Koshino_hoppings_complex = hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
         self.hoppings = [h[-1] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
         self.hopping_names = [h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
-        for h in self.hoppings:
+        for h, name in zip(self.hoppings, self.hopping_names):
             projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
-            print(projection)
+            print(projection, name)
 
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
@@ -147,7 +147,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.01, 0.01, size = self.layout[2]),  # hoppings
-            np.random.uniform(0.00, 0.00, size = self.layout[3]),  # gaps
+            np.random.uniform(0.01, 0.01, size = self.layout[3]),  # gaps
             np.random.uniform(0.2, 0.2, size = self.layout[4]),  # jastrows
         ])
 
@@ -161,7 +161,7 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[np.sum(self.layout[:-1])] = 0.3
+        self.initial_parameters[np.sum(self.layout[:-1])] = 0.8
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:
