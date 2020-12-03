@@ -70,7 +70,7 @@ def get_jastrow(L, mod):
 
 
 @jit(nopython=True)
-def get_jastrow_fromshift(L, mod):
+def get_jastrow_fromshift(L, mod, all_distances, dist_threshold = 1):
     orb_ij = []; orb_k = []; n_orb = 0
     seen_shifts = [(0, 0)]
     matrix = np.zeros((4 * L ** 2, 4 * L ** 2), dtype=np.int64) - 1
@@ -89,6 +89,9 @@ def get_jastrow_fromshift(L, mod):
                                     j = lj + ((mod * x + modx + dx) % L) * 4 + ((mod * y + mody + dy) % L) * 4 * L
 
                                     if i == j:
+                                        continue
+
+                                    if all_distances[i, j] > dist_threshold + 1e-5:
                                         continue
 
                                     if matrix[i, j] == -1:
@@ -133,16 +136,56 @@ def get_jastrow_fromshift(L, mod):
     
     return orb_ij, orb_k, n_orb, seen_shifts, matrix
 
+def W_ij(U, xi, rhat):  # https://arxiv.org/pdf/1905.01887.pdf
+    if rhat == 0:
+        return U
 
-def generate_Imada_format_Koshino(config, U):
+    d = xi / rhat
+    ns = np.arange(-100000, 100001)
+    W = 11.077 * U / rhat * np.sum((-1.) ** ns / (1 + (ns * d) ** 2) ** 0.5)
+    res = U_0 / (1. + (U_0 / W) ** 5) ** 0.2
+    # print('W', W)
+    return res if res > 0.05 else 0.0  # Ohno relations
+
+
+def generate_Imada_format_Koshino(config, U, mod):
     H = config.hamiltonian(config_vmc)
     K0 = config.K_0 # already chiral
 
-    np.save('K0_{:d}.npy'.format(config.Ls), K0)
-    np.save('H_edges_{:d}.npy'.format(config.Ls), H.edges_quadric)
+    Tx, Ty = pairings.Tx_symmetry_map, pairings.Ty_symmetry_map
+    C3z = np.argmax(np.abs(pairings.C3z_symmetry_map_chiral), axis = 0)
+    C2y = np.argmax(np.abs(pairings.C2y_symmetry_map_chiral), axis = 0)
+    tx, ty = [], []
 
-    mod = 1
-    path = os.path.join(config.workdir, 'imada_format_L_{:d}_Ne_{:d}_U_{:.3f}_onlyNN'.format(config.Ls, config.Ne, U))
+    for i in range(Tx.shape[0]):
+        assert len(np.where(Tx[i, :] == 1)[0]) == 1
+        assert len(np.where(Ty[i, :] == 1)[0]) == 1
+
+        tx.append(np.where(Tx[i, :] == 1)[0][0])
+        ty.append(np.where(Ty[i, :] == 1)[0][0])
+
+    tx, ty = np.array(tx), np.array(ty)
+    assert np.allclose(tx[ty], ty[tx])
+
+    valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.Ls ** 2 * 2)])
+
+
+    np.save('./files_mvmc/tx_{:d}.npy'.format(config.Ls), tx)
+    np.save('./files_mvmc/ty_{:d}.npy'.format(config.Ls), ty)
+    np.save('./files_mvmc/C3z_{:d}.npy'.format(config.Ls), C3z)
+    np.save('./files_mvmc/C2y_{:d}.npy'.format(config.Ls), C2y)
+    np.save('./files_mvmc/valley_{:d}.npy'.format(config.Ls), valley)
+
+    pref = 'real' if np.allclose(K0, K0.real) else 'imag'
+
+    np.save('./files_mvmc/K0_{:s}_{:d}.npy'.format(pref, config.Ls), K0)
+    np.save('./files_mvmc/distances_{:d}.npy'.format(config.Ls), config.all_distances)
+    
+    #np.save('H_edges_{:d}.npy'.format(config.Ls), H.edges_quadric)
+    #exit(-1)
+
+
+    path = os.path.join(config.workdir, 'imada_format_L_{:d}_Ne_{:d}_U_{:.3f}_mod_{:d}_onlyNN'.format(config.Ls, config.Ne, U, mod))
     os.makedirs(path, exist_ok=True)
 
 
@@ -165,35 +208,31 @@ def generate_Imada_format_Koshino(config, U):
     f.close()
 
 
+    energies, orbitals = np.linalg.eigh(K0)
+    selected = np.argsort(energies)[:len(energies) // 2]
+    orbitals = orbitals[:, selected]
+
+    f_ij = orbitals.dot(orbitals.conj().T)
+
+
 
 
     
-    Tx, Ty = pairings.Tx_symmetry_map, pairings.Ty_symmetry_map
-    tx, ty = [], []
+    
 
-    for i in range(Tx.shape[0]):
-        assert len(np.where(Tx[i, :] == 1)[0]) == 1
-        assert len(np.where(Ty[i, :] == 1)[0]) == 1
-
-        tx.append(np.where(Tx[i, :] == 1)[0][0])
-        ty.append(np.where(Ty[i, :] == 1)[0][0])
-
-    tx, ty = np.array(tx), np.array(ty)
-    assert np.allclose(tx[ty], ty[tx])
-    np.save('tx_{:d}.npy'.format(config.Ls), tx)
-    np.save('ty_{:d}.npy'.format(config.Ls), ty)
-
-    valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.Ls ** 2 * 2)])
     #rotation = np.array([0, 1, 14, 15, 8, 9, 6, 7, 12, 13, 2, 3, 4, 5, 10, 11])
     #assert np.allclose(valley[valley], np.arange(16))
-    #assert np.allclose(rotation[rotation[rotation]], np.arange(16))
+    assert np.allclose(C3z[C3z[C3z]], np.arange(config.Ls ** 2 * 4))
+    assert np.allclose(C2y[C2y], np.arange(config.Ls ** 2 * 4))
 
 
     symmetries = [np.arange(len(tx))]
-    #symmetries = [np.arange(len(tx)), tx, ty, ty[tx]]
+    if mod == 2:
+        symmetries = [np.arange(len(tx)), tx, ty, ty[tx]]
 
     symmetries = symmetries + [symm[valley] for symm in symmetries]
-    #symmetries = symmetries + [symm[rotation] for symm in symmetries] + [symm[rotation[rotation]] for symm in symmetries]
+    symmetries = symmetries + [symm[C3z] for symm in symmetries] + [symm[C3z[C3z]] for symm in symmetries]
+    symmetries = symmetries + [symm[C2y] for symm in symmetries]
 
     ########### writing the translational symmetries ##########
     f = open(os.path.join(path, 'qptransidx.def'), 'w')
@@ -249,7 +288,7 @@ def generate_Imada_format_Koshino(config, U):
     ########### writing the jastrows ##########
     ## we use the mod/mod structure
     f = open(os.path.join(path, 'jastrowidx.def'), 'w')
-    jastrow_ij, jastrow_k, n_jastrows, seen_shifts, matrix_jastrows = get_jastrow_fromshift(config.Ls, mod)
+    jastrow_ij, jastrow_k, n_jastrows, seen_shifts, matrix_jastrows = get_jastrow_fromshift(config.Ls, mod, config.all_distances, dist_threshold=1.)
     print(len(np.unique(jastrow_k)))
     assert np.allclose(matrix_jastrows, matrix_jastrows.T)
 
@@ -286,17 +325,24 @@ def generate_Imada_format_Koshino(config, U):
         assert np.allclose(matrix_jastrows_trans, matrix_jastrows)
 
 
-    real_jastrow = True
+    real_jastrow = False
 
     f.write('=============================================\n')
-    f.write('NJastrowIdx         {:d}\n'.format(n_jastrows))
+    f.write('NJastrowIdx         {:d}\n'.format(n_jastrows + 1))
     f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
     f.write('=============================================\n')
     f.write('=============================================\n')
-    for ij, k in zip(jastrow_ij, jastrow_k):
-        f.write('    {:d}      {:d}      {:d}\n'.format(ij[0], ij[1], k))
+    for i in range(config.Ls ** 2 * 4):
+        for j in range(config.Ls ** 2 * 4):
+            if i == j:
+                continue
+            if (i, j) not in jastrow_ij:
+                f.write('    {:d}      {:d}      {:d}\n'.format(i, j, n_jastrows))
+            else:
+                f.write('    {:d}      {:d}      {:d}\n'.format(i, j, jastrow_k[jastrow_ij.index((i, j))]))
     for i in range(n_jastrows):
         f.write('    {:d}      1\n'.format(i))
+    f.write('    {:d}      0\n'.format(n_jastrows))
     f.close()
 
 
@@ -305,13 +351,14 @@ def generate_Imada_format_Koshino(config, U):
 
     f = open(os.path.join(path, 'InJastrow.def'), 'w')
     f.write('======================\n')
-    f.write('NJastrowIdx  {:d}\n'.format(n_jastrows))
+    f.write('NJastrowIdx  {:d}\n'.format(n_jastrows + 1))
     f.write('======================\n')
     f.write('== i_j_JastrowIdx  ===\n')
     f.write('======================\n')
     for i in range(n_jastrows):
         f.write('{:d} {:.10f}  {:.10f}\n'.format(i, \
                 np.random.uniform(0.0, 1.0) / 10, np.random.uniform(0.0, 1.0) / 10 if not real_jastrow else 0.0))
+    f.write('{:d} {:.10f}  {:.10f}\n'.format(n_jastrows, 0, 0))
     f.close()
 
 
@@ -427,8 +474,10 @@ def generate_Imada_format_Koshino(config, U):
     f.write('======================\n')
     f.write('== i_j_OrbitalIdx  ===\n')
     f.write('======================\n')
-    for i in range(n_orbits):
-        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0) if not real_jastrow else 0.0))
+    for k in range(n_orbits):
+        i, j = orbit_ij[orbit_k.index(k)]
+        #f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0) if not real_jastrow else 0.0))
+        f.write('{:d} {:.10f}  {:.10f}\n'.format(k, f_ij[i, j].real, f_ij[i, j].imag if not real_jastrow else 0.0))
 
 
 
@@ -535,4 +584,4 @@ if __name__ == "__main__":
 
     monte_carlo_vmc.print_model_summary(config_vmc)
 
-    generate_Imada_format_Koshino(config_vmc, float(sys.argv[3]))
+    generate_Imada_format_Koshino(config_vmc, float(sys.argv[3]), int(sys.argv[4]))

@@ -60,6 +60,7 @@ class MC_parameters:
         ### other parameters ###
         self.visualisation = False;
         self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/6x6_grand_canonical_smallU_lr/irrep_8/'
+
         self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
         self.load_parameters = True; 
@@ -83,7 +84,7 @@ class MC_parameters:
         self.hopping_names = [] #[h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
         for h in self.hoppings:
             projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
-            print(projection)
+            print(projection, name)
 
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
