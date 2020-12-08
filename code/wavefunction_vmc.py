@@ -24,7 +24,6 @@ class wavefunction_singlet():
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, self.config.twist, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
-
         self.hoppings_list_TBC_up = [models.apply_TBC(self.config, self.config.twist, deepcopy(h), inverse = False) \
                                      for h in self.config.hoppings]
         self.hoppings_list_TBC_down = [models.apply_TBC(self.config, self.config.twist, deepcopy(h).T, inverse = True) \

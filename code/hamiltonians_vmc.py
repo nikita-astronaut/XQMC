@@ -67,11 +67,13 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         print('V({:.2f}) = {:.2f}'.format(0.0, self.W_ij(0)))
 
-        t = time()
+        #t = time()
         for site in range(1, len(self.config.adjacency_list) // 3):  # on-site accounted already
             r = np.sqrt(self.config.adjacency_list[3 * site][-1])
             edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * self.W_ij(r) / 2
             print('V({:.2f}) = {:.2f}'.format(r, self.W_ij(r)))
+            # print(np.sum(np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]), axis = 0))
+
         #print('loop takes', time() - t)
 
         # np.save('test_edges.npy', edges_quadric)

@@ -417,7 +417,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     return energies, Os, acceptance, wf.get_state(), observables, \
            names, wf.U_matrix, wf.E, densities, wf.gap
 
-def run_simulation():
+def run_simulation(delta_reg, previous_params):
     config_vmc_file = import_config(sys.argv[1])
     # mu_BCS_fixed = - 1. /80 * rank # FIXME
     config_vmc_import = config_vmc_file.MC_parameters(int(sys.argv[2]), rank)
@@ -427,7 +427,13 @@ def run_simulation():
 
     print_model_summary(config_vmc)
 
-    config_vmc.workdir = config_vmc.workdir + '/irrep_{:d}_delta_{:.3f}/'.format(rank, config_vmc.reg_gap_val)
+
+    if previous_params is not None:
+        config_vmc.initial_parameters = previous_params
+
+    config_vmc.initial_parameters[config_vmc.layout[0] + config_vmc.layout[1] + config_vmc.layout[2]:config_vmc.layout[0] + \
+                              config_vmc.layout[1] + config_vmc.layout[2] + config_vmc.layout[3]] = delta_reg
+    config_vmc.workdir = config_vmc.workdir + '/irrep_{:d}_delta_{:.3f}/'.format(rank, delta_reg)
     
     os.makedirs(config_vmc.workdir, exist_ok=True)
     with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target, \
@@ -609,10 +615,12 @@ def run_simulation():
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 50:  # jastrows and mu_BCS have not converged yet
-                mask = np.zeros(np.sum(config_vmc.layout))
-                mask[-config_vmc.layout[4]:] = 1.
-                mask[:config_vmc.layout[0]] = 1.
+            if n_step < 50000:  # jastrows and mu_BCS have not converged yet
+                mask = np.ones(np.sum(config_vmc.layout))
+                # mask[-config_vmc.layout[4]:] = 1.
+                # mask[:config_vmc.layout[0]] = 1.
+                mask[config_vmc.layout[0] + config_vmc.layout[1] + config_vmc.layout[2]:config_vmc.layout[0] + \
+                     config_vmc.layout[1] + config_vmc.layout[2] + config_vmc.layout[3]] = 0.
             #mask[1] = 0.0  # fugacity is not optimized in the meantime
 
             # Os = [np.einsum('ik,k->ik', Os_theta, config_vmc.mask) for Os_theta in Os]
@@ -657,5 +665,7 @@ def run_simulation():
     return parameters
 
 if __name__ == "__main__":
-    run_simulation()
+    previous_params = None
+    for delta_reg in [0.010]:#np.linspace(5e-3, 5e-2, 10)[::-1]:
+        previous_params = run_simulation(delta_reg = delta_reg, previous_params=previous_params)
 

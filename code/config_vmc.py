@@ -11,8 +11,8 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = Ls ** 2 * 4 - 3 * 4
-        self.BC_twist = True; self.twist_mesh = 'uniform'  # apply BC-twist
+        self.Ne = Ls ** 2 * 4 - 4 * 3
+        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         self.L_twists_uniform = 6
         assert self.BC_twist  # this is always true
         self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
@@ -44,7 +44,7 @@ class MC_parameters:
 
         ### interaction parameters ###
         self.epsilon = 9.93 / 4
-        self.xi = 0.30
+        self.xi = 0.20
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 0.
 
@@ -55,11 +55,11 @@ class MC_parameters:
         self.use_preassigned_orbitals = False; self.preassigned_orbitals_path = '/home/astronaut/Documents/DQMC_TBG/logs/x11/saved_orbital_indexes.npy'
         self.valley_projection = True  # project onto valley imbalance = ...
 
-        self.PN_projection = False; #False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
+        self.PN_projection = True; #False  # if PN_projection = False, work in the Grand Canonial approach, otherwise Canonical approach
 
         ### other parameters ###
         self.visualisation = False;
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/6x6_grand_canonical_smallU_lr/irrep_8/'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/6x6_canonical_smallU_xi_0.2_Ne_132/irrep_13/'
 
         self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
@@ -70,7 +70,7 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[8] # 13
+        self.pairings_list = pairings.twoorb_hex_all[13] # 13
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -101,7 +101,7 @@ class MC_parameters:
         self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0], \
                                             self.n_orbitals, valley_conservation_K = self.valley_projection, 
                                             valley_conservation_Delta = self.enforce_valley_orbitals)
-        print(self.adjacency_transition_matrix)
+        #print(self.adjacency_transition_matrix)
         self.name_group_dict = pairings.name_group_dict
         print(self.name_group_dict)
 
@@ -123,7 +123,7 @@ class MC_parameters:
 
         ### optimisation parameters ###
         self.MC_chain = 500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
-        self.optimisation_steps = 16000; self.thermalization = 13000; self.obs_calc_frequency = 20
+        self.optimisation_steps = 300; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 6
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
@@ -151,7 +151,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.001, 0.001, size = self.layout[2]),  # hoppings
-            np.random.uniform(0.1, 0.1, size = self.layout[3]),  # gaps
+            np.random.uniform(0.03, 0.03, size = self.layout[3]),  # gaps
             np.random.uniform(0.2, 0.2, size = self.layout[4]),  # jastrows
         ])
 
@@ -214,11 +214,14 @@ class MC_parameters:
         #twist = [1.0j, -1.0j]
         print(twist)
 
+        #if twist[0] != 1 or twist[1] != 1:
         K_0_twisted = models.apply_TBC(self, twist, deepcopy(self.K_0), inverse = False)
-        energies = np.linalg.eigh(K_0_twisted)[0]
-        print('energy_free_theory = ', np.sum(np.sort(energies)[:self.total_dof // 2 // 2] * 2 / (self.total_dof // 2)))
-        
 
+        energies = np.linalg.eigh(self.K_0)[0]
+        #print(energies)
+        print(twist)
+        print('energy_free_theory = ', np.sum(np.sort(energies)[:self.total_dof // 2 // 2] * 2 / (self.total_dof // 2)))
+        print(energies)
 
 
         K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0).T, inverse = True)

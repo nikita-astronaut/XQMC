@@ -222,7 +222,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     n_orbitals = 2
     n_sublattices = 2
     total_dof = Ls ** 2 * n_orbitals * n_sublattices * 2
-    t1, t2, t5, t4 = 0.331, (-0.010 * 0 + 1.0j * 0.097), 0.119 * 0., 0.036 * 0.
+    t1, t2, t5, t4 = 0.331, (-0.010 * 0. + 1.0j * 0.097 ), 0.119 * 0., 0.036 * 0.
 
 
     K = np.zeros((total_dof // 2, total_dof // 2)) * 1.0j
@@ -412,7 +412,7 @@ def get_transition_matrix(PN_projection, K, n_orbitals = 1, \
     unit_matrix = np.eye(n_orbitals) if valley_conservation_K else np.ones((n_orbitals, n_orbitals))
     for i in range(K.shape[0] // n_orbitals):
         for j in range(K.shape[0] // n_orbitals):
-            if K[i * n_orbitals, j * n_orbitals] != 0.0:
+            if np.sum(np.abs(K[i * n_orbitals:i * n_orbitals + n_orbitals, j * n_orbitals : j * n_orbitals + n_orbitals])) > 1e-7:
                 adjacency_matrix[i * n_orbitals:i * n_orbitals + n_orbitals, \
                                  j * n_orbitals:j * n_orbitals + n_orbitals] = unit_matrix  # valley-charge conservation
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)

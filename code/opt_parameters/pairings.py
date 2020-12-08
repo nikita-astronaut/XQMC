@@ -915,19 +915,20 @@ def obtain_all_pairings(config):
                 ### create TRS combination ###
                 twoorb_hex_all[idx] = [[twoorb_hex_all[idx][0][0], twoorb_hex_all[idx][1][0], 1, twoorb_hex_all[idx][0][-1].replace('S_1', 'S_pm')]]
             if len(element) == 3:
-                twoorb_hex_all[idx] = [twoorb_hex_all[idx][0]]
+                twoorb_hex_all[idx] = [twoorb_hex_all[idx][0]]  # FIXME (for simplicity)
 
  
-        Koshino_united = [twoorb_hex_all[0], \
-                                 twoorb_hex_all[12] + twoorb_hex_all[11], \
-                                 twoorb_hex_all[10], \
-                                 twoorb_hex_all[19] + twoorb_hex_all[20], \
-                                 twoorb_hex_all[15], \
-                                 twoorb_hex_all[17], \
-                                 twoorb_hex_all[5] + twoorb_hex_all[7] + twoorb_hex_all[6] + twoorb_hex_all[8], \
-                                 twoorb_hex_all[2] + twoorb_hex_all[3], \
-                                 twoorb_hex_all[13] + twoorb_hex_all[14] + twoorb_hex_all[16] + twoorb_hex_all[18], \
-                                ]
+        Koshino_united = [
+                              twoorb_hex_all[0], \
+                              twoorb_hex_all[12] + twoorb_hex_all[11], \
+                              twoorb_hex_all[10], \
+                              twoorb_hex_all[19] + twoorb_hex_all[20], \
+                              twoorb_hex_all[15], \
+                              twoorb_hex_all[17], \
+                              twoorb_hex_all[5] + twoorb_hex_all[7] + twoorb_hex_all[6] + twoorb_hex_all[8], \
+                              twoorb_hex_all[2] + twoorb_hex_all[3], \
+                              twoorb_hex_all[13] + twoorb_hex_all[14] + twoorb_hex_all[16] + twoorb_hex_all[18], \
+                          ]
         
         #for irrep in Koshino_united:  # make TRS symmetric explicitly
 
