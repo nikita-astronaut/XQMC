@@ -64,7 +64,7 @@ def clip_forces(clips, step):
 
 
 
-def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
+def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     def remove_singularity(S):
         for i in range(S.shape[0]):
             if S[i, i] < 1e-4:
@@ -72,6 +72,8 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter):
                 S[:, i] = 0.0
                 S[i, i] = 1.0
         return S
+
+    Os = [np.eigsum('ik,k->ij', Os_theta, mask) for Os_theta in Os]  # non-optimisable parameters do not exist at this point
 
     Os_mean = [np.mean(Os_theta, axis = 0) for Os_theta in Os]
     forces = np.array([-2 * (np.einsum('i,ik->k', energies_theta.conj() - np.mean(energies_theta.conj()), Os_theta) / len(energies_theta) ) for \
@@ -625,7 +627,7 @@ def run_simulation(delta_reg, previous_params):
 
             # Os = [np.einsum('ik,k->ik', Os_theta, config_vmc.mask) for Os_theta in Os]
 
-            step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step)
+            step, forces = make_SR_step(Os, energies, config_vmc, twists, gaps, n_step, mask)
             
             write_intermediate_log(log_file, force_file, force_SR_file, n_step, config_vmc.total_dof // 2, energies, densities, \
                                    mean_variance, acceptance, forces, step, gap, n_above_FS, parameters)  # write parameters before step not to lose the initial values
@@ -666,6 +668,6 @@ def run_simulation(delta_reg, previous_params):
 
 if __name__ == "__main__":
     previous_params = None
-    for delta_reg in [0.010]:#np.linspace(5e-3, 5e-2, 10)[::-1]:
+    for delta_reg in [0.015]:#np.linspace(5e-3, 5e-2, 10)[::-1]:
         previous_params = run_simulation(delta_reg = delta_reg, previous_params=previous_params)
 
