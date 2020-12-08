@@ -37,6 +37,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         self.xi = self.config.xi
 
         self.edges_quadric, self.edges_J = self._get_interaction()
+        self.edges_quadric_diag = np.diag(self.edges_quadric)
+        self.edges_quadric_nondiag = self.edges_quadric - np.diag(np.diag(self.edges_quadric))
 
     def W_ij(self, rhat):  # https://arxiv.org/pdf/1905.01887.pdf
         U_0 = 30 * 0.331 / self.epsilon #  look up notes
@@ -65,11 +67,13 @@ class hamiltonian_Koshino(HubbardHamiltonian):
 
         print('V({:.2f}) = {:.2f}'.format(0.0, self.W_ij(0)))
 
-        t = time()
+        #t = time()
         for site in range(1, len(self.config.adjacency_list) // 3):  # on-site accounted already
             r = np.sqrt(self.config.adjacency_list[3 * site][-1])
             edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * self.W_ij(r) / 2
             print('V({:.2f}) = {:.2f}'.format(r, self.W_ij(r)))
+            # print(np.sum(np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]), axis = 0))
+
         #print('loop takes', time() - t)
 
         # np.save('test_edges.npy', edges_quadric)
@@ -92,6 +96,10 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
+        #E_loc += 2. * np.dot(particles, self.edges_quadric_diag.dot(1 - holes))
+        #E_loc += 2. * np.sum(particles * (1 - holes) * self.edges_quadric_diag)
+
+        #E_loc += np.dot(particles - holes + 1, self.edges_quadric_nondiag.dot(particles - holes + 1))
         E_loc += np.dot(particles - holes, self.edges_quadric.dot(particles - holes))
 
         E_loc -= self.config.mu * np.sum(particles - holes)

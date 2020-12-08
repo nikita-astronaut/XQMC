@@ -494,20 +494,32 @@ def is_commensurate(L, k):
 def get_MFH(config, mu_given = None, gap_given = None, only_free = False):
     K_up = config.model(config, config.mu, spin = +1.0)[0]
     K_up = models.xy_to_chiral(K_up, 'K_matrix', config, config.chiral_basis)
+    K_up = models.apply_TBC(config, config.twist, deepcopy(K_up), inverse = False)
+
     K_down = config.model(config, config.mu, spin = -1.0)[0].T
     K_down = models.xy_to_chiral(K_down, 'K_matrix', config, config.chiral_basis)
+    K_down = models.apply_TBC(config, config.twist, deepcopy(K_down), inverse = True)
 
     mu, fugacity, waves, gap, jastrow = config.unpack_parameters(config.initial_parameters)
 
+    C2y = pairings.C2y_symmetry_map_chiral
+    C2y = np.kron(np.eye(2), C2y)
+
+    C3z = pairings.C3z_symmetry_map_chiral
+    C3z = np.kron(np.eye(2), C3z)
+
     if mu_given is not None:
-        Delta = pairings.get_total_pairing_upwrapped(config, config.pairings_list_unwrapped, gap)
-        print(gap)
+        Deltas_twisted = [models.apply_TBC(config, config.twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
+        Delta = pairings.get_total_pairing_upwrapped(config, Deltas_twisted, gap)
+        reg = models.apply_TBC(config, config.twist, deepcopy(config.reg_gap_term), inverse = False) * config.reg_gap_val
         Ts = []
 
         for dmu in mu_given:
             T = scipy.linalg.block_diag(K_up - np.eye(K_up.shape[0]) * (mu + dmu), -(K_down - np.eye(K_down.shape[0]) * (mu + dmu))) + 0.0j
-            T[:config.total_dof // 2, config.total_dof // 2:] = Delta
-            T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+            T[:config.total_dof // 2, config.total_dof // 2:] = Delta + reg
+            T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T + reg.conj().T
+
+
             Ts.append(T.copy() * 1.)
 
             Deltaonly = T * 0.0
@@ -516,10 +528,20 @@ def get_MFH(config, mu_given = None, gap_given = None, only_free = False):
 
             eigenvalues, eigenvectors = np.linalg.eigh(Ts[-1])
             idxs = np.argsort(np.abs(eigenvalues))[:2]
+            # print(eigenvalues[idxs])
             vplus = eigenvectors[:, idxs[0]]
             vminus = eigenvectors[:, idxs[1]]
-            print(dmu, np.abs(np.dot(vplus.conj(), np.dot(Deltaonly, vminus))), np.trace(np.dot(Deltaonly, Deltaonly.T.conj())))
 
+            print(np.dot(vplus.conj(), C3z.dot(vplus)))
+            print(np.dot(vminus.conj(), C3z.dot(vminus)))
+            #print(C3z.shape)
+            #print(Deltaonly.shape)
+            print(np.trace(Delta.T.conj().dot(pairings.C3z_symmetry_map_chiral.dot(Delta.dot(pairings.C3z_symmetry_map_chiral.T)))) \
+                / np.trace(np.dot(Delta, Delta.conj().T))) 
+
+            print(np.abs(np.dot(vplus.conj(), np.dot(Deltaonly, vminus))), np.abs(np.dot(vplus.conj(), vminus)), eigenvalues[idxs], idxs, dmu, \
+                  np.trace(np.dot(Deltaonly, Deltaonly.T.conj())))
+        #exit(-1)
         return Ts
 
 
@@ -621,17 +643,27 @@ def plot_levels_evolution_mu(config):
     if geometry == 'square':
         print('Not supported!')
         exit(-1)
-    dmus = np.linspace(-0.9, 0.9, 1000)
+    dmus = np.linspace(-1, 1, 400)
 
 
     eigvls = []
+    gaps = []
     MFHs = get_MFH(config, mu_given = dmus)
     eigvls = [np.linalg.eigh(MFH)[0] for MFH in MFHs]
+    for point in eigvls:
+        gap = (np.sort(point)[config.total_dof // 2] - np.sort(point)[config.total_dof // 2 - 1]) / 2
+        gaps.append(gap)
     eigvls = np.array(eigvls).T
     for level in eigvls:
         #print(level)
         plt.plot(dmus, level)
 
     plt.grid(True, ls='--', color='black', alpha=0.15)
-    plt.ylim([-0.01, 0.01])
+    #plt.ylim([-0.03, 0.03])
+    plt.show()
+
+    plt.plot(dmus, gaps)
+
+    plt.grid(True, ls='--', color='black', alpha=0.15)
+    #plt.ylim([-0.03, 0.03])
     plt.show()
