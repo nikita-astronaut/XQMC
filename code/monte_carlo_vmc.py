@@ -73,7 +73,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
                 S[i, i] = 1.0
         return S
 
-    Os = [np.eigsum('ik,k->ij', Os_theta, mask) for Os_theta in Os]  # non-optimisable parameters do not exist at this point
+    Os = [np.einsum('ik,k->ij', Os_theta, mask) for Os_theta in Os]  # non-optimisable parameters do not exist at this point
 
     Os_mean = [np.mean(Os_theta, axis = 0) for Os_theta in Os]
     forces = np.array([-2 * (np.einsum('i,ik->k', energies_theta.conj() - np.mean(energies_theta.conj()), Os_theta) / len(energies_theta) ) for \
