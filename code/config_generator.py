@@ -4,22 +4,17 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-<<<<<<< HEAD
 dt_in_inv_t1 = 1. / 10
 U_in_t1 = np.array([1.00])
 V_in_t1 = np.array([1.00])
-=======
-dt_in_inv_t1 = 1. / 20
-U_in_t1 = np.array([0.500])
-V_in_t1 = np.array([0.500])
->>>>>>> 944e05184c4699272e9583333aa0672e1a84eaca
 main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self):
         self.gpu = False
         
-        self.Ls = 2  # spatial size, the lattice will be of size Ls x Ls
+        self.Ls = 4
+        # spatial size, the lattice will be of size Ls x Ls
         self.Nt = np.array([640])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
@@ -47,8 +42,8 @@ class simulation_parameters:
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/tests/'
-        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/tests/'
+        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/'
+        self.workdir_heavy = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/'
         self.thermalization = 100000  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;
