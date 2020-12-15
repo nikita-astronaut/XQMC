@@ -97,6 +97,8 @@ class Observables:
         self.refresh_heavy_logs()
         self.init_heavy_logs_files()
 
+
+        self.init_light_cumulants()
         self.n_saved_times = 0
         return
 
@@ -257,6 +259,22 @@ class Observables:
 
         return
 
+    def init_light_cumulants(self):
+        self.light_cumulants = OrderedDict({
+            '⟨density⟩' : 0.0, 
+            '⟨E_K⟩' : 0.0, 
+            '⟨E_C⟩' : 0.0,
+            '⟨E_T⟩' : 0.0,
+            '⟨c^dag_{+down}c_{-down}⟩_re' : 0.0,
+            '⟨c^dag_{+down}c_{-down}⟩_im' : 0.0,
+            '⟨c^dag_{-down}c_{-down}⟩_re' : 0.0,
+            '⟨c^dag_{-down}c_{-down}⟩_im' : 0.0,
+            '⟨m_z^2⟩' : 0.0
+        })
+        self.n_cumulants = 0
+        return
+
+
     def refresh_light_logs(self):
         # self.log_file.flush()
         self.light_observables_list = OrderedDict({
@@ -285,7 +303,7 @@ class Observables:
                                                self.config.mu, self.config.Ls, self.config.Nt))
         print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩ ⟨c^dag_{+down}c_{-down}⟩_re ⟨c^dag_{+down}c_{-down}⟩_im ⟨c^dag_{-down}c_{-down}⟩_re ⟨c^dag_{-down}c_{-down}⟩_im ⟨m_z^2⟩')
         return
-
+    '''
     def print_std_logs(self, n_sweep):
         print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f}".format(
             n_sweep, 
@@ -303,7 +321,26 @@ class Observables:
             np.mean(self.light_observables_list['⟨m_z^2⟩']),
         ))
         return
-
+    '''
+    def print_std_logs(self, n_sweep):
+        if self.n_cumulants == 0 or self.global_average_sign == 0:
+            return
+        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f}".format(
+            n_sweep, 
+            np.mean(self.ratio_history),
+            np.mean(self.acceptance_history),
+            self.global_average_sign,
+            self.light_cumulants['⟨density⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨E_K⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨E_C⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨E_T⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_re'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_im'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_re'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_im'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨m_z^2⟩'] / self.n_cumulants / self.global_average_sign,
+        ))
+        return
     def measure_light_observables(self, phi, current_det_sign, n_sweep):
         self.light_signs_history.append(current_det_sign)  
 
@@ -323,6 +360,17 @@ class Observables:
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im'].append(np.imag(np.trace(G_down.dot(self.O_mm_xy))))
         self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(G_down, G_up))
 
+        self.n_cumulants += 1
+        self.light_cumulants['⟨density⟩'] += (density * current_det_sign)
+        self.light_cumulants['⟨E_K⟩'] += (k * current_det_sign)
+        self.light_cumulants['⟨E_C⟩'] += (C * current_det_sign)
+        self.light_cumulants['⟨E_T⟩'] += ((k + C) * current_det_sign)
+        self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_re'] += np.real(np.trace(G_down.dot(self.O_pm_xy))) * current_det_sign
+        self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_im'] += np.imag(np.trace(G_down.dot(self.O_pm_xy))) * current_det_sign
+        self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_re'] += np.real(np.trace(G_down.dot(self.O_mm_xy))) * current_det_sign
+        self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_im'] += np.imag(np.trace(G_down.dot(self.O_mm_xy))) * current_det_sign
+        self.light_cumulants['⟨m_z^2⟩'] += total_mz_squared(G_down, G_up) * current_det_sign
+
         return
 
     def signs_avg(self, array, signs):
@@ -336,8 +384,15 @@ class Observables:
     def write_light_observables(self, config, n_sweep):
         signs = np.array(self.light_signs_history)
 
-        data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), np.mean(self.sign_history),
-                np.mean(self.light_signs_history)] + [self.signs_avg(val, signs) for _, val in self.light_observables_list.items()]
+        #data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), np.mean(self.sign_history),
+        #        np.mean(self.light_signs_history)] + [self.signs_avg(val, signs) for _, val in self.light_observables_list.items()]
+
+        self.global_average_sign = (self.global_average_sign * self.global_average_sign_measurements + \
+                                    np.sum(signs)) / (self.global_average_sign_measurements + len(signs))
+        self.global_average_sign_measurements += len(signs)
+
+        data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), self.global_average_sign,
+                np.mean(self.light_signs_history)] + [val / self.global_average_sign / self.n_cumulants for _, val in self.light_cumulants.items()]
 
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
         if n_sweep % 100 == 0:
@@ -346,7 +401,7 @@ class Observables:
         self.global_average_sign = (self.global_average_sign * self.global_average_sign_measurements + \
                                     np.sum(signs)) / (self.global_average_sign_measurements + len(signs))
         self.global_average_sign_measurements += len(signs)
-        self.refresh_light_logs()
+        self.refresh_light_logs()  # TODO: keep sign-averaged observables and accumulate them forever
         return
 
     def measure_green_functions(self, phi, current_det_sign):
@@ -685,8 +740,10 @@ def kinetic_energy(phi):
 def Coloumb_energy(phi):
     G_function_up, G_function_down = phi.get_equal_time_GF()
 
-    energy_coloumb = (phi.config.U / 2.) * phi.la.sum((phi.la.diag(G_function_up) + phi.la.diag(G_function_down) - 1.) ** 2).item() \
-                     / G_function_up.shape[0]
+    energy_coloumb = phi.config.U * phi.la.sum(phi.la.diag(G_function_up) * phi.la.diag(G_function_down)).item() / G_function_up.shape[0]
+
+    #(phi.config.U / 2.) * phi.la.sum((phi.la.diag(G_function_up) + phi.la.diag(G_function_down) - 1.) ** 2).item() \
+    #                 / G_function_up.shape[0]
     if phi.config.n_orbitals == 1:
         return energy_coloumb
 
@@ -696,7 +753,9 @@ def Coloumb_energy(phi):
                                                       (phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 1)).item() \
                                                       / G_function_up.shape[0]
 
-    return energy_coloumb
+    return energy_coloumb + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
+                          #   / G_function_up.shape[0] 
+    # 
 
 
 

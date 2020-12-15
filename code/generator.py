@@ -17,6 +17,7 @@ import sys
 import os
 import importlib
 import psutil
+import models
 
 # np.random.seed(0)
 # <<Borrowed>> from Tom
@@ -83,7 +84,8 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_sign_before = current_det_sign * 1.0
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
-            assert current_det_sign_before == current_det_sign  # refresh of Green's function must preserve sign (robust)
+            if current_det_sign_before != current_det_sign:  # refresh of Green's function must preserve sign (robust)
+                print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used')
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check = True
         phi_field.wrap_up(time_slice)
@@ -180,10 +182,18 @@ if __name__ == "__main__":
         n_copy = config.n_copy
         config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
-        assert V == 0 or V == U
-
+        assert V == U
 
         K_matrix = config.model(config, config.mu)[0].real
+
+        ### application of real TBCs ###
+        real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
+        twist = real_twists[(rank + offset) % len(real_twists)]  # each rank knows its twist
+        K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
+        config.pairing_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False).real for gap in config.pairing_list_unwrapped]
+
+
+        ### creating precomputed exponents ###
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real  # exp (-dt (-K_matrix))
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
         K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix).real
@@ -211,7 +221,8 @@ if __name__ == "__main__":
             print('total sweep takes ', time() - t)
             phi_field.save_configuration()
             observables.print_std_logs(n_sweep)
-            observables.write_light_observables(phi_field.config, n_sweep)
+            if observables.n_cumulants > 0:
+                observables.write_light_observables(phi_field.config, n_sweep)
             last_n_sweep_log.write(str(n_sweep) + '\n'); last_n_sweep_log.flush()
             if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
                 t = time()

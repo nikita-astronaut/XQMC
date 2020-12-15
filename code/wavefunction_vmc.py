@@ -4,40 +4,53 @@ from opt_parameters import pairings, waves
 import models
 from copy import deepcopy
 from numba import jit
-from numba.errors import NumbaPerformanceWarning
+from numba.core.errors import NumbaPerformanceWarning
 import scipy
 import warnings
 import os
+from time import sleep
 
 warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
-                 with_previous_state, previous_state, orbitals_in_use = None, particle_hole = False):
+                 with_previous_state, previous_state, \
+                 orbitals_in_use = None, particle_hole = False, \
+                 K_up = None, K_down = None, reg = None, ph_test = False, trs_test = False):
         self.particle_hole = particle_hole
-        orbitals_in_use = None  # TODO
+        self.ph_test = ph_test
+        self.trs_test = trs_test
+        orbitals_in_use = None  # FIXME
         self.config = config
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, self.config.twist, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
-        self.reg_gap_term = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.reg_gap_term), inverse = False) * \
-                                             self.config.reg_gap_val
+        self.hoppings_list_TBC_up = [models.apply_TBC(self.config, self.config.twist, deepcopy(h), inverse = False) \
+                                     for h in self.config.hoppings]
+        self.hoppings_list_TBC_down = [models.apply_TBC(self.config, self.config.twist, deepcopy(h).T, inverse = True) \
+                                       for h in self.config.hoppings]
 
 
-        self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
-        self.var_f = self.var_f if not config.PN_projection else 0.
+        self.reg_gap_term = reg if reg is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.reg_gap_term), inverse = False) * \
+                                                        self.config.reg_gap_val
 
 
+        self.var_mu, self.var_f, self.var_hoppings, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
+
+        self.var_f = 0. #self.var_f if not config.PN_projection else 0.
+
+        # print(K_up, K_down)
         ### mean-field Hamiltonian precomputed elements ###
         plus_valley = np.arange(0, self.config.total_dof // 2, 2)
         minus_valley = plus_valley + 1
         plus_valley_mesh = np.zeros(self.config.total_dof // 2); plus_valley_mesh[plus_valley] = 1
         minus_valley_mesh = np.zeros(self.config.total_dof // 2); minus_valley_mesh[minus_valley] = 1
-        self.K_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
+        self.K_up = K_up if K_up is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
         self.K_up -= np.diag(plus_valley_mesh) * self.var_mu[0]
-        self.K_up -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-6)
-        self.K_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
+        self.K_up -= np.diag(minus_valley_mesh) * (self.var_mu[0])# + 1e-6)
+
+        self.K_down = K_down if K_down is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
         self.K_down -= np.diag(plus_valley_mesh) * self.var_mu[0]
-        self.K_down -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-6)
+        self.K_down -= np.diag(minus_valley_mesh) * (self.var_mu[0])# + 1e-6)
 
         assert np.allclose(self.K_up, self.K_down.conj())
         #print(np.linalg.eigh(self.K_up)[0])
@@ -64,6 +77,9 @@ class wavefunction_singlet():
         self.t_gf_update = 0
         self.t_ab = 0
 
+        ### debug
+        self.wf_ampls = []
+
         while True:
             if self.with_previous_state:
                 self.occupied_sites, self.empty_sites, self.place_in_string = previous_state
@@ -72,6 +88,7 @@ class wavefunction_singlet():
                 self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
             else:
                 self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration(particle_hole)
+                print('fresh state')
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
             if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
                 break
@@ -81,7 +98,9 @@ class wavefunction_singlet():
                 print('the determinant is', np.linalg.det(self.U_tilde_matrix))
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
                 print('degenerate: will retry the wave function initialisation', flush = True)
-                # exit(-1)
+                print(self.config.twist)
+                #sleep(30)
+                #exit(-1)
 
         ### delayed-update machinery ###
         self.W_GF = self._construct_W_GF()  # green function as defined in (5.80)
@@ -101,8 +120,12 @@ class wavefunction_singlet():
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V(np.arange(0, self.config.total_dof // 2)))
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
-        self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave)) \
-                                             for wave in self.config.waves_list_unwrapped])
+        #self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave)) \
+        #                                     for wave in self.config.waves_list_unwrapped])
+        self.W_hoppings_derivatives = np.array([self._get_derivative(self._construct_hopping_V(h_up, h_down)) \
+                                                for h_up, h_down in zip(self.hoppings_list_TBC_up, self.hoppings_list_TBC_down)])
+
+
         ### allowed 1-particle moves ###
         self.adjacency_list = self.config.adjacency_transition_matrix 
 
@@ -130,6 +153,11 @@ class wavefunction_singlet():
     def total_density(self):
         return np.sum(self.occupancy) + self.config.total_dof // 2
 
+    def total_plus_density(self):
+        return np.sum(self.occupancy[np.arange(0, self.config.total_dof // 2, 2)]) + self.config.total_dof // 2 // 2
+    def total_minus_density(self):
+        return np.sum(self.occupancy[np.arange(1, self.config.total_dof // 2, 2)]) + self.config.total_dof // 2 // 2
+
     def get_cur_det(self):
         return np.linalg.det(self._construct_U_tilde_matrix())
 
@@ -146,6 +174,14 @@ class wavefunction_singlet():
         V = np.zeros((self.config.total_dof, self.config.total_dof)) * 1.0j  # (6.91) in S. Sorella book
         V[:self.config.total_dof // 2, self.config.total_dof // 2:] = gap
         V[self.config.total_dof // 2:, :self.config.total_dof // 2] = gap.conj().T
+        return V
+
+    def _construct_hopping_V(self, h_up, h_down):
+        V = np.zeros((self.config.total_dof, self.config.total_dof)) * 1.0j  # (6.91) in S. Sorella book
+        V[:self.config.total_dof // 2, :self.config.total_dof // 2] = h_up
+        V[self.config.total_dof // 2:, self.config.total_dof // 2:] = -h_down
+
+        assert np.allclose(V, V.conj().T)
         return V
 
     def _construct_mu_V(self, valley):
@@ -167,20 +203,26 @@ class wavefunction_singlet():
         self.W_GF_complete = np.zeros((self.W_GF.shape[0], self.W_GF.shape[0])) * 1.0j
         self.W_GF_complete[:, self.occupied_sites] = self.W_GF
 
-        O_mu = [self.get_O_pairing(self.W_mu_derivative) if self.config.optimize_mu_BCS else 0.0]
-        O_fugacity = [self.get_O_fugacity()] if not self.config.PN_projection else []
+        O_mu = [self.get_O_pairing(self.W_mu_derivative)]
+        O_fugacity = []#[self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
-        O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
+        #O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
+        O_hoppings = jit_get_O_pairing(self.W_hoppings_derivatives, self.W_GF_complete.T) if len(self.W_hoppings_derivatives) > 0 else []
 
-        O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
+        #O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
+        O = O_mu + O_hoppings + O_pairing + O_Jastrow
 
         return np.array(O)
 
     def _construct_U_matrix(self, orbitals_in_use):
         self.T = construct_HMF(self.config, self.K_up, self.K_down, \
-                          self.pairings_list_unwrapped, self.var_params_gap, self.var_waves, self.reg_gap_term, \
-                          particle_hole = self.particle_hole)
+                               self.pairings_list_unwrapped, self.var_params_gap, self.hoppings_list_TBC_up, self.hoppings_list_TBC_down, \
+                               self.var_hoppings, self.reg_gap_term, \
+                               particle_hole = self.particle_hole, ph_test = self.ph_test, trs_test = self.trs_test)
+
+        if self.ph_test:
+            self.T = -self.T.conj()
         assert np.allclose(self.T, self.T.conj().T)
         plus_valley = np.arange(0, self.config.total_dof, 2)
         self.T[plus_valley, plus_valley] += 1e-9  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number
@@ -245,7 +287,8 @@ class wavefunction_singlet():
 
         elif self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
             #print('Initializing 2nd way', flush=True)
-            # print(self.E)
+            #print(self.E)
+            
             plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj()).real
             # print(plus_valley)
             plus_valley = plus_valley > 0.99
@@ -256,7 +299,7 @@ class wavefunction_singlet():
 
             plus_valley_number = self.config.total_dof // 4 # + self.config.valley_imbalance // 2
             minus_valley_number = self.config.total_dof // 4 # - self.config.valley_imbalance // 2
-            # print('Construction of Slater determinant: {:d} (+) orbitals and {:d} (-) orbitals'.format(plus_valley_number, minus_valley_number))
+            #print('Construction of Slater determinant: {:d} (+) orbitals and {:d} (-) orbitals'.format(plus_valley_number, minus_valley_number))
 
             idxs_total = np.argsort(E)
             idxs_plus = idxs_total[plus_valley][:plus_valley_number]
@@ -267,8 +310,8 @@ class wavefunction_singlet():
         
             self.occupied_levels = np.zeros(len(E), dtype=bool)
             self.occupied_levels[self.lowest_energy_states] = True
-            # print('Initializing Slater wf: particles {:d}, holes {:d}'.format(np.sum(particles), np.sum(holes)))
-            # print('Initializing Slater wf: selected particles {:d}, selected holes {:d}'.format(np.sum(particles * self.occupied_levels), np.sum(holes * self.occupied_levels)))
+            #print('Initializing Slater wf: particles {:d}, holes {:d}'.format(np.sum(particles), np.sum(holes)))
+            #print('Initializing Slater wf: selected particles {:d}, selected holes {:d}'.format(np.sum(particles * self.occupied_levels), np.sum(holes * self.occupied_levels)))
 
             plus_valley_particle = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...], \
                                                          self.U_full[np.arange(0, self.config.total_dof // 2, 2), ...].conj()).real
@@ -291,12 +334,12 @@ class wavefunction_singlet():
             #print('Initializing Slater wf: particles_+ {:d}, particles_- {:d}, holes _+ {:d}, holes_- {:d}'.format(np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole)))
             #print('Initializing Slater wf: selected particles_+ {:d}, selected holes_+ {:d}'.format(np.sum(plus_valley_particle * self.occupied_levels), np.sum(plus_valley_hole * self.occupied_levels)))
             #print('Initializing Slater wf: selected particles_- {:d}, selected holes_- {:d}'.format(np.sum(minus_valley_particle * self.occupied_levels), np.sum(minus_valley_hole * self.occupied_levels)))
-
         elif not self.config.enforce_valley_orbitals and not self.config.enforce_particle_hole_orbitals:
-            #print('Initializing free way', flush=True)
+            # print('Initializing free way', flush=True)
+
             self.lowest_energy_states = np.argsort(E)[:self.config.total_dof // 2]  # select lowest-energy orbitals
             # print(np.argsort(E)[:self.config.total_dof // 2])
-            print(E[self.lowest_energy_states])
+            #print(E[self.lowest_energy_states])
             # print(E)
             U = U[:, self.lowest_energy_states]  # select only occupied orbitals
 
@@ -319,7 +362,7 @@ class wavefunction_singlet():
                                                          self.U_full[np.arange(1, self.config.total_dof // 2, 2), ...].conj()).real
             minus_valley_hole = np.einsum('ij,ij->j', self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...], \
                                                      self.U_full[np.arange(self.config.total_dof // 2 + 1, self.config.total_dof, 2), ...].conj()).real
-
+            #print(plus_valley_particle, plus_valley_hole, minus_valley_particle, minus_valley_hole)
             #print('Hole-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_hole)[-self.config.total_dof // 4:])))
             #print('Hole-plus-ness = {:.10f}'.format(np.min(np.sort(plus_valley_hole)[-self.config.total_dof // 4:])))
             #print('Particle-minus-ness = {:.10f}'.format(np.min(np.sort(minus_valley_particle)[-self.config.total_dof // 4:])))
@@ -333,6 +376,9 @@ class wavefunction_singlet():
             #print('Initializing Slater wf: particles_+ {:d}, particles_- {:d}, holes _+ {:d}, holes_- {:d}'.format(np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole)))
             #print('Initializing Slater wf: selected particles_+ {:d}, selected holes_+ {:d}'.format(np.sum(plus_valley_particle * self.occupied_levels), np.sum(plus_valley_hole * self.occupied_levels)))
             #print('Initializing Slater wf: selected particles_- {:d}, selected holes_- {:d}'.format(np.sum(minus_valley_particle * self.occupied_levels), np.sum(minus_valley_hole * self.occupied_levels)))
+            
+            #exit(-1)
+
             # exit(-1)
 
         if self.config.use_preassigned_orbitals:
@@ -373,8 +419,8 @@ class wavefunction_singlet():
             n_holes_plus = n_holes // 2 - self.config.valley_imbalance // 4
             n_holes_minus = n_holes // 2 + self.config.valley_imbalance // 4
 
-            print('configuration start: ({:d} / {:d})_+, ({:d} / {:d})_-'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
-            # print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
+            #print('configuration start: ({:d} / {:d})_+, ({:d} / {:d})_-'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
+            #print('initialisation particles_+ = {:d}, holes_+ = {:d}, particles_- = {:d}, holes_- = {:d}'.format(n_particles_plus, n_holes_plus, n_particles_minus, n_holes_minus))
 
             particles_plus = np.random.choice(np.arange(0, self.config.total_dof // 2, 2),
                                                         size = n_particles_plus, replace = False)
@@ -390,8 +436,8 @@ class wavefunction_singlet():
                 particles_minus, holes_minus = holes_minus - self.config.total_dof // 2, particles_minus + self.config.total_dof // 2
 
             occupied_sites = np.concatenate([particles_plus, particles_minus, holes_plus, holes_minus])        
-            print('N occupied sites = {:d}'.format(len(occupied_sites)))
-
+            #print('N occupied sites = {:d}'.format(len(occupied_sites)))
+            #exit(-1)
         else:
             occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
                                                         size = n_particles, replace = False)
@@ -418,6 +464,7 @@ class wavefunction_singlet():
     
 
     def perform_MC_step(self, proposed_move = None, enforce = False, demand_accept = False):
+        self.wf_ampls.append(self.current_ampl)
         if demand_accept:
             t = time()
             MC_step_index_previous = self.MC_step_index
@@ -437,13 +484,14 @@ class wavefunction_singlet():
                 empty_site = _choose_empty_site(self.adjacency_list[moved_site], \
                                                 self.state, \
                                                 self.random_numbers_direction[rnd_index])
+                # print(moved_site, self.adjacency_list[moved_site])
                 self.t_choose_site += time() - t
                 #print('choose_site = {:.10f}'.format(time() - t))
             else:  # only in testmode
                 moved_site, empty_site = proposed_move
                 moved_site_idx = self.place_in_string[moved_site]
                 if empty_site not in self.empty_sites or moved_site not in self.occupied_sites:
-                    return False, 1, moved_site, empty_site
+                    return False, 1, 1, moved_site, empty_site
 
             if empty_site < 0:
                 # self.rejected_filled += 1
@@ -466,7 +514,14 @@ class wavefunction_singlet():
 
             # self.wf += time() - t
             # if not enforce and np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index]:
-            if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index]:
+            #if np.abs(empty_site - moved_site) >= 144:
+            #    print('ph-non conserving move!', np.abs(det_ratio) ** 2, (Jastrow_ratio ** 2))
+            #    print(np.sum(np.abs(self.W_GF) > 1e-5))
+            #else:
+            #    print(np.abs(det_ratio) ** 2, (Jastrow_ratio ** 2))
+
+
+            if np.abs(det_ratio) ** 2 * (Jastrow_ratio ** 2) < self.random_numbers_acceptance[rnd_index] and not enforce:
                 #self.rejected_factor += 1
                 #print('rejected by factor', self.n_stored_updates)
                 self.t_overhead_after += time() - t
@@ -480,6 +535,9 @@ class wavefunction_singlet():
         # print(self.current_det, self.current_ampl, self.get_cur_Jastrow_factor())
         self.occupied_sites[moved_site_idx] = empty_site
 
+        if np.abs(empty_site - moved_site) > self.config.Ls ** 2 * 4:
+            assert (empty_site - moved_site) % 2 == 1
+
 
         self.empty_sites.remove(empty_site)
         self.empty_sites.add(moved_site)
@@ -490,6 +548,7 @@ class wavefunction_singlet():
         self.state[moved_site] = 0
         self.state[empty_site] = 1
         self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
+
         # print('valley polarisation', np.sum(self.occupancy[np.arange(0, len(self.occupancy), 2)] - self.occupancy[np.arange(0, len(self.occupancy), 2) + 1]))
         # print('sublattice polarisation', np.sum(self.occupancy[np.arange(0, len(self.occupancy), 4)] + self.occupancy[np.arange(0, len(self.occupancy), 4) + 1] - \
         #                                         self.occupancy[np.arange(0, len(self.occupancy), 4) + 2] + self.occupancy[np.arange(0, len(self.occupancy), 4) + 3] ))
@@ -678,21 +737,29 @@ def jit_get_O_jastrow(Jastrow_A, occupancy):
         derivatives.append(-0.5 * occupancy.dot(Jastrow_A[k].dot(occupancy)))
     return derivatives
 
-def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
-                  var_waves, reg_gap_term, particle_hole = False):
+def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap, \
+                  hoppings_list_TBC_up, hoppings_list_TBC_down,
+                  var_hoppings, reg_gap_term, particle_hole = False, ph_test = False, trs_test = False):
     Delta = pairings.get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params_gap)
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
+
+    for hop_up, hop_down, coeff in zip(hoppings_list_TBC_up, hoppings_list_TBC_down, var_hoppings):
+        T[:config.total_dof // 2, :config.total_dof // 2] += hop_up * coeff
+        T[config.total_dof // 2:, config.total_dof // 2:] += -hop_down * coeff
+
+
+    if trs_test:
+        T = T.conj()
 
     ## various local pairing terms ##
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta if not particle_hole else Delta.conj().T
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T if not particle_hole else Delta
 
     ## regularisation ##
-    T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term
-    T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T
+    T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
+    T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
 
-    for wave, coeff in zip(config.waves_list_unwrapped, var_waves):
-        T += waves.waves_particle_hole(config, wave) * coeff
+    
     return T
 
 @jit(nopython = True)
