@@ -17,6 +17,7 @@ import sys
 import os
 import importlib
 import psutil
+import models
 
 # np.random.seed(0)
 # <<Borrowed>> from Tom
@@ -181,10 +182,18 @@ if __name__ == "__main__":
         n_copy = config.n_copy
         config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
-        assert V == 0 or V == U
-
+        assert V == U
 
         K_matrix = config.model(config, config.mu)[0].real
+
+        ### application of real TBCs ###
+        real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
+        twist = real_twists[(rank + offset) % len(real_twists)]  # each rank knows its twist
+        K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
+        config.pairing_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False).real for gap in config.pairing_list_unwrapped]
+
+
+        ### creating precomputed exponents ###
         K_operator = scipy.linalg.expm(config.dt * K_matrix).real  # exp (-dt (-K_matrix))
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
         K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix).real
