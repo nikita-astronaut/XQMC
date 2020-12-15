@@ -188,9 +188,9 @@ if __name__ == "__main__":
 
         ### application of real TBCs ###
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
-        twist = real_twists[(rank + offset) % len(real_twists)]  # each rank knows its twist
+        twist = real_twists[(rank + config.offset) % len(real_twists)]  # each rank knows its twist
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
-        config.pairing_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False).real for gap in config.pairing_list_unwrapped]
+        config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
 
 
         ### creating precomputed exponents ###
