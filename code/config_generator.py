@@ -13,7 +13,7 @@ class simulation_parameters:
     def __init__(self):
         self.gpu = False
         
-        self.Ls = 4
+        self.Ls = 8
         # spatial size, the lattice will be of size Ls x Ls
         self.Nt = np.array([640])
         self.BC_twist = False; self.twist = (1.0, 1.0)
@@ -42,8 +42,8 @@ class simulation_parameters:
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
-        self.workdir = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/'
-        self.workdir_heavy = '/galileo/home/userexternal/nastrakh/XQMC/logs_dqmc/'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc/'
+        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG//logs_dqmc/'
         self.thermalization = 100000  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;
