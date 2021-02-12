@@ -66,32 +66,64 @@ class MC_parameters:
         self.load_parameters = True; 
         self.load_parameters_path = None
         self.offset = 0
-        self.all_distances = models.get_distances_list(self)
+        # self.all_distances = models.get_distances_list(self)
+        # np.save('dist_ik_8.npy', self.all_distances)
+        # exit(-1)
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[13] # 13
+        #self.pairings_list = pairings.twoorb_hex_all # 13
+        self.pairings_list = [irrep[0] for irrep in pairings.twoorb_hex_all[1:]]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
             self, self.chiral_basis) for g in self.pairings_list_unwrapped]
 
+        '''
+        L_twists = 8
+        twist_list = []
+        for i_x in range(L_twists):
+            for i_y in range(L_twists):
+                twist_list.append([(1. / L_twists + 2. * i_x / L_twists) / 2., (1. / L_twists + 2. * i_y / L_twists) / 2.])
+        for idx, gap in enumerate(self.pairings_list_unwrapped):
+            for twist in twist_list:
+                twist_exp = [np.exp(2.0j * np.pi * twist[0]), np.exp(2.0j * np.pi * twist[1])]
+                gap_twisted = models.apply_TBC(self, twist_exp, deepcopy(gap), inverse = False)
+                np.save('./gaps_extended/all_gaps_twisted_{:d}/gap_{:d}_{:.3f}_{:.3f}.npy'.format(self.Ls, idx, *twist), gap_twisted)
+                print(idx, twist)
+        '''
+        #np.save('./gaps_extended/all_gaps_twisted_{:d}/gap_names.npy'.format(self.Ls), np.array(self.pairings_list_names))
+        #exit(-1)
 
         ### hoppings parameters setting ###
-        all_Koshino_hoppings_real = hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
-        all_Koshino_hoppings_complex = hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
-        self.hoppings = [] #[h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
-        self.hopping_names = [] #[h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
-        for h in self.hoppings:
-            projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
-            print(projection, name)
+        #all_Koshino_hoppings_real = hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
+        #all_Koshino_hoppings_complex = hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
+        #self.hoppings = [] #[h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
+        #self.hopping_names = [] #[h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
+        #for h in self.hoppings:
+        #    projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
+        #    print(projection, name)
 
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
-        self.waves_list = [] # waves.hex_2orb
+        self.waves_list = waves.hex_2orb
+        self.waves_list_unwrapped = [w[0] for w in self.waves_list]
         self.waves_list_names = [w[-1] for w in self.waves_list]
-        self.waves_list_unwrapped = []
-
+        #self.waves_list_unwrapped = [models.xy_to_chiral(g, 'wave', \
+        #     self, self.chiral_basis) for g in self.waves_list_unwrapped]
+        '''
+        for g in self.waves_list_unwrapped:
+            for i in range(g.shape[0]):
+                for j in range(g.shape[1]):
+                    if not np.isclose(g[i, j], 0) and i % 2 != j % 2:
+                        print(g[i, j], i, j)
+                        exit(-1)
+        '''
+        for idx, g in enumerate(self.waves_list_unwrapped):
+            print(g[:2, :2])
+            np.save('./waves_{:d}/wave_{:d}.npy'.format(self.Ls, idx), g)
+        np.save('./waves_{:d}/wave_names.npy'.format(self.Ls), np.array(self.waves_list_names))
+        exit(-1)
 
         self.enforce_valley_orbitals = True
         for name in self.pairings_list_names:
