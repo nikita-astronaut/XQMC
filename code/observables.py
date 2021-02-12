@@ -667,16 +667,14 @@ class Observables:
 
         np.save(os.path.join(self.local_workdir, 'gap_names.npy'), np.array(self.config.pairings_list_names))
 
-        orders = np.zeros((len(self.config.waves_list_names), self.config.Ls, self.config.Ls), dtype=np.complex64)
 
-        idx_order = 0
+        orders = []
         for order_name in self.config.waves_list_names:
-            orders[idx_order, ...] = self.order_observables_list[order_name + '_order']
-            idx_order += 1
+            orders.append(self.order_observables_list[order_name + '_order'])
 
         np.save(os.path.join(self.local_workdir, 'orders_names.npy'), np.array(self.config.waves_list_names))
         name = os.path.join(self.local_workdir, 'order_{:d}.npy'.format(n_sweep))
-        np.save(name, orders)
+        np.save(name, np.array(orders))
 
 
         self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))

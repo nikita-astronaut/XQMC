@@ -11,20 +11,21 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = Ls ** 2 * 4 - 2 * 4
-        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
+        self.Ne = Ls ** 2 * 4  - 4 * 2#  - 2 * 4
+        self.BC_twist = True; self.twist_mesh = 'APBCy'  # apply BC-twist
         self.L_twists_uniform = 6
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 5; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, 0.0, spin = +1.0)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
-        print(np.unique(self.K_0))
 
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
-        print(np.unique(self.K_0))
+        print('energies =', np.linalg.eigh(self.K_0)[0])
+
+
         check_chirality(self.K_0, self.chiral_basis)
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
 
@@ -43,14 +44,14 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 9.93 / 4
-        self.xi = 0.30
+        self.epsilon = 2.#9.93 / 3. # 1e+10 #9.93 / 4
+        self.xi = 0.10
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 0.
 
         ### density VQMC parameters ###
         self.valley_imbalance = 0
-        self.enforce_particle_hole_orbitals = True  # FIXME
+        self.enforce_particle_hole_orbitals = False  # FIXME
 
         # self.enforce_valley_orbitals = False  # constructs Slater determinant selecting valley orbitals separately
         self.use_preassigned_orbitals = False; self.preassigned_orbitals_path = '/home/astronaut/Documents/DQMC_TBG/logs/x11/saved_orbital_indexes.npy'
@@ -71,16 +72,32 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = []#pairings.twoorb_hex_all[13] # 13
+        self.pairings_list = pairings.twoorb_hex_all[13] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
+
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
             self, self.chiral_basis) for g in self.pairings_list_unwrapped]
 
+        '''
+        L_twists = 8
+        twist_list = []
+        for i_x in range(L_twists):
+            for i_y in range(L_twists):
+                twist_list.append([(1. / L_twists + 2. * i_x / L_twists) / 2., (1. / L_twists + 2. * i_y / L_twists) / 2.])
+        for idx, gap in enumerate(self.pairings_list_unwrapped):
+            for twist in twist_list:
+                twist_exp = [np.exp(2.0j * np.pi * twist[0]), np.exp(2.0j * np.pi * twist[1])]
+                gap_twisted = models.apply_TBC(self, twist_exp, deepcopy(gap), inverse = False)
+                np.save('/home/astronaut/Documents/DQMC_TBG/all_gaps_twisted_{:d}/gap_{:d}_{:.3f}_{:.3f}.npy'.format(self.Ls, idx, *twist), gap_twisted)
+        np.save('/home/astronaut/Documents/DQMC_TBG/all_gaps_twisted/gap_names.npy', np.array(self.pairings_list_names))
+        '''
+        # exit(-1)
+
 
         ### hoppings parameters setting ###
-        all_Koshino_hoppings_real = hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
-        all_Koshino_hoppings_complex = hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
+        all_Koshino_hoppings_real = [] #hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
+        all_Koshino_hoppings_complex = [] #hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
         self.hoppings = [h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex][2:-3]
         self.hopping_names = [h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex][2:-3]
         for h, name in zip(self.hoppings, self.hopping_names):
@@ -108,7 +125,7 @@ class MC_parameters:
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
         #self.jastrows_list = jastrow.jastrow_Koshino_Gutzwiller 
-        self.jastrows_list = jastrow.jastrow_Koshino_simple[:2]
+        self.jastrows_list = jastrow.jastrow_Koshino_simple#[:2]
         #print(self.jastrows_list, 'jastrow')
         # print(np.sum(self.jastrows_list[0][0]))
         # print(self.jastrows_list[0][0])
@@ -119,15 +136,19 @@ class MC_parameters:
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
 
-        
+        ### SDW/CDW parameters setting ###
+        waves.obtain_all_waves(self)
+        self.waves_list = [] # waves.hex_2orb
+        self.waves_list_names = [w[-1] for w in self.waves_list]
+        self.waves_list_unwrapped = []
 
         ### optimisation parameters ###
-        self.MC_chain = 500000; self.MC_thermalisation = 10000; self.opt_raw = 1500;
-        self.optimisation_steps = 3000; self.thermalization = 13000; self.obs_calc_frequency = 20
+        self.MC_chain = 1000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
+        self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
-        self.correlation = (self.total_dof // 2) * 6
+        self.correlation = (self.total_dof // 2) * 5
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-3, 2e-2, 1.00]
+        self.opt_parameters = [1e-3, 0.02, 1.00]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 10
         self.generator_mode = True
@@ -137,7 +158,7 @@ class MC_parameters:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
                                                     self, self.chiral_basis)  # FIXME
         else:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
+            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis) # FIXME
         self.reg_gap_val = 0.000
 
@@ -151,8 +172,8 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.random.uniform(0.03, 0.03, size = self.layout[3]),  # gaps
-            np.random.uniform(0.2, 0.2, size = self.layout[4]),  # jastrows
+            np.random.uniform(1e-1, 1e-1, size = self.layout[3]),  # gaps
+            np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
 
         '''
@@ -165,7 +186,7 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[np.sum(self.layout[:-1])] = 1.3
+        self.initial_parameters[np.sum(self.layout[:-1])] = 0.0
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:

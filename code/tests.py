@@ -5,6 +5,8 @@ from time import time
 import models
 from visualisation import K_FT
 from opt_parameters import pairings
+from opt_parameters import jastrow
+from numba import jit
 
 def compare_derivatives_numerically(wf_1, wf_2, der_idx, dt):
     der_numerically = 2 * (np.abs(wf_2.current_ampl) - np.abs(wf_1.current_ampl)) / dt / (np.abs(wf_1.current_ampl) + np.abs(wf_2.current_ampl))
@@ -302,7 +304,6 @@ def test_gf_symmetry(config):
     Tx = np.argmax(np.abs(pairings.Tx_symmetry_map), axis = 0)
     Ty = np.argmax(np.abs(pairings.Ty_symmetry_map), axis = 0)
 
-    print(C3z)
 
     TRS = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.total_dof // 2)])
     PHS = np.concatenate([np.arange(config.total_dof // 2, config.total_dof), np.arange(0, config.total_dof // 2)], axis = 0)
@@ -314,7 +315,7 @@ def test_gf_symmetry(config):
 
     parameters = config.initial_parameters.copy()
     parameters[0] = 0;  # to ensure particle-hole symmetry
-    for _ in range(200):
+    for _ in range(20):
         wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         ampl = wf.get_cur_det() * wf.get_cur_Jastrow_factor()
         occ_sites, _, _ = wf.get_state()
@@ -705,49 +706,95 @@ def test_BC_twist(config):
     print('Passed', flush=True)
     return True
 
-def test_FT_BC_twist(config):
-    geometry = 'hexagonal' if config.n_sublattices == 2 else 'square'
-    if geometry == 'hexagonal':
-        R = models.R_hexagonal
-        G = models.G_hexagonal
-    else:
-        R = models.R_square
-        G = models.G_square
+@jit(nopython=True)
+def get_fft(N, nbands, twist):
 
+    W = np.zeros((N ** 2, N ** 2), dtype=np.complex128)
+    for kx in range(N):
+        for ky in range(N):
+            for x in range(N):
+                for y in range(N):
+                    W[x * N + y, kx * N + ky] = np.exp((2.0j * np.pi / N * kx - 2.0j * np.pi * twist[0] / N) * x + \
+                                                       (2.0j * np.pi / N * ky - 2.0j * np.pi * twist[1] / N) * y)
+    return np.kron(W, np.eye(nbands))
+
+from copy import deepcopy
+
+def test_FT_BC_twist(config):
     K0 = config.K_0
 
-    twist = 2.0 * np.pi * np.random.uniform(0, 1, size=2) 
-    k_real_square = 2.0 * np.pi * np.random.uniform(0, 1, size=2) * 0
-    k_real_hex = np.einsum('ji,j->i', G, k_real_square / 2 / np.pi)
+    nbands = config.n_orbitals * config.n_sublattices
 
-    K0_ft = K_FT(k_real_hex, K0, config, R)  # fourier with k
-    K0_twisted = models.apply_TBC(config, np.exp(1.0j * twist), deepcopy(K0), inverse = False)  # twist BC with \theta
-    K0_twisted_ft = K_FT(np.einsum('ji,j->i', G, (k_real_square - twist) / 2 / np.pi), K0_twisted, config, R)  # fourier with k - \theta
+    for _ in range(100):
+        #twist = np.array([0.5, 0.5]) #
+        twist = np.random.uniform(0, 1, size=2) 
+        fft_plus = get_fft(config.Ls, nbands // 2, twist)
+        fft_minus = get_fft(config.Ls, nbands // 2, np.array([-twist[0], -twist[1]]))
+        
+        K0_twisted = models.apply_TBC(config, np.exp(1.0j * 2.0 * np.pi * twist), deepcopy(K0), inverse = False)
+        K0_twisted_plus = K0_twisted[np.arange(0, K0_twisted.shape[0], 2), :]; K0_twisted_plus = K0_twisted_plus[:, np.arange(0, K0_twisted.shape[0], 2)]
+        K0_twisted_minus = K0_twisted[np.arange(1, K0_twisted.shape[0], 2), :]; K0_twisted_minus = K0_twisted_minus[:, np.arange(1, K0_twisted.shape[0], 2)]
 
-    print(twist)
-    print(k_real_square)
-    print(np.linalg.eigh(K0_ft)[0])
-    print(np.linalg.eigh(K0_twisted_ft)[0])
+        K0_twisted_plus = fft_plus.conj().T.dot(K0_twisted_plus.dot(fft_plus))
+        K0_twisted_minus = fft_minus.conj().T.dot(K0_twisted_minus.dot(fft_minus))
 
-    assert np.allclose(K0_ft, K0_twisted_ft)  # should agree (probably)
+        K0_check = K0_twisted_plus.copy()
+
+
+        for i in range(K0.shape[0] // nbands):
+            K0_check[i * nbands // 2:i * nbands // 2 + nbands // 2,i * nbands // 2:i * nbands // 2 + nbands // 2] = 0.0
+        if not np.isclose(np.sum(np.abs(K0_check)), 0.0):
+            print('plus valley twist BC test failed with twist', twist)
+            exit(-1)
+            return False
+
+
+        K0_check = K0_twisted_minus.copy()
+        for i in range(K0.shape[0] // nbands):
+            K0_check[i * nbands // 2:i * nbands // 2 + nbands // 2,i * nbands // 2:i * nbands // 2 + nbands // 2] = 0.0
+        if not np.isclose(np.sum(np.abs(K0_check)), 0.0):
+            print('minus valley twist BC test failed with twist', twist)
+            exit(-1)
+            return False
 
     print('Passed', flush=True)
     return True
 
+def test_simple_Koshino_Jastrow_equaldistant_allaccounting(config):
+    print('Testing Jastrow uniqueness...')
+    jastrows = jastrow.jastrow_Koshino_simple
+    all_distances = config.all_distances
 
+    for J in jastrows:
+        j, name = J
+
+        unique_distances = np.unique(np.around(all_distances[j > 0], decimals = 5))
+        if len(unique_distances) > 1:
+            exit(-1)
+            return False
+
+        val = unique_distances[0]
+
+        if val in np.unique(np.around(all_distances * (1. - 2 * j), decimals = 5)) and val > 0:
+            print(val, np.unique(np.around(all_distances * (1. - 2 * j), decimals = 5)))
+            exit(-1)
+            return False
+    print('Passed', flush=True)
+    return True
 
 def perform_all_tests(config):
     success = True
+    success = success and test_simple_Koshino_Jastrow_equaldistant_allaccounting(config)
+    success = success and test_FT_BC_twist(config)
     success = success and test_gf_symmetry(config)
     success = success and test_numerical_derivative_check(config)
     success = success and test_BC_twist(config)
-    success = success and test_FT_BC_twist(config)
     success = success and test_chiral_gap_preserves_something(config)
     success = success and test_chain_moves(config)
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
     success = success and test_numerical_derivative_check(config)
-    #success = success and test_particle_hole(config)
+    success = success and test_particle_hole(config)
     success = success and test_BC_twist(config)
     success = success and test_all_jastrow_factors_included_only_once(config)
     success = success and test_explicit_factors_check(config)
