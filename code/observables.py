@@ -54,6 +54,8 @@ class Observables:
         self.reduced_A_gap = models.get_reduced_adjacency_matrix(self.config, \
             self.config.max_square_pairing_distance)
         self.ijkl = np.array(get_idxs_list(self.reduced_A_gap))
+        np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
+        exit(-1)
 
         # for order-order susceptibility
         self.reduced_A_order = models.get_reduced_adjacency_matrix(self.config, \

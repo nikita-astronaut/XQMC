@@ -146,6 +146,9 @@ class hamiltonian_1orb_shortrange(HubbardHamiltonian):
 def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
     E_loc = 0.0 + 0.0j
 
+    #energies_up = 0.0 + 0.0j
+    #energies_down = 0.0 + 0.0j
+
     for i in range(len(base_state)):
         for j in range(len(base_state)):
             if edges_quadratic[i, j] == 0:
@@ -156,7 +159,19 @@ def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
                 continue
             if not (base_state[i] == 1 and base_state[j] == 0):
                 continue
+            #print('{:d} -> {:d} at {:d} = ({:.20f} + I {:.20f}) x ({:.20f} + I {:.20f})'.format(i % 64, j % 64, i // 64, edges_quadratic[i, j].real, edges_quadratic[i, j].imag, get_wf_ratio(*wf_state, total_fugacity, i, j).real, get_wf_ratio(*wf_state, total_fugacity, i, j).imag))  # I multiply K_ij by GF(i, j) -- is GF(i, j) = <c^{dag}_i c_j> ? but in get_wf it is (moved_site, empty_site). 
+
+            #if i >= 64:
+            #    energies_down += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)
+            #else:
+            #    energies_up += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)
             E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)
+            #print(energies_down)
+    #print('energy_up =', energies_up)
+    #print('energy_down =', energies_down)
+
+    #print('total energy =', energies_up + energies_down)
+    #exit(-1)
     return E_loc
 
 @jit(nopython=True)  # http://sces.phys.utk.edu/mostcited/mc1_1114.pdf

@@ -10,9 +10,9 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 
 import numpy as np
-np.set_printoptions(linewidth=np.inf)
+#np.set_printoptions(linewidth=np.inf)
 import sys
-np.set_printoptions(threshold=sys.maxsize)
+#np.set_printoptions(threshold=sys.maxsize)
 import time
 import sys
 from wavefunction_vmc import wavefunction_singlet
@@ -143,7 +143,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
 
 
 def write_initial_logs(log_file, force_file, force_SR_file, config_vmc):
-    log_file.write("⟨opt_step⟩ ⟨energy⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩ n_above_FS ")
+    log_file.write("⟨opt_step⟩ ⟨ReE⟩ ⟨ImE⟩ ⟨denergy⟩ ⟨n⟩ ⟨dn⟩ ⟨variance⟩ ⟨acceptance⟩ ⟨force⟩ ⟨force_SR⟩ ⟨gap⟩ n_above_FS ")
     force_file.write("⟨opt_step⟩ ")
     force_SR_file.write("⟨opt_step⟩ ")
 
@@ -184,8 +184,8 @@ def print_model_summary(config_vmc):
 def write_intermediate_log(log_file, force_file, force_SR_file, n_step, vol, energies, densities, \
                            mean_variance, acceptance, forces, step, gap, \
                            n_above_FS, parameters):
-    log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e} {:d}" + " {:.7e} " * len(step) + "\n").format(n_step, \
-                    np.mean(energies).real / vol, np.std(energies).real / np.sqrt(len(energies)) / vol, \
+    log_file.write(("{:d} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.7e} {:.3e} {:.3e} {:.3e} {:.7e} {:d}" + " {:.7e} " * len(step) + "\n").format(n_step, \
+                    np.mean(energies).real / vol, np.mean(energies).imag / vol, np.std(energies).real / np.sqrt(len(energies)) / vol, \
                     np.mean(densities).real / vol, np.std(densities).real / np.sqrt(len(densities)) / vol, \
                     mean_variance, acceptance, np.sqrt(np.sum(forces ** 2)), np.sqrt(np.sum(step ** 2)),
                     gap, n_above_FS, *parameters))
@@ -305,6 +305,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     t = time()
     hamiltonian = config_vmc.hamiltonian(config_vmc, K_up, K_down)  # the Hubbard Hamiltonian will be initialized with the 
     print('H init takes {:.10f}'.format(time() - t))
+
     # print(K_up, K_down, flush=True)
     ''' 
     if final_state == False:
@@ -325,6 +326,10 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
                               True, final_state, orbitals_in_use, \
                               False, K_up, K_down, reg)
     print('WF Init takes {:.10f}'.format(time() - t))
+    #wf.perform_explicit_GF_update()
+    #print(hamiltonian(wf))
+    #print(wf.current_det)
+    configs = []
 
     t_steps = 0
     t = time()
@@ -382,6 +387,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
 
         #t = time()
         acceptance.append(wf.perform_MC_step(demand_accept = False)[0])
+        #configs.append(wf.state.copy() * 1.0)
         #print('MC step take {:.10f}'.format(time() - t))
         t_steps += time() - t
     # print('t_chain = ', time() - tc)
@@ -396,6 +402,7 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
     #    self.t_ab = 0
     #print('accepted = {:d}, rejected_filling = {:d}, rejected_factor = {:d}'.format(wf.accepted, wf.rejected_filled, wf.rejected_factor))
     
+    '''
     U = wf.U_matrix
     plus_valley_particle = np.einsum('ij,ij->j', U[np.arange(0, config_vmc.total_dof // 2, 2), ...], \
                                                  U[np.arange(0, config_vmc.total_dof // 2, 2), ...].conj()).real
@@ -416,6 +423,15 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
           np.mean(np.abs(np.abs(Os)[:, 0])), \
           np.sum(plus_valley_particle), np.sum(minus_valley_particle), np.sum(plus_valley_hole), np.sum(minus_valley_hole), \
           np.sum(plus_valley_particle + plus_valley_hole + minus_valley_particle + minus_valley_hole))
+    print('!!!!!!!!!!!!!!!!', wf.accepted / (wf.accepted + wf.rejected_factor), np.mean(wf.ws), np.mean(np.array(wf.ws) ** 2))
+    '''
+
+    #configs = np.array(configs)
+    #print('correlation: ')
+    #for shift in range(1000):
+    #    A = np.einsum('ij,ij', configs[np.arange(len(configs) - shift)], configs[shift + np.arange(len(configs) - shift)]) / len(np.arange(len(configs) - shift)) / len(configs[0]) * 2
+    #    print('A[{:d}] = {:.10f}'.format(shift, A), flush=True)
+
     return energies, Os, acceptance, wf.get_state(), observables, \
            names, wf.U_matrix, wf.E, densities, wf.gap
 
@@ -433,8 +449,8 @@ def run_simulation(delta_reg, previous_params):
     if previous_params is not None:
         config_vmc.initial_parameters = previous_params
 
-    config_vmc.initial_parameters[config_vmc.layout[0] + config_vmc.layout[1] + config_vmc.layout[2]:config_vmc.layout[0] + \
-                              config_vmc.layout[1] + config_vmc.layout[2] + config_vmc.layout[3]] = delta_reg
+    #config_vmc.initial_parameters[config_vmc.layout[0] + config_vmc.layout[1] + config_vmc.layout[2]:config_vmc.layout[0] + \
+    #                          config_vmc.layout[1] + config_vmc.layout[2] + config_vmc.layout[3]] = delta_reg
     config_vmc.workdir = config_vmc.workdir + '/irrep_{:d}_delta_{:.3f}/'.format(rank, delta_reg)
     
     os.makedirs(config_vmc.workdir, exist_ok=True)
@@ -444,7 +460,7 @@ def run_simulation(delta_reg, previous_params):
 
 
     if config_vmc.visualisation:
-        config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
+        # config_vmc.twist = [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (0.1904 + 0.1))]
         visualisation.plot_levels_evolution_mu(config_vmc)
         visualisation.plot_all_waves(config_vmc)
         visualisation.plot_DOS(config_vmc)
@@ -617,12 +633,12 @@ def run_simulation(delta_reg, previous_params):
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            if n_step < 50000:  # jastrows and mu_BCS have not converged yet
-                mask = np.ones(np.sum(config_vmc.layout))
-                # mask[-config_vmc.layout[4]:] = 1.
-                # mask[:config_vmc.layout[0]] = 1.
-                mask[config_vmc.layout[0] + config_vmc.layout[1] + config_vmc.layout[2]:config_vmc.layout[0] + \
-                     config_vmc.layout[1] + config_vmc.layout[2] + config_vmc.layout[3]] = 0.
+            #if n_step < 50000:  # jastrows and mu_BCS have not converged yet
+            #    mask = np.ones(np.sum(config_vmc.layout))
+            #    # mask[-config_vmc.layout[4]:] = 1.
+            #    # mask[:config_vmc.layout[0]] = 1.
+            #    mask[config_vmc.layout[0] + config_vmc.layout[1] + config_vmc.layout[2]:config_vmc.layout[0] + \
+            #         config_vmc.layout[1] + config_vmc.layout[2] + config_vmc.layout[3]] = 0.
             #mask[1] = 0.0  # fugacity is not optimized in the meantime
 
             # Os = [np.einsum('ik,k->ik', Os_theta, config_vmc.mask) for Os_theta in Os]
@@ -668,6 +684,6 @@ def run_simulation(delta_reg, previous_params):
 
 if __name__ == "__main__":
     previous_params = None
-    for delta_reg in [0.015]:#np.linspace(5e-3, 5e-2, 10)[::-1]:
+    for delta_reg in [0.000]:#np.linspace(5e-3, 5e-2, 10)[::-1]:
         previous_params = run_simulation(delta_reg = delta_reg, previous_params=previous_params)
 

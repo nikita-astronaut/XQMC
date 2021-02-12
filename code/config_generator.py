@@ -43,6 +43,7 @@ class simulation_parameters:
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
+
         self.workdir = '/home/users/astrakhantsev/DQMC_TBG//logs_dqmc/'
         self.workdir_heavy = '/home/users/astrakhantsev/DQMC_TBG/logs_dqmc/'
         self.thermalization = 2000  # after how many sweeps start computing observables
@@ -53,7 +54,7 @@ class simulation_parameters:
 
         ### pairings parameters setting (only for measurements) ###
         pairings.obtain_all_pairings(self)
-        self.pairings_list = []#pairings.twoorb_hex_all_dqmc
+        self.pairings_list = pairings.twoorb_hex_all_dqmc
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.max_square_pairing_distance = 1. # / 3.  # on-site + NN case on hex lattice

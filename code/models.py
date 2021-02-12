@@ -223,7 +223,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     n_orbitals = 2
     n_sublattices = 2
     total_dof = Ls ** 2 * n_orbitals * n_sublattices * 2
-    t1, t2, t5, t4 = 0.331, (-0.010 * 0. + 1.0j * 0.097 ), 0.119 * 0., 0.036 * 0.
+    t1, t2, t5, t4 = 0.331, (-0.010 * 0. + 1.0j * 0.097), 0 * 0.119, 0 * 0.036
 
 
     K = np.zeros((total_dof // 2, total_dof // 2)) * 1.0j
@@ -252,10 +252,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
             if orbit1 == orbit2 and sixth_nearest_neighbor(r1, r2, Ls) and sublattice1 == 1 and sublattice2 == 0:
                 K[first, second] = t4
 
-    print(K)
     K = K + K.conj().T
-    print(K)
-    K = K - mu * np.eye(K.shape[0])
 
     inverse = False if spin > 0 else True
     return K, n_orbitals, n_sublattices 
