@@ -199,9 +199,10 @@ def xy_to_chiral(M, term_type, config, chiral = False):
     if term_type == 'K_matrix' or term_type == 'bilinear':
         M_chiral = U_xy_to_chiral.conj().T.dot(M).dot(U_xy_to_chiral)
     elif term_type == 'wave':
-        print(M)
         M_chiral = np.kron(np.eye(2), U_xy_to_chiral).conj().T.dot(M).dot(np.kron(np.eye(2), U_xy_to_chiral))
+        print(M[:2, :2], M_chiral[:2, :2], np.kron(np.eye(2), U_xy_to_chiral)[:2, :2])
     else:
+        print(U_xy_to_chiral.shape, M.shape)
         M_chiral = U_xy_to_chiral.T.dot(M).dot(U_xy_to_chiral)  # pairing
 
     #if term_type == 'pairing':
@@ -254,7 +255,7 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
     print(K)
     K = K + K.conj().T
     print(K)
-    # K = K - mu * np.eye(K.shape[0])
+    K = K - mu * np.eye(K.shape[0])
 
     inverse = False if spin > 0 else True
     return K, n_orbitals, n_sublattices 
