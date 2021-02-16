@@ -56,7 +56,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
         n_fields = 1
         sp_index_range = phi_field.config.total_dof // 2 // phi_field.config.n_orbitals * n_fields
     elif phi_field.config.n_orbitals == 2:
-        n_fields = 3
+        n_fields = 1
         sp_index_range = phi_field.config.total_dof // 2 // phi_field.config.n_orbitals * n_fields
     else:
         raise NotImplementedError()
@@ -70,7 +70,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
 
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
-            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
+            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check = True
@@ -80,18 +80,21 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
-            
+
             current_det_sign_before = current_det_sign * 1.0
-            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, phi_field.sign_det_up * phi_field.sign_det_down
+            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
-            if current_det_sign_before != current_det_sign:  # refresh of Green's function must preserve sign (robust)
-                print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used')
+            if not np.isclose(current_det_sign_before, current_det_sign):  # refresh of Green's function must preserve sign (robust)
+                print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used:', current_det_sign_before, current_det_sign)
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check = True
+        # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
         phi_field.wrap_up(time_slice)
         if switch:
             phi_field.copy_to_CPU()
 
+
+        # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
         for sp_index in range(sp_index_range // n_fields):
             site_idx = sp_index
 
@@ -99,29 +102,37 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             local_gauge_factors = []
             local_conf_old = phi_field.get_current_conf(site_idx, time_slice)
 
+
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move(site_idx, time_slice, local_conf_old, local_conf)
 
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, local_conf)
-
-                if n_fields > 1:
+                if phi_field.config.n_orbitals > 1:
                     det_ratio = auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
-                                auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
+                                auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-16
                 else:
                     det_ratio = auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
-                                auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-11
+                                auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-16
+
                 local_det_factors.append(det_ratio)
                 local_gauge_factors.append(gauge_ratio)
+                
 
-            probas = np.abs(np.array(local_det_factors) * np.array(local_gauge_factors))
+            probas = np.array(local_det_factors) * np.array(local_gauge_factors)
+            assert np.allclose(probas.real, probas)
+
+            probas = np.abs(probas)
+
             idx = np.random.choice(np.arange(len(local_det_factors)), \
                                    p = probas / np.sum(probas))
 
             new_conf = phi_field.local_conf_combinations[idx]
+            assert probas[idx] > 0
 
             current_det_log += np.log(np.abs(local_det_factors[idx]))
             current_gauge_factor_log += np.log(local_gauge_factors[idx])
-            current_det_sign *= np.sign(local_det_factors[idx])
+
+            current_det_sign *= local_det_factors[idx] / np.abs(local_det_factors[idx])
             
             ratio = np.log(np.abs(local_det_factors[idx]))
             accepted = (new_conf != local_conf_old)
@@ -130,9 +141,10 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             if accepted:
                 phi_field.compute_deltas(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq(site_idx)
                 phi_field.update_field(site_idx, time_slice, new_conf)
-            if False: #need_check:
-                G_up_check, det_log_up_check = phi_field.get_G_no_optimisation(+1, time_slice)[:2]
-                G_down_check, det_log_down_check = phi_field.get_G_no_optimisation(-1, time_slice)[:2]
+
+            if False:#True: #need_check:
+                G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
+                G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
 
                 d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                 d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
@@ -144,12 +156,17 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                     print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
                 else:
                     print('test passed')
-                print('Determinant discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
+                print('log |det| discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
+                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check)
+                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_down_check)
+                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log())) / phase_up_check / phase_down_check)
+                print('phase det discrepancy:', phase_up_check * phase_down_check * current_det_sign)
+                print(phase_up_check)
                 need_check = False
 
-            observables.update_history(ratio, accepted, current_det_sign)
-        observables.measure_light_observables(phi_field, current_det_sign.item(), n_sweep)
+            observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
+        observables.measure_light_observables(phi_field, 1, n_sweep)
     
     if n_sweep >= phi_field.config.thermalization:
         t = time()
@@ -188,16 +205,12 @@ if __name__ == "__main__":
 
         ### application of real TBCs ###
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
+        twist = real_twists[0] #[(rank + config.offset) % len(real_twists)]  # each rank knows its twist
 
-        #for tidx, twist in enumerate(real_twists):
-        #    for gidx, gap in enumerate(config.pairings_list_unwrapped):
-        #        np.save('./gaps_8x8_extended/twist_{:d}/gap_{:d}.npy'.format(tidx, gidx), models.apply_TBC(config, twist, deepcopy(gap), inverse = False))
-        #np.save('./gaps_8x8_extended/gaps_names.npy', np.array(config.pairings_list_names))
-        #exit(-1)
-        twist = real_twists[0] #[(rank + config.offset) % len(real_twists)]  # each rank knows its twist  # FIXME
+
+        K_matrix = models.xy_to_chiral(K_matrix, 'K_matrix', config, config.chiral_basis)
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
-        
 
 
         ### creating precomputed exponents ###

@@ -54,8 +54,8 @@ class Observables:
         self.reduced_A_gap = models.get_reduced_adjacency_matrix(self.config, \
             self.config.max_square_pairing_distance)
         self.ijkl = np.array(get_idxs_list(self.reduced_A_gap))
-        np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
-        exit(-1)
+        #np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
+        #exit(-1)
 
         # for order-order susceptibility
         self.reduced_A_order = models.get_reduced_adjacency_matrix(self.config, \
@@ -263,10 +263,14 @@ class Observables:
 
     def init_light_cumulants(self):
         self.light_cumulants = OrderedDict({
-            '⟨density⟩' : 0.0, 
-            '⟨E_K⟩' : 0.0, 
-            '⟨E_C⟩' : 0.0,
-            '⟨E_T⟩' : 0.0,
+            '⟨Re density⟩' : 0.0, 
+            '⟨Im density⟩' : 0.0,
+            '⟨Re E_K⟩' : 0.0, 
+            '⟨Im E_K⟩' : 0.0,
+            '⟨Re E_C⟩' : 0.0,
+            '⟨Im E_C⟩' : 0.0,
+            '⟨Re E_T⟩' : 0.0,
+            '⟨Im E_T⟩' : 0.0,
             '⟨c^dag_{+down}c_{-down}⟩_re' : 0.0,
             '⟨c^dag_{+down}c_{-down}⟩_im' : 0.0,
             '⟨c^dag_{-down}c_{-down}⟩_re' : 0.0,
@@ -280,10 +284,14 @@ class Observables:
     def refresh_light_logs(self):
         # self.log_file.flush()
         self.light_observables_list = OrderedDict({
-            '⟨density⟩' : [], 
-            '⟨E_K⟩' : [], 
-            '⟨E_C⟩' : [],
-            '⟨E_T⟩' : [],
+            '⟨Re density⟩' : [], 
+            '⟨Im density⟩' : [],
+            '⟨Re E_K⟩' : [], 
+            '⟨Im E_K⟩' : [],
+            '⟨Re E_C⟩' : [],
+            '⟨Im E_C⟩' : [],
+            '⟨Re E_T⟩' : [],
+            '⟨Im E_T⟩' : [],
             '⟨c^dag_{+down}c_{-down}⟩_re' : [],
             '⟨c^dag_{+down}c_{-down}⟩_im' : [],
             '⟨c^dag_{-down}c_{-down}⟩_re' : [],
@@ -303,7 +311,7 @@ class Observables:
         print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
               "lattice = {:d}^2 x {:d}".format(self.config.start_type, 1.0 / self.config.dt / self.config.Nt, \
                                                self.config.mu, self.config.Ls, self.config.Nt))
-        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨n⟩ ⟨E_K⟩ ⟨E_C⟩ ⟨E_T⟩ ⟨c^dag_{+down}c_{-down}⟩_re ⟨c^dag_{+down}c_{-down}⟩_im ⟨c^dag_{-down}c_{-down}⟩_re ⟨c^dag_{-down}c_{-down}⟩_im ⟨m_z^2⟩')
+        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨Re n⟩ ⟨Im n⟩ ⟨Re E_K⟩ ⟨Im E_K⟩ ⟨Re E_C⟩ ⟨Im E_C⟩ ⟨Re E_T⟩ ⟨Im E_T⟩ ⟨c^dag_{+down}c_{-down}⟩_re ⟨c^dag_{+down}c_{-down}⟩_im ⟨c^dag_{-down}c_{-down}⟩_re ⟨c^dag_{-down}c_{-down}⟩_im ⟨m_z^2⟩')
         return
     '''
     def print_std_logs(self, n_sweep):
@@ -327,15 +335,19 @@ class Observables:
     def print_std_logs(self, n_sweep):
         if self.n_cumulants == 0 or self.global_average_sign == 0:
             return
-        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f}".format(
+        print("{:d} {:.5f} {:.2f} {:.3f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f}".format(
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
             self.global_average_sign,
-            self.light_cumulants['⟨density⟩'] / self.n_cumulants / self.global_average_sign,
-            self.light_cumulants['⟨E_K⟩'] / self.n_cumulants / self.global_average_sign,
-            self.light_cumulants['⟨E_C⟩'] / self.n_cumulants / self.global_average_sign,
-            self.light_cumulants['⟨E_T⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Re density⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Im density⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Re E_K⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Im E_K⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Re E_C⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Im E_C⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Re E_T⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Im E_T⟩'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_re'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_im'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_re'] / self.n_cumulants / self.global_average_sign,
@@ -352,10 +364,16 @@ class Observables:
 
         G_up, G_down = phi.get_equal_time_GF()
 
-        self.light_observables_list['⟨density⟩'].append(density)
-        self.light_observables_list['⟨E_K⟩'].append(k)
-        self.light_observables_list['⟨E_C⟩'].append(C)
-        self.light_observables_list['⟨E_T⟩'].append((k + C))
+        self.light_observables_list['⟨Re density⟩'].append(density.real)
+        self.light_observables_list['⟨Re E_K⟩'].append(k.real)
+        self.light_observables_list['⟨Re E_C⟩'].append(C.real)
+        self.light_observables_list['⟨Re E_T⟩'].append((k + C).real)
+        
+        self.light_observables_list['⟨Im density⟩'].append(density.imag)
+        self.light_observables_list['⟨Im E_K⟩'].append(k.imag)
+        self.light_observables_list['⟨Im E_C⟩'].append(C.imag)
+        self.light_observables_list['⟨Im E_T⟩'].append((k + C).imag)
+
         self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_re'].append(np.real(np.trace(G_down.dot(self.O_pm_xy))))
         self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im'].append(np.imag(np.trace(G_down.dot(self.O_pm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re'].append(np.real(np.trace(G_down.dot(self.O_mm_xy))))
@@ -363,10 +381,17 @@ class Observables:
         self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(G_down, G_up))
 
         self.n_cumulants += 1
-        self.light_cumulants['⟨density⟩'] += (density * current_det_sign)
-        self.light_cumulants['⟨E_K⟩'] += (k * current_det_sign)
-        self.light_cumulants['⟨E_C⟩'] += (C * current_det_sign)
-        self.light_cumulants['⟨E_T⟩'] += ((k + C) * current_det_sign)
+        self.light_cumulants['⟨Re density⟩'] += (density * current_det_sign).real
+        self.light_cumulants['⟨Re E_K⟩'] += (k * current_det_sign).real
+        self.light_cumulants['⟨Re E_C⟩'] += (C * current_det_sign).real
+        self.light_cumulants['⟨Re E_T⟩'] += ((k + C) * current_det_sign).real
+
+        self.light_cumulants['⟨Im density⟩'] += (density * current_det_sign).imag
+        self.light_cumulants['⟨Im E_K⟩'] += (k * current_det_sign).imag
+        self.light_cumulants['⟨Im E_C⟩'] += (C * current_det_sign).imag
+        self.light_cumulants['⟨Im E_T⟩'] += ((k + C) * current_det_sign).imag
+
+
         self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_re'] += np.real(np.trace(G_down.dot(self.O_pm_xy))) * current_det_sign
         self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_im'] += np.imag(np.trace(G_down.dot(self.O_pm_xy))) * current_det_sign
         self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_re'] += np.real(np.trace(G_down.dot(self.O_mm_xy))) * current_det_sign
@@ -755,7 +780,7 @@ def Coloumb_energy(phi):
                                                       (phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 1)).item() \
                                                       / G_function_up.shape[0]
 
-    return energy_coloumb + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
+    return energy_coloumb # + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
                           #   / G_function_up.shape[0] 
     # 
 

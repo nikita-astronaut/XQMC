@@ -11,11 +11,11 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = Ls ** 2 * 4 #  - 4 * 2#  - 2 * 4
-        self.BC_twist = True; self.twist_mesh = 'APBCy'  # apply BC-twist
+        self.Ne = Ls ** 2 * 4#  - 4 * 2#  - 2 * 4
+        self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
         self.L_twists_uniform = 6
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
@@ -44,7 +44,7 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 2.#9.93 / 3. # 1e+10 #9.93 / 4
+        self.epsilon = 9.93 / 3. # 1e+10 #9.93 / 4
         self.xi = 0.10
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 0.
@@ -74,7 +74,6 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-
         idx_map = [1, 5, 8, 9, 11, 12, 13, 15, 17, 18, 19, 20]
         self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
 
@@ -189,7 +188,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.random.uniform(1e-1, 1e-1, size = self.layout[3]),  # gaps
+            np.random.uniform(1e-6, 1e-6, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
 
