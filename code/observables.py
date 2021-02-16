@@ -54,8 +54,8 @@ class Observables:
         self.reduced_A_gap = models.get_reduced_adjacency_matrix(self.config, \
             self.config.max_square_pairing_distance)
         self.ijkl = np.array(get_idxs_list(self.reduced_A_gap))
-        np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
-        exit(-1)
+        #np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
+        #exit(-1)
 
         # for order-order susceptibility
         self.reduced_A_order = models.get_reduced_adjacency_matrix(self.config, \
@@ -327,7 +327,7 @@ class Observables:
     def print_std_logs(self, n_sweep):
         if self.n_cumulants == 0 or self.global_average_sign == 0:
             return
-        print("{:d} {:.5f} {:.2f} {:.3f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f} {:.5f}".format(
+        print("{:d} {:.5f} {:.2f} {:.3f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f}".format(
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
@@ -755,7 +755,7 @@ def Coloumb_energy(phi):
                                                       (phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 1)).item() \
                                                       / G_function_up.shape[0]
 
-    return energy_coloumb + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
+    return energy_coloumb # + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
                           #   / G_function_up.shape[0] 
     # 
 

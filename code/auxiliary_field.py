@@ -89,14 +89,19 @@ class AuxiliaryFieldIntraorbital:
         u1, s1, v1 = svd_lhs
         u2, s2, v2 = svd_rhs
         m = v1.dot(u2)
-        middle_mat = (u1.T).dot(v2.T) + (self.la.diag(s1).dot(m)).dot(self.la.diag(s2))
+        middle_mat = (u1.conj().T).dot(v2.conj().T) + (self.la.diag(s1).dot(m)).dot(self.la.diag(s2))  # are these u1.T / v2.T correct incase of imag code? I think no
         inv = self.la.linalg.inv(middle_mat)
 
-        s, ld = np.linalg.slogdet(inv)
-        sign = np.sign(np.linalg.slogdet(self.to_numpy(v2.T))[0] * np.linalg.slogdet(self.to_numpy(u1.T))[0] * s)
+        #assert np.allclose(v2.conj().T.dot(inv).dot(u1.conj().T), \
+        #                   np.linalg.inv(np.eye(len(s1), dtype=np.complex128) + u1.dot(self.la.diag(s1)).dot(v1).dot(u2).dot(self.la.diag(s2)).dot(v2)))
+
+
+        res = v2.conj().T.dot(inv).dot(u1.conj().T)
+        phase, ld = np.linalg.slogdet(res)
+
         if return_logdet:
-            return v2.T.dot(inv).dot(u1.T), ld, sign
-        return v2.T.dot(inv).dot(u1.T)
+            return res, ld, phase
+        return res
 
     def refresh_all_decompositions(self):
         self.partial_SVD_decompositions_up = []
@@ -104,8 +109,8 @@ class AuxiliaryFieldIntraorbital:
         self._get_partial_SVD_decompositions(spin = +1)
         self._get_partial_SVD_decompositions(spin = -1)
 
-        self.current_lhs_SVD_up = self.SVD(self.la.eye(self.config.total_dof // 2))
-        self.current_lhs_SVD_down = self.SVD(self.la.eye(self.config.total_dof // 2))
+        self.current_lhs_SVD_up = self.SVD(self.la.eye(self.config.total_dof // 2, dtype=np.complex128))
+        self.current_lhs_SVD_down = self.SVD(self.la.eye(self.config.total_dof // 2, dtype=np.complex128))
         return
 
     def _product_svds(self, svd1, svd2):
@@ -130,16 +135,18 @@ class AuxiliaryFieldIntraorbital:
         return
     
     def _get_partial_SVD_decompositions(self, spin):
-        M = self.la.eye(self.config.total_dof // 2)
-        current_U = self.la.eye(self.config.total_dof // 2)
+        M = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
+        current_U = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
 
         slices = list(range(0, self.config.Nt))
         for nr, slice_idx in enumerate(reversed(slices)):
+            #print('partial', slice_idx)
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
                 u, s, v = self.SVD(M)  # this is a VERY tricky point
-                
+                #assert np.allclose(np.linalg.inv(u), u.conj().T)
+                #assert np.allclose(np.linalg.inv(v), v.conj().T)
                 assert self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M) < 1e-13
                 current_U = current_U.dot(u)
                 if spin == +1:
@@ -151,8 +158,8 @@ class AuxiliaryFieldIntraorbital:
 
     def _get_left_partial_SVD_decompositions(self, spin):
         decompositions = []
-        M = self.la.eye(self.config.total_dof // 2)
-        current_V = self.la.eye(self.config.total_dof // 2)
+        M = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
+        current_V = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
 
         slices = list(range(0, self.config.Nt))
         for nr, slice_idx in enumerate(slices):
@@ -168,8 +175,8 @@ class AuxiliaryFieldIntraorbital:
 
     def _get_right_partial_SVD_decompositions(self, spin):
         decompositions = []
-        M = self.la.eye(self.config.total_dof // 2)
-        current_U = self.la.eye(self.config.total_dof // 2)
+        M = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
+        current_U = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
 
         slices = list(range(0, self.config.Nt))
         for nr, slice_idx in enumerate(reversed(slices)):
@@ -184,7 +191,7 @@ class AuxiliaryFieldIntraorbital:
         return decompositions
 
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax):
-        M = self.la.eye(self.config.total_dof // 2)
+        M = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
         
         for time_slice in range(tmin, tmax):
             M = self.B_l(spin, time_slice, inverse = False).dot(M)
@@ -232,6 +239,7 @@ class AuxiliaryFieldIntraorbital:
         return
 
     def make_symmetric_displacement(self, M):
+        return M
         return self.K_half.dot(M).dot(self.K_half_inverse)
 
     def get_equal_time_GF(self):
@@ -286,6 +294,8 @@ class AuxiliaryFieldIntraorbital:
         B_wrap_down = self.B_l(-1, time_slice, inverse = False)
         B_wrap_down_inverse = self.B_l(-1, time_slice, inverse = True)
 
+
+        # assert np.allclose(np.linalg.inv(B_wrap_up), B_wrap_up_inverse)
         self.current_G_function_up = B_wrap_up.dot(self.current_G_function_up.dot(B_wrap_up_inverse))
         self.current_G_function_down = B_wrap_down.dot(self.current_G_function_down.dot(B_wrap_down_inverse))
 
@@ -299,7 +309,7 @@ class AuxiliaryFieldIntraorbital:
             if index_decomp > 0:
                 current_U, s, v = self.right_decompositions[index_decomp - 1]
             else:
-                current_U, s, v = self.SVD(self.la.eye(self.config.total_dof // 2))
+                current_U, s, v = self.SVD(self.la.eye(self.config.total_dof // 2, dtype=np.complex128))
             chain = self.la.diag(s).dot(v)
 
             for i in reversed(range(tmin, tmax)):
@@ -312,7 +322,7 @@ class AuxiliaryFieldIntraorbital:
         if index_decomp > 0:
             u, s, current_V = self.left_decompositions[index_decomp - 1]
         else:
-            u, s, current_V = self.SVD(self.la.eye(self.config.total_dof // 2))
+            u, s, current_V = self.SVD(self.la.eye(self.config.total_dof // 2, dtype=np.complex128))
 
         chain = u.dot(self.la.diag(s))
 
@@ -351,23 +361,30 @@ class AuxiliaryFieldIntraorbital:
 
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice, return_udv = False):
-        M = self.la.eye(self.config.total_dof // 2)
-        current_U = self.la.eye(self.config.total_dof // 2)
+        M = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
+        current_U = self.la.eye(self.config.total_dof // 2, dtype=np.complex128)
         slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
         for nr, slice_idx in enumerate(reversed(slices)):
+            #print('noopt', slice_idx)
             B = self.B_l(spin, slice_idx)
             M = M.dot(B)
             u, s, v = self.SVD(M)
             # print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
             current_U = current_U.dot(u)
             M = self.la.diag(s).dot(v)
-        m = current_U.T.dot(v.T) + self.la.diag(s)
+        m = current_U.conj().T.dot(v.conj().T) + self.la.diag(s)
         um, sm, vm = self.SVD(m)
 
+        #assert np.allclose(((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T) ,\
+        #                   np.linalg.inv(self.la.eye(self.config.total_dof // 2, dtype=np.complex128) + current_U.dot(self.la.diag(s)).dot(v)))
+
         if return_udv:
-            return (vm.dot(v)).T, self.la.diag(sm ** -1), (current_U.dot(um)).T
-        return ((vm.dot(v)).T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).T), self.la.sum(self.la.log(sm ** -1)), \
-               np.sign(np.linalg.det(((vm.dot(v)).T)) * np.linalg.det((current_U.dot(um)).T))
+            return (vm.dot(v)).conj().T, self.la.diag(sm ** -1), (current_U.dot(um)).conj().T
+            #return (vm.dot(v)).conj().T, self.la.diag(sm ** -1), (current_U.dot(current_U)).conj()
+        res = ((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T)
+        return res, self.la.sum(self.la.log(sm ** -1)), np.linalg.slogdet(res)[0] #res / np.abs(res)
+        #return ((v.dot(vm)).conj()).dot(self.la.diag(sm ** -1)).dot((um.dot(current_U)).conj()), self.la.sum(self.la.log(sm ** -1)), \
+        #        np.sign(np.linalg.det(((v.dot(vm)).conj())) * np.linalg.det((um.dot(current_U)).conj()))
 
     def get_assymetry_factor(self):
         G_up = self.get_G_no_optimisation(+1, 0)[0]
@@ -463,6 +480,11 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         return
 
     def B_l(self, spin, l, inverse = False):
+        #print('inverse =', inverse)
+        #assert np.allclose(np.linalg.inv(self.K), self.K_inverse)
+        #print(self.V_up[l, ...], self.Vinv_up[l, ...])
+        #assert np.allclose(np.linalg.inv(self.V_up[l, ...]), self.Vinv_up[l, ...])
+
         if not inverse:
             if spin > 0:
                 return self.V_up[l, ...].dot(self.K)
@@ -551,7 +573,7 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
 
     def get_current_gauge_factor_log(self):
         cf = self.configuration[..., 0].flatten()
-        factor_logs = np.zeros(len(cf))
+        factor_logs = np.zeros(len(cf), dtype=np.complex128)
         factor_logs[cf == -2] = self.gauge_log[-2]
         factor_logs[cf == 2] = self.gauge_log[2]
         factor_logs[cf == 1] = self.gauge_log[1]
@@ -640,12 +662,120 @@ class AuxiliaryFieldInterorbitalAccurate(AuxiliaryFieldInterorbital):
         return _get_delta_interorbital_accurate(tuple(self.configuration[time_slice, sp_index, :]), \
                                                 local_conf_proposed, spin, self.config.nu_U, self.config.nu_V)
 
+
+
+class AuxiliaryFieldInterorbitalAccurateImag(AuxiliaryFieldInterorbitalAccurate):
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
+        super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
+        
+        self.gauge = {
+            -2 : (1. - np.sqrt(6) / 3 ) * np.exp(-2.0j * self.config.nu_V * self.eta[-2]),
+            +2 : (1. - np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.nu_V * self.eta[+2]),
+            -1 : (1. + np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.nu_V * self.eta[-1]),
+            +1 : (1. + np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.nu_V * self.eta[+1])
+        }
+
+        self.gauge_log = {
+            -2 : np.log(1. - np.sqrt(6) / 3) - 2.0j * self.config.nu_V * self.eta[-2],
+            +2 : np.log(1. - np.sqrt(6) / 3) - 2.0j * self.config.nu_V * self.eta[+2],
+            -1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.nu_V * self.eta[-1],
+            +1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.nu_V * self.eta[+1]
+        }
+
+        self.local_conf_combinations = [[-2], [-1], [1], [2]]
+        return
+
+    def _V_from_configuration(self, s, sign, spin):
+        return np.diag(np.exp(1.0j * self.config.nu_V * self.eta[s[0]] * np.ones(2)))
+
+    def _get_initial_field_configuration(self):
+        if self.config.start_type == 'cold':
+            self.configuration = np.random.randint(0, 1, size = (self.config.Nt, self.config.total_dof // 2 // 2, 1)) * 2. - 1.0
+        elif self.config.start_type == 'hot':
+            self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 1)) * 2. - 1.0  # standard 2-valued aux Hubbard field
+            self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
+                                                          size = (self.config.Nt, self.config.total_dof // 2 // 2))  # 4-valued F.F. Assaad field
+        else:
+            loaded = False
+            if os.path.isfile(self.conf_path + '.npy'):
+                try:
+                    self.configuration = np.load(self.conf_path + '.npy')
+                    print('Starting from a presaved field configuration', flush=True)
+                    loaded = True
+                except Exception:
+                    print('Failed during loading of configuration from default location: try from dump')
+
+                    try:
+                        self.configuration = np.load(self.conf_path + '_dump.npy')
+                        print('Starting from a presaved field configuration in dump', flush=True)
+                        loaded = True
+                    except Exception:
+                        print('Failed during loading of configuration from dump location: initialize from scratch')
+            if not loaded:
+                print('Random initial configuration')
+                self.configuration = np.random.randint(0, 2, size = (self.config.Nt, self.config.total_dof // 2 // 2, 1)) * 2. - 1.0
+                self.configuration[..., 0] = np.random.choice(np.array([-2, -1, 1, 2]), \
+                                                              size = (self.config.Nt, self.config.total_dof // 2 // 2))
+
+        NtVolVol_shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2)
+        self.V_up = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); self.Vinv_up = np.zeros(shape = NtVolVol_shape, dtype=np.complex128)
+        self.V_down = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); self.Vinv_down = np.zeros(shape = NtVolVol_shape, dtype=np.complex128)
+
+        for time_slice in range(self.config.Nt):
+            for sp_index in range(self.config.total_dof // 2 // 2):
+                sx = sp_index * 2
+                sy = sp_index * 2 + 1
+                self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    _V_from_configuration_accurate_imag(self.configuration[time_slice, sp_index, :], +1.0, +1.0, self.config.nu_V)
+                self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    _V_from_configuration_accurate_imag(self.configuration[time_slice, sp_index, :], -1.0, +1.0, self.config.nu_V)
+
+                self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    _V_from_configuration_accurate_imag(self.configuration[time_slice, sp_index, :], +1.0, -1.0, self.config.nu_V)
+                self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+                    _V_from_configuration_accurate_imag(self.configuration[time_slice, sp_index, :], -1.0, -1.0, self.config.nu_V)
+        return
+
+    def update_field(self, sp_index, time_slice, new_conf):
+        # print('update field right new way', flush=True)
+        self.configuration[time_slice, sp_index, ...] = np.array(new_conf)
+        sx = sp_index * 2
+        sy = sp_index * 2 + 1
+        self.V_up[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration_accurate_imag(new_conf, +1.0, +1.0, self.config.nu_V)
+        self.Vinv_up[time_slice, sx : sy + 1, sx : sy + 1] =\
+            _V_from_configuration_accurate_imag(new_conf, -1.0, +1.0, self.config.nu_V)
+        self.V_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration_accurate_imag(new_conf, +1.0, -1.0, self.config.nu_V)
+        self.Vinv_down[time_slice, sx : sy + 1, sx : sy + 1] = \
+            _V_from_configuration_accurate_imag(new_conf, -1.0, -1.0, self.config.nu_V)
+
+        return
+
+    def compute_deltas(self, sp_index, time_slice, local_conf, local_conf_proposed):
+        self.Delta_up = _get_delta_interorbital_accurate_imag(local_conf, local_conf_proposed, +1, self.config.nu_V)
+        self.Delta_down = _get_delta_interorbital_accurate_imag(local_conf, local_conf_proposed, -1, self.config.nu_V)
+        return
+
+    def get_delta(self, spin, sp_index, time_slice, local_conf_proposed):  # sign change proposal is made at (time_slice, sp_index, o_index)
+        return _get_delta_interorbital_accurate_imag(tuple(self.configuration[time_slice, sp_index, :]), \
+                                                local_conf_proposed, spin, self.config.nu_V)
+
+
 @jit(nopython = True)
 def _get_delta_interorbital_accurate(local_conf, local_conf_proposed, spin, \
                                      nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
     local_V_inv = _V_from_configuration_accurate(local_conf, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
     local_V_proposed = _V_from_configuration_accurate(local_conf_proposed, 1.0, spin, nu_U, nu_V)
     return np.diag(np.array([local_V_proposed[0, 0] * local_V_inv[0, 0] - 1, local_V_proposed[1, 1] * local_V_inv[1, 1] - 1])) # local_V_proposed.dot(local_V_inv) - np.eye(2)
+
+
+@jit(nopython = True)
+def _get_delta_interorbital_accurate_imag(local_conf, local_conf_proposed, spin, nu_V):
+    local_V_inv = _V_from_configuration_accurate_imag(local_conf, -1.0, spin, nu_V)  # already stored in self.V or self.Vinv
+    local_V_proposed = _V_from_configuration_accurate_imag(local_conf_proposed, 1.0, spin, nu_V)
+    return np.diag(np.array([local_V_proposed[0, 0] * local_V_inv[0, 0] - 1, local_V_proposed[1, 1] * local_V_inv[1, 1] - 1], dtype=np.complex128)) + 0.0j
+
 
 @jit(nopython=True)
 def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
@@ -659,6 +789,13 @@ def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
         V = nu_V * eta[int(s[0]) + 2] * sign * np.array([1, -1]) + \
             nu_U * sign * np.array([-s[2], -s[1]])
     return np.diag(np.exp(V))
+
+@jit(nopython=True)
+def _V_from_configuration_accurate_imag(s, sign, spin, nu_V):
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
+           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
+
+    return np.diag(np.exp(1.0j * nu_V * eta[int(s[0]) + 2] * sign * np.ones(2)))
 
 
 @jit(nopython=True)
@@ -686,7 +823,7 @@ def get_det_ratio_inter(sp_index, Delta, G):
     sx = sp_index * 2
     sy = sp_index * 2 + 1
 
-    return np.linalg.det(np.eye(2) + Delta.dot(np.eye(2) - G[sx : sy + 1, sx : sy + 1]))
+    return np.linalg.det(np.eye(2, dtype=np.complex128) + Delta.dot(np.eye(2, dtype=np.complex128) - G[sx : sy + 1, sx : sy + 1]))
 
 @jit(nopython=True)
 def get_det_ratio_intra(sp_index, Delta, G):
@@ -699,12 +836,12 @@ def _update_G_seq_inter(G, Delta, sp_index, total_dof):
     G_sliced_right = G[:, sx : sy + 1]
     G_sliced_left = G[sx:sy + 1, :]
 
-    update_matrix = np.zeros((2, total_dof // 2))  # keep only two nontrivial rows here
-    update_matrix[:, sx:sy + 1] = np.eye(2) + Delta
+    update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
+    update_matrix[:, sx:sy + 1] = np.eye(2, dtype=np.complex128) + Delta
     update_matrix -= np.dot(Delta, np.ascontiguousarray(G_sliced_left))
     det = np.linalg.det(update_matrix[:, sx:sy + 1])
 
-    inverse_update_matrix = np.zeros((2, total_dof // 2))  # keep only two nontrivial rows here
+    inverse_update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
 
     inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sy] - \
                                     update_matrix[1, :] * update_matrix[0, sy]) / det  # my vectorized det :))
