@@ -11,7 +11,7 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = Ls ** 2 * 4  - 4 * 2#  - 2 * 4
+        self.Ne = Ls ** 2 * 4 #  - 4 * 2#  - 2 * 4
         self.BC_twist = True; self.twist_mesh = 'APBCy'  # apply BC-twist
         self.L_twists_uniform = 6
         assert self.BC_twist  # this is always true
@@ -74,7 +74,9 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[13] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
+
+        idx_map = [1, 5, 8, 9, 11, 12, 13, 15, 17, 18, 19, 20]
+        self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
 
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
@@ -91,23 +93,6 @@ class MC_parameters:
             for twist in twist_list:
                 twist_exp = [np.exp(2.0j * np.pi * twist[0]), np.exp(2.0j * np.pi * twist[1])]
                 gap_twisted = models.apply_TBC(self, twist_exp, deepcopy(gap), inverse = False)
-<<<<<<< HEAD
-                np.save('./gaps_extended/all_gaps_twisted_{:d}/gap_{:d}_{:.3f}_{:.3f}.npy'.format(self.Ls, idx, *twist), gap_twisted)
-                print(idx, twist)
-        '''
-        #np.save('./gaps_extended/all_gaps_twisted_{:d}/gap_names.npy'.format(self.Ls), np.array(self.pairings_list_names))
-        #exit(-1)
-
-        ### hoppings parameters setting ###
-        #all_Koshino_hoppings_real = hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
-        #all_Koshino_hoppings_complex = hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
-        #self.hoppings = [] #[h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
-        #self.hopping_names = [] #[h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
-        #for h in self.hoppings:
-        #    projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
-        #    print(projection, name)
-
-=======
                 np.save('/home/astronaut/Documents/DQMC_TBG/all_gaps_twisted_{:d}/gap_{:d}_{:.3f}_{:.3f}.npy'.format(self.Ls, idx, *twist), gap_twisted)
         np.save('/home/astronaut/Documents/DQMC_TBG/all_gaps_twisted/gap_names.npy', np.array(self.pairings_list_names))
         '''
@@ -122,7 +107,6 @@ class MC_parameters:
         for h, name in zip(self.hoppings, self.hopping_names):
             projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
             print(projection, name)
->>>>>>> a3b5c3ee77f46f5597999a49e1ac4bbfca823239
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
         self.waves_list = waves.hex_2orb
@@ -138,11 +122,10 @@ class MC_parameters:
                         print(g[i, j], i, j)
                         exit(-1)
         '''
-        for idx, g in enumerate(self.waves_list_unwrapped):
-            print(g[:2, :2])
-            np.save('./waves_{:d}/wave_{:d}.npy'.format(self.Ls, idx), g)
-        np.save('./waves_{:d}/wave_names.npy'.format(self.Ls), np.array(self.waves_list_names))
-        exit(-1)
+        #for idx, g in enumerate(self.waves_list_unwrapped):
+        #    print(g[:2, :2])
+        #    np.save('./waves_{:d}/wave_{:d}.npy'.format(self.Ls, idx), g)
+        #np.save('./waves_{:d}/wave_names.npy'.format(self.Ls), np.array(self.waves_list_names))
 
         self.enforce_valley_orbitals = False #FIXME
         for name in self.pairings_list_names:
@@ -177,7 +160,7 @@ class MC_parameters:
         self.waves_list_unwrapped = []
 
         ### optimisation parameters ###
-        self.MC_chain = 1000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
+        self.MC_chain = 2000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
@@ -220,7 +203,7 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[np.sum(self.layout[:-1])] = 0.0
+        self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03])
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:
