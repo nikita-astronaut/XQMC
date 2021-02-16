@@ -74,7 +74,8 @@ class MC_parameters:
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.pairings_list = pairings.twoorb_hex_all[0] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
+        idx_map = [1, 5, 8, 9, 11, 12, 13, 15, 17, 18, 19, 20]
+        self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
 
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
@@ -155,7 +156,7 @@ class MC_parameters:
         self.waves_list_unwrapped = []
 
         ### optimisation parameters ###
-        self.MC_chain = 1000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
+        self.MC_chain = 2000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
@@ -198,7 +199,7 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[np.sum(self.layout[:-1])] = 0.0
+        self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03])
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:

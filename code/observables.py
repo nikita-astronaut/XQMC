@@ -378,7 +378,7 @@ class Observables:
         self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im'].append(np.imag(np.trace(G_down.dot(self.O_pm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re'].append(np.real(np.trace(G_down.dot(self.O_mm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im'].append(np.imag(np.trace(G_down.dot(self.O_mm_xy))))
-        self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(G_down, G_up))
+        self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(G_down, G_up).real)
 
         self.n_cumulants += 1
         self.light_cumulants['⟨Re density⟩'] += (density * current_det_sign).real
@@ -396,7 +396,7 @@ class Observables:
         self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_im'] += np.imag(np.trace(G_down.dot(self.O_pm_xy))) * current_det_sign
         self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_re'] += np.real(np.trace(G_down.dot(self.O_mm_xy))) * current_det_sign
         self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_im'] += np.imag(np.trace(G_down.dot(self.O_mm_xy))) * current_det_sign
-        self.light_cumulants['⟨m_z^2⟩'] += total_mz_squared(G_down, G_up) * current_det_sign
+        self.light_cumulants['⟨m_z^2⟩'] += (total_mz_squared(G_down, G_up) * current_det_sign).real
 
         return
 

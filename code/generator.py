@@ -214,11 +214,6 @@ if __name__ == "__main__":
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
 
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
-        #for idx, gap in enumerate(config.pairings_list_unwrapped):
-        #    np.save('/home/astronaut/Dropbox/gaps_6x6/twist_0/gap_{:d}.npy'.format(idx), gap)
-        #np.save('/home/astronaut/Dropbox/gaps_6x6/twist_0/gaps_names.npy', np.array(config.pairings_list_names))
-        #exit(-1)
-
 
 
         ### creating precomputed exponents ###
