@@ -188,9 +188,16 @@ if __name__ == "__main__":
 
         ### application of real TBCs ###
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
-        twist = real_twists[(rank + config.offset) % len(real_twists)]  # each rank knows its twist
+
+        #for tidx, twist in enumerate(real_twists):
+        #    for gidx, gap in enumerate(config.pairings_list_unwrapped):
+        #        np.save('./gaps_8x8_extended/twist_{:d}/gap_{:d}.npy'.format(tidx, gidx), models.apply_TBC(config, twist, deepcopy(gap), inverse = False))
+        #np.save('./gaps_8x8_extended/gaps_names.npy', np.array(config.pairings_list_names))
+        #exit(-1)
+        twist = real_twists[0] #[(rank + config.offset) % len(real_twists)]  # each rank knows its twist  # FIXME
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
+        
 
 
         ### creating precomputed exponents ###
