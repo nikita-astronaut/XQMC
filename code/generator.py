@@ -209,7 +209,10 @@ if __name__ == "__main__":
 
 
         K_matrix = models.xy_to_chiral(K_matrix, 'K_matrix', config, config.chiral_basis)
+        np.save('K_matrix_2x2.npy', K_matrix)
+
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
+
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
         #for idx, gap in enumerate(config.pairings_list_unwrapped):
         #    np.save('/home/astronaut/Dropbox/gaps_6x6/twist_0/gap_{:d}.npy'.format(idx), gap)
@@ -219,10 +222,10 @@ if __name__ == "__main__":
 
 
         ### creating precomputed exponents ###
-        K_operator = scipy.linalg.expm(config.dt * K_matrix).real  # exp (-dt (-K_matrix))
-        K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
-        K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix).real
-        K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix).real
+        K_operator = scipy.linalg.expm(config.dt * K_matrix)
+        K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
+        K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix)
+        K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix)
 
         local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
         local_workdir_heavy = os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
