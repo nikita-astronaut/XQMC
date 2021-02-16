@@ -91,7 +91,6 @@ class MC_parameters:
             for twist in twist_list:
                 twist_exp = [np.exp(2.0j * np.pi * twist[0]), np.exp(2.0j * np.pi * twist[1])]
                 gap_twisted = models.apply_TBC(self, twist_exp, deepcopy(gap), inverse = False)
-<<<<<<< HEAD
                 np.save('./gaps_extended/all_gaps_twisted_{:d}/gap_{:d}_{:.3f}_{:.3f}.npy'.format(self.Ls, idx, *twist), gap_twisted)
                 print(idx, twist)
         '''
@@ -107,22 +106,6 @@ class MC_parameters:
         #    projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
         #    print(projection, name)
 
-=======
-                np.save('/home/astronaut/Documents/DQMC_TBG/all_gaps_twisted_{:d}/gap_{:d}_{:.3f}_{:.3f}.npy'.format(self.Ls, idx, *twist), gap_twisted)
-        np.save('/home/astronaut/Documents/DQMC_TBG/all_gaps_twisted/gap_names.npy', np.array(self.pairings_list_names))
-        '''
-        # exit(-1)
-
-
-        ### hoppings parameters setting ###
-        all_Koshino_hoppings_real = [] #hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
-        all_Koshino_hoppings_complex = [] #hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
-        self.hoppings = [h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex][2:-3]
-        self.hopping_names = [h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex][2:-3]
-        for h, name in zip(self.hoppings, self.hopping_names):
-            projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
-            print(projection, name)
->>>>>>> a3b5c3ee77f46f5597999a49e1ac4bbfca823239
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
         self.waves_list = waves.hex_2orb
@@ -138,11 +121,6 @@ class MC_parameters:
                         print(g[i, j], i, j)
                         exit(-1)
         '''
-        for idx, g in enumerate(self.waves_list_unwrapped):
-            print(g[:2, :2])
-            np.save('./waves_{:d}/wave_{:d}.npy'.format(self.Ls, idx), g)
-        np.save('./waves_{:d}/wave_names.npy'.format(self.Ls), np.array(self.waves_list_names))
-        exit(-1)
 
         self.enforce_valley_orbitals = False #FIXME
         for name in self.pairings_list_names:
