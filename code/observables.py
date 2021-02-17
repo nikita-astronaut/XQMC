@@ -70,6 +70,8 @@ class Observables:
             self.adj_list_marking[adj[0] > 0.5] = idx
 
         NN = models.get_adjacency_list(self.config, orbital_mod = False)[0][1]
+
+        self.NN = phi.connectivity
         self.chiral_to_xy = np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[1., 1.0j], [1.0, -1.0j]]) / np.sqrt(2))
         self.O_pm_chiral = np.kron(NN, np.array([[0, 1], [0, 0]]))
         self.O_pm_xy = self.chiral_to_xy.conj().T.dot(self.O_pm_chiral).dot(self.chiral_to_xy)
@@ -421,7 +423,9 @@ class Observables:
         data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), self.global_average_sign,
                 np.mean(self.light_signs_history)] + [val / self.global_average_sign / self.n_cumulants for _, val in self.light_cumulants.items()]
 
+        # print(data)
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
+
         if n_sweep % 100 == 0:
             self.log_file.flush()
 
@@ -776,9 +780,15 @@ def Coloumb_energy(phi):
 
     orbital_1 = phi.la.arange(0, G_function_up.shape[0], 2)
     orbital_2 = phi.la.arange(1, G_function_up.shape[0], 2)
-    energy_coloumb += phi.config.V * phi.la.einsum('i,i', (phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] - 1),
+    energy_coloumb += phi.config.U * phi.la.einsum('i,i', (phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] - 1),
                                                       (phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 1)).item() \
                                                       / G_function_up.shape[0]
+
+    total_density = phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] + \
+                    phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 2.
+ 
+    energy_coloumb += phi.config.V * np.dot(total_density, phi.connectivity.dot(total_density)) / G_function_up.shape[0] / 2.
+
 
     return energy_coloumb # + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
                           #   / G_function_up.shape[0] 
