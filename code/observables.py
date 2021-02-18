@@ -786,8 +786,16 @@ def Coloumb_energy(phi):
 
     total_density = phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] + \
                     phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 2.
- 
-    energy_coloumb += phi.config.V * np.dot(total_density, phi.connectivity.dot(total_density)) / G_function_up.shape[0] / 2.
+
+    energy_coloumb += phi.config.V * np.dot(total_density, phi.connectivity.dot(total_density)) / G_function_up.shape[0] / 2.  # trivial term
+
+    G_up_orb1 = G_function_up[orbital_1, :]; G_up_orb1 = G_up_orb1[:, orbital_1]
+    G_up_orb2 = G_function_up[orbital_2, :]; G_up_orb2 = G_up_orb2[:, orbital_2]
+    G_down_orb1 = G_function_down[orbital_1, :]; G_down_orb1 = G_down_orb1[:, orbital_1]
+    G_down_orb2 = G_function_down[orbital_2, :]; G_down_orb2 = G_down_orb2[:, orbital_2]
+
+    for GF in [G_up_orb1, G_up_orb2, G_down_orb1, G_down_orb2]:
+        energy_coloumb -= phi.config.V * np.trace((GF.T * phi.connectivity).dot(GF * phi.connectivity)) / G_function_up.shape[0] / 2.
 
 
     return energy_coloumb # + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \

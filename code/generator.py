@@ -301,10 +301,6 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
 
                 det_ratio = auxiliary_field.get_det_ratio_inter_bond(sp_index1, sp_index2, phi_field.Delta_up, phi_field.current_G_function_up) * \
                             auxiliary_field.get_det_ratio_inter_bond(sp_index1, sp_index2, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-16
-                #print(auxiliary_field.get_det_ratio_inter_bond(sp_index1, sp_index2, phi_field.Delta_up, phi_field.current_G_function_up), \
-                #         auxiliary_field.get_det_ratio_inter_bond(sp_index1, sp_index2, phi_field.Delta_down, phi_field.current_G_function_down), 'det computed fast')
-                ### START FROM HERE: fast update formula (just used) and the explicitly computed ratio of green function agrees perfectly) ###
-                ### probas are real --- likely det_ratio is correct --> so GF must also be correct ###
                 local_det_factors.append(det_ratio)
 
                 local_gauge_factors.append(gauge_ratio)
