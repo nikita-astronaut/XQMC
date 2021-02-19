@@ -771,7 +771,9 @@ def kinetic_energy(phi):
 def Coloumb_energy(phi):
     G_function_up, G_function_down = phi.get_equal_time_GF()
 
+    energy_coloumb = 0.
     energy_coloumb = phi.config.U * phi.la.sum(phi.la.diag(G_function_up) * phi.la.diag(G_function_down)).item() / G_function_up.shape[0]
+
 
     #(phi.config.U / 2.) * phi.la.sum((phi.la.diag(G_function_up) + phi.la.diag(G_function_down) - 1.) ** 2).item() \
     #                 / G_function_up.shape[0]
@@ -788,6 +790,13 @@ def Coloumb_energy(phi):
                     phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 2.
 
     energy_coloumb += phi.config.V * np.dot(total_density, phi.connectivity.dot(total_density)) / G_function_up.shape[0] / 2.  # trivial term
+ 
+    #for i in range(G_function_up.shape[0]):
+    #    for j in range(G_function_up.shape[1]):
+    #        if (i + j) % 2 == 1 and np.abs(G_function_down[i, j]) > 1e-7:
+    #            print(i, j)
+    #            exit(-1)
+
 
     G_up_orb1 = G_function_up[orbital_1, :]; G_up_orb1 = G_up_orb1[:, orbital_1]
     G_up_orb2 = G_function_up[orbital_2, :]; G_up_orb2 = G_up_orb2[:, orbital_2]

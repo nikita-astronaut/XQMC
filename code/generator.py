@@ -84,7 +84,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
             current_det_sign_before = current_det_sign * 1.0
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
-            if not np.isclose(current_det_sign_before, current_det_sign):  # refresh of Green's function must preserve sign (robust)
+            if np.abs(current_det_sign_before - current_det_sign) > 1e-3:  # refresh of Green's function must preserve sign (robust)
                 print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used:', current_det_sign_before, current_det_sign)
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check = True
@@ -258,6 +258,7 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                 phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq_eta(site_idx)
                 phi_field.update_eta_site_field(site_idx, time_slice, new_conf)
 
+
             if False: #$True:#False:#True: #need_check:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                 G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
@@ -396,7 +397,7 @@ if __name__ == "__main__":
         print(config.nu_U, config.nu_V)
 
 
-        K_matrix = config.model(config, config.mu)[0].real
+        K_matrix = config.model(config, config.mu)[0]
 
         ### application of real TBCs ###
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
@@ -406,7 +407,7 @@ if __name__ == "__main__":
         K_matrix = models.xy_to_chiral(K_matrix, 'K_matrix', config, config.chiral_basis)
         #np.save('K_matrix_2x2.npy', K_matrix)
 
-        K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
+        K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False)
 
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
 
