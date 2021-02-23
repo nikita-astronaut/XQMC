@@ -70,6 +70,8 @@ class Observables:
             self.adj_list_marking[adj[0] > 0.5] = idx
 
         NN = models.get_adjacency_list(self.config, orbital_mod = False)[0][1]
+
+        self.NN = phi.connectivity
         self.chiral_to_xy = np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[1., 1.0j], [1.0, -1.0j]]) / np.sqrt(2))
         self.O_pm_chiral = np.kron(NN, np.array([[0, 1], [0, 0]]))
         self.O_pm_xy = self.chiral_to_xy.conj().T.dot(self.O_pm_chiral).dot(self.chiral_to_xy)
@@ -267,15 +269,18 @@ class Observables:
             '⟨Im density⟩' : 0.0,
             '⟨Re E_K⟩' : 0.0, 
             '⟨Im E_K⟩' : 0.0,
-            '⟨Re E_C⟩' : 0.0,
-            '⟨Im E_C⟩' : 0.0,
+            '⟨Re E_CU⟩' : 0.0,
+            '⟨Im E_CU⟩' : 0.0,
+            '⟨Re E_CV⟩' : 0.0,
+            '⟨Im E_CV⟩' : 0.0,
             '⟨Re E_T⟩' : 0.0,
             '⟨Im E_T⟩' : 0.0,
             '⟨c^dag_{+down}c_{-down}⟩_re' : 0.0,
             '⟨c^dag_{+down}c_{-down}⟩_im' : 0.0,
             '⟨c^dag_{-down}c_{-down}⟩_re' : 0.0,
             '⟨c^dag_{-down}c_{-down}⟩_im' : 0.0,
-            '⟨m_z^2⟩' : 0.0
+            '⟨m_z^2⟩' : 0.0,
+            'non-hermicity': 0.0
         })
         self.n_cumulants = 0
         return
@@ -288,15 +293,18 @@ class Observables:
             '⟨Im density⟩' : [],
             '⟨Re E_K⟩' : [], 
             '⟨Im E_K⟩' : [],
-            '⟨Re E_C⟩' : [],
-            '⟨Im E_C⟩' : [],
+            '⟨Re E_CU⟩' : [],
+            '⟨Im E_CU⟩' : [],
+            '⟨Re E_CV⟩' : [],
+            '⟨Im E_CV⟩' : [],
             '⟨Re E_T⟩' : [],
             '⟨Im E_T⟩' : [],
             '⟨c^dag_{+down}c_{-down}⟩_re' : [],
             '⟨c^dag_{+down}c_{-down}⟩_im' : [],
             '⟨c^dag_{-down}c_{-down}⟩_re' : [],
             '⟨c^dag_{-down}c_{-down}⟩_im' : [],
-            '⟨m_z^2⟩' : []
+            '⟨m_z^2⟩' : [],
+            'non-hermicity' : []
         })
 
         self.light_signs_history = []
@@ -311,7 +319,7 @@ class Observables:
         print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
               "lattice = {:d}^2 x {:d}".format(self.config.start_type, 1.0 / self.config.dt / self.config.Nt, \
                                                self.config.mu, self.config.Ls, self.config.Nt))
-        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨Re n⟩ ⟨Im n⟩ ⟨Re E_K⟩ ⟨Im E_K⟩ ⟨Re E_C⟩ ⟨Im E_C⟩ ⟨Re E_T⟩ ⟨Im E_T⟩ ⟨c^dag_{+down}c_{-down}⟩_re ⟨c^dag_{+down}c_{-down}⟩_im ⟨c^dag_{-down}c_{-down}⟩_re ⟨c^dag_{-down}c_{-down}⟩_im ⟨m_z^2⟩')
+        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨Re n⟩ ⟨Im n⟩ ⟨Re E_K⟩ ⟨Im E_K⟩ ⟨Re E_CU⟩ ⟨Im E_CU⟩ ⟨Re E_CV⟩ ⟨Im E_CV⟩ ⟨Re E_T⟩ ⟨Im E_T⟩ ⟨c^dag_{+down}c_{-down}⟩_re ⟨c^dag_{+down}c_{-down}⟩_im ⟨c^dag_{-down}c_{-down}⟩_re ⟨c^dag_{-down}c_{-down}⟩_im ⟨m_z^2⟩ non-hermicity imaginary')
         return
     '''
     def print_std_logs(self, n_sweep):
@@ -335,7 +343,7 @@ class Observables:
     def print_std_logs(self, n_sweep):
         if self.n_cumulants == 0 or self.global_average_sign == 0:
             return
-        print("{:d} {:.5f} {:.2f} {:.3f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f}".format(
+        print("{:d} {:.5f} {:.2f} {:.3f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f}".format(
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
@@ -344,8 +352,10 @@ class Observables:
             self.light_cumulants['⟨Im density⟩'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨Re E_K⟩'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨Im E_K⟩'] / self.n_cumulants / self.global_average_sign,
-            self.light_cumulants['⟨Re E_C⟩'] / self.n_cumulants / self.global_average_sign,
-            self.light_cumulants['⟨Im E_C⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Re E_CU⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Im E_CU⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Re E_CV⟩'] / self.n_cumulants / self.global_average_sign,
+            self.light_cumulants['⟨Im E_CV⟩'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨Re E_T⟩'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨Im E_T⟩'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_re'] / self.n_cumulants / self.global_average_sign,
@@ -353,43 +363,54 @@ class Observables:
             self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_re'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨c^dag_{-down}c_{-down}⟩_im'] / self.n_cumulants / self.global_average_sign,
             self.light_cumulants['⟨m_z^2⟩'] / self.n_cumulants / self.global_average_sign,
+            #self.light_cumulants['non-hermicity'] / self.n_cumulants / self.global_average_sign
+            self.gf_nonhermicity,
+            self.gf_imaginary 
         ))
         return
     def measure_light_observables(self, phi, current_det_sign, n_sweep):
         self.light_signs_history.append(current_det_sign)  
 
         k = kinetic_energy(phi).item()
-        C = Coloumb_energy(phi)
+        CU, CV = Coloumb_energy(phi)
         density = total_density(phi).item()
 
         G_up, G_down = phi.get_equal_time_GF()
 
         self.light_observables_list['⟨Re density⟩'].append(density.real)
         self.light_observables_list['⟨Re E_K⟩'].append(k.real)
-        self.light_observables_list['⟨Re E_C⟩'].append(C.real)
-        self.light_observables_list['⟨Re E_T⟩'].append((k + C).real)
+        self.light_observables_list['⟨Re E_CU⟩'].append(CU.real)
+        self.light_observables_list['⟨Re E_CV⟩'].append(CV.real)
+        self.light_observables_list['⟨Re E_T⟩'].append((k + CU + CV).real)
         
         self.light_observables_list['⟨Im density⟩'].append(density.imag)
         self.light_observables_list['⟨Im E_K⟩'].append(k.imag)
-        self.light_observables_list['⟨Im E_C⟩'].append(C.imag)
-        self.light_observables_list['⟨Im E_T⟩'].append((k + C).imag)
+        self.light_observables_list['⟨Im E_CU⟩'].append(CU.imag)
+        self.light_observables_list['⟨Im E_CV⟩'].append(CV.imag)
+        self.light_observables_list['⟨Im E_T⟩'].append((k + CU + CV).imag)
 
         self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_re'].append(np.real(np.trace(G_down.dot(self.O_pm_xy))))
         self.light_observables_list['⟨c^dag_{+down}c_{-down}⟩_im'].append(np.imag(np.trace(G_down.dot(self.O_pm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_re'].append(np.real(np.trace(G_down.dot(self.O_mm_xy))))
         self.light_observables_list['⟨c^dag_{-down}c_{-down}⟩_im'].append(np.imag(np.trace(G_down.dot(self.O_mm_xy))))
         self.light_observables_list['⟨m_z^2⟩'].append(total_mz_squared(G_down, G_up).real)
+        #self.light_observables_list['non-hermicity'].append(np.sum(np.abs(phi.G_up_sum.conj().T - phi.G_up_sum)) / phi.n_df_measures)
+        self.gf_nonhermicity = np.sum(np.abs(phi.G_up_sum.conj().T - phi.G_up_sum)) / phi.n_gf_measures
+        self.gf_imaginary = np.max(np.abs(phi.G_up_sum.imag)) / phi.n_gf_measures
+        # print(self.gf_nonhermicity, self.gf_imaginary)
 
         self.n_cumulants += 1
         self.light_cumulants['⟨Re density⟩'] += (density * current_det_sign).real
         self.light_cumulants['⟨Re E_K⟩'] += (k * current_det_sign).real
-        self.light_cumulants['⟨Re E_C⟩'] += (C * current_det_sign).real
-        self.light_cumulants['⟨Re E_T⟩'] += ((k + C) * current_det_sign).real
+        self.light_cumulants['⟨Re E_CU⟩'] += (CU * current_det_sign).real
+        self.light_cumulants['⟨Re E_CV⟩'] += (CV * current_det_sign).real
+        self.light_cumulants['⟨Re E_T⟩'] += ((k + CU + CV) * current_det_sign).real
 
         self.light_cumulants['⟨Im density⟩'] += (density * current_det_sign).imag
         self.light_cumulants['⟨Im E_K⟩'] += (k * current_det_sign).imag
-        self.light_cumulants['⟨Im E_C⟩'] += (C * current_det_sign).imag
-        self.light_cumulants['⟨Im E_T⟩'] += ((k + C) * current_det_sign).imag
+        self.light_cumulants['⟨Im E_CU⟩'] += (CU * current_det_sign).imag
+        self.light_cumulants['⟨Im E_CV⟩'] += (CV * current_det_sign).imag
+        self.light_cumulants['⟨Im E_T⟩'] += ((k + CU + CV) * current_det_sign).imag
 
 
         self.light_cumulants['⟨c^dag_{+down}c_{-down}⟩_re'] += np.real(np.trace(G_down.dot(self.O_pm_xy))) * current_det_sign
@@ -420,8 +441,11 @@ class Observables:
 
         data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), self.global_average_sign,
                 np.mean(self.light_signs_history)] + [val / self.global_average_sign / self.n_cumulants for _, val in self.light_cumulants.items()]
-
+        data[-1] = self.gf_nonhermicity
+        data.append(self.gf_imaginary)
+        # print(data)
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
+
         if n_sweep % 100 == 0:
             self.log_file.flush()
 
@@ -766,24 +790,71 @@ def kinetic_energy(phi):
 
 def Coloumb_energy(phi):
     G_function_up, G_function_down = phi.get_equal_time_GF()
+    # o rint(np.trace(G_function_up), np.trace(G_function_down))
+    #print(G_function_up)
     #print(G_function_up - G_function_up.conj().T)
-
     #exit(-1)
-
-    energy_coloumb = phi.config.U * phi.la.sum(phi.la.diag(G_function_up) * phi.la.diag(G_function_down)).item() / G_function_up.shape[0]
+    #print(np.abs(G_function_up - G_function_up.conj().T))
+    #print(phi.G_up_sum[np.arange(0, 16, 2), np.arange(0, 16, 2)].sum() / phi.n_gf_measures)
+    #print(G_function_up)
+    #for i in range(16):
+    #    print(G_function_up[0, i], '-->', G_function_up[i, 0], (0, i))
+    #    print(np.sum(np.abs(phi.G_up_sum - phi.G_up_sum.T.conj()) / phi.n_gf_measures))
+    #print(np.abs(phi.G_down_sum - phi.G_down_sum.T.conj()) / phi.n_gf_measures)
+    
+    
+    energy_coloumb_U = 0.0 + 0.0j; 
+    energy_coloumb_V = 0.0 + 0.0j
+    energy_coloumb_U = phi.config.U * phi.la.sum(phi.la.diag(G_function_up) * phi.la.diag(G_function_down)).item() / G_function_up.shape[0]
+    # print(phi.la.diag(G_function_up) * phi.la.diag(G_function_down))
 
     #(phi.config.U / 2.) * phi.la.sum((phi.la.diag(G_function_up) + phi.la.diag(G_function_down) - 1.) ** 2).item() \
     #                 / G_function_up.shape[0]
     if phi.config.n_orbitals == 1:
-        return energy_coloumb
+        return energy_coloumb_U
 
     orbital_1 = phi.la.arange(0, G_function_up.shape[0], 2)
     orbital_2 = phi.la.arange(1, G_function_up.shape[0], 2)
-    energy_coloumb += phi.config.V * phi.la.einsum('i,i', (phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] - 1),
+    energy_coloumb_U += phi.config.U * phi.la.einsum('i,i', (phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] - 1),
                                                       (phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 1)).item() \
                                                       / G_function_up.shape[0]
 
-    return energy_coloumb # + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
+    total_density = phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] + \
+                    phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 2.
+
+    #print(phi.la.diag(G_function_up)[orbital_1])
+    #print(phi.la.diag(G_function_up)[orbital_2])
+    # print(total_density)
+    #energy_coloumb += phi.config.U / 2 * np.sum(total_density ** 2) / G_function_up.shape[0] # FIXME: coloumb energy purely imaginary (the GF diagonal is imaginary) -- what to do? the problem is that there is G^2! do not account for same-site terms
+    #print(energy_coloumb)
+
+    energy_coloumb_V += phi.config.V * np.dot(total_density, phi.connectivity.dot(total_density)) / G_function_up.shape[0] / 2.  # why all contribs imag? bullshit
+
+    #print(total_density)
+    #print(energy_coloumb_V)
+    #for i in range(G_function_up.shape[0]):
+    #    for j in range(G_function_up.shape[1]):
+    #        if (i + j) % 2 == 1 and np.abs(G_function_down[i, j]) > 1e-7:
+    #            print(i, j)
+    #            exit(-1)
+
+
+    G_up_orb1 = G_function_up[orbital_1, :]; 
+    G_up_orb1 = G_up_orb1[:, orbital_1]
+
+    G_up_orb2 = G_function_up[orbital_2, :]; 
+    G_up_orb2 = G_up_orb2[:, orbital_2]
+    
+    G_down_orb1 = G_function_down[orbital_1, :]; 
+    G_down_orb1 = G_down_orb1[:, orbital_1]
+    
+    G_down_orb2 = G_function_down[orbital_2, :]; 
+    G_down_orb2 = G_down_orb2[:, orbital_2]
+
+    for GF in [G_up_orb1, G_up_orb2, G_down_orb1, G_down_orb2]:
+        energy_coloumb_V -= phi.config.V * np.trace((GF.T * phi.connectivity).dot(GF * phi.connectivity)) / G_function_up.shape[0] / 2.
+
+    return energy_coloumb_U, energy_coloumb_V # + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
                           #   / G_function_up.shape[0] 
     # 
 
