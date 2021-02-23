@@ -170,7 +170,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
     
     if n_sweep >= phi_field.config.thermalization:
         t = time()
-        observables.measure_green_functions(phi_field, current_det_sign.item())
+        observables.measure_green_functions(phi_field, 1.0)  # ??
         print('measurement of green functions takes ', time() - t)
         process = psutil.Process(os.getpid())
         print('using memory', process.memory_info().rss)
@@ -214,10 +214,10 @@ if __name__ == "__main__":
 
 
         ### creating precomputed exponents ###
-        K_operator = scipy.linalg.expm(config.dt * K_matrix).real  # exp (-dt (-K_matrix))
-        K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix).real
-        K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix).real
-        K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix).real
+        K_operator = scipy.linalg.expm(config.dt * K_matrix)  # exp (-dt (-K_matrix))
+        K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
+        K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix)
+        K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix)
 
         local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
         local_workdir_heavy = os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
