@@ -766,6 +766,9 @@ def kinetic_energy(phi):
 
 def Coloumb_energy(phi):
     G_function_up, G_function_down = phi.get_equal_time_GF()
+    #print(G_function_up - G_function_up.conj().T)
+
+    #exit(-1)
 
     energy_coloumb = phi.config.U * phi.la.sum(phi.la.diag(G_function_up) * phi.la.diag(G_function_down)).item() / G_function_up.shape[0]
 
