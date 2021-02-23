@@ -188,17 +188,20 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
         phi_field.copy_to_GPU()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
-    GF_checked = False
-
+    gf_print = phi_field.G_up_sum[::2, 0]
+    for i in range(8):
+        print(gf_print[i] / phi_field.n_gf_measures)
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
-            need_check = True
+            need_check_eta = True
+            need_check_xi = True
+
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             if switch:
-                phi_field.copy_to_GPU()
+                    phi_field.copy_to_GPU()
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
             phi_field.refresh_G_functions()
@@ -209,7 +212,8 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             if not np.isclose(current_det_sign_before, current_det_sign):  # refresh of Green's function must preserve sign (robust)
                 print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used:', current_det_sign_before, current_det_sign)
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
-            need_check = True
+            need_check_xi = True
+            need_check_eta = True
         # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
         phi_field.wrap_up(time_slice)
         if switch:
@@ -237,11 +241,13 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
 
             probas = np.array(local_det_factors) * np.array(local_gauge_factors)
             assert np.allclose(probas.real, probas)
+            assert np.all(probas.real + 1e-12 > 0)
+            assert np.isclose(probas, 1.0, atol=1e-8).any()
+
 
             probas = np.abs(probas)
 
-            idx = np.random.choice(np.arange(len(local_det_factors)), \
-                                   p = probas / np.sum(probas))
+            idx = np.random.choice(np.arange(len(local_det_factors)), p = probas / np.sum(probas))
 
             new_conf = phi_field.local_conf_combinations[idx]
             assert probas[idx] > 0
@@ -259,7 +265,7 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                 phi_field.update_eta_site_field(site_idx, time_slice, new_conf)
 
 
-            if False: #$True:#False:#True: #need_check:
+            if False:# need_check_eta:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                 G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
 
@@ -275,12 +281,12 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                     print('test of eta site update passed')
                 print('log |det| discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check)
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_down_check)
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log())) / phase_up_check / phase_down_check)
+                print('Green function up sign:', np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check)
+                print('Green function down sign:', np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_down_check)
                 print('phase det discrepancy:', phase_up_check * phase_down_check * current_det_sign)
+                assert np.isclose(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check, 1.0)
                 print(phase_up_check)
-                need_check = False
+                need_check_eta = False
 
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
 
@@ -329,9 +335,10 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                 phi_field.compute_deltas_xi(bond_idx, time_slice, local_conf_old, new_conf[0]); phi_field.update_G_seq_xi(bond_idx)
                 phi_field.update_xi_bond_field(bond_idx, time_slice, new_conf[0])
 
-            if False: #True:#False:#True: #need_check:
+            if False:# need_check_xi:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                 G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+                assert np.allclose(G_up_check, G_down_check)
 
                 d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                 d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
@@ -345,12 +352,9 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                     print('test of xi bond update passed')
                 print('log |det| discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check)
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_down_check)
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log())) / phase_up_check / phase_down_check)
                 print('phase det discrepancy:', phase_up_check * phase_down_check * current_det_sign)
                 print(phase_up_check)
-                need_check = False
+                need_check_xi = False
 
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
 
@@ -359,7 +363,7 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
 
     if n_sweep >= phi_field.config.thermalization:
         t = time()
-        observables.measure_green_functions(phi_field, current_det_sign.item())
+        observables.measure_green_functions(phi_field, current_det_sign)
         print('measurement of green functions takes ', time() - t)
         process = psutil.Process(os.getpid())
         print('using memory', process.memory_info().rss)
@@ -391,30 +395,24 @@ if __name__ == "__main__":
         #config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         #config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
         #assert V == U
+        
         config.nu_U = np.sqrt(config.dt / 2 * (U - 3 * V))
         config.nu_V = np.sqrt(config.dt / 2 * V)
 
-        print(config.nu_U, config.nu_V)
-
-
         K_matrix = config.model(config, config.mu)[0]
-
         ### application of real TBCs ###
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
         twist = real_twists[0] #[(rank + config.offset) % len(real_twists)]  # each rank knows its twist
-
-
         K_matrix = models.xy_to_chiral(K_matrix, 'K_matrix', config, config.chiral_basis)
-        #np.save('K_matrix_2x2.npy', K_matrix)
-
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False)
-
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
 
-
+        #print(K_matrix.real)
+        #exit(-1)
         ### creating precomputed exponents ###
         K_operator = scipy.linalg.expm(config.dt * K_matrix)
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
+        assert np.allclose(np.linalg.inv(K_operator), K_operator_inverse)
         K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix)
         K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix)
 

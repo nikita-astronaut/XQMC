@@ -239,9 +239,14 @@ class AuxiliaryFieldIntraorbital:
         return
 
     def make_symmetric_displacement(self, M):
+        # return M
         return self.K_half.dot(M).dot(self.K_half_inverse)
 
     def get_equal_time_GF(self):
+        # phase = np.exp(1.0j * np.imag(self.get_current_gauge_factor_log() / 2))
+        self.G_up_sum += self.make_symmetric_displacement(self.current_G_function_up)# / phase
+        self.G_down_sum += self.make_symmetric_displacement(self.current_G_function_down)# / phase
+        self.n_gf_measures += 1
         return self.make_symmetric_displacement(self.current_G_function_up), \
                self.make_symmetric_displacement(self.current_G_function_down)
 
@@ -351,9 +356,9 @@ class AuxiliaryFieldIntraorbital:
                 s2_min = 1.0 * s2; s2_max = 1.0 * s2
                 s2_min[s2_min > 1.] = 1.
                 s2_max[s2_max < 1.] = 1.
-                m = self.la.diag(s1_max ** -1).dot(u1.T).dot(v2.T).dot(self.la.diag(s2_max ** -1)) + \
+                m = self.la.diag(s1_max ** -1).dot(u1.T.conj()).dot(v2.T.conj()).dot(self.la.diag(s2_max ** -1)) + \
                     self.la.diag(s1_min).dot(v1).dot(u2).dot(self.la.diag(s2_min))
-                current_GF = (v2.T).dot(self.la.diag(s2_max ** -1)).dot(self.la.linalg.inv(m)).dot(self.la.diag(s1_min)).dot(v1)
+                current_GF = (v2.T.conj()).dot(self.la.diag(s2_max ** -1)).dot(self.la.linalg.inv(m)).dot(self.la.diag(s1_min)).dot(v1)
 
             GFs.append(self.make_symmetric_displacement(1.0 * self.to_numpy(current_GF)))
         return np.array(GFs)
@@ -770,6 +775,7 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
         K_oneband = K_oneband[:, np.arange(0, K_matrix.shape[0], 2)];
 
         self.connectivity = (K_oneband == K_oneband.real.max()).astype(np.float64)
+        assert np.allclose(self.connectivity, self.connectivity.T)
         self.n_bonds = int(np.sum(self.connectivity) / 2.)
 
         self.bonds = []
@@ -832,6 +838,10 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
 
         self.local_conf_combinations = [[-2], [-1], [1], [2]]
 
+        self.G_up_sum = np.zeros((self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
+        self.G_down_sum = np.zeros((self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
+        self.n_gf_measures = 0
+
         return
 
     def get_gauge_factor_move_eta(self, sp_index, time_slice, local_conf_old, local_conf):
@@ -892,7 +902,7 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
                                               size = (self.config.Nt, self.config.total_dof // 2 // 2, 1))  # 4-valued F.F. Assaad field for on-site
                 self.xi_bonds = np.random.choice(np.array([-2, -1, 1, 2]), \
                                               size = (self.config.Nt, self.n_bonds))  # 4-valued F.F. Assaad field for bonds
-            ## Note: last 3 components are only defined on the A-sublattice
+
 
         NtVolVol_shape = (self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2)
         self.V_up = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); self.Vinv_up = np.zeros(shape = NtVolVol_shape, dtype=np.complex128)
@@ -919,10 +929,11 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
     def save_configuration(self):
         addstring = '_dump' if self.n_times_saved % 2 == 1 else ''
         self.n_times_saved += 1
-        return np.save(self.conf_path_eta + addstring, self.eta_sites) and np.save(self.conf_path_xi + addstring, self.xi_bonds)
+        np.save(self.conf_path_xi + addstring, self.xi_bonds)
+        return np.save(self.conf_path_eta + addstring, self.eta_sites)
 
 
-    def update_eta_site_field(self, sp_index, time_slice, new_conf):
+    def update_eta_site_field(self, sp_index, time_slice, new_conf): ## TODO: this update can be made faster
         '''
             we update site-variable, which affects only 2 d.o.f. and use `_V_from_configuration_accurate_imag` standard function
         '''
