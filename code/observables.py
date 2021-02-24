@@ -23,6 +23,7 @@ class Observables:
         
         self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), open_mode)
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
+        self.gf_file = open(os.path.join(self.local_workdir, 'gf_log.dat'), open_mode)
 
         self.C_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl')
         self.PHI_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl')
@@ -368,7 +369,13 @@ class Observables:
             self.gf_imaginary 
         ))
         return
-    def measure_light_observables(self, phi, current_det_sign, n_sweep):
+    def measure_light_observables(self, phi, current_det_sign, n_sweep, print_gf = False):
+        if print_gf:
+            gf_print = phi.G_up_sum[::2, 0]
+            for i in range(8):
+                self.gf_file.write('{:.20f} '.format(gf_print[i] / phi.n_gf_measures))
+            self.gf_file.write('\n')
+            self.gf_file.flush()  # TODO: DEBUG
         self.light_signs_history.append(current_det_sign)  
 
         k = kinetic_energy(phi).item()
