@@ -27,7 +27,7 @@ class simulation_parameters:
         self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.V = V_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
-        self.dt = 4. / self.Nt[0]  # FIXME TESTINGS
+        #self.dt = 4. / self.Nt[0]  # FIXME TESTINGS
         self.nu_V = None
         self.nu_U = None
         self.BC_twist = False; self.twist = (1.0, 1.0)
