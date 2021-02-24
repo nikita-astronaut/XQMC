@@ -15,7 +15,7 @@ class simulation_parameters:
         
         self.Ls = 2
         # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([200])
+        self.Nt = np.array([400])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -45,8 +45,8 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
 
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_tests/'
-        self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_tests/'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
+        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs/'
         self.thermalization = 200000  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;
