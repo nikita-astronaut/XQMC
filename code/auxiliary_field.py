@@ -239,7 +239,6 @@ class AuxiliaryFieldIntraorbital:
         return
 
     def make_symmetric_displacement(self, M):
-        # return M
         return self.K_half.dot(M).dot(self.K_half_inverse)
 
     def get_equal_time_GF(self):

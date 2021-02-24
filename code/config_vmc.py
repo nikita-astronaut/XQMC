@@ -12,7 +12,7 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.Ne = Ls ** 2 * 4#  - 4 * 2#  - 2 * 4
-        self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
+        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
         self.L_twists_uniform = 6
         assert self.BC_twist  # this is always true
         self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
@@ -44,7 +44,7 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 9.93 / 3. # 1e+10 #9.93 / 4
+        self.epsilon = 2 #9.93 / 3. # 1e+10 #9.93 / 4
         self.xi = 0.10
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 0.
@@ -185,7 +185,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.random.uniform(1e-6, 1e-6, size = self.layout[3]),  # gaps
+            np.random.uniform(3e-2, 3e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
 
@@ -199,7 +199,7 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03])
+        self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03, 0, 0, 0, 0, 0, 0, 0, 0])
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:

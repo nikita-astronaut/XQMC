@@ -820,15 +820,14 @@ def Coloumb_energy(phi):
                                                       / G_function_up.shape[0]
 
     total_density = phi.la.diag(G_function_up)[orbital_1] + phi.la.diag(G_function_down)[orbital_1] + \
-                    phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2] - 2.
+                    phi.la.diag(G_function_up)[orbital_2] + phi.la.diag(G_function_down)[orbital_2]
 
     #print(phi.la.diag(G_function_up)[orbital_1])
     #print(phi.la.diag(G_function_up)[orbital_2])
     # print(total_density)
     #energy_coloumb += phi.config.U / 2 * np.sum(total_density ** 2) / G_function_up.shape[0] # FIXME: coloumb energy purely imaginary (the GF diagonal is imaginary) -- what to do? the problem is that there is G^2! do not account for same-site terms
     #print(energy_coloumb)
-
-    energy_coloumb_V += phi.config.V * np.dot(total_density, phi.connectivity.dot(total_density)) / G_function_up.shape[0] / 2.  # why all contribs imag? bullshit
+    energy_coloumb_V += phi.config.V * np.einsum('i,ij,j', total_density, phi.connectivity, total_density) / G_function_up.shape[0] / 2.  # why all contribs imag? bullshit
 
     #print(total_density)
     #print(energy_coloumb_V)
@@ -839,20 +838,23 @@ def Coloumb_energy(phi):
     #            exit(-1)
 
 
-    G_up_orb1 = G_function_up[orbital_1, :]; 
-    G_up_orb1 = G_up_orb1[:, orbital_1]
+    G_up_orb1 = G_function_up[::2, :]; 
+    G_up_orb1 = G_up_orb1[:, ::2]
 
-    G_up_orb2 = G_function_up[orbital_2, :]; 
-    G_up_orb2 = G_up_orb2[:, orbital_2]
+    G_up_orb2 = G_function_up[1::2, :]; 
+    G_up_orb2 = G_up_orb2[:, 1::2]
     
-    G_down_orb1 = G_function_down[orbital_1, :]; 
-    G_down_orb1 = G_down_orb1[:, orbital_1]
+    G_down_orb1 = G_function_down[::2, :]; 
+    G_down_orb1 = G_down_orb1[:, ::2]
     
-    G_down_orb2 = G_function_down[orbital_2, :]; 
-    G_down_orb2 = G_down_orb2[:, orbital_2]
+    G_down_orb2 = G_function_down[1::2, :]; 
+    G_down_orb2 = G_down_orb2[:, 1::2]
+
+    # assert np.isclose(np.sum(np.abs(G_function_up - np.kron(G_up_orb1, np.diag([1, 0])) - np.kron(G_up_orb2, np.diag([0, 1])))), 0.0)
 
     for GF in [G_up_orb1, G_up_orb2, G_down_orb1, G_down_orb2]:
-        energy_coloumb_V -= phi.config.V * np.trace((GF.T * phi.connectivity).dot(GF * phi.connectivity)) / G_function_up.shape[0] / 2.
+        energy_coloumb_V -= phi.config.V * np.trace((GF * phi.connectivity).dot(GF * phi.connectivity)) / G_function_up.shape[0] / 2.
+        # energy_coloumb_V -= phi.config.V * np.einsum('ij,ji,ij', GF, GF, phi.connectivity) / G_function_up.shape[0] / 2.
 
     return energy_coloumb_U, energy_coloumb_V # + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
                           #   / G_function_up.shape[0] 

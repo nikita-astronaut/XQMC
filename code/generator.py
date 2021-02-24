@@ -170,7 +170,7 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
     
     if n_sweep >= phi_field.config.thermalization:
         t = time()
-        observables.measure_green_functions(phi_field, current_det_sign.item())
+        observables.measure_green_functions(phi_field, 1.0)  # ??
         print('measurement of green functions takes ', time() - t)
         process = psutil.Process(os.getpid())
         print('using memory', process.memory_info().rss)

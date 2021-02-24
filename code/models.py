@@ -406,6 +406,7 @@ def model_square_1orb(config, mu, spin = +1.0):
 #@jit(nopython = True)
 def get_transition_matrix(PN_projection, K, n_orbitals = 1, \
                           valley_conservation_K=True, valley_conservation_Delta=True):
+    assert valley_conservation_K and PN_projection
     adjacency_matrix = np.zeros(K.shape)
     unit_matrix = np.eye(n_orbitals) if valley_conservation_K else np.ones((n_orbitals, n_orbitals))
     for i in range(K.shape[0] // n_orbitals):
