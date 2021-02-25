@@ -166,7 +166,9 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 need_check = False
 
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
+        t = time()
         observables.measure_light_observables(phi_field, 1, n_sweep)
+        print('measurement of light observables takes ', time() - t)
     
     if n_sweep >= phi_field.config.thermalization:
         t = time()
@@ -189,12 +191,9 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
 
-    #gf_print = phi_field.G_up_sum[::2, 0]
-    #for i in range(8):
-    #    print(gf_print[i] / phi_field.n_gf_measures)
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
-            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
+            current_det_log, current_det_sign = -2 * phi_field.log_det_up - 2 * phi_field.log_det_down, 1. / phi_field.sign_det_up ** 2 / phi_field.sign_det_down ** 2
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check_eta = True
@@ -208,7 +207,7 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             phi_field.refresh_G_functions()
 
             current_det_sign_before = current_det_sign * 1.0
-            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
+            current_det_log, current_det_sign = -phi_field.log_det_up * 2 - phi_field.log_det_down * 2, 1. / phi_field.sign_det_up ** 2 / phi_field.sign_det_down ** 2
             current_det_sign = current_det_sign.item()
             if not np.isclose(current_det_sign_before, current_det_sign):  # refresh of Green's function must preserve sign (robust)
                 print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used:', current_det_sign_before, current_det_sign)
@@ -227,18 +226,16 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             local_gauge_factors = []
             local_conf_old = phi_field.get_current_eta(site_idx, time_slice)
 
-
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move_eta(site_idx, time_slice, local_conf_old, local_conf)
 
                 phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, local_conf)
-                
-                det_ratio = auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
-                            auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-16
+                det_ratio = auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta, phi_field.current_G_function_up) ** 2 * \
+                            auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta, phi_field.current_G_function_down) ** 2
+
 
                 local_det_factors.append(det_ratio)
                 local_gauge_factors.append(gauge_ratio)
-
 
             probas = np.array(local_det_factors) * np.array(local_gauge_factors)
             assert np.allclose(probas.real, probas)
@@ -260,15 +257,16 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
 
             ratio = np.log(np.abs(local_det_factors[idx]))
             accepted = (new_conf[0] != local_conf_old[0])
-
+            
             if accepted:
-                phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq_eta(site_idx)
+                phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, new_conf); 
+                phi_field.update_G_seq_eta(site_idx);
                 phi_field.update_eta_site_field(site_idx, time_slice, new_conf)
 
-
-            if False:# need_check_eta:
+            if False:# need_check_xi:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                 G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
+                assert np.allclose(G_up_check, G_down_check)
 
                 d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                 d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
@@ -279,13 +277,10 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                 if np.abs(d_gf_up) > 1e-8 or np.abs(d_gf_down) > 1e-8:
                     print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
                 else:
-                    print('test of eta site update passed')
-                print('log |det| discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
+                    print('test of xi bond update passed')
+                print('log |det| discrepancy:', current_det_log + det_log_up_check * 2 + det_log_down_check * 2)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
-                print('Green function up sign:', np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check)
-                print('Green function down sign:', np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_down_check)
-                print('phase det discrepancy:', phase_up_check * phase_down_check * current_det_sign)
-                assert np.isclose(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check, 1.0)
+                print('phase det discrepancy:', phase_up_check ** 2 * phase_down_check ** 2 * current_det_sign)
                 print(phase_up_check)
                 need_check_eta = False
 
@@ -299,7 +294,6 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             local_gauge_factors = []
             local_conf_old = phi_field.get_current_xi(bond_idx, time_slice)
 
-
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move_xi(bond_idx, time_slice, local_conf_old, local_conf[0])
 
@@ -307,12 +301,11 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
 
                 sp_index1, sp_index2 = phi_field.bonds[bond_idx]
 
-                det_ratio = auxiliary_field.get_det_ratio_inter_bond(sp_index1, sp_index2, phi_field.Delta_up, phi_field.current_G_function_up) * \
-                            auxiliary_field.get_det_ratio_inter_bond(sp_index1, sp_index2, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-16
+                det_ratio = auxiliary_field.get_det_ratio_inter(sp_index1, sp_index2, phi_field.Delta, phi_field.current_G_function_up) ** 2 * \
+                            auxiliary_field.get_det_ratio_inter(sp_index1, sp_index2, phi_field.Delta, phi_field.current_G_function_down) ** 2
                 local_det_factors.append(det_ratio)
 
                 local_gauge_factors.append(gauge_ratio)
-
 
             probas = np.array(local_det_factors) * np.array(local_gauge_factors)
             assert np.allclose(probas.real, probas)
@@ -351,14 +344,13 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                     print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
                 else:
                     print('test of xi bond update passed')
-                print('log |det| discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
+                print('log |det| discrepancy:', current_det_log + 2 * det_log_up_check + 2 * det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
-                print('phase det discrepancy:', phase_up_check * phase_down_check * current_det_sign)
+                print('phase det discrepancy:', phase_up_check ** 2 * phase_down_check ** 2 * current_det_sign)
                 print(phase_up_check)
                 need_check_xi = False
 
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
-
         
         observables.measure_light_observables(phi_field, 1, n_sweep, print_gf = (time_slice == phi_field.config.Nt - 1))
 
