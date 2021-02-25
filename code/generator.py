@@ -188,9 +188,10 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
         phi_field.copy_to_GPU()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
-    gf_print = phi_field.G_up_sum[::2, 0]
-    for i in range(8):
-        print(gf_print[i] / phi_field.n_gf_measures)
+
+    #gf_print = phi_field.G_up_sum[::2, 0]
+    #for i in range(8):
+    #    print(gf_print[i] / phi_field.n_gf_measures)
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
@@ -359,7 +360,7 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
 
         
-        observables.measure_light_observables(phi_field, 1, n_sweep)
+        observables.measure_light_observables(phi_field, 1, n_sweep, print_gf = (time_slice == phi_field.config.Nt - 1))
 
     if n_sweep >= phi_field.config.thermalization:
         t = time()
