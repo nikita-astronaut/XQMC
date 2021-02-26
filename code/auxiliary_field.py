@@ -1276,13 +1276,41 @@ def _update_G_seq_inter_twosite(G, Delta, sp_index1, sp_index2, total_dof):
     return G + GU.dot(Zinv)
 
 
+@jit(nopython=True)
 def _update_G_seq_intra(G, Delta, sp_index, total_dof):
-    update_matrix = Delta * (np.eye(total_dof // 2) - G)[sp_index, :]
+    update_matrix = -G[sp_index, :]
+    update_matrix[sp_index] = 1. + update_matrix[sp_index]
+    update_matrix *= Delta
+    #update_matrix2 = Delta * (np.eye(total_dof // 2) - G)[sp_index, :]
+    #assert np.allclose(update_matrix, update_matrix2)
+
     update_matrix[sp_index] += 1.
     det_update_matrix = update_matrix[sp_index]
     update_matrix_inv = -update_matrix / det_update_matrix
     update_matrix_inv[sp_index] = 1. / det_update_matrix - 1.
-    G = G + np.outer(G[:, sp_index], update_matrix_inv)
+    G = G + np.outer(np.ascontiguousarray(G[:, sp_index]), np.ascontiguousarray(update_matrix_inv))
 
     return G
 
+
+'''
+@jit(nopython=True)
+def _update_G_seq_intra(G, Delta, sp_index, total_dof):
+    U = np.zeros((total_dof // 2, 1), dtype=np.complex128)
+    U[sp_index, 0] = Delta
+
+    G_sliced_left = G[sp_index:sp_index+1, :]
+    V = G_sliced_left
+
+    V[0, sp_index] -= 1
+    V = np.ascontiguousarray(V)
+    U = np.ascontiguousarray(U)
+    G = np.ascontiguousarray(G)
+
+    GU = G.dot(U)
+    Zinv = np.linalg.inv(np.eye(1, dtype=np.complex128) - V.dot(U)).dot(V)
+    Zinv = np.ascontiguousarray(Zinv)
+
+    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
+    return G + GU.dot(Zinv)
+'''

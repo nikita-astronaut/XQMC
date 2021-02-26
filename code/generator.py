@@ -200,6 +200,7 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             need_check_xi = True
 
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
+            #t = time()
             if switch:
                     phi_field.copy_to_GPU()
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
@@ -214,8 +215,11 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check_xi = True
             need_check_eta = True
+            #print('refresh: ', time() - t); t =time()
         # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
+        #t = time()
         phi_field.wrap_up(time_slice)
+        #print('wrap up', time() - t)
         if switch:
             phi_field.copy_to_CPU()
 
@@ -229,9 +233,14 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move_eta(site_idx, time_slice, local_conf_old, local_conf)
 
+                #t = time()
                 phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, local_conf)
+                #print('deltas eta', time() - t)
+
+                #t = time()
                 det_ratio = auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta, phi_field.current_G_function_up) ** 2 * \
                             auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta, phi_field.current_G_function_down) ** 2
+                #print('det ratio eta', time() - t)
 
 
                 local_det_factors.append(det_ratio)
@@ -259,14 +268,19 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             accepted = (new_conf[0] != local_conf_old[0])
             
             if accepted:
+                #t = time()
                 phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, new_conf); 
+                #print('deltas', time() - t); t = time()
+
                 phi_field.update_G_seq_eta(site_idx);
+                #print('G_update eta', time() - t); t = time()
+
                 phi_field.update_eta_site_field(site_idx, time_slice, new_conf)
+                #print('update field: ', time() - t)
 
             if False:# need_check_xi:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                 G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
-                assert np.allclose(G_up_check, G_down_check)
 
                 d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                 d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
@@ -297,12 +311,16 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move_xi(bond_idx, time_slice, local_conf_old, local_conf[0])
 
+                #t = time()
                 phi_field.compute_deltas_xi(bond_idx, time_slice, local_conf_old, local_conf[0])
+                #print('deltas xi:', time() - t)
 
                 sp_index1, sp_index2 = phi_field.bonds[bond_idx]
 
+                #t = time()
                 det_ratio = auxiliary_field.get_det_ratio_inter(sp_index1, sp_index2, phi_field.Delta, phi_field.current_G_function_up) ** 2 * \
                             auxiliary_field.get_det_ratio_inter(sp_index1, sp_index2, phi_field.Delta, phi_field.current_G_function_down) ** 2
+                #print('det ratio xi:', time() - t)
                 local_det_factors.append(det_ratio)
 
                 local_gauge_factors.append(gauge_ratio)
@@ -326,13 +344,17 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             accepted = (new_conf[0] != local_conf_old)
 
             if accepted:
-                phi_field.compute_deltas_xi(bond_idx, time_slice, local_conf_old, new_conf[0]); phi_field.update_G_seq_xi(bond_idx)
+                #t = time()
+                phi_field.compute_deltas_xi(bond_idx, time_slice, local_conf_old, new_conf[0]); 
+                #print('deltas xi', time() - t); t = time()
+                phi_field.update_G_seq_xi(bond_idx)
+                #print('update G xi', time() - t); t = time()
                 phi_field.update_xi_bond_field(bond_idx, time_slice, new_conf[0])
+                #print('update xi bond', time() - t)
 
             if False:# need_check_xi:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                 G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
-                assert np.allclose(G_up_check, G_down_check)
 
                 d_gf_up = np.sum(np.abs(phi_field.current_G_function_up - G_up_check)) / np.sum(np.abs(G_up_check))
                 d_gf_down = np.sum(np.abs(phi_field.current_G_function_down - G_down_check)) / np.sum(np.abs(G_down_check))
