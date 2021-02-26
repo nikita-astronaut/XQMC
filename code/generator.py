@@ -373,8 +373,9 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                 need_check_xi = False
 
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
+        
+        observables.measure_light_observables(phi_field, 1, n_sweep, print_gf = (time_slice == phi_field.config.Nt - 1))
 
-        observables.measure_light_observables(phi_field, 1, n_sweep)
     if n_sweep >= phi_field.config.thermalization:
         t = time()
         observables.measure_green_functions(phi_field, current_det_sign)
