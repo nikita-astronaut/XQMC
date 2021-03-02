@@ -215,21 +215,22 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             G_up, G_down = phi_field.current_G_function_up * 1.0, phi_field.current_G_function_down * 1.0
             phi_field.refresh_G_functions()
 
-            if np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up) > 1e-8:
-                print('Warning! During refresh there is a big norm discrepancy in up')
+            if np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up) > 1e-13:
+                print('Warning! During refresh there is a big norm discrepancy in up:', np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up))
 
-            if np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) > 1e-8:
-                print('Warning! During refresh there is a big norm discrepancy in down')
+            if np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) > 1e-13:
+                print('Warning! During refresh there is a big norm discrepancy in down:', np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) )
 
+            # print(np.max(np.abs(G_down - phi_field.current_G_function_down)))
             current_det_sign_before = current_det_sign * 1.0
             current_det_log_before = current_det_log * 1.0
             current_det_log, current_det_sign = -phi_field.log_det_up * 2 - phi_field.log_det_down * 2, 1. / phi_field.sign_det_up ** 2 / phi_field.sign_det_down ** 2
             current_det_sign = current_det_sign.item()
 
-            if np.abs(current_det_sign_before - current_det_sign) > 1e-6:  # refresh of Green's function must preserve sign (robust)
-                print('Warning!!! Refresh did not preserve the det phase:', current_det_sign_before / current_det_sign, time_slice)
-            if np.abs(current_det_log_before - current_det_log) > 1e-6:  # refresh of Green's function must preserve sign (robust)
-                print('Warning!!! Refresh did not preserve the det log:', current_det_log_before / current_det_log, current_det_log_before, current_det_log, time_slice)
+            #if np.abs(current_det_sign_before - current_det_sign) > 1e-6:  # refresh of Green's function must preserve sign (robust)
+            #    print('Warning!!! Refresh did not preserve the det phase:', current_det_sign_before / current_det_sign, time_slice)
+            #if np.abs(current_det_log_before - current_det_log) > 1e-6:  # refresh of Green's function must preserve sign (robust)
+            #    print('Warning!!! Refresh did not preserve the det log:', current_det_log_before / current_det_log, current_det_log_before, current_det_log, time_slice)
 
             #G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice) # FIXME debug
             #G_up_current = phi_field.current_G_function_up
@@ -264,6 +265,12 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
 
             print(t, np.linalg.norm(GFs_up[t] - correct_string) / np.linalg.norm(correct_string))
         '''
+
+        energies, states = np.linalg.eigh(phi_field.K_matrix_plus)
+        beta = phi_field.config.Nt * phi_field.config.dt
+        correct_energy = np.sum(energies / (1. + np.exp(beta * energies)))
+
+        print('correct energy at beta = {:.10f} = {:.10f}'.format(beta, correct_energy * 4. / 4 / phi_field.config.Ls ** 2))
 
 
         #### eta-site field update ####
