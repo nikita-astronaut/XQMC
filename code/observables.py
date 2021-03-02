@@ -718,8 +718,8 @@ def n_up_n_down_correlator(phi, adj):
 def kinetic_energy(phi):
     G_function_up, G_function_down = phi.get_equal_time_GF()
 
-    return 2 * (phi.la.einsum('ij,ij', phi.K_matrix_plus, G_function_up) + \
-                phi.la.einsum('ij,ij', phi.K_matrix_minus, G_function_down)) / G_function_up.shape[0] / 2.
+    return 2 * (phi.la.einsum('ij,ij', phi.K_matrix_plus.T, G_function_up) + \
+                phi.la.einsum('ij,ij', phi.K_matrix_minus.T, G_function_down)) / G_function_up.shape[0] / 2.
 
 
 def Coloumb_energy(phi):

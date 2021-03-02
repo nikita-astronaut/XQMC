@@ -72,7 +72,7 @@ class AuxiliaryFieldIntraorbital:
     def propose_move(self, sp_index, time_slice, o_index):
         return -self.configuration[time_slice, sp_index, o_index], 1.0  # gauge factor is always 1
 
-    def SVD(self, matrix):
+    def SVD(self, matrix, mode = 'right_to_left'):
         def checkSVDDone(D, threshold):
             N = len(D)
 
@@ -132,8 +132,12 @@ class AuxiliaryFieldIntraorbital:
 
         if self.cpu:
             #return scipy.linalg.svd(matrix, lapack_driver='gesvd') 
-            U, D, V = svd_recursive(matrix.conj().T)
-            return V, D, U.conj().T
+            if mode == 'right_to_left':
+                U, D, V = svd_recursive(matrix.conj().T)
+                return V, D, U.conj().T
+            else:
+                U, D, V = svd_recursive(matrix)
+                return U, D, V.conj().T
 
             _, Unew = np.linalg.eigh(matrix @ matrix.conj().T)
             Vnew, Rnew = np.linalg.qr(matrix.conj().T @ Unew)
@@ -260,8 +264,15 @@ class AuxiliaryFieldIntraorbital:
         lhs_change_up = self._get_partial_SVD_decomposition_range(+1, tmin, tmax)
         lhs_change_down = self._get_partial_SVD_decomposition_range(-1, tmin, tmax)
 
-        self.current_lhs_SVD_up = self._product_svds(lhs_change_up, self.current_lhs_SVD_up)
-        self.current_lhs_SVD_down = self._product_svds(lhs_change_down, self.current_lhs_SVD_down)
+        U, D, V = self.current_lhs_SVD_up
+        u, d, v = self.SVD(np.dot(np.dot(lhs_change_up, U), np.diag(D)), mode='left_to_right')
+        self.current_lhs_SVD_up = u, d, v.dot(V)
+        #self.current_lhs_SVD_up = self._product_svds(lhs_change_up, self.current_lhs_SVD_up)
+
+        U, D, V = self.current_lhs_SVD_down
+        u, d, v = self.SVD(np.dot(np.dot(lhs_change_down, U), np.diag(D)), mode='left_to_right')
+        self.current_lhs_SVD_down = u, d, v.dot(V)
+        # self.current_lhs_SVD_down = self._product_svds(lhs_change_down, self.current_lhs_SVD_down)
 
         del self.partial_SVD_decompositions_up[-1]
         del self.partial_SVD_decompositions_down[-1]
@@ -357,7 +368,7 @@ class AuxiliaryFieldIntraorbital:
         
         for time_slice in range(tmin, tmax):
             M = self.B_l(spin, time_slice, inverse = False).dot(M)
-        return self.SVD(M)
+        return M
 
     def _get_initial_field_configuration(self):
         if self.config.start_type == 'cold':
