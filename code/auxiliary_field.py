@@ -73,7 +73,7 @@ class AuxiliaryFieldIntraorbital:
         return -self.configuration[time_slice, sp_index, o_index], 1.0  # gauge factor is always 1
 
     def SVD(self, matrix):
-        def checkSVDDone(D, threshold)
+        def checkSVDDone(D, threshold):
             N = len(D)
 
             if N < 2 or threshold < 0.:
@@ -93,6 +93,8 @@ class AuxiliaryFieldIntraorbital:
             nc = Q.shape[1]
 
             for c in range(nc):
+                if np.isclose(R[c, c], 0.0):
+                    continue
                 phase = R[c, c] / np.abs(R[c, c])
                 R[c, c:] *= np.conj(phase)
                 Q[:, c] *= phase
@@ -113,19 +115,17 @@ class AuxiliaryFieldIntraorbital:
             if done:
                 return U, D, V
             
-            u = U[:, start:Nd + 1]
-            v = V[:, start:Nd + 1]
+            u = U[:, start:]
+            v = V[:, start:]
             b = u.conj().T.dot(np.dot(M, v))  # a square matrix still
 
             bu,bd,bv = svd_recursive(b,
                           threshold=threshold,
                           north_pass=north_pass)
 
-            u = np.dot(u, u * bu)
-            v = np.dot(v, v * bv)
-
-            D[start:Nd + 1] = D[start:Nd + 1] # ???
-            view(D,start:Nd) .= bd # ???
+            u = np.dot(u, bu)
+            v = np.dot(v, bv)
+            D[start:] = bd
 
             return U, D, V
 
