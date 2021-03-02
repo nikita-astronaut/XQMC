@@ -123,8 +123,8 @@ class AuxiliaryFieldIntraorbital:
                           threshold=threshold,
                           north_pass=north_pass)
 
-            u = np.dot(u, bu)
-            v = np.dot(v, bv)
+            u @= bu
+            v @= bv
             D[start:] = bd
 
             return U, D, V
