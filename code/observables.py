@@ -359,7 +359,7 @@ class Observables:
         return
     def measure_light_observables(self, phi, current_det_sign, n_sweep, print_gf = False):
         if print_gf:
-            gf_print = phi.G_up_sum[::2, 0]
+            gf_print = phi.G_up_sum[:, 0]
             for i in range(8):
                 self.gf_file.write('{:.20f} '.format(gf_print[i] / phi.n_gf_measures))
             self.gf_file.write('\n')
