@@ -93,14 +93,14 @@ class AuxiliaryFieldIntraorbital:
             nc = Q.shape[1]
 
             for c in range(nc):
-                if np.isclose(R[c, c], 0.0):
+                if R[c, c] == 0.:
                     continue
                 phase = R[c, c] / np.abs(R[c, c])
                 R[c, c:] *= np.conj(phase)
                 Q[:, c] *= phase
             return Q, R
 
-        def svd_recursive(M, threshold = 1e-4, north_pass = 2):
+        def svd_recursive(M, threshold = 1e-2, north_pass = 2):
             rho = -np.dot(M, M.conj().T)
             D, U = np.linalg.eigh(rho)
 
@@ -109,7 +109,7 @@ class AuxiliaryFieldIntraorbital:
             V = np.dot(M.conj().T, U)# M'*U
             V, R = qr_positive(V)
 
-            D = np.diag(R)
+            D = np.diag(R) * 1.
 
             done, start = checkSVDDone(D, threshold)
             if done:
@@ -123,14 +123,18 @@ class AuxiliaryFieldIntraorbital:
                           threshold=threshold,
                           north_pass=north_pass)
 
-            u @= bu
-            v @= bv
+            U[:, start:] = np.dot(U[:, start:], bu)
+            V[:, start:] = np.dot(V[:, start:], bv)
             D[start:] = bd
 
             return U, D, V
 
 
         if self.cpu:
+            #return scipy.linalg.svd(matrix, lapack_driver='gesvd') 
+            U, D, V = svd_recursive(matrix.conj().T)
+            return V, D, U.conj().T
+
             _, Unew = np.linalg.eigh(matrix @ matrix.conj().T)
             Vnew, Rnew = np.linalg.qr(matrix.conj().T @ Unew)
             assert np.allclose(matrix.conj().T @ Unew, np.dot(Vnew, Rnew))
@@ -157,17 +161,78 @@ class AuxiliaryFieldIntraorbital:
             svd_lhs = self.current_lhs_SVD_down
         u1, s1, v1 = svd_lhs
         u2, s2, v2 = svd_rhs
-        m = v1.dot(u2)
-        middle_mat = (u1.conj().T).dot(v2.conj().T) + (self.la.diag(s1).dot(m)).dot(self.la.diag(s2))  # are these u1.T / v2.T correct incase of imag code? I think no
-        inv = self.la.linalg.inv(middle_mat)
+
+        #print(s1, 'decomposition S1')
+        #print(s2,' decomposition S2')
+
+
+        s1_min = s1.copy(); s1_min[s1_min > 1.] = 1.
+        s2_min = s2.copy(); s2_min[s2_min > 1.] = 1.
+        s1_max = s1.copy(); s1_max[s1_max < 1.] = 1.
+        s2_max = s2.copy(); s2_max[s2_max < 1.] = 1.
+
+        middle_mat = np.diag(s1_max ** -1) @ u1.conj().T @ v2.conj().T @ np.diag(s2_max ** -1) + np.diag(s1_min) @ v1 @ u2 @ np.diag(s2_min)
+
+
+        #middle_mat = (u1.conj().T).dot(v2.conj().T) + (self.la.diag(s1).dot(m)).dot(self.la.diag(s2))  # are these u1.T / v2.T correct incase of imag code? I think no
+
+        U, D, V = self.SVD(middle_mat)
+        inv = V.conj().T.dot(np.diag(D ** -1)).dot(U.conj().T)
+        #inv = self.la.linalg.inv(middle_mat)
 
         #assert np.allclose(v2.conj().T.dot(inv).dot(u1.conj().T), \
         #                   np.linalg.inv(np.eye(len(s1), dtype=np.complex128) + u1.dot(self.la.diag(s1)).dot(v1).dot(u2).dot(self.la.diag(s2)).dot(v2)))
 
+        
+        res = v2.conj().T @ np.diag(s2_max ** -1) @ inv @ np.diag(s1_max ** -1) @ u1.conj().T
+        
+        '''
+        if spin == 1.0:
+            current_tau = self.config.Nt * self.config.dt
+            B = u1.dot(np.diag(s1)).dot(v1).dot(u2).dot(np.diag(s2)).dot(v2)
+            energies, states = np.linalg.eigh(self.K_matrix_plus)
+            states = states.T.conj()
+            assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
+            assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
+            correct_Bstring = np.einsum('i,ij,ik->jk', np.exp(current_tau * energies), states.conj(), states)
 
-        res = v2.conj().T.dot(inv).dot(u1.conj().T)
+            print('G without optimization obtaining: B chain precision:')
+            d_B = self.SVD(B)[1]
+            d_corr = self.SVD(correct_Bstring)[1]
+            print(np.abs((d_B - d_corr) / d_corr), 'eigenvalues discrepancy in B chain from two parts')
+
+
+            energies, states = np.linalg.eigh(self.K_matrix_plus)
+            states = states.T.conj()
+            assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
+            assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
+            correct_string = np.einsum('i,ij,ik->jk', 1. / (1. + np.exp(current_tau * energies)), states.conj(), states)
+            print('get_current_G_function ERROR: ', np.linalg.norm(correct_string - res) / np.linalg.norm(correct_string))
+
+            svd_check = self.SVD(correct_string)[1]
+            svd_res = self.SVD(res)[1]
+
+            print(np.abs((svd_res - svd_check) / svd_check), 'eigenvalues discrepancy')
+
+            idx = np.where(np.abs((svd_res - svd_check) / svd_check) > 1e-2)[0][0]
+            print(svd_check, 'eigenvalues themselves', svd_check[idx])
+        
+        '''
         phase, ld = np.linalg.slogdet(res)
+        #U, D, V = self.SVD(res)
+        #ld = self.la.sum(self.la.log(D)) + np.linalg.slogdet(U)[1] + np.linalg.slogdet(V)[1]
+        #phase = np.linalg.slogdet(res)[0]
+ 
+        #phase, ld = np.linalg.slogdet(res)
+        #ph_check, log_check = np.linalg.slogdet(correct_string)
+        #U, D, V = self.SVD(correct_string)
+        #log_check = self.la.sum(self.la.log(D)) + np.linalg.slogdet(U)[1] + np.linalg.slogdet(V)[1]
+        #ph_check = np.linalg.slogdet(U.dot(V))[0]
 
+
+
+        #print('phase check opt =', ph_check - phase, ph_check, phase)
+        #print('log check opt =', log_check - ld, log_check, ld)
         if return_logdet:
             return res, ld, phase
         return res
@@ -216,22 +281,29 @@ class AuxiliaryFieldIntraorbital:
             B = self.B_l(spin, slice_idx)
             buff = buff.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))  # this is a VERY tricky point
+                # u, current_D, current_V = self.SVD(np.dot(buff, current_U).dot(self.la.diag(current_D)))
+                u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
                 #assert np.allclose(np.linalg.inv(u), u.conj().T)
                 #assert np.allclose(np.linalg.inv(v), v.conj().T)
                 #assert self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M) < 1e-13  # FIXME
                 current_U = current_U.dot(u)
+                #current_V = v.dot(current_V)
+
                 if spin == +1:
                     self.partial_SVD_decompositions_up.append((current_U * 1., current_D * 1., current_V * 1.))
-                    #current_tau = (nr + 1) * self.config.dt
-                    #energies, states = np.linalg.eigh(self.K_matrix_plus)
-                    #states = states.T.conj()
-                    #assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
-                    #assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
-                    #correct_string = self.SVD(np.einsum('i,ij,ik->jk', np.exp(current_tau * energies), states.conj(), states))[1]
-                    #string = np.dot(current_U, self.la.diag(current_D)).dot(current_V)
-                    #print((current_D -correct_string) / correct_string, nr) 
-                    #print(self.la.linalg.norm(string - correct_string) / self.la.linalg.norm(correct_string), 'string discrepancy', nr, flush=True)
+                    '''
+                    current_tau = (nr + 1) * self.config.dt
+                    energies, states = np.linalg.eigh(self.K_matrix_plus)
+                    states = states.T.conj()
+                    assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
+                    assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
+                    correct_string_d = self.SVD(np.einsum('i,ij,ik->jk', np.exp(current_tau * energies), states.conj(), states))[1]
+                    correct_string = np.einsum('i,ij,ik->jk', np.exp(current_tau * energies), states.conj(), states)
+                    string = np.dot(current_U, self.la.diag(current_D)).dot(current_V)
+                    print((current_D - correct_string_d) / correct_string_d, nr, 'eigenvalues on step of obtaining partial svd decompositions')
+                    #print(correct_string)
+                    print(self.la.linalg.norm(string - correct_string) / self.la.linalg.norm(correct_string), 'string discrepancy in NORM', nr, flush=True)
+                    '''
                 else:
                     self.partial_SVD_decompositions_down.append((current_U * 1., current_D * 1., current_V * 1.))
 
@@ -245,34 +317,39 @@ class AuxiliaryFieldIntraorbital:
         current_V = self.la.eye(self.Bdim, dtype=np.complex128)
         current_U = self.la.eye(self.Bdim, dtype=np.complex128)
         current_D = self.la.ones(self.Bdim, dtype=np.complex128)
+        buff = self.la.eye(self.Bdim, dtype=np.complex128)
 
         slices = list(range(0, self.config.Nt))
         for nr, slice_idx in enumerate(slices):
             B = self.B_l(spin, slice_idx)
-            M = B.dot(M)
+            buff = B.dot(buff)
             if nr % self.config.s_refresh == self.config.s_refresh - 1:
-                u, s, v = self.SVD(M)
+                current_U, current_D, v = self.SVD(np.dot(buff, current_U).dot(self.la.diag(current_D)))
                 
                 current_V = v.dot(current_V)
-                decompositions.append((u, s, current_V))
-                M = u.dot(self.la.diag(s))
+                decompositions.append((current_U, current_D, current_V))
+                buff = self.la.eye(self.Bdim, dtype=np.complex128)
         return decompositions
 
     def _get_right_partial_SVD_decompositions(self, spin): # FIXME later (only nonequal)
         decompositions = []
-        M = self.la.eye(self.Bdim, dtype=np.complex128)
+        current_V = self.la.eye(self.Bdim, dtype=np.complex128)
         current_U = self.la.eye(self.Bdim, dtype=np.complex128)
+        current_D = self.la.ones(self.Bdim, dtype=np.complex128)
+        buff = self.la.eye(self.Bdim, dtype=np.complex128)
 
         slices = list(range(0, self.config.Nt))
         for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
-            M = M.dot(B)
+            buff = buff.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1:
-                u, s, v = self.SVD(M)
+                u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
 
                 current_U = current_U.dot(u)
-                decompositions.append((current_U, s, v))
-                M = self.la.diag(s).dot(v)
+                decompositions.append((current_U, current_D, current_V))
+                buff = self.la.eye(self.Bdim, dtype=np.complex128)
+
+
         return decompositions
 
     def _get_partial_SVD_decomposition_range(self, spin, tmin, tmax): # FIXME later (only nonequal)
@@ -391,7 +468,7 @@ class AuxiliaryFieldIntraorbital:
 
         return
 
-    def compute_B_chain(self, spin, tmax, tmin):  # TODO: check me, stabilization good?
+    def compute_B_chain(self, spin, tmax, tmin):
         if tmax == self.config.Nt:
             index_decomp = (tmax - tmin) // self.config.s_refresh
             tmax -= index_decomp * self.config.s_refresh
@@ -399,27 +476,29 @@ class AuxiliaryFieldIntraorbital:
             if index_decomp > 0:
                 current_U, s, v = self.right_decompositions[index_decomp - 1]
             else:
-                current_U, s, v = self.SVD(self.la.eye(self.config.total_dof // 2, dtype=np.complex128))
-            chain = self.la.diag(s).dot(v)
+                current_U, s, v = self.SVD(self.la.eye(self.Bdim, dtype=np.complex128))
+            chain = self.la.eye(self.Bdim, dtype=np.complex128)
 
             for i in reversed(range(tmin, tmax)):
                 chain = chain.dot(self.B_l(spin, i))
 
-            u, s, v = self.SVD(chain)
+            u, s, v = self.SVD(self.la.diag(s).dot(np.dot(v, chain)))
             return current_U.dot(u), s, v
+
+
         index_decomp = (tmax - tmin) // self.config.s_refresh
         tmin += index_decomp * self.config.s_refresh
         if index_decomp > 0:
             u, s, current_V = self.left_decompositions[index_decomp - 1]
         else:
-            u, s, current_V = self.SVD(self.la.eye(self.config.total_dof // 2, dtype=np.complex128))
+            u, s, current_V = self.SVD(self.la.eye(self.Bdim // 2, dtype=np.complex128))
 
-        chain = u.dot(self.la.diag(s))
+        chain = self.la.eye(self.Bdim, dtype=np.complex128)
 
         for i in range(tmin, tmax):
             chain = self.B_l(spin, i).dot(chain)
 
-        u, s, v = self.SVD(chain)
+        u, s, v = self.SVD(np.dot(chain, u).dot(self.la.diag(s)))
         return u, s, v.dot(current_V)
 
     def get_nonequal_time_GFs(self, spin, GF_0):
@@ -458,23 +537,23 @@ class AuxiliaryFieldIntraorbital:
 
         slices = list(range(time_slice + 1, self.config.Nt)) + list(range(0, time_slice + 1))
 
-        for nr, slice_idx in enumerate(slices):
+        for nr, slice_idx in enumerate(reversed(slices)):
             B = self.B_l(spin, slice_idx)
-            buff = B.dot(buff)
+            buff = buff.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                current_U, current_D, v = self.SVD(np.dot(buff, current_U).dot(self.la.diag(current_D)))
+                u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
 
                 #print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
                 # assert self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M) < 1e-13
-                current_V = v.dot(current_V)
+                current_U = current_U.dot(u)
                 buff = self.la.eye(self.Bdim, dtype=np.complex128)
 
         v = current_V
         s = current_D
 
-        
-        #if spin == 1.0:
         '''
+        if spin == 1.0:
+        
             current_tau = self.config.Nt * self.config.dt
             energies, states = np.linalg.eigh(self.K_matrix_plus)
             states = states.T.conj()
@@ -482,16 +561,17 @@ class AuxiliaryFieldIntraorbital:
             assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
             correct_string_B = np.einsum('i,ij,ik->jk', np.exp(current_tau * energies), states.conj(), states)
             ub, db, vb = self.SVD(correct_string_B)
-            string_B_svd = ub.dot(self.la.diag(db)).dot(vb)
-            db_after = self.SVD(string_B_svd)[1]
-            print((db_after - db) / db, '!!!')
+            #string_B_svd = ub.dot(self.la.diag(db)).dot(vb)
+            #db_after = self.SVD(string_B_svd)[1]
+            #print((db_after - db) / db, '!!!')
 
             print(self.la.linalg.norm(current_U.dot(self.la.diag(current_D)).dot(current_V) - correct_string_B) / self.la.linalg.norm(correct_string_B), 'GF_noopt discrepancy before inversion', nr, flush=True)
             sing_true = self.SVD(correct_string_B)[1]
-            print((current_D - sing_true) / sing_true)
+            #print((current_D - sing_true) / sing_true)
         '''
 
         m = current_U.conj().T.dot(v.conj().T) + self.la.diag(s)
+        # print(s, 'sing values nonoptimized')
         um, sm, vm = self.SVD(m)
         #print(self.la.linalg.norm(um.dot(self.la.diag(sm)).dot(vm) - m) / self.la.linalg.norm(m), 'svd of M discrepancy')
         #assert np.allclose(((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T) ,\
@@ -526,10 +606,18 @@ class AuxiliaryFieldIntraorbital:
             assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
             assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
             correct_string = np.einsum('i,ij,ik->jk', 1. / (1. + np.exp(current_tau * energies)), states.conj(), states)
-            inv_B = self.la.linalg.inv(self.la.eye(self.Bdim) + correct_string_B)
-            print(self.la.linalg.norm(res - correct_string) / self.la.linalg.norm(correct_string), 'GF_noopt final discrepancy', nr, flush=True)
-            print(self.la.linalg.norm(inv_B - correct_string) / self.la.linalg.norm(correct_string), 'correct strings discrepancy', nr, flush=True)
+            # inv_B = self.la.linalg.inv(self.la.eye(self.Bdim) + correct_string_B)
+            print(self.la.linalg.norm(res - correct_string) / self.la.linalg.norm(correct_string), 'GF_noopt final discrepancy', flush=True)
+            # print(self.la.linalg.norm(inv_B - correct_string) / self.la.linalg.norm(correct_string), 'correct strings discrepancy', nr, flush=True)
+
+
+            d_res = self.SVD(res)[1]
+            d_correct = self.SVD(correct_string)[1]
+            idx = np.where(np.abs((d_res - d_correct) / d_res) > 1e-2)[0][0]
+
+            print((d_res - d_correct) / d_correct, 'discrepancy noopt', d_correct[idx])
         '''
+        
         return res, self.la.sum(self.la.log(sm ** -1)), np.linalg.slogdet(res)[0] #res / np.abs(res)
         #return ((v.dot(vm)).conj()).dot(self.la.diag(sm ** -1)).dot((um.dot(current_U)).conj()), self.la.sum(self.la.log(sm ** -1)), \
         #        np.sign(np.linalg.det(((v.dot(vm)).conj())) * np.linalg.det((um.dot(current_U)).conj()))
