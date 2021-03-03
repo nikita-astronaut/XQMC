@@ -51,13 +51,15 @@ class Observables:
         self.reduced_A_gap = models.get_reduced_adjacency_matrix(self.config, \
             self.config.max_square_pairing_distance)
         self.ijkl, self.ljki = np.array(get_idxs_list(self.reduced_A_gap))
+        # print(self.ijkl)
+        # print(len(self.ijkl))
+        # exit(-1)
         #np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
         #exit(-1)
 
         # for order-order susceptibility
         self.reduced_A_order = models.get_reduced_adjacency_matrix(self.config, \
             self.config.max_square_order_distance)
-        self.ijkl_order = np.array(get_idxs_list(self.reduced_A_order))
         self.ik_marking = get_ik_marking(self.config)
         self.distances_list = models.get_distances_list(self.config)  # pairwise distances |r_i - r_j|^2
 
@@ -429,8 +431,8 @@ class Observables:
         G_prepared = np.asfortranarray(self.GF_stored[:self.cur_buffer_size, ...].reshape(new_shape))
 
         t = time()
-        self.X_ijkl += measure_gfs_correlator(G_prepared, self.ijkl)
-        self.Z_ijkl += measure_gfs_correlator(G_prepared, self.ljki)
+        self.X_ijkl += measure_gfs_correlator(G_prepared, self.ijkl, self.config.Ls)
+        self.Z_ijkl += measure_gfs_correlator(G_prepared, self.ljki, self.config.Ls)
 
         #G_down_prepared = np.asfortranarray(np.einsum('ijkl,i->ijkl', self.GF_down_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape))
         #G_up_prepared = np.asfortranarray(self.GF_up_stored[:self.cur_buffer_size, ...].reshape(new_shape))
@@ -775,14 +777,27 @@ def Coloumb_energy(phi):
 
 
 @jit(nopython=True)
-def measure_gfs_correlator(GF, ijkl):
+def measure_gfs_correlator(GF, ijkl, L):
     C_ijkl = np.zeros(len(ijkl), dtype=np.complex128)
     idx = 0
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
-        C_ijkl[xi] = np.dot(GF[:, j, i], GF[:, k, l])
-    return C_ijkl
+        for shift_x in range(L):
+            for shift_y in range(L):
+                ix, iy, io = (i // 4) // L, (i // 4) % L, i % 4
+                jx, jy, jo = (j // 4) // L, (j // 4) % L, j % 4
+                kx, ky, ko = (k // 4) // L, (k // 4) % L, k % 4
+                lx, ly, lo = (l // 4) // L, (l // 4) % L, l % 4
+
+                i_shift = io + ((ix + shift_x) % L) * 4 * L + ((iy + shift_y) % L) * 4
+                j_shift = jo + ((jx + shift_x) % L) * 4 * L + ((jy + shift_y) % L) * 4
+                k_shift = ko + ((kx + shift_x) % L) * 4 * L + ((ky + shift_y) % L) * 4
+                l_shift = lo + ((lx + shift_x) % L) * 4 * L + ((ly + shift_y) % L) * 4
+
+                C_ijkl[xi] += np.dot(GF[:, j_shift, i_shift], GF[:, k_shift, l_shift])
+
+    return C_ijkl / (L ** 2)
 
 
 
@@ -819,7 +834,7 @@ def measure_X_correlator(GF_sigma1, GF_sigma2, signs, ijkl):
 def get_idxs_list(reduced_A):
     ijkl = []; ljki = []
 
-    for i in range(reduced_A.shape[0]):
+    for i in range(4):
         for k in range(reduced_A.shape[0]):
             for j in reduced_A[i, ...]:
                 for l in reduced_A[k, ...]:
