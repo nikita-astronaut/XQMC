@@ -394,6 +394,7 @@ class Observables:
 
         self.num_chi_samples += self.cur_buffer_size
 
+        '''
         print('start fft', flush=True)  # FIXME: debug (this is for later)
         GF_fft = np.dot(self.GF_sum, self.fft)
         GF_fft = np.dot(self.fft.conj().T, GF_fft).transpose((1, 0, 2))
@@ -414,7 +415,7 @@ class Observables:
                 # print(t, np.log(np.sum(GF_fft[t, 4 * k, 4 * k]).real / np.sum(GF_fft[t + 1, 4 * k, 4 * k]).real))
 
                 #print(t, np.log(np.sum(GF_fft[t, 4 * k, 4 * k] + GF_fft[t, 4 * k + 2, 4 * k + 2]).real / np.sum(GF_fft[t + 1, 4 * k, 4 * k] + GF_fft[t + 1, 4 * k + 2, 4 * k + 2]).real))
-
+        '''
         self.cur_buffer_size = 0
 
 
