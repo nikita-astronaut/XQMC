@@ -503,6 +503,9 @@ if __name__ == "__main__":
             # phi_field, observables = perform_sweep(phi_field, observables, n_sweep)
             phi_field, observables = perform_sweep_longrange(phi_field, observables, n_sweep)
             print('total sweep takes ', time() - t)
+            print('total SVD time ', phi_field.total_SVD_time); phi_field.total_SVD_time = 0.0
+
+
             phi_field.save_configuration()
             observables.print_std_logs(n_sweep)
             if observables.n_cumulants > 0:

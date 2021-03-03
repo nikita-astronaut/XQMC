@@ -1,6 +1,6 @@
 import numpy as np
 import pickle
-import time
+from time import time
 import scipy
 import models
 from copy import deepcopy
@@ -19,6 +19,7 @@ class AuxiliaryFieldIntraorbital:
         self.gpu_avail = config.gpu
         self.la = np
         self.cpu = True
+        self.total_SVD_time = 0.0
 
         self.config = config
         self.adj_list = config.adj_list
@@ -133,10 +134,14 @@ class AuxiliaryFieldIntraorbital:
         if self.cpu:
             #return scipy.linalg.svd(matrix, lapack_driver='gesvd') 
             if mode == 'right_to_left':
+                t = time()
                 U, D, V = svd_recursive(matrix.conj().T)
+                self.total_SVD_time += time() - t
                 return V, D, U.conj().T
             else:
+                t = time()
                 U, D, V = svd_recursive(matrix)
+                self.total_SVD_time += time() - t
                 return U, D, V.conj().T
 
             _, Unew = np.linalg.eigh(matrix @ matrix.conj().T)
