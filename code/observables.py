@@ -391,7 +391,7 @@ class Observables:
 
         self.num_chi_samples += self.cur_buffer_size
 
-        print('start fft', flush=True)
+        print('start fft', flush=True)  # FIXME: debug (this is for later)
         GF_fft = np.dot(self.GF_sum, self.fft)
         GF_fft = np.dot(self.fft.conj().T, GF_fft).transpose((1, 0, 2))
 
@@ -402,12 +402,12 @@ class Observables:
         for k in range(GF_fft.shape[1] // 4):
             print('k: ', k // self.config.Ls, k % self.config.Ls, flush=True)
             K_k = K_fft[4 * k : 4 * k + 4, 4 * k : 4 * k + 4]
-            print('energies: ', np.linalg.eigh(K_k)[0] / 36.)
+            print('energies: ', np.linalg.eigh(K_k)[0] / self.config.Ls ** 2)
             print('states: ', np.linalg.eigh(K_k)[1].T)
 
             for t in range(self.GF_sum.shape[0] // 2):
                 #print(t, np.sum(GF_fft[t, np.arange(k * 4, k * 4 + 4), np.arange(k * 4, k * 4 + 4)]).real / self.num_chi_samples / self.GF_sum.shape[1], flush=True)
-                print(t, np.log(np.sum(GF_fft[t, np.arange(k * 4, k * 4 + 4), np.arange(k * 4, k * 4 + 4)]).real / np.sum(GF_fft[t + 1, np.arange(k * 4, k * 4 + 4), np.arange(k * 4, k * 4 + 4)]).real))
+                print(t, np.log(np.sum(GF_fft[t, np.arange(k * 4, k * 4 + 4), np.arange(k * 4, k * 4 + 4)]).real / np.sum(GF_fft[t + 1, np.arange(k * 4, k * 4 + 4), np.arange(k * 4, k * 4 + 4)]).real) / self.config.dt)
                 # print(t, np.log(np.sum(GF_fft[t, 4 * k, 4 * k]).real / np.sum(GF_fft[t + 1, 4 * k, 4 * k]).real))
 
                 #print(t, np.log(np.sum(GF_fft[t, 4 * k, 4 * k] + GF_fft[t, 4 * k + 2, 4 * k + 2]).real / np.sum(GF_fft[t + 1, 4 * k, 4 * k] + GF_fft[t + 1, 4 * k + 2, 4 * k + 2]).real))

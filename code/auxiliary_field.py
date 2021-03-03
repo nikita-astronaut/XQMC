@@ -335,14 +335,14 @@ class AuxiliaryFieldIntraorbital:
             B = self.B_l(spin, slice_idx)
             buff = B.dot(buff)
             if nr % self.config.s_refresh == self.config.s_refresh - 1:
-                current_U, current_D, v = self.SVD(np.dot(buff, current_U).dot(self.la.diag(current_D)))
+                current_U, current_D, v = self.SVD(np.dot(buff, current_U).dot(self.la.diag(current_D)), mode='left_to_right')
                 
                 current_V = v.dot(current_V)
                 decompositions.append((current_U, current_D, current_V))
                 buff = self.la.eye(self.Bdim, dtype=np.complex128)
         return decompositions
 
-    def _get_right_partial_SVD_decompositions(self, spin): # FIXME later (only nonequal)
+    def _get_right_partial_SVD_decompositions(self, spin):
         decompositions = []
         current_V = self.la.eye(self.Bdim, dtype=np.complex128)
         current_U = self.la.eye(self.Bdim, dtype=np.complex128)
@@ -354,7 +354,7 @@ class AuxiliaryFieldIntraorbital:
             B = self.B_l(spin, slice_idx)
             buff = buff.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1:
-                u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
+                u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)), mode='right_to_left')
 
                 current_U = current_U.dot(u)
                 decompositions.append((current_U, current_D, current_V))
@@ -493,7 +493,7 @@ class AuxiliaryFieldIntraorbital:
             for i in reversed(range(tmin, tmax)):
                 chain = chain.dot(self.B_l(spin, i))
 
-            u, s, v = self.SVD(self.la.diag(s).dot(np.dot(v, chain)))
+            u, s, v = self.SVD(self.la.diag(s).dot(np.dot(v, chain)), mode='right_to_left')
             return current_U.dot(u), s, v
 
 
@@ -509,7 +509,7 @@ class AuxiliaryFieldIntraorbital:
         for i in range(tmin, tmax):
             chain = self.B_l(spin, i).dot(chain)
 
-        u, s, v = self.SVD(np.dot(chain, u).dot(self.la.diag(s)))
+        u, s, v = self.SVD(np.dot(chain, u).dot(self.la.diag(s)), mode='left_to_right')
         return u, s, v.dot(current_V)
 
     def get_nonequal_time_GFs(self, spin, GF_0):
