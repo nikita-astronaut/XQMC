@@ -98,9 +98,9 @@ class Observables:
         #self.corr_file.write('name step sign_obs ')
 
 
-        for key, _ in self.gap_observables_list.items():
-            if 'chi' in key:
-                self.gap_file.write(key + ' ')
+        #for key, _ in self.gap_observables_list.items():
+        #    if 'chi' in key:
+        #        self.gap_file.write(key + ' ')
 
         self.gap_file.write('\n')
         return
