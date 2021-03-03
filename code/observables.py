@@ -166,7 +166,7 @@ class Observables:
         self.gap_file.flush()
 
         ### buffer for efficient GF-measurements ###
-        self.cur_buffer_size = 0; self.max_buffer_size = 8 # FIXME FIXME FIXME
+        self.cur_buffer_size = 0; self.max_buffer_size = 2 # FIXME FIXME FIXME
         self.GF_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
 
         # self.gap_observables_list = OrderedDict()
@@ -362,16 +362,19 @@ class Observables:
         t = time()
         phi.copy_to_GPU()
 
-        phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]
+        phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]  # FIXME: why is this so slow?
         phi.current_G_function_down = phi.get_G_no_optimisation(-1, -1)[0]
+        print('G_0_noopt takes', time() - t); t = time()
+
         GFs_up = np.array(phi.get_nonequal_time_GFs(+1.0, phi.current_G_function_up))
         GFs_down = np.array(phi.get_nonequal_time_GFs(-1.0, phi.current_G_function_down))
+        print('G_nonequal_time takes', time() - t); t = time()
 
         GFs = np.array([\
                 np.kron(gf_up, np.array([[1, 0], [0, 0]])) + \
                 np.kron(gf_down, np.array([[0, 0], [0, 1]])) \
                 for gf_up, gf_down in zip(GFs_up, GFs_down)])
-
+        print('kron takes', time() - t); t = time()
 
         phi.copy_to_CPU()
         self.GF_stored[self.cur_buffer_size, ...] = GFs
