@@ -166,11 +166,11 @@ class Observables:
         self.gap_file.flush()
 
         ### buffer for efficient GF-measurements ###
-        self.cur_buffer_size = 0; self.max_buffer_size = 2 # FIXME FIXME FIXME
+        self.cur_buffer_size = 0; self.max_buffer_size = 8 # FIXME FIXME FIXME
         self.GF_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
 
-        self.gap_observables_list = OrderedDict()
-        self.order_observables_list = OrderedDict()
+        # self.gap_observables_list = OrderedDict()
+        # self.order_observables_list = OrderedDict()
 
         adj_list = self.config.adj_list[:self.config.n_adj_density]  # only largest distance
 
@@ -274,7 +274,7 @@ class Observables:
         return
     def measure_light_observables(self, phi, current_det_sign, n_sweep, print_gf = False):
         if print_gf:
-            gf_print = phi.G_up_sum[::2, 0]
+            gf_print = phi.G_up_sum[:, 0]
             for i in range(8):
                 self.gf_file.write('{:.20f} '.format(gf_print[i] / phi.n_gf_measures))
             self.gf_file.write('\n')
@@ -509,6 +509,9 @@ class Observables:
         self.log_file.flush()
         print('refreshing gfs buffers...')
         self.refresh_gfs_buffer()
+        return
+
+        '''
         t = time()
         mean_signs = np.mean(self.heavy_signs_history)
         mean_signs_global = self.total_sign / self.num_chi_samples
@@ -587,11 +590,13 @@ class Observables:
 
         print('obtaining of observables', time() - t)
         return
+        '''
 
 
     def write_heavy_observables(self, phi, n_sweep):
         config = phi.config
         self.measure_heavy_observables(phi)
+        '''
         signs = np.array(self.heavy_signs_history)
 
         gap_data = [n_sweep, np.mean(signs)]
@@ -661,6 +666,7 @@ class Observables:
 
         self.gap_file.write(("{:d} " + "{:.6f} " * (len(gap_data) - 1) + '\n').format(n_sweep, *gap_data[1:]))
         self.gap_file.flush()
+        '''
         self.refresh_heavy_logs()
         self.save_GF_data()
         return
