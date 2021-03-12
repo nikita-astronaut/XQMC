@@ -25,7 +25,6 @@ class MC_parameters:
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
         print('energies =', np.linalg.eigh(self.K_0)[0])
 
-
         check_chirality(self.K_0, self.chiral_basis)
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
 
@@ -68,15 +67,15 @@ class MC_parameters:
         self.load_parameters = True; 
         self.load_parameters_path = None
         self.offset = 0
-        # self.all_distances = models.get_distances_list(self)
+        self.all_distances = models.get_distances_list(self)
         # np.save('dist_ik_8.npy', self.all_distances)
         # exit(-1)
 
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        idx_map = [1, 5, 8, 9, 11, 12, 13, 15, 17, 18, 19, 20]
-        self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
-
+        self.idx_map = [0, 1, 5, 6, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20]
+        self.pairings_list = pairings.twoorb_hex_all[1] #idx_map[2]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
+        # self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
         self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
@@ -99,13 +98,13 @@ class MC_parameters:
         #exit(-1)
 
         ### hoppings parameters setting ###
-        #all_Koshino_hoppings_real = hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
-        #all_Koshino_hoppings_complex = hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
-        #self.hoppings = [] #[h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
-        #self.hopping_names = [] #[h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
-        #for h in self.hoppings:
-        #    projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
-        #    print(projection, name)
+        all_Koshino_hoppings_real = []#hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
+        all_Koshino_hoppings_complex = []#hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
+        self.hoppings = [] #[h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
+        self.hopping_names = [] #[h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
+        for h in self.hoppings:
+            projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
+            print(projection, name)
 
         ### SDW/CDW parameters setting ###
         waves.obtain_all_waves(self)
@@ -185,7 +184,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.random.uniform(1e-6, 1e-6, size = self.layout[3]),  # gaps
+            np.random.uniform(1e-3, 1e-3, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
 
@@ -199,7 +198,7 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03])
+        # self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03])
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:
@@ -224,7 +223,7 @@ class MC_parameters:
             np.ones(self.layout[4]) * 3e+4,  # jastrows
         ])
 
-        self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino(self.Ne)
+        self.initial_parameters[:self.layout[0]] = 0.0#self.select_initial_muBCS_Koshino(self.Ne)
         self.mu = 0.0 #-1.2 #self.initial_parameters[0]
         #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
