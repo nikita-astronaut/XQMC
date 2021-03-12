@@ -79,13 +79,19 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 phi_field.copy_to_GPU()
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
+
+
             phi_field.refresh_G_functions()
 
             current_det_sign_before = current_det_sign * 1.0
+            current_det_log_before = current_det_log * 1.0
             current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
             current_det_sign = current_det_sign.item()
-            if not np.isclose(current_det_sign_before, current_det_sign):  # refresh of Green's function must preserve sign (robust)
-                print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used:', current_det_sign_before, current_det_sign)
+            if np.abs(current_det_sign_before - current_det_sign) > 1e-3:  # refresh of Green's function must preserve sign (robust)
+                print('Warning!!! Refresh did not preserve the det phase:', current_det_sign_before / current_det_sign, time_slice)
+            if np.abs(current_det_log_before - current_det_log) > 1e-10:  # refresh of Green's function must preserve sign (robust)
+                print('Warning!!! Refresh did not preserve the det log:', current_det_sign_before, current_det_sign, time_slice)
+
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
             need_check = True
         # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
@@ -166,11 +172,13 @@ def perform_sweep(phi_field, observables, n_sweep, switch = True):
                 need_check = False
 
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
+        t = time()
         observables.measure_light_observables(phi_field, 1, n_sweep)
+        print('measurement of light observables takes ', time() - t)
     
     if n_sweep >= phi_field.config.thermalization:
         t = time()
-        observables.measure_green_functions(phi_field, current_det_sign.item())
+        observables.measure_green_functions(phi_field, 1.0)  # ??
         print('measurement of green functions takes ', time() - t)
         process = psutil.Process(os.getpid())
         print('using memory', process.memory_info().rss)
@@ -188,32 +196,82 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
         phi_field.copy_to_GPU()
     phi_field.refresh_all_decompositions()
     phi_field.refresh_G_functions()
-    GF_checked = False
 
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
-            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
+            current_det_log, current_det_sign = -2 * phi_field.log_det_up - 2 * phi_field.log_det_down, 1. / phi_field.sign_det_up ** 2 / phi_field.sign_det_down ** 2
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
-            need_check = True
+            need_check_eta = True
+            need_check_xi = True
+
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
+            #t = time()
             if switch:
-                phi_field.copy_to_GPU()
+                    phi_field.copy_to_GPU()
             index = np.where(phi_field.refresh_checkpoints == time_slice)[0][0]
             phi_field.append_new_decomposition(phi_field.refresh_checkpoints[index - 1], time_slice)
+
+            G_up, G_down = phi_field.current_G_function_up * 1.0, phi_field.current_G_function_down * 1.0
             phi_field.refresh_G_functions()
 
+            if np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up) > 1e-10:
+                print('Warning! During refresh there is a big norm discrepancy in up:', np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up))
+
+            if np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) > 1e-10:
+                print('Warning! During refresh there is a big norm discrepancy in down:', np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) )
+
+            # print(np.max(np.abs(G_down - phi_field.current_G_function_down)))
             current_det_sign_before = current_det_sign * 1.0
-            current_det_log, current_det_sign = -phi_field.log_det_up - phi_field.log_det_down, 1. / phi_field.sign_det_up / phi_field.sign_det_down
+            current_det_log_before = current_det_log * 1.0
+            current_det_log, current_det_sign = -phi_field.log_det_up * 2 - phi_field.log_det_down * 2, 1. / phi_field.sign_det_up ** 2 / phi_field.sign_det_down ** 2
             current_det_sign = current_det_sign.item()
-            if not np.isclose(current_det_sign_before, current_det_sign):  # refresh of Green's function must preserve sign (robust)
-                print('Warning!!! Refresh did not preserve the det sign -- probably a very high Nt is used:', current_det_sign_before, current_det_sign)
+
+            #if np.abs(current_det_sign_before - current_det_sign) > 1e-6:  # refresh of Green's function must preserve sign (robust)
+            #    print('Warning!!! Refresh did not preserve the det phase:', current_det_sign_before / current_det_sign, time_slice)
+            #if np.abs(current_det_log_before - current_det_log) > 1e-6:  # refresh of Green's function must preserve sign (robust)
+            #    print('Warning!!! Refresh did not preserve the det log:', current_det_log_before / current_det_log, current_det_log_before, current_det_log, time_slice)
+
+            #G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice) # FIXME debug
+            #G_up_current = phi_field.current_G_function_up
+
+            #print('GF discrepancy: opt vs nonopt', np.linalg.norm(G_up_current - G_up_check) / np.linalg.norm(G_up_check))
+
+            #if np.abs(det_log_up_check - phi_field.log_det_up) > 1e-6:  # refresh of Green's function must preserve sign (robust)
+            #    print('Warning!!! Refresh did not preserve the det log noopt vs opt:', det_log_up_check, phi_field.log_det_up, time_slice)
+
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log()
-            need_check = True
+            need_check_xi = True
+            need_check_eta = True
+            #print('refresh: ', time() - t); t =time()
         # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
+        #t = time()
         phi_field.wrap_up(time_slice)
+        #print('wrap up', time() - t)
         if switch:
             phi_field.copy_to_CPU()
+
+        ### DEBUG ###
+        '''
+        GFs_up = np.array(phi_field.get_nonequal_time_GFs(+1.0, phi_field.current_G_function_up))
+        for t in range(len(GFs_up)):
+            beta = phi_field.config.Nt * phi_field.config.dt
+            current_tau = t * phi_field.config.dt
+            energies, states = np.linalg.eigh(phi_field.K_matrix_plus)
+            states = states.T.conj()
+            assert np.allclose(phi_field.K_matrix_plus, phi_field.K_matrix_plus.conj().T)
+            assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), phi_field.K_matrix_plus)
+            correct_string = np.einsum('i,ij,ik->jk', np.exp(current_tau * energies) / (1. + np.exp(beta * energies)), states.conj(), states)
+
+            print(t, np.linalg.norm(GFs_up[t] - correct_string) / np.linalg.norm(correct_string))
+        '''
+
+        #energies, states = np.linalg.eigh(phi_field.K_matrix_plus)
+        #beta = phi_field.config.Nt * phi_field.config.dt
+        #correct_energy = np.sum(energies / (1. + np.exp(beta * energies)))
+
+        #print('correct energy at beta = {:.10f} = {:.10f}'.format(beta, correct_energy * 4. / 4 / phi_field.config.Ls ** 2))
+
 
         #### eta-site field update ####
         # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
@@ -222,43 +280,56 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             local_gauge_factors = []
             local_conf_old = phi_field.get_current_eta(site_idx, time_slice)
 
-
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move_eta(site_idx, time_slice, local_conf_old, local_conf)
 
+                #t = time()
                 phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, local_conf)
-                
-                det_ratio = auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_up, phi_field.current_G_function_up) * \
-                            auxiliary_field.get_det_ratio_inter(site_idx, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-16
+                #print('deltas eta', time() - t)
+
+                #t = time()
+                det_ratio = auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta, phi_field.current_G_function_up) ** 2 * \
+                            auxiliary_field.get_det_ratio_intra(site_idx, phi_field.Delta, phi_field.current_G_function_down) ** 2
+                #print('det ratio eta', time() - t)
+
 
                 local_det_factors.append(det_ratio)
                 local_gauge_factors.append(gauge_ratio)
 
-
             probas = np.array(local_det_factors) * np.array(local_gauge_factors)
             assert np.allclose(probas.real, probas)
+            assert np.all(probas.real + 1e-12 > 0)
+            assert np.isclose(probas, 1.0, atol=1e-8).any()
+
 
             probas = np.abs(probas)
 
-            idx = np.random.choice(np.arange(len(local_det_factors)), \
-                                   p = probas / np.sum(probas))
+            idx = np.random.choice(np.arange(len(local_det_factors)), p = probas / np.sum(probas))
 
             new_conf = phi_field.local_conf_combinations[idx]
             assert probas[idx] > 0
 
             current_det_log += np.log(np.abs(local_det_factors[idx]))
+            # print(current_det_log)
             current_gauge_factor_log += np.log(local_gauge_factors[idx])
 
             current_det_sign *= local_det_factors[idx] / np.abs(local_det_factors[idx])
 
             ratio = np.log(np.abs(local_det_factors[idx]))
             accepted = (new_conf[0] != local_conf_old[0])
-
+            
             if accepted:
-                phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, new_conf); phi_field.update_G_seq_eta(site_idx)
-                phi_field.update_eta_site_field(site_idx, time_slice, new_conf)
+                #t = time()
+                phi_field.compute_deltas_eta(site_idx, time_slice, local_conf_old, new_conf); 
+                #print('deltas', time() - t); t = time()
 
-            if False: #$True:#False:#True: #need_check:
+                phi_field.update_G_seq_eta(site_idx);
+                #print('G_update eta', time() - t); t = time()
+
+                phi_field.update_eta_site_field(site_idx, time_slice, new_conf)
+                #print('update field: ', time() - t)
+
+            if False:#need_check_eta:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                 G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
 
@@ -272,14 +343,11 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                     print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
                 else:
                     print('test of eta site update passed')
-                print('log |det| discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
+                print('log |det| discrepancy:', current_det_log + det_log_up_check * 2 + det_log_down_check * 2)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check)
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_down_check)
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log())) / phase_up_check / phase_down_check)
-                print('phase det discrepancy:', phase_up_check * phase_down_check * current_det_sign)
+                print('phase det discrepancy:', phase_up_check ** 2 * phase_down_check ** 2 * current_det_sign)
                 print(phase_up_check)
-                need_check = False
+                need_check_eta = False
 
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
 
@@ -291,20 +359,22 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             local_gauge_factors = []
             local_conf_old = phi_field.get_current_xi(bond_idx, time_slice)
 
-
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move_xi(bond_idx, time_slice, local_conf_old, local_conf[0])
 
+                #t = time()
                 phi_field.compute_deltas_xi(bond_idx, time_slice, local_conf_old, local_conf[0])
+                #print('deltas xi:', time() - t)
 
                 sp_index1, sp_index2 = phi_field.bonds[bond_idx]
 
-                det_ratio = auxiliary_field.get_det_ratio_inter_bond(sp_index1, sp_index2, phi_field.Delta_up, phi_field.current_G_function_up) * \
-                            auxiliary_field.get_det_ratio_inter_bond(sp_index1, sp_index2, phi_field.Delta_down, phi_field.current_G_function_down) + 1e-16
+                #t = time()
+                det_ratio = auxiliary_field.get_det_ratio_inter(sp_index1, sp_index2, phi_field.Delta, phi_field.current_G_function_up) ** 2 * \
+                            auxiliary_field.get_det_ratio_inter(sp_index1, sp_index2, phi_field.Delta, phi_field.current_G_function_down) ** 2
+                #print('det ratio xi:', time() - t)
                 local_det_factors.append(det_ratio)
 
                 local_gauge_factors.append(gauge_ratio)
-
 
             probas = np.array(local_det_factors) * np.array(local_gauge_factors)
             assert np.allclose(probas.real, probas)
@@ -325,10 +395,15 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             accepted = (new_conf[0] != local_conf_old)
 
             if accepted:
-                phi_field.compute_deltas_xi(bond_idx, time_slice, local_conf_old, new_conf[0]); phi_field.update_G_seq_xi(bond_idx)
+                #t = time()
+                phi_field.compute_deltas_xi(bond_idx, time_slice, local_conf_old, new_conf[0]); 
+                #print('deltas xi', time() - t); t = time()
+                phi_field.update_G_seq_xi(bond_idx)
+                #print('update G xi', time() - t); t = time()
                 phi_field.update_xi_bond_field(bond_idx, time_slice, new_conf[0])
+                #print('update xi bond', time() - t)
 
-            if False: #True:#False:#True: #need_check:
+            if False:# need_check_xi:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
                 G_down_check, det_log_down_check, phase_down_check = phi_field.get_G_no_optimisation(-1, time_slice)
 
@@ -342,23 +417,19 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
                     print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
                 else:
                     print('test of xi bond update passed')
-                print('log |det| discrepancy:', current_det_log + det_log_up_check + det_log_down_check)
+                print('log |det| discrepancy:', current_det_log + 2 * det_log_up_check + 2 * det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log())
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check)
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_down_check)
-                print(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log())) / phase_up_check / phase_down_check)
-                print('phase det discrepancy:', phase_up_check * phase_down_check * current_det_sign)
+                print('phase det discrepancy:', phase_up_check ** 2 * phase_down_check ** 2 * current_det_sign)
                 print(phase_up_check)
-                need_check = False
+                need_check_xi = False
 
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
-
         
-        observables.measure_light_observables(phi_field, 1, n_sweep)
+        observables.measure_light_observables(phi_field, 1, n_sweep, print_gf = (time_slice == phi_field.config.Nt - 1))
 
     if n_sweep >= phi_field.config.thermalization:
         t = time()
-        observables.measure_green_functions(phi_field, current_det_sign.item())
+        observables.measure_green_functions(phi_field, current_det_sign)
         print('measurement of green functions takes ', time() - t)
         process = psutil.Process(os.getpid())
         print('using memory', process.memory_info().rss)
@@ -390,30 +461,24 @@ if __name__ == "__main__":
         #config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         #config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
         #assert V == U
+        
         config.nu_U = np.sqrt(config.dt / 2 * (U - 3 * V))
         config.nu_V = np.sqrt(config.dt / 2 * V)
 
-        print(config.nu_U, config.nu_V)
-
-
-        K_matrix = config.model(config, config.mu)[0].real
-
+        K_matrix = config.model(config, config.mu)[0]
         ### application of real TBCs ###
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
         twist = real_twists[0] #[(rank + config.offset) % len(real_twists)]  # each rank knows its twist
-
-
         K_matrix = models.xy_to_chiral(K_matrix, 'K_matrix', config, config.chiral_basis)
-        #np.save('K_matrix_2x2.npy', K_matrix)
-
-        K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False).real
-
+        K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False)
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
 
-
+        #print(K_matrix.real)
+        #exit(-1)
         ### creating precomputed exponents ###
         K_operator = scipy.linalg.expm(config.dt * K_matrix)
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
+        assert np.allclose(np.linalg.inv(K_operator), K_operator_inverse)
         K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix)
         K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix)
 
@@ -438,12 +503,15 @@ if __name__ == "__main__":
             # phi_field, observables = perform_sweep(phi_field, observables, n_sweep)
             phi_field, observables = perform_sweep_longrange(phi_field, observables, n_sweep)
             print('total sweep takes ', time() - t)
+            print('total SVD time ', phi_field.total_SVD_time); phi_field.total_SVD_time = 0.0
+
+
             phi_field.save_configuration()
             observables.print_std_logs(n_sweep)
             if observables.n_cumulants > 0:
                 observables.write_light_observables(phi_field.config, n_sweep)
             last_n_sweep_log.write(str(n_sweep) + '\n'); last_n_sweep_log.flush()
-            if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
-                t = time()
-                observables.write_heavy_observables(phi_field, n_sweep)
-                print('measurement and writing of heavy observables took ', time() - t)
+            #if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
+            #    t = time()
+            #    observables.write_heavy_observables(phi_field, n_sweep)
+            #    print('measurement and writing of heavy observables took ', time() - t)
