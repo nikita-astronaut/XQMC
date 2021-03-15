@@ -7,6 +7,9 @@ import sys
 import config_vmc as cv_module
 from numba import jit
 from scipy.linalg import schur
+from pfapack import pfaffian as cpf
+from copy import deepcopy
+
 @jit(nopython=True)
 def get_orb(L, mod):
     orb_ij = []; orb_k = []; n_orb = 0
@@ -148,6 +151,32 @@ def W_ij(U, xi, rhat):  # https://arxiv.org/pdf/1905.01887.pdf
     return res if res > 0.05 else 0.0  # Ohno relations
 
 
+@jit(nopython=True)
+def get_fft(N, twist_exp):
+    #i, j = np.meshgrid(np.arange(N), np.arange(N))
+    #A=np.multiply.outer(i.flatten(), i.flatten())
+    #B=np.multiply.outer(j.flatten(), j.flatten())
+    #omega = np.exp(-2*np.pi*1J/N)
+    #W = np.power(omega, A+B)/N
+
+    W = np.zeros((N ** 2, N ** 2), dtype=np.complex128)
+    for kx in range(N):
+        for ky in range(N):
+            for x in range(N):
+                for y in range(N):
+                    W[x * N + y, kx * N + ky] = np.exp(2.0j * np.pi / N * kx * x + (2.0j * np.pi / N * ky - 1.0j * np.pi / N) * y)
+    return np.kron(W, np.eye(4))
+
+def get_fft_small(N):
+    i, j = np.meshgrid(np.arange(N), np.arange(N))
+    A=np.multiply.outer(i.flatten(), i.flatten())
+    B=np.multiply.outer(j.flatten(), j.flatten())
+    omega = np.exp(-2*np.pi*1J/N)
+    W = np.power(omega, A+B)/N
+
+    return np.kron(W, np.ones(4)[np.newaxis, ...])
+
+
 def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     H = config.hamiltonian(config_vmc)
     K0 = config.K_0 # already chiral
@@ -174,16 +203,16 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.Ls ** 2 * 2)])
 
 
-    np.save('./files_mvmc/tx_{:d}.npy'.format(config.Ls), tx)
-    np.save('./files_mvmc/ty_{:d}.npy'.format(config.Ls), ty)
-    np.save('./files_mvmc/C3z_{:d}.npy'.format(config.Ls), C3z)
-    np.save('./files_mvmc/C2y_{:d}.npy'.format(config.Ls), C2y)
-    np.save('./files_mvmc/valley_{:d}.npy'.format(config.Ls), valley)
+    #np.save('./files_mvmc/tx_{:d}.npy'.format(config.Ls), tx)
+    #np.save('./files_mvmc/ty_{:d}.npy'.format(config.Ls), ty)
+    #np.save('./files_mvmc/C3z_{:d}.npy'.format(config.Ls), C3z)
+    #np.save('./files_mvmc/C2y_{:d}.npy'.format(config.Ls), C2y)
+    #np.save('./files_mvmc/valley_{:d}.npy'.format(config.Ls), valley)
 
     pref = 'real' if np.allclose(K0, K0.real) else 'imag'
 
-    np.save('./files_mvmc/K0_{:s}_{:d}.npy'.format(pref, config.Ls), K0)
-    np.save('./files_mvmc/distances_{:d}.npy'.format(config.Ls), config.all_distances)
+    #np.save('./files_mvmc/K0_{:s}_{:d}.npy'.format(pref, config.Ls), K0)
+    #np.save('./files_mvmc/distances_{:d}.npy'.format(config.Ls), config.all_distances)
     
     #np.save('H_edges_{:d}.npy'.format(config.Ls), H.edges_quadric)
     #exit(-1)
@@ -192,8 +221,18 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     path = os.path.join(config.workdir, 'imada_format_L_{:d}_Ne_{:d}_U_{:.3f}_mod_{:d}_periodic_{:b}'.format(config.Ls, config.Ne, U, mod, periodic))
     os.makedirs(path, exist_ok=True)
 
+    
+
+    twist = (0, 0.5)
+    twist_exp = [np.exp(2 * np.pi * 1.0j * twist[0]), np.exp(2 * np.pi * 1.0j * twist[1])]
+    K0_up = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = False)
+    K0_down = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = True)
 
 
+    assert np.allclose(K0_up, K0_up.conj().T)
+    assert np.allclose(K0_down, K0_down.conj().T)
+
+ 
     ########### writing the K--matrix ##########
     f = open(os.path.join(path, 'trans.def'), 'w')
 
@@ -204,19 +243,495 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f.write('========================\n')
     assert np.allclose(K0, K0.T.conj())
 
-    for i in range(K0.shape[0]):
-        for j in range(K0.shape[1]):
-            if np.abs(K0[i, j]) > 1e-7:
-                f.write('    {:d}     0     {:d}     0   {:.6f}  {:.6f}\n'.format(i, j, np.real(-K0[i, j]), np.imag(-K0[i, j])))
-                f.write('    {:d}     1     {:d}     1   {:.6f}  {:.6f}\n'.format(i, j, np.real(-K0[i, j]), np.imag(-K0[i, j])))
-                #K0[i, j] = K0[i, j].real + 100j if i > j else -100j
-    f.close()
+    K0_trans = K0 * 1.0
+    K0_trans = K0_trans[tx, ...]
+    K0_trans = K0_trans[..., tx]
+
+    assert np.allclose(K0_trans, K0)
+
+    K0_trans = K0 * 1.0
+    K0_trans = K0_trans[ty, ...]
+    K0_trans = K0_trans[..., ty]
+
+    assert np.allclose(K0_trans, K0)
+
+
+    
 
     for i in range(K0.shape[0]):
         for j in range(K0.shape[1]):
-            if (i + j) % 2 == 1 and np.abs(K0[i, j]) > 1e-12:
+            if np.abs(K0[i, j]) > 1e-7:
+                f.write('    {:d}     0     {:d}     0   {:.6f}  {:.6f}\n'.format(i, j, np.real(-K0_up[i, j]), np.imag(-K0_up[i, j])))  # why j, i instead of ij? think!
+                f.write('    {:d}     1     {:d}     1   {:.6f}  {:.6f}\n'.format(i, j, np.real(-K0_down[i, j]), np.imag(-K0_down[i, j])))
+                #K0[i, j] = K0[i, j].real + 100j if i > j else -100j
+    f.close()
+
+    assert np.allclose(models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = True).T, models.apply_TBC(config, twist_exp, deepcopy(K0).T, inverse = True))
+
+    K0_downT = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = True).T
+    K0_upT = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = False).T
+    for i in range(K0_up.shape[0]):
+        for j in range(K0_up.shape[1]):
+            if (i + j) % 2 == 1 and np.abs(K0_up[i, j]) > 1e-12:
                 print(i, j)
                 exit(-1)
+
+    
+
+
+    config.mu = 0
+    K0 = K0 - np.eye(K0.shape[0]) * config.mu
+    g = 0.0001 * config.pairings_list_unwrapped[0]
+    gap = models.apply_TBC(config, twist_exp, deepcopy(g), inverse = False)
+    gapT = models.apply_TBC(config, twist_exp, deepcopy(g).T, inverse = True)
+    #print(gap); exit(-1)
+
+    #swave = 0.00001 * models.xy_to_chiral(pairings.combine_product_terms(config, pairings.twoorb_hex_all[1]), 'pairing', config, True)
+
+    print(np.min(np.abs(np.linalg.eig(gap)[0])) / 0.03, 'minimum gap mode')
+    # assert np.allclose(gap, gap.T)
+    #print(config.pairings_list_unwrapped[0])
+    #exit(-1)
+
+
+    #twist = (0.123, -1.23)
+    #twist_exp = [np.exp(2.0j * np.pi * twist[0]), np.exp(2.0j * np.pi * twist[1])]
+
+
+
+    fft = get_fft(config.Ls, twist_exp)
+    K0_fft_plus = fft.conj().T.dot(K0_up).dot(fft)
+    K0_fft_minus = fft.T.dot(K0_up).dot(fft.conj())
+
+    K0_check = K0_fft_plus.copy()
+    for i in range(K0_check.shape[0] // 4):
+        K0_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4] = 0.0
+    assert np.isclose(np.sum(np.abs(K0_check)), 0.0)
+
+    K0_check = K0_fft_minus.copy()
+    for i in range(K0_check.shape[0] // 4):
+        K0_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4] = 0.0
+    assert np.isclose(np.sum(np.abs(K0_check)), 0.0)
+    
+    gap_fft = fft.T.conj().dot(gap).dot(fft)
+    gap_check = gap_fft.copy()
+    for i in range(gap_check.shape[0] // 4):
+        #print(i % 4, i // 4)
+        #print(np.abs(np.linalg.eig(gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4])[0]) )
+
+        #assert np.allclose(gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4], gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4].conj().T)
+        gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4] = 0.0
+    assert np.isclose(np.sum(np.abs(gap_check)), 0.0)
+    #exit(-1)
+    #exit(-1)
+    # first basis
+    u_up = []
+    u_down = []
+
+    v_up = []
+    v_down = []
+
+
+    '''
+    for i in range(gap_check.shape[0] // 4):
+        hk = np.zeros((8, 8), dtype=np.complex128)
+        hk[:4, :4] = K0_fft_plus[i * 4:i * 4 + 4, i * 4:i * 4 + 4]
+        hk[4:, 4:] = -K0_fft_plus[i * 4:i * 4 + 4, i * 4:i * 4 + 4]
+
+        print(hk[:4, :4])
+        print(-hk[4:, 4:])
+
+        print()
+        print()
+
+        hk[:4, 4:] = gap_fft[i * 4:i * 4 + 4,i * 4:i * 4 + 4]
+        hk[4:, :4] = hk[:4, 4:].conj().T
+
+        assert np.allclose(hk, hk.conj().T)
+
+        gamma = np.kron(np.array([[0, -1], [1, 0]]), np.eye(4))
+
+
+        #print(hk)
+        #print(gamma.dot(hk.conj()).dot(gamma))
+        #assert np.allclose(hk, gamma.dot(hk.conj()).dot(gamma))
+
+        en, eigvals = np.linalg.eigh(hk)
+        assert np.allclose(en, np.sort(-en))
+
+        u_up.append(eigvals[:4, 4:])
+        v_up.append(eigvals[4:, 4:])
+
+        print(en, i)
+        print(fft[np.arange(0, 64, 4), i * 4])
+        print()
+        print()
+        for e, level in zip(en, eigvals.T):
+            level_anti = level * 0.0
+            level_anti[:4] = -level[4:].conj()
+            level_anti[4:] = level[:4].conj()
+            e_anti = np.dot(level_anti.conj(), hk.dot(level_anti))
+            #assert np.isclose(e, -e_anti)
+
+
+        #print(eigvals)
+        #print(en)
+        #print(eigvals[:4, 4:])
+        #print(-eigvals[4:, :4].conj())
+        #assert np.allclose(eigvals[:4, 4:], -eigvals[4:, :4].conj())
+        #assert np.allclose(eigvals[4:, :4], eigvals[:4, 4:].conj())
+
+        #print(en)
+
+    # second basis
+    for i in range(gap_check.shape[0] // 4):
+        hk = np.zeros((8, 8), dtype=np.complex128)
+        hk[:4, :4] = K0_fft_minus[i * 4:i * 4 + 4,i * 4:i * 4 + 4]
+        hk[4:, 4:] = -K0_fft_plus[i * 4:i * 4 + 4,i * 4:i * 4 + 4]
+        hk[:4, 4:] = -gap_fft[i * 4:i * 4 + 4,i * 4:i * 4 + 4]
+        hk[4:, :4] = hk[:4, 4:].conj().T
+
+        assert np.allclose(hk, hk.conj().T)
+
+        en, eigvals = np.linalg.eigh(hk)
+        assert np.allclose(en, np.sort(-en))
+        u_down.append(eigvals[:4, :4])
+        v_down.append(eigvals[4:, :4])
+        #print(en)
+
+
+    u_up = np.array(u_up)  # (k, beta, alpha)
+    v_up = np.array(v_up)
+    u_down = np.array(u_down)
+    v_down = np.array(v_down)
+
+    print(u_up.shape, v_up.shape, u_down.shape, v_down.shape)
+
+    denom = (v_up * u_down).sum(axis = 1)  # (k, alpha)
+
+    i = 0
+    for u, v in zip(u_up, v_up):
+        print(np.abs(np.linalg.eig(u)[0]))#, np.linalg.eig(v)[0])
+        print(u)
+        print(np.linalg.eigh(K0_fft_plus[i * 4:i * 4 + 4, i * 4:i * 4 + 4])[0])
+        print()
+        i += 1
+        #print(np.linalg.inv(v).conj())
+    #fraction = np.einsum('kab,kga->kbg', np.linalg.inv(v_up.conj()), u_up.conj())
+    fraction = np.einsum('kba,kag->kgb', v_up, np.linalg.inv(u_up))
+    print(np.linalg.inv(u_up))
+    #fraction = np.einsum('kba,kga->kabg', u_up, u_down)
+    #fraction = np.einsum('kabg,ka->kbg', fraction, denom)
+    print(fraction.shape)
+
+    fraction = np.tile(fraction, (1, config.Ls ** 2, 1))
+    fraction = np.tile(fraction, (1, 1, config.Ls ** 2))
+
+    print(fraction.shape, fft.shape)
+
+    fft_k = get_fft_small(config.Ls)  # FIXME: is this correct?
+    '''
+
+
+
+
+    # oldresult = np.einsum('kij,ki,kj->ij', fraction, fft_k.conj(), fft_k)
+
+
+    # assert np.allclose(gap, gap.T)  # consider only singlets
+    L = K0.shape[0]
+    totalM = np.zeros((4 * L, 4 * L), dtype=np.complex128)
+    totalM[:L, :L] = K0_up; totalM[L:2 * L, L:2 * L] = K0_down; totalM[2 * L:3 * L, 2 * L:3 * L] = -K0_upT; totalM[3 * L:, 3 * L:] = -K0_downT
+    totalM[3 * L:, :L] = gap; totalM[2 * L: 3 * L, L:2 * L] = -gapT; totalM[L: 2 * L, 2 * L:3 * L] = -gapT.conj().T; totalM[:L, 3 * L:] = gap.conj().T; 
+
+    selected_idxs = np.concatenate([np.arange(0, L), np.arange(2 * L, 3 * L)])
+    totalM_updown = totalM[:, selected_idxs]; totalM_updown = totalM_updown[selected_idxs, ...]
+
+    #totalM_updown = np.zeros((2 * L, 2 * L), dtype=np.complex128)
+    #totalM_updown[:L, :L] = K0; totalM_updown[L:, L:] = -K0.T;
+    #totalM_updown[:L, L:] = gap; totalM_updown[L:, :L] = gap.conj().T;
+
+    selected_idxs = np.arange(L, 3 * L)
+    totalM_downup = totalM[:, selected_idxs]; totalM_downup = totalM_downup[selected_idxs, ...]
+
+
+
+
+    #totalM_downup = np.zeros((2 * L, 2 * L), dtype=np.complex128)
+    #totalM_downup[:L, :L] = K0; totalM_downup[L:, L:] = -K0.T;
+    #totalM_downup[:L, L:] = -gap.T; totalM_downup[L:, :L] = -gap.conj();
+
+    en_updown, W_updown = np.linalg.eigh(totalM_updown)
+
+
+    en_downup, W_downup = np.linalg.eigh(totalM_downup)
+    assert np.allclose(en_updown, np.sort(-en_updown))
+    assert np.allclose(en_downup, np.sort(-en_downup))
+    en_total, W = np.linalg.eigh(totalM)
+    #print(en_total)
+    #exit(-1)
+
+    print(en_total)
+    for i in range(W_updown.shape[1] // 2):
+        v = W_updown[:, i]
+        en = en_updown[i]
+
+        v_conj = v * 0.0;
+        v_conj[:len(v) // 2] = v[len(v)//2:].conj()
+        v_conj[len(v) // 2:] = v[:len(v)//2].conj()
+
+        en_conj = np.dot(v_conj.conj(), totalM_updown.dot(v_conj)) / np.dot(v_conj.conj(), v_conj)
+        #print(en_conj, en, np.dot(v_conj.conj(), v_conj), np.dot(v.conj(), totalM_updown.dot(v)))
+        #W_conj.append(v_conj)
+        #assert np.isclose(en_conj, -en)
+    #exit(-1)
+
+
+    W_conj = []
+
+    for i in range(W.shape[1] // 2):
+        v = W[:, i]
+        en = en_total[i]
+
+        v_conj = v * 0.0;
+        v_conj[:len(v) // 2] = v[len(v)//2:].conj()
+        v_conj[len(v) // 2:] = v[:len(v)//2].conj()
+
+        en_conj = np.dot(v_conj.conj(), totalM.dot(v_conj))
+        #print(en_conj, en)
+        W_conj.append(v_conj)
+        assert np.isclose(en_conj, -en)
+
+    W_conj = np.array(W_conj).T
+
+    W[:, W.shape[1] // 2:] = W_conj  # make the right form -- but this makes no difference: this is only rearrangement of 2nd part of the array, while we only use the 1st part
+    # why W does not protect that block form? -- or do we even need this form?
+
+
+    assert np.allclose(np.diag(W.conj().T.dot(totalM).dot(W)).real, np.diag(W.conj().T.dot(totalM).dot(W)))
+    assert np.allclose(np.sort(np.diag(W.conj().T.dot(totalM).dot(W)).real), np.linalg.eigh(totalM)[0])
+
+
+
+    # with gap 6, W_pieces does not diagonalize totalM! why?
+    W_pieces = np.zeros((4 * L, 4 * L), dtype=np.complex128)
+    W_pieces[:L, :L] = W_updown[:L, :L]; W_pieces[3 * L:, 3 * L:] = W_updown[L:, L:];
+    W_pieces[3 * L:, :L] = W_updown[L:, :L]; W_pieces[:L, 3 * L:] = W_updown[:L, L:];
+
+    W_pieces[L: 2 * L, L: 2 * L] = W_downup[:L, :L]; W_pieces[2 * L:3 * L, 2 * L:3 * L] = W_downup[L:, L:];
+    W_pieces[2 * L:3 * L, L: 2 * L] = W_downup[L:, :L]; W_pieces[L: 2 * L, 2 * L:3 * L] = W_downup[:L, L:];
+
+    
+
+    #assert np.allclose(np.sort(np.diag(W_pieces.conj().T.dot(totalM).dot(W_pieces)).real), np.sort(np.diag(W_pieces.conj().T.dot(totalM).dot(W_pieces))))
+    #assert np.isclose(np.sum(np.abs(W_pieces.conj().T.dot(totalM).dot(W_pieces) - np.diag(np.diag(W_pieces.conj().T.dot(totalM).dot(W_pieces))))), 0.0)
+    assert np.isclose(np.sum(np.abs(W.conj().T.dot(totalM).dot(W) - np.diag(np.diag(W.conj().T.dot(totalM).dot(W))))), 0.0)
+
+    #print(np.sort(np.diag(W.conj().T.dot(totalM).dot(W)).real) - np.sort(np.diag(W_pieces.conj().T.dot(totalM).dot(W_pieces)).real))
+    #assert np.allclose(np.sort(np.diag(W.conj().T.dot(totalM).dot(W)).real), \
+    #                   np.sort(np.diag(W_pieces.conj().T.dot(totalM).dot(W_pieces)).real))
+
+    #print(np.linalg.det(W_updown), np.linalg.det(W_downup), np.linalg.det(W_updown) * np.linalg.det(W_downup))
+    #print(np.linalg.det(W_pieces))
+    #print(np.linalg.det(W))
+
+
+
+    for i in range(W_updown.shape[1]):
+        v = W_updown[:, i]
+        en = en_updown[i]
+
+        v_conj = v * 0.0;
+        v_conj[:len(v) // 2] = v[len(v)//2:].conj()
+        v_conj[len(v) // 2:] = v[:len(v)//2].conj()
+
+        en_conj = np.dot(v_conj.conj(), totalM_updown.dot(v_conj))
+        # print(en_conj, en)
+        #assert en_conj == -en
+
+
+
+    mask = np.zeros((4 * L, 4 * L), dtype=np.complex128)
+    mask[:L, :L] = np.ones((L, L)); mask[L:2 * L, L:2 * L] = np.ones((L, L)); mask[2 * L:3 * L, 2 * L:3 * L] = np.ones((L, L)); mask[3 * L:, 3 * L:] = np.ones((L, L))
+    mask[3 * L:, :L] = np.ones((L, L)); mask[2 * L: 3 * L, L:2 * L] = np.ones((L, L)); mask[L: 2 * L, 2 * L:3 * L] = np.ones((L, L)); mask[:L, 3 * L:] = np.ones((L, L)); 
+
+
+    #totalM[:L, :L] = K0; totalM[L:2 * L, L:2 * L] = K0; totalM[2 * L:3 * L, 2 * L:3 * L] = -K0.T; totalM[3 * L:, 3 * L:] = -K0.T
+    #totalM[:L, 2 * L:3 * L] = gap; totalM[L: 2 * L, 3 * L:] = -gap.T; totalM[3 * L:, L: 2 * L] = -gap.conj(); totalM[2 * L:3 * L, :L] = gap.conj().T;
+
+    assert np.allclose(totalM, totalM.conj().T)
+
+
+    # W = np.linalg.eigh(totalM / 2.)[1]
+    #print(np.linalg.eigh(totalM / 2.)[0])
+    #assert np.sum(np.abs(W - W * mask)) == 0
+
+
+    #assert np.allclose(W[:W.shape[0] // 2, :W.shape[0] // 2], W[W.shape[0] // 2:, W.shape[0] // 2:].conj())
+    #assert np.allclose(W[W.shape[0] // 2:, :W.shape[0] // 2], W[:W.shape[0] // 2, W.shape[0] // 2:].conj())
+
+    Q, V = W[:W.shape[0] // 2, :W.shape[0] // 2], \
+           W[W.shape[0] // 2:, :W.shape[0] // 2]
+
+    state = np.array([2, 4, 6, 7, 10, 13, 14, 24, 29, 32, 33, 34, 35, 37, 38, 39, 41, 44, 45, 46, 47, 48, 49, 50, 51, 52, 55, 56, 59, 60, 61, 63, \
+                      65, 69, 70, 71, 72, 75, 77, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 96, 98, 105, 106, 109, 110, 112, 114, 115, 118, 119, 120, 121, 125])
+    state_ph = []
+    for s in state:
+        if s < 64:
+            state_ph.append(s)
+    for j in range(64, 128):
+        if j not in state:
+            state_ph.append(j)
+    state = np.array(state_ph)
+    #print(repr(state))
+    #exit(-1)
+
+
+    #print(Q)
+    #print(V)
+    #Z = Q.dot(np.linalg.inv(V))
+    #Z = Z#.conj()
+
+    #print(np.abs(V) > 1e-10)
+    ##print( )
+    #print(np.abs(np.linalg.inv(Q)) > 1e-10)
+
+
+    #Z = (Q.dot(np.linalg.inv(V + 0. * np.eye(V.shape[0]))))
+    #Z = (V.dot(np.linalg.inv(Q))).conj()
+    #Z = np.linalg.inv(Z).conj()
+    Z = (Q.dot(np.linalg.inv(V)))#.conj()
+    print('max U^{-1} = ', np.max(np.abs(np.linalg.inv(Q))))
+    #exit(-1)
+    #Z = Z.conj()
+
+
+    #print(np.abs(Z) > 1e-6)
+    result = Z[Z.shape[0] // 2:, :Z.shape[0] // 2]
+
+    #pfa1 = cpf.pfaffian(Q.conj().T.dot(V.conj()))
+
+    ##print(result.shape, state.shape)
+    #det = result[state[:32], ...]
+    ##det = det[..., state[32:] - 64]
+    #det = np.linalg.det(det)
+    
+
+    sites_up = state[:32]
+    sites_down = state[32:] - 64
+
+
+    res = result
+
+
+
+
+    f_selected = res[sites_up, :]; f_selected = f_selected[:, sites_down]
+    det_0 = np.linalg.det(f_selected)
+
+    total_energy = 0.0 + 0.0j
+    for j in range(config.Ls ** 2 * 4):
+        for i in range(config.Ls ** 2 * 4):
+            if i in sites_up or j not in sites_up:
+                continue
+            if np.abs(K0[i, j]) < 1e-7:
+                continue
+            new_sites_up = sites_up.copy()
+            j_pos = np.where(new_sites_up == j)[0][0]
+            new_sites_up = np.concatenate([new_sites_up[:j_pos], new_sites_up[j_pos + 1:], np.array([i])], axis = -1)
+
+            f_selected = res[new_sites_up, :]; f_selected = f_selected[:, sites_down]
+            det_new = np.linalg.det(f_selected)
+            print(i, j, det_new / det_0 * (-1) ** j_pos * (-1))
+            total_energy += det_new / det_0 * (-1) ** j_pos * (-1) * K0.T[i, j]
+            #print(det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j], K0[i, j], total_energy)
+    print('energy assessed within Slater determinants up', -total_energy * 2.)
+
+
+    total_energy = 0.0 + 0.0j
+    for j in range(config.Ls ** 2 * 4):
+        for i in range(config.Ls ** 2 * 4):
+            if i in sites_down or j not in sites_down:
+                continue
+            if np.abs(K0[i, j]) < 1e-7:
+                continue
+            new_sites_down = sites_down.copy()
+            j_pos = np.where(new_sites_down == j)[0][0]
+            new_sites_down = np.concatenate([new_sites_down[:j_pos], new_sites_down[j_pos + 1:], np.array([i])], axis = -1)
+
+            f_selected = res[sites_up, :]; f_selected = f_selected[:, new_sites_down]
+            det_new = np.linalg.det(f_selected)
+            print(i, j, det_new / det_0 * (-1) ** j_pos * (-1))
+            total_energy += det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j]
+            # print(det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j], K0[i, j])
+    print('energy assessed within Slater determinants down', -total_energy * 2.)
+
+
+    
+    # assert np.allclose(gap, gap.conj().T)
+
+
+    # print(Z[Z.shape[0] // 2:, :Z.shape[0] // 2])
+    # print(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T)
+
+
+    Z = Z / np.abs(np.max(Z))
+    print(np.sum(np.abs(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T)))
+    assert np.allclose(Z[Z.shape[0] // 2:, :Z.shape[0] // 2], -Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T)  # how does this condition look for triplet?
+    assert np.allclose(Z[Z.shape[0] // 2:, Z.shape[0] // 2:], Z[Z.shape[0] // 2:, Z.shape[0] // 2:] * 0.0)  # indeed, there are no such terms even for triplet [cool]
+    assert np.allclose(Z[:Z.shape[0] // 2, :Z.shape[0] // 2], Z[:Z.shape[0] // 2, :Z.shape[0] // 2] * 0.0)
+    
+
+
+    u = Q[Q.shape[0] // 2:, Q.shape[0] // 2:]
+
+
+
+    result_trans = result.copy()
+    result_trans = result_trans[tx, :]
+    result_trans = result_trans[:, tx]
+
+    #print(result[0, :])
+    #assert np.isclose(np.sum(np.abs(result - result_trans)), 0.0)
+
+    result_trans = result.copy()
+    result_trans = result_trans[ty, :]
+    result_trans = result_trans[:, ty]
+    print(tx, np.sum(np.abs(result - result_trans)))
+    print(ty, np.sum(np.abs(result - result_trans)))
+    #print(result[0, :])
+    print()
+    #assert np.isclose(np.sum(np.abs(result - result_trans)), 0.0)
+
+
+
+    f_ij = result
+
+    for k in np.arange(1, 64, 4):
+        print(f_ij[k, ((k + 5)% 64)], k)
+
+    # print(np.abs(f_ij + 289.8182432682885-1.4968950523552849e-09j) < 1e-5)
+
+
+    f_ij = f_ij / np.abs(np.max(f_ij))
+
+    
+    eig, _ = np.linalg.eigh(K0)
+    print(2 * (np.sum(eig[eig < 0]) + config.mu * np.sum(eig < 0)))
+
+    print(2 * np.trace(u.conj().T.dot(K0 + np.eye(K0.shape[0]) * config.mu).dot(u)))
+    print(eig + config.mu)
+
+
+    
+
+    #print(Z)
+    #exit(-1)
+
+
+
+    '''
+    exit(-1)
 
     K_0_plus = K0[:, np.arange(0, 4 * Ls ** 2, 2)]; K_0_plus = K_0_plus[np.arange(0, 4 * Ls ** 2, 2), :]
     K_0_minus = K0[:, np.arange(1, 4 * Ls ** 2, 2)]; K_0_minus = K_0_minus[np.arange(1, 4 * Ls ** 2, 2), :]
@@ -429,7 +944,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
             print(det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j], K0[i, j], total_energy)
     print('energy assessed within Slater determinants up', total_energy)
 
-
+    '''
     #rotation = np.array([0, 1, 14, 15, 8, 9, 6, 7, 12, 13, 2, 3, 4, 5, 10, 11])
     #assert np.allclose(valley[valley], np.arange(16))
     assert np.allclose(C3z[C3z[C3z]], np.arange(config.Ls ** 2 * 4))
@@ -626,7 +1141,6 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
 
     orbit_ij, orbit_k, n_orbits, matrix_orb, seen_shifts = get_orb(config.Ls, mod)
 
-
     if mod == 2:
         matrix_orb_trans = matrix_orb.copy()
         matrix_orb_trans = matrix_orb_trans[:, tx[tx]]    
@@ -668,7 +1182,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     else:
         f.write('NOrbitalIdx         {:d}\n'.format((n_orbits)))
 
-    f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
+    f.write('ComplexType          {:d}\n'.format(1))
     f.write('=============================================\n')
     f.write('=============================================\n')
 
@@ -676,6 +1190,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     if periodic:
         for ij, k in zip(orbit_ij, orbit_k):
             f.write('    {:d}      {:d}      {:d}\n'.format(ij[0], ij[1], k))
+            i, j = orbit_ij[orbit_k.index(k)]
         for i in range(n_orbits):
             f.write('    {:d}      1\n'.format(i))  # FIXME
     else:
@@ -701,15 +1216,16 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
         orb_num = 0
         for i in range(config.Ls ** 2 * 4):
             for j in range(config.Ls ** 2 * 4):
-                f.write('{:d} {:.10f}  {:.10f}\n'.format(orb_num, f_ij[i, j].real + 0 * np.random.uniform(3e-2, 3e-2), \
-                                                                  f_ij[i, j].imag + 0 * np.random.uniform(-3e-2, 3e-2)))
+                f.write('{:d} {:.20f}  {:.20f}\n'.format(orb_num, f_ij[i, j].real, f_ij[i, j].imag))
                 orb_num += 1
+
+
     else:
         for k in range(n_orbits):
             i, j = orbit_ij[orbit_k.index(k)]
+            # print(i, j)
             #f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0) if not real_jastrow else 0.0))
-            f.write('{:d} {:.10f}  {:.10f}\n'.format(k, f_ij[i, j].real, f_ij[i, j].imag if not real_jastrow else 0.0))
-
+            f.write('{:d} {:.20f}  {:.20f}\n'.format(k, f_ij[i, j].real, f_ij[i, j].imag))
 
 
 
@@ -780,25 +1296,25 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f.write('CDataFileHead  zvo\n')
     f.write('CParaFileHead  zqp\n')
     f.write('--------------------\n')
-    f.write('NVMCCalMode    0\n')
+    f.write('NVMCCalMode    1\n')
     f.write('--------------------\n')
     f.write('NDataIdxStart  1\n')
     f.write('NDataQtySmp    1\n')
     f.write('--------------------\n')
     f.write('Nsite          {:d}\n'.format(K0.shape[0]))
-    f.write('Ncond          {:d}\n'.format(config.Ls ** 2 * 4 - doping * 4))
+    f.write('Ncond          {:d}\n'.format(64))
     f.write('2Sz            0\n')
-    f.write('NSPGaussLeg    8\n')
+    f.write('NSPGaussLeg    1\n')
     f.write('NSPStot        0\n')
     f.write('NMPTrans       {:d}\n'.format(len(symmetries)))
-    f.write('NSROptItrStep  1000\n')
+    f.write('NSROptItrStep  1\n')
     f.write('NSROptItrSmp   40\n')
     f.write('DSROptRedCut   0.0010000000\n')
     f.write('DSROptStaDel   0.0200000000\n')
-    f.write('DSROptStepDt   0.0200000000\n')
-    f.write('NVMCWarmUp     400\n')
+    f.write('DSROptStepDt   0.0000000000\n')
+    f.write('NVMCWarmUp     100\n')
     f.write('NVMCInterval   1\n')
-    f.write('NVMCSample     4000\n')
+    f.write('NVMCSample     1000\n')
     f.write('NExUpdatePath  0\n')
     f.write('RndSeed        1\n')
     f.write('NSplitSize     1\n')

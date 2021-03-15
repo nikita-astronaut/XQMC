@@ -446,7 +446,7 @@ def get_transition_matrix_range(config, K, PN_projection, n_orbitals = 1, valley
 
     return adjacency_list
 
-@jit(nopython=True)  # TODO: check this is valid for gaps
+# @jit(nopython=True)  # TODO: check this is valid for gaps
 def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, \
                inverse = False, factor = 1, chiral_basis=True):  # inverse = True in the case of spin--down
     x_factor = twist[0] if not inverse else 1. / twist[0]
@@ -458,6 +458,12 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, \
     for first, second in far_indices:
         orbit1, sublattice1, x1, y1 = from_linearized_index(first, Ls, n_orbitals, n_sublattices)
         orbit2, sublattice2, x2, y2 = from_linearized_index(second, Ls, n_orbitals, n_sublattices)
+
+        if np.isclose(K[first, second], 0.0):
+            continue
+
+        #if np.abs(K[first, second]) < 1e-1:
+        #    print(first, second, 'connection within', y1, y2)
 
         if np.abs(x1 - x2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
             if x2 > x1:
@@ -476,6 +482,8 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, \
                     K[first, second] *= np.conj(x_factor)
 
         if np.abs(y1 - y2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
+            #if np.abs(K[first, second]) < 1e-1:
+            #    print(first, second, 'connection outer', y1, y2)
             if y2 > y1:
                 if chiral_basis and orbit1 == 0:
                     K[first, second] *= y_factor
