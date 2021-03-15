@@ -1302,6 +1302,191 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
             return self.K_plus_inverse.dot(np.conj(self.V[l, ...]))
         return self.K_minus_inverse.dot(np.conj(self.V[l, ...]))  # in case of imaginary HST, inversion = c.c.
 
+
+class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccurateImagNN):
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
+        self.conf_path = os.path.join(local_workdir, 'last_conf')
+
+        self.K_plus = K[::2, :]
+        self.K_plus = self.K_plus[:, ::2]
+        self.K_minus = K[1::2, :]
+        self.K_minus = self.K_minus[:, 1::2]
+
+        self.K_plus_inverse = K_inverse[::2, :]
+        self.K_plus_inverse = self.K_plus_inverse[:, ::2]
+        self.K_minus_inverse = K_inverse[1::2, :]
+        self.K_minus_inverse = self.K_minus_inverse[:, 1::2]
+
+        self.K_plus_half = K_half[::2, :]
+        self.K_plus_half = self.K_plus_half[:, ::2]
+        self.K_minus_half = K_half[1::2, :]
+        self.K_minus_half = self.K_minus_half[:, 1::2]
+
+        self.K_plus_half_inverse = K_half_inverse[::2, :]
+        self.K_plus_half_inverse = self.K_plus_half_inverse[:, ::2]
+
+        self.K_minus_half_inverse = K_half_inverse[1::2, :]
+        self.K_minus_half_inverse = self.K_minus_half_inverse[:, 1::2]
+
+        self.K_matrix_plus = K_matrix[::2, :]
+        self.K_matrix_plus = self.K_matrix_plus[:, ::2]
+        self.K_matrix_minus = K_matrix[1::2, :]
+        self.K_matrix_minus = self.K_matrix_minus[:, 1::2]
+
+        assert np.allclose(np.linalg.inv(self.K_minus), self.K_minus_inverse)
+        assert np.allclose(np.linalg.inv(self.K_plus), self.K_plus_inverse)
+
+        K_oneband = K_matrix[np.arange(0, K_matrix.shape[0], 2), :];
+        K_oneband = K_oneband[:, np.arange(0, K_matrix.shape[0], 2)];
+
+        self.connectivity = (K_oneband == K_oneband.real.max()).astype(np.float64)
+        assert np.allclose(self.connectivity, self.connectivity.T)
+        self.n_hexagons = config.Ls ** 2  # int(np.sum(self.connectivity) / 2.)
+
+        self.hexagons = []  # hexagon -- typle of 6 sites
+        self.hexagons_by_site = []  # list of 3 hexagons that include this site into list
+
+
+        for i in range(self.connectivity.shape[0]):
+            adjacent_sites = np.where(self.connectivity[i, :] == 1.0)[0]
+            hexagons = []
+
+            for j in adjacent_sites:
+                hexagons.append(j // 2) # we only need the unit cell idx (hexagon = unit cell idx)
+            assert len(hexagons) == 3
+            self.hexagons_by_site.append(hexagons.copy())
+
+        for hexagon_idx in range(config.Ls ** 2):
+            hexagon = []
+
+            for i, a in enumerate(self.hexagons_by_site):
+                if hexagon_idx in a:
+                    hexagon.append(i)
+            assert len(hexagon) == 6
+            self.hexagons.append(hexagon.copy())
+        self.Bdim = config.total_dof // 2 // 2
+
+
+        super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
+
+        self.gauge_hexagon = {
+            -2 : (1. - np.sqrt(6) / 3 ) * np.exp(-4.0j * self.config.nu_U * self.eta[-2]),
+            +2 : (1. - np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[+2]),
+            -1 : (1. + np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[-1]),
+            +1 : (1. + np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[+1])
+        }
+
+        self.gauge_hexagon_log = {
+            -2 : np.log(1. - np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[-2],
+            +2 : np.log(1. - np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[+2],
+            -1 : np.log(1. + np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[-1],
+            +1 : np.log(1. + np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[+1]
+        }
+        print(self.hexagons_by_site)
+        print(self.hexagons)
+        return
+
+    def get_gauge_factor_move_hex(self, local_conf_old, local_conf):
+        return self.gauge_hexagon[local_conf] / self.gauge_hexagon[local_conf_old]
+
+    def get_current_gauge_factor_log_hex(self):
+        cf = self.hex.flatten()
+        factor_logs = np.zeros(len(cf), dtype=np.complex128)
+        factor_logs[cf == -2] = self.gauge_hexagon_log[-2]
+        factor_logs[cf == 2] = self.gauge_hexagon_log[2]
+        factor_logs[cf == 1] = self.gauge_hexagon_log[1]
+        factor_logs[cf == -1] = self.gauge_hexagon_log[-1]
+
+        return np.sum(factor_logs)
+
+    def _get_initial_field_configuration(self):
+        if self.config.start_type == 'cold':
+            exit(-1)
+        elif self.config.start_type == 'hot':
+            self.hex = np.random.choice(np.array([-2, -1, 1, 2]), \
+                                              size = (self.config.Nt, self.n_hexagons))
+
+        else:
+            loaded = False
+            if os.path.isfile(self.conf_path + '.npy'):
+                try:
+                    self.hex = np.load(self.conf_path + '.npy')
+                    print('Starting from a presaved field configuration', flush=True)
+                    loaded = True
+                except Exception:
+                    print('Failed during loading of configuration from default location: try from dump')
+
+                    try:
+                        self.hex = np.load(self.conf_path + '_dump.npy')
+
+                        print('Starting from a presaved field configuration in dump', flush=True)
+                        loaded = True
+                    except Exception:
+                        print('Failed during loading of configuration from dump location: initialize from scratch')
+            if not loaded:
+                print('Random initial configuration')
+                self.hex = np.random.choice(np.array([-2, -1, 1, 2]), \
+                                              size = (self.config.Nt, self.n_hexagons))
+
+
+        NtVolVol_shape = (self.config.Nt, self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)
+        self.V = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
+
+
+        for time_slice in range(self.config.Nt):
+            for sp_index in range(self.config.total_dof // 2 // 2):
+                hexagon = self.hexagons_by_site[sp_index]
+                hex_variables = np.array([self.hex[time_slice, b] for b in hexagon]) 
+                assert len(hex_variables) == 3
+
+                self.V[time_slice, sp_index, sp_index] = \
+                    _V_from_configuration_onesite_accurate_imag_hex(hex_variables, +1.0, +1.0, self.config.nu_U)
+        return
+    
+    def save_configuration(self):
+        addstring = '_dump' if self.n_times_saved % 2 == 1 else ''
+        self.n_times_saved += 1
+        return np.save(self.conf_path + addstring, self.hex)
+
+    def update_hex_field(self, hex_index, time_slice, new_conf):
+        '''
+            we update bond-variable, which affects 2 sites and 4 d.o.f., thus use `_V_from_configuration_onesite_accurate_imag`
+        '''
+        self.hex[time_slice, hex_index] = new_conf
+
+        for sp_index in self.hexagons[hex_index]:
+            hexagons = self.hexagons_by_site[sp_index]
+            hex_variables = np.array([self.hex[time_slice, b] for b in hexagons])  # all xi variables entering the site 1, including the one that has been changed (this is suboptimal)
+            assert len(hex_variables) == 3
+
+            self.V[time_slice, sp_index, sp_index] = \
+                _V_from_configuration_onesite_accurate_imag_hex(hex_variables, +1.0, +1.0, self.config.nu_U)
+        return
+
+
+    def compute_deltas_hex(self, sp_index, time_slice, local_conf, local_conf_proposed):
+        '''
+            deltas for bond-update of the xi-field (use the standard `_get_delta_interorbital_twosite_accurate_imag`)
+        '''
+        self.Delta = _get_delta_interorbital_twosite_accurate_imag_hex(local_conf, local_conf_proposed, +1, self.config.nu_U)  # here as well the same Delta
+        return
+
+
+    def get_current_hex(self, hex_index, time_slice):
+        return self.hex[time_slice, hex_index]
+
+
+    def update_G_seq_hex(self, hex_index):
+        idxs = np.array(self.hexagons[hex_index], dtype=np.int64)
+        self.current_G_function_up = _update_G_seq_inter_hex(self.current_G_function_up, self.Delta, idxs, self.config.total_dof // 2)
+        self.current_G_function_down = _update_G_seq_inter_hex(self.current_G_function_down, self.Delta, idxs, self.config.total_dof // 2)
+        return
+
+
+
+
+
+
 @jit(nopython = True)
 def _get_delta_interorbital_accurate(local_conf, local_conf_proposed, spin, \
                                      nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
@@ -1322,6 +1507,14 @@ def _get_delta_interorbital_twosite_accurate_imag(local_conf, local_conf_propose
     local_V_inv = _V_from_configuration_twosite_accurate_imag(local_conf, -1.0, spin, nu_V)
     local_V_proposed = _V_from_configuration_twosite_accurate_imag(local_conf_proposed, 1.0, spin, nu_V)
     return local_V_proposed * local_V_inv - np.eye(2)
+
+
+@jit(nopython = True)
+def _get_delta_interorbital_twosite_accurate_imag_hex(local_conf, local_conf_proposed, spin, nu_U):
+    local_V_inv = _V_from_configuration_twosite_accurate_imag_hex(local_conf, -1.0, spin, nu_U)
+    local_V_proposed = _V_from_configuration_twosite_accurate_imag_hex(local_conf_proposed, 1.0, spin, nu_U)
+    return local_V_proposed * local_V_inv - np.eye(6)
+
 
 @jit(nopython=True)
 def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
@@ -1353,12 +1546,32 @@ def _V_from_configuration_onesite_accurate_imag(eta_site, xi_bond, sign, spin, n
                                           eta[int(xi_bond[2]) + 2]) \
                                          ) * sign)  # bond-variable is the same for both sites
 
+@jit(nopython=True)
+def _V_from_configuration_onesite_accurate_imag_hex(hexagons, sign, spin, nu_U):  # used for initialization!
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
+           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
+    return np.exp(1.0j * (nu_U * (eta[int(hexagons[0]) + 2] + \
+                                  eta[int(hexagons[1]) + 2] + \
+                                  eta[int(hexagons[2]) + 2])) * sign / 3.)
+
+@jit(nopython=True)
+def _V_from_configuration_twosite_accurate_imag_hex(s, sign, spin, nu_U):  # !!! valid in this form ONLY for update (computation of Delta)
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
+           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
+    return np.diag(np.exp(1.0j * nu_U * eta[int(s) + 2] * sign * np.ones(6) / 3.))  # bond-variable is the same for both sites
+
+
+
 
 @jit(nopython=True)
 def _V_from_configuration_twosite_accurate_imag(s, sign, spin, nu_V):  # !!! valid in this form ONLY for update (computation of Delta)
     eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
            +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
     return np.diag(np.exp(1.0j * nu_V * eta[int(s) + 2] * sign * np.ones(2)))  # bond-variable is the same for both sites
+
+
+
+
 
 
 @jit(nopython=True)
@@ -1390,6 +1603,13 @@ def get_det_ratio_inter(sp_index1, sp_index2, Delta, G):
     return np.linalg.det(np.eye(2, dtype=np.complex128) + np.dot(Delta, np.eye(2, dtype=np.complex128) - G_slice))
 
 @jit(nopython=True)
+def get_det_ratio_inter_hex(idxs, Delta, G):
+    G_slice = G[idxs, :]
+    G_slice = G_slice[:, idxs]
+
+    return np.linalg.det(np.eye(6, dtype=np.complex128) + np.dot(Delta, np.eye(6, dtype=np.complex128) - G_slice))
+
+@jit(nopython=True)
 def get_det_ratio_inter_bond(sp_index1, sp_index2, Delta, G):
     sx1 = sp_index1 * 2
     sy1 = sp_index1 * 2 + 1
@@ -1411,17 +1631,16 @@ def get_det_ratio_intra(sp_index, Delta, G):
 
 '''
 @jit(nopython=True)
-def _update_G_seq_inter(G, Delta, sp_index1, sp_index2, total_dof):
-    idxs = np.array([sp_index1, sp_index2], dtype=np.int64)
+def _update_G_seq_inter_hex(G, Delta, idxs, total_dof):
     G_sliced_right = G[:, idxs]
     G_sliced_left = G[idxs, :]
 
-    update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
-    update_matrix[:, idxs] = np.eye(2, dtype=np.complex128) + Delta
+    update_matrix = np.zeros((6, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
+    update_matrix[:, idxs] = np.eye(6, dtype=np.complex128) + Delta
     update_matrix -= np.dot(Delta, np.ascontiguousarray(G_sliced_left))
     det = np.linalg.det(update_matrix[:, idxs])
 
-    inverse_update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
+    inverse_update_matrix = np.zeros((6, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
 
     inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sp_index2] - \
                                     update_matrix[1, :] * update_matrix[0, sp_index2]) / det  # my vectorized det :))
@@ -1454,6 +1673,35 @@ def _update_G_seq_inter(G, Delta, sp_index1, sp_index2, total_dof):
 
     GU = G.dot(U)
     Zinv = np.linalg.inv(np.eye(2, dtype=np.complex128) - V.dot(U)).dot(V)
+    Zinv = np.ascontiguousarray(Zinv)
+
+    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
+    return G + GU.dot(Zinv)
+
+
+@jit(nopython=True)
+def _update_G_seq_inter_hex(G, Delta, idxs, total_dof):
+    #identity = np.eye(G.shape[0], dtype=np.complex128)
+    #large_Delta = identity * 0.
+    #for i in range(6):
+    #    large_Delta[idxs[i], idxs[i]] = Delta[i, i]
+    #return G.dot(np.linalg.inv(identity + large_Delta.dot(identity - G)))
+
+    #idxs = np.sort(idxs)
+    U = np.zeros((total_dof // 2, 6), dtype=np.complex128)
+    for i in range(6):
+        U[idxs[i], i] = Delta[i, i]
+    G_sliced_left = G[idxs, :] * 1.0
+    V = G_sliced_left
+
+    for i in range(6):
+        V[i, idxs[i]] -= 1
+    V = np.ascontiguousarray(V)
+    U = np.ascontiguousarray(U)
+    G = np.ascontiguousarray(G)
+
+    GU = G.dot(U)
+    Zinv = np.linalg.inv(np.eye(6, dtype=np.complex128) - V.dot(U)).dot(V)
     Zinv = np.ascontiguousarray(Zinv)
 
     #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')

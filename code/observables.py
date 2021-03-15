@@ -733,24 +733,13 @@ def kinetic_energy(phi):
     return 2 * (phi.la.einsum('ij,ij', phi.K_matrix_plus.T, G_function_up) + \
                 phi.la.einsum('ij,ij', phi.K_matrix_minus.T, G_function_down)) / G_function_up.shape[0] / 2.
 
-
+'''  # for U/V interaction
 def Coloumb_energy(phi):
     G_function_up, G_function_down = phi.get_equal_time_GF()
-    # o rint(np.trace(G_function_up), np.trace(G_function_down))
-    #print(G_function_up)
-    #print(G_function_up - G_function_up.conj().T)
-    #exit(-1)
-    #print(np.abs(G_function_up - G_function_up.conj().T))
-    #print(phi.G_up_sum[np.arange(0, 16, 2), np.arange(0, 16, 2)].sum() / phi.n_gf_measures)
-    #print(G_function_up)
-    #for i in range(16):
-    #    print(G_function_up[0, i], '-->', G_function_up[i, 0], (0, i))
-    #    print(np.sum(np.abs(phi.G_up_sum - phi.G_up_sum.T.conj()) / phi.n_gf_measures))
-    #print(np.abs(phi.G_down_sum - phi.G_down_sum.T.conj()) / phi.n_gf_measures)
-    
+
     G_function = np.kron(G_function_up, np.array([[1, 0], [0, 0]])) + np.kron(G_function_down, np.array([[0, 0], [0, 1]]))
 
-    energy_coloumb_U = 0.0 + 0.0j; 
+    energy_coloumb_U = 0.0 + 0.0j 
     energy_coloumb_V = 0.0 + 0.0j
 
     energy_coloumb_U = phi.config.U * phi.la.sum(phi.la.diag(G_function) * phi.la.diag(G_function)).item() / G_function.shape[0]
@@ -770,9 +759,28 @@ def Coloumb_energy(phi):
     for GF in [G_function_up, G_function_down]:
         energy_coloumb_V -= 2 * phi.config.V * np.trace((GF * phi.connectivity).dot(GF * phi.connectivity)) / G_function.shape[0] / 2.
 
-    return energy_coloumb_U, energy_coloumb_V # + phi.config.U / 2. #phi.la.sum(phi.la.diag(G_function_up) ** 2).item() \
-                          #   / G_function_up.shape[0] 
-    # 
+    return energy_coloumb_U, energy_coloumb_V
+'''
+
+
+def Coloumb_energy(phi):
+    G_function_up, G_function_down = phi.get_equal_time_GF()
+
+    energy = 0.0 + 0.0j
+    for h in phi.hexagons:
+        total_h_charge = np.sum(G_function_up[np.array(h), np.array(h)] + G_function_down[np.array(h), np.array(h)]) * 2.
+        energy += phi.config.U / 9. / 2. * total_h_charge ** 2
+        energy -= phi.config.U / 9. / 2. * np.sum(G_function_up[np.array(h), np.array(h)] ** 2 + \
+                                                  G_function_down[np.array(h), np.array(h)] ** 2) * 2 
+
+        for i in h:
+            for j in h:
+                if i == j:
+                    continue
+                energy -= phi.config.U / 9. / 2 * G_function_up[i, j] * G_function_up[j, i] * 2.
+                energy -= phi.config.U / 9. / 2 * G_function_down[i, j] * G_function_down[j, i] * 2.
+
+    return energy / G_function_up.shape[0] / 2., 0.0
 
 
 
