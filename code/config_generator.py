@@ -40,14 +40,14 @@ class simulation_parameters:
         self.n_sweeps = 500000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 200  # every n-th configuration will be stored during generation
         self.save_path = './configurations/'  # where the configurations will be stored | they will have the name save_path/conf_genN.npy, where N is the generated number
-        self.n_print_frequency = 300  # write to log every n_print_frequency spin flips
+        self.n_print_frequency = 100  # write to log every n_print_frequency spin flips
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
 
         self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
         self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
-        self.thermalization = 1000  # after how many sweeps start computing observables
+        self.thermalization = 1  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]
