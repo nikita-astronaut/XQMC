@@ -505,8 +505,7 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             phi_field.copy_to_CPU()
 
         ### DEBUG ###
-        '''
-        GFs_up = np.array(phi_field.get_nonequal_time_GFs(+1.0, phi_field.current_G_function_up))
+        GFs_up = np.array(phi_field.get_nonequal_time_GFs_inverted(+1.0, phi_field.current_G_function_up))
         for t in range(len(GFs_up)):
             beta = phi_field.config.Nt * phi_field.config.dt
             current_tau = t * phi_field.config.dt
@@ -514,10 +513,9 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             states = states.T.conj()
             assert np.allclose(phi_field.K_matrix_plus, phi_field.K_matrix_plus.conj().T)
             assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), phi_field.K_matrix_plus)
-            correct_string = np.einsum('i,ij,ik->jk', np.exp(current_tau * energies) / (1. + np.exp(beta * energies)), states.conj(), states)
+            correct_string = np.einsum('i,ij,ik->jk', np.exp(-current_tau * energies) / (1. + np.exp(beta * energies)), states.conj(), states)
 
             print(t, np.linalg.norm(GFs_up[t] - correct_string) / np.linalg.norm(correct_string))
-        '''
 
         #energies, states = np.linalg.eigh(phi_field.K_matrix_plus)
         #beta = phi_field.config.Nt * phi_field.config.dt

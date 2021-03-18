@@ -4,8 +4,8 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-dt_in_inv_t1 = 1. / 10
-U_in_t1 = np.array([3.0])
+dt_in_inv_t1 = 1. / 3
+U_in_t1 = np.array([0.0])
 V_in_t1 = np.array([0.0])
 main_hopping = 1.0
 
@@ -13,7 +13,7 @@ class simulation_parameters:
     def __init__(self):
         self.gpu = False
         
-        self.Ls = 2
+        self.Ls = 6
         # spatial size, the lattice will be of size Ls x Ls
         self.Nt = np.array([800])
         self.BC_twist = False; self.twist = (1.0, 1.0)

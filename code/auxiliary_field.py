@@ -543,6 +543,30 @@ class AuxiliaryFieldIntraorbital:
             GFs.append(self.make_symmetric_displacement(1.0 * self.to_numpy(current_GF), valley = spin))
         return np.array(GFs)
 
+    def get_nonequal_time_GFs_inverted(self, spin, GF_0):
+        current_GF = 1. * GF_0.copy()
+        
+        GFs = [1. * self.make_symmetric_displacement(self.to_numpy(current_GF), valley = spin)]
+        current_V = self.la.eye(self.Bdim, dtype=np.complex128)
+        current_D = self.la.ones(self.Bdim, dtype=np.complex128)
+        current_U = self.la.eye(self.Bdim, dtype=np.complex128)
+        buff = self.la.eye(self.Bdim, dtype=np.complex128)
+
+        for nr, slice_idx in enumerate(range(1, self.config.Nt)):
+            B = self.B_l(spin, slice_idx, inverse=True)
+            buff = buff.dot(B)
+            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
+                u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
+                current_U = current_U.dot(u)
+                buff = self.la.eye(self.Bdim, dtype=np.complex128)
+
+            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
+                GFs.append(self.make_symmetric_displacement(GF_0 @ current_U @ self.la.diag(current_D) @ current_V, valley = spin))
+            else:
+                GFs.append(self.make_symmetric_displacement(GF_0 @ current_U @ self.la.diag(current_D) @ current_V @ buff, valley = spin))
+
+        return np.array(GFs)
+
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice, return_udv = False):
         current_V = self.la.eye(self.Bdim, dtype=np.complex128)
@@ -557,85 +581,20 @@ class AuxiliaryFieldIntraorbital:
             buff = buff.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
                 u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
-
-                #print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
-                # assert self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M) < 1e-13
                 current_U = current_U.dot(u)
                 buff = self.la.eye(self.Bdim, dtype=np.complex128)
 
         v = current_V
         s = current_D
 
-        '''
-        if spin == 1.0:
-        
-            current_tau = self.config.Nt * self.config.dt
-            energies, states = np.linalg.eigh(self.K_matrix_plus)
-            states = states.T.conj()
-            assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
-            assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
-            correct_string_B = np.einsum('i,ij,ik->jk', np.exp(current_tau * energies), states.conj(), states)
-            ub, db, vb = self.SVD(correct_string_B)
-            #string_B_svd = ub.dot(self.la.diag(db)).dot(vb)
-            #db_after = self.SVD(string_B_svd)[1]
-            #print((db_after - db) / db, '!!!')
-
-            print(self.la.linalg.norm(current_U.dot(self.la.diag(current_D)).dot(current_V) - correct_string_B) / self.la.linalg.norm(correct_string_B), 'GF_noopt discrepancy before inversion', nr, flush=True)
-            sing_true = self.SVD(correct_string_B)[1]
-            #print((current_D - sing_true) / sing_true)
-        '''
-
         m = current_U.conj().T.dot(v.conj().T) + self.la.diag(s)
-        # print(s, 'sing values nonoptimized')
         um, sm, vm = self.SVD(m)
-        #print(self.la.linalg.norm(um.dot(self.la.diag(sm)).dot(vm) - m) / self.la.linalg.norm(m), 'svd of M discrepancy')
-        #assert np.allclose(((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T) ,\
-        #                   np.linalg.inv(self.la.eye(self.config.total_dof // 2, dtype=np.complex128) + current_U.dot(self.la.diag(s)).dot(v)))
 
         if return_udv:
             return (vm.dot(v)).conj().T, self.la.diag(sm ** -1), (current_U.dot(um)).conj().T
-            #return (vm.dot(v)).conj().T, self.la.diag(sm ** -1), (current_U.dot(current_U)).conj()
-        '''
-        #res = ((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T)
-        sm_max = current_D.copy(); sm_max[sm_max < 1.] = 1.
-        sm_min = current_D.copy(); sm_min[sm_min > 1.] = 1.
-
-        print(np.max(current_D), np.min(current_D), 'range of singular values')
-
-        M = current_V.conj().T.dot(self.la.diag(sm_max ** -1)) + current_U.dot(self.la.diag(sm_min))
-        um, sm, vm = self.SVD(M)
-        #res = current_V.conj().T.dot(self.la.diag(sm_max ** -1)).dot(vm.conj().T).dot(self.la.diag(sm ** -1)).dot(um.conj().T)
-
-        A = current_V.conj().T.dot(self.la.diag(sm_max ** -1)) + current_U.dot(self.la.diag(sm_min))
-        assert np.allclose(np.eye(self.Bdim), A.dot(self.la.linalg.inv(A)))
-        res = current_V.conj().T.dot(self.la.diag(sm_max ** -1)).dot(self.la.linalg.inv(current_V.conj().T.dot(self.la.diag(sm_max ** -1)) + current_U.dot(self.la.diag(sm_min))))
-        # res = self.la.linalg.inv(np.eye(self.Bdim) + current_U.dot(self.la.diag(current_D)).dot(current_V))
-        '''
-
         res = ((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T)
-        '''
-        if spin == 1.0:
-            current_tau = self.config.Nt * self.config.dt
-            energies, states = np.linalg.eigh(self.K_matrix_plus)
-            states = states.T.conj()
-            assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
-            assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
-            correct_string = np.einsum('i,ij,ik->jk', 1. / (1. + np.exp(current_tau * energies)), states.conj(), states)
-            # inv_B = self.la.linalg.inv(self.la.eye(self.Bdim) + correct_string_B)
-            print(self.la.linalg.norm(res - correct_string) / self.la.linalg.norm(correct_string), 'GF_noopt final discrepancy', flush=True)
-            # print(self.la.linalg.norm(inv_B - correct_string) / self.la.linalg.norm(correct_string), 'correct strings discrepancy', nr, flush=True)
-
-
-            d_res = self.SVD(res)[1]
-            d_correct = self.SVD(correct_string)[1]
-            idx = np.where(np.abs((d_res - d_correct) / d_res) > 1e-2)[0][0]
-
-            print((d_res - d_correct) / d_correct, 'discrepancy noopt', d_correct[idx])
-        '''
         
         return res, self.la.sum(self.la.log(sm ** -1)), np.linalg.slogdet(res)[0] #res / np.abs(res)
-        #return ((v.dot(vm)).conj()).dot(self.la.diag(sm ** -1)).dot((um.dot(current_U)).conj()), self.la.sum(self.la.log(sm ** -1)), \
-        #        np.sign(np.linalg.det(((v.dot(vm)).conj())) * np.linalg.det((um.dot(current_U)).conj()))
 
     def get_assymetry_factor(self):
         G_up = self.get_G_no_optimisation(+1, 0)[0]
