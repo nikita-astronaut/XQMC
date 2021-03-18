@@ -38,6 +38,8 @@ class Observables:
 
         self.X_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl')
         self.Z_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl')
+        self.X_equalt_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_equalt_ijkl')
+        self.Z_equalt_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_equalt_ijkl')
         self.G_sum_filename = os.path.join(self.local_workdir_heavy, 'G_sum')
 
         self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples')
@@ -54,7 +56,7 @@ class Observables:
         # print(self.ijkl)
         # print(len(self.ijkl))
         # exit(-1)
-        #np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
+        np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
         #exit(-1)
 
         # for order-order susceptibility
@@ -124,6 +126,8 @@ class Observables:
                 self.GF_sum = np.load(self.G_sum_filename + '.npy')
                 self.X_ijkl = np.load(self.X_ijkl_filename + '.npy')
                 self.Z_ijkl = np.load(self.Z_ijkl_filename + '.npy')
+                self.X_equalt_ijkl = np.load(self.X_equalt_ijkl_filename + '.npy')
+                self.Z_equalt_ijkl = np.load(self.Z_equalt_ijkl_filename + '.npy')
 
                 self.num_chi_samples = np.load(self.num_samples_filename + '.npy')[0]
 
@@ -136,6 +140,8 @@ class Observables:
                     self.GF_sum = np.load(self.G_sum_filename + '_dump.npy')
                     self.X_ijkl = np.load(self.X_ijkl_filename + '_dump.npy')
                     self.Z_ijkl = np.load(self.Z_ijkl_filename + '_dump.npy')
+                    self.X_equalt_ijkl = np.load(self.X_equalt_ijkl_filename + '_dump.npy')
+                    self.Z_equalt_ijkl = np.load(self.Z_equalt_ijkl_filename + '_dump.npy')
 
                     self.num_chi_samples = np.load(self.num_samples_filename + '_dump.npy')[0]
 
@@ -150,6 +156,8 @@ class Observables:
             self.num_chi_samples = 0
             self.X_ijkl = np.zeros(len(self.ijkl), dtype=np.complex128)
             self.Z_ijkl = np.zeros(len(self.ljki), dtype=np.complex128)
+            self.X_equalt_ijkl = np.zeros(len(self.ijkl), dtype=np.complex128)
+            self.Z_equalt_ijkl = np.zeros(len(self.ljki), dtype=np.complex128)
         return
 
     def save_GF_data(self):
@@ -159,6 +167,8 @@ class Observables:
         np.save(self.G_sum_filename + addstring, self.GF_sum)
         np.save(self.X_ijkl_filename + addstring, self.X_ijkl)
         np.save(self.Z_ijkl_filename + addstring, self.Z_ijkl)
+        np.save(self.X_equalt_ijkl_filename + addstring, self.X_equalt_ijkl)
+        np.save(self.Z_equalt_ijkl_filename + addstring, self.Z_equalt_ijkl)
 
         np.save(self.num_samples_filename + addstring, np.array([self.num_chi_samples]))
         self.n_saved_times += 1
@@ -418,7 +428,6 @@ class Observables:
 
                 #print(t, np.log(np.sum(GF_fft[t, 4 * k, 4 * k] + GF_fft[t, 4 * k + 2, 4 * k + 2]).real / np.sum(GF_fft[t + 1, 4 * k, 4 * k] + GF_fft[t + 1, 4 * k + 2, 4 * k + 2]).real))
         '''
-        self.cur_buffer_size = 0
 
 
         print('current buffer size = {:d}'.format(self.cur_buffer_size))
@@ -433,6 +442,15 @@ class Observables:
         t = time()
         self.X_ijkl += measure_gfs_correlator(G_prepared, self.ijkl, self.config.Ls)
         self.Z_ijkl += measure_gfs_correlator(G_prepared, self.ljki, self.config.Ls)
+
+
+        new_shape = (shape[0], shape[2], shape[3])
+
+        G_prepared = np.asfortranarray(self.GF_stored[:self.cur_buffer_size, 0, ...].reshape(new_shape))
+
+        t = time()
+        self.X_equalt_ijkl += measure_gfs_correlator(G_prepared, self.ijkl, self.config.Ls)
+        self.Z_equalt_ijkl += measure_gfs_correlator(G_prepared, self.ljki, self.config.Ls)
 
         #G_down_prepared = np.asfortranarray(np.einsum('ijkl,i->ijkl', self.GF_down_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape))
         #G_up_prepared = np.asfortranarray(self.GF_up_stored[:self.cur_buffer_size, ...].reshape(new_shape))
@@ -508,6 +526,7 @@ class Observables:
 
         print('chi_ijkl_free take', time() - t)
         '''
+        self.cur_buffer_size = 0
         return
 
 
