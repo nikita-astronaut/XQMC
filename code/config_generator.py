@@ -4,8 +4,8 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-dt_in_inv_t1 = 1. / 5
-U_in_t1 = np.array([3.0])
+dt_in_inv_t1 = 1. / 3
+U_in_t1 = np.array([0.0])
 V_in_t1 = np.array([0.0])
 main_hopping = 1.0
 
