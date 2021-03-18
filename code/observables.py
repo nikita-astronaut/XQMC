@@ -168,7 +168,7 @@ class Observables:
         self.gap_file.flush()
 
         ### buffer for efficient GF-measurements ###
-        self.cur_buffer_size = 0; self.max_buffer_size = 2 # FIXME FIXME FIXME
+        self.cur_buffer_size = 0; self.max_buffer_size = 4
         self.GF_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
 
         # self.gap_observables_list = OrderedDict()

@@ -45,9 +45,9 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
 
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/'
-        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs/'
-        self.thermalization = 200000  # after how many sweeps start computing observables
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
+        self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
+        self.thermalization = 1000  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]
@@ -58,7 +58,7 @@ class simulation_parameters:
         self.pairings_list = []#pairings.twoorb_hex_all_dqmc
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
-        self.max_square_pairing_distance = 1. # / 3.  # on-site + NN case on hex lattice
+        self.max_square_pairing_distance = 1. / 3.  # on-site + NN case on hex lattice
         self.name_group_dict = {'(S_0)x(S_0&S_x)x(δ)': 3, '(S_z)x(iS_y&S_y)x(δ)': 2, '(S_x)x(S_0&S_x)x(v_1)': 3, '(iS_y)x(iS_y&S_y)x(v_1)': 3, '(S_z)x(S_0&S_x)x(δ)': 1, '(S_0)x(iS_y&S_y)x(δ)': 0, '(S_x)x(iS_y&S_y)x(v_1)': 0, '(iS_y)x(S_0&S_x)x(v_1)': 0, '(S_0)x(S_1)x(δ)': 7, '(S_0)x(S_2)x(δ)': 11, '(S_z)x(S_1)x(δ)': 5, '(S_z)x(S_2)x(δ)': 9, '(S_x)x(S_1)x(v_2)': 11, '(S_x)x(S_2)x(v_3)': 7, '(S_x)x(S_1)x(v_1)': 7, '(S_x)x(S_2)x(v_1)': 11, '(S_x)x(S_0&S_x)x(v_2)': 7, '(S_x)x(S_0&S_x)x(v_3)': 11, '(iS_y)x(iS_y&S_y)x(v_2)': 7, '(iS_y)x(iS_y&S_y)x(v_3)': 11, '(S_x)x(S_1)x(v_3)': 3, '(S_x)x(S_2)x(v_2)': 3, '(S_x)x(iS_y)x(v_2)': 4, '(S_x)x(iS_y)x(v_3)': 8, '(iS_y)x(S_1)x(v_3)': 0, '(iS_y)x(S_2)x(v_2)': 0, '(iS_y)x(S_0&S_x)x(v_2)': 4, '(iS_y)x(S_0&S_x)x(v_3)': 8, '(iS_y)x(S_1)x(v_1)': 4, '(iS_y)x(S_2)x(v_1)': 8, '(iS_y)x(S_1)x(v_2)': 8, '(iS_y)x(S_2)x(v_3)': 4}
 
         ### SDW/CDW parameters setting ###
