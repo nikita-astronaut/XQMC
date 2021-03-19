@@ -32,14 +32,12 @@ def construct_2orb_hex(config):
     onsite = pairings.construct_onsite_delta(config)
 
     orders_on_site = [
-        [(Zpauli, Ipauli, onsite, Ipauli), '(S_z)x(S_0)x(S_0)'], [(Zpauli, Zpauli, onsite, Ipauli), '(S_z)x(S_z)x(S_0)'],
-        [(Ipauli, Ipauli, onsite, Ipauli), '(S_0)x(S_0)x(S_0)'], [(Ipauli, Zpauli, onsite, Ipauli), '(S_0)x(S_z)x(S_0)'],
-        [(Zpauli, Zpauli, onsite, Zpauli), '(S_z)x(S_z)x(S_z)'], [(Zpauli, Ipauli, onsite, Zpauli), '(S_z)x(S_0)x(S_z)'],
-        [(Ipauli, Zpauli, onsite, Zpauli), '(S_0)x(S_z)x(S_z)'], [(Ipauli, Ipauli, onsite, Zpauli), '(S_0)x(S_0)x(S_z)'],
+        [(Zpauli, Ipauli, onsite, Zpauli), '(S_z)x(S_0)x(S_z)'], [(Zpauli, Zpauli, onsite, Zpauli), '(S_z)x(S_z)x(S_z)'],
+        [(Ipauli, Ipauli, onsite, Zpauli), '(S_0)x(S_0)x(S_z)'], [(Ipauli, Zpauli, onsite, Zpauli), '(S_0)x(S_z)x(S_z)'],
         [(Zpauli, Xpauli, onsite, Ipauli), '(S_z)x(S_x)x(S_0)'], [(Zpauli, iYpauli, onsite, Ipauli), '(S_z)x(iS_y)x(S_0)'],
         [(Ipauli, Xpauli, onsite, Ipauli), '(S_0)x(S_x)x(S_0)'], [(Ipauli, iYpauli, onsite, Ipauli), '(S_0)x(iS_y)x(S_0)'],
     ]
-
+    '''
     print('Checking (S_z)x(S_1&S_2)x(S_z) wave symmetries')
     #pairings.check_irrep_properties(config, orders_on_site[0:2], term_type = 'bilinear')
     #pairings.check_irrep_properties(config, orders_on_site[0:2], term_type = 'bilinear', chiral = True)
@@ -53,22 +51,36 @@ def construct_2orb_hex(config):
     #pairings.check_irrep_properties(config, orders_on_site[4:6], term_type = 'bilinear')
 
     print('Checking (S_0)x(S_x&S_y)x(S_0)/(S_0)x(S_z&S_x)x(S_0) wave symmetries')
-    #pairings.check_irrep_properties(config, orders_on_site[6:8], term_type = 'bilinear')
-    #pairings.check_irrep_properties(config, orders_on_site[6:8], term_type = 'bilinear', chiral = True)
+    pairings.check_irrep_properties(config, orders_on_site[6:8], term_type = 'bilinear')
+    pairings.check_irrep_properties(config, orders_on_site[6:8], term_type = 'bilinear', chiral = True)
+    '''
+    global delta_hex_AB, delta_hex_BA
+    delta_hex_AB = [pairings.construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
+    delta_hex_BA = [delta.T for delta in delta_hex_AB]
 
-    # global delta_hex_AB, delta_hex_BA
-    # delta_hex_AB = [pairings.construct_NN_delta(config, direction, geometry='hexagonal') for direction in range(1, 4)]
-    # delta_hex_BA = [delta.T for delta in delta_hex_AB]
+    v1_AB = pairings.construct_vi_hex(1, delta_hex_AB)
+    v2_AB = pairings.construct_vi_hex(2, delta_hex_AB)
+    v3_AB = pairings.construct_vi_hex(3, delta_hex_AB)
 
-    # v1_AB = pairings.construct_vi_hex(1, delta_hex_AB)
-    # v1_BA = pairings.construct_vi_hex(1, delta_hex_BA)
-    # v1 = (v1_AB, v1_BA)
+    v1_BA = pairings.construct_vi_hex(1, delta_hex_BA)
+    v2_BA = pairings.construct_vi_hex(2, delta_hex_BA)
+    v3_BA = pairings.construct_vi_hex(3, delta_hex_BA)
 
-    # orders_NN = [
-    #     [(Xpauli, Ipauli, v1, Ipauli), '(S_x)xS_0xv_1xS_0'],  # renormalization of t_1
-    #  ]
-    # print('Checking (S_x)xS_0xv_1xS_0 wave symmetries')
-    # pairings.check_irrep_properties(config, orders_NN[0:1])
+    v1 = (v1_AB, v1_BA)
+    v2 = (v2_AB, v2_BA)
+    v3 = (v3_AB, v3_BA)
+
+
+
+    orders_NN = [
+        [(Xpauli, Ipauli, v1, Ipauli), '(S_x)x(S_0)x(v_1)x(S_0)'],
+        [(Xpauli, Ipauli, v3, Ipauli), '(S_x)x(S_0)x(v_3)x(S_0)'],
+        [(Xpauli, Zpauli, v3, Ipauli), '(S_x)x(S_z)x(v_3)x(S_0)'],
+        [(Xpauli, Xpauli, v3, Ipauli), '(S_x)x(S_x)x(v_3)x(S_0)'],
+        [(Xpauli, Xpauli, v3, Ipauli), '(S_x)x(S_x)x(v_3)x(S_0)'],
+     ]
+    #print('Checking (S_x)xS_0xv_1xS_0 wave symmetries')
+    #pairings.check_irrep_properties(config, orders_NN[0:1])
 
     # delta_hex_AA = [pairings.construct_NNN_delta(config, direction, 'hexagonal', sublattice = 0) for direction in range(1, 7)]
     # delta_hex_BB = [pairings.construct_NNN_delta(config, direction, 'hexagonal', sublattice = 1) for direction in range(1, 7)]
@@ -86,10 +98,9 @@ def construct_2orb_hex(config):
 
     orders_unwrapped = []
 
-    for order in orders_on_site: # + orders_NN + orders_NNN:
+    for order in orders_on_site + orders_NN:# + orders_NNN:
         order_unwrapped = pairings.expand_tensor_product(config, *(order[0]))
-        orders_unwrapped.append([order_unwrapped, order[1]])   
-        #orders_unwrapped.append([(order_unwrapped + order_unwrapped.conj().T) / 2., order[1]])  # TODO: remove Hermitisation?
+        orders_unwrapped.append([order_unwrapped, order[1]])
     
 
     return orders_unwrapped
