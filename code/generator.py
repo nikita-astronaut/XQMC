@@ -505,6 +505,7 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             phi_field.copy_to_CPU()
 
         ### DEBUG ###
+        '''
         GFs_up = np.array(phi_field.get_nonequal_time_GFs_inverted(+1.0, phi_field.current_G_function_up))
         for t in range(len(GFs_up)):
             beta = phi_field.config.Nt * phi_field.config.dt
@@ -516,7 +517,7 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             correct_string = np.einsum('i,ij,ik->jk', np.exp(-current_tau * energies) / (1. + np.exp(beta * energies)), states.conj(), states)
 
             print(t, np.linalg.norm(GFs_up[t] - correct_string) / np.linalg.norm(correct_string))
-
+        '''
         #energies, states = np.linalg.eigh(phi_field.K_matrix_plus)
         #beta = phi_field.config.Nt * phi_field.config.dt
         #correct_energy = np.sum(energies / (1. + np.exp(beta * energies)))
@@ -596,6 +597,7 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
         
         observables.measure_light_observables(phi_field, 1, n_sweep, print_gf = (time_slice == phi_field.config.Nt - 1))
+
 
     if n_sweep >= phi_field.config.thermalization:
         t = time()

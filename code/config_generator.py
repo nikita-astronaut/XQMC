@@ -5,7 +5,7 @@ from opt_parameters import pairings, waves
 import pickle
 
 dt_in_inv_t1 = 1. / 3
-U_in_t1 = np.array([0.0])
+U_in_t1 = np.array([1.0])
 V_in_t1 = np.array([0.0])
 main_hopping = 1.0
 
@@ -15,7 +15,7 @@ class simulation_parameters:
         
         self.Ls = 6
         # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([800])
+        self.Nt = np.array([40])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -45,8 +45,8 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 5
 
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
-        self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
+        self.workdir = '/home/astronaut/Documents/XQMC/logs_dqmc_real/'
+        self.workdir_heavy = '/home/astronaut/Documents/XQMC/logs_dqmc_real/'
         self.thermalization = 1  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;

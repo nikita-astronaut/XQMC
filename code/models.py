@@ -364,7 +364,7 @@ def get_distances_list(config):
     return A
 
 
-def get_reduced_adjacency_matrix(config, max_distance):
+def get_reduced_adjacency_matrix(config, max_distance, with_t5=False):
     A = get_adjacency_list(config)[0]
     reduced_A = np.zeros((config.total_dof // 2, config.total_dof // 2))
 
@@ -373,6 +373,11 @@ def get_reduced_adjacency_matrix(config, max_distance):
             continue
         reduced_A += adj[0]
 
+
+    if with_t5:
+        for adj in A:
+            if np.isclose(adj[-1], 3.0):
+                reduced_A += adj[0]
     return np.array([np.where(reduced_A[i, :] > 0.5)[0] for i in range(reduced_A.shape[0])])
 
 

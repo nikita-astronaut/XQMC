@@ -546,7 +546,8 @@ class AuxiliaryFieldIntraorbital:
     def get_nonequal_time_GFs_inverted(self, spin, GF_0):
         current_GF = 1. * GF_0.copy()
         
-        GFs = [1. * self.make_symmetric_displacement(self.to_numpy(current_GF), valley = spin)]
+        identity = self.la.eye(self.Bdim, dtype=np.complex128)
+        GFs = [1. * self.make_symmetric_displacement(self.to_numpy(current_GF), valley = spin) - identity]
         current_V = self.la.eye(self.Bdim, dtype=np.complex128)
         current_D = self.la.ones(self.Bdim, dtype=np.complex128)
         current_U = self.la.eye(self.Bdim, dtype=np.complex128)
@@ -559,11 +560,8 @@ class AuxiliaryFieldIntraorbital:
                 u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
                 current_U = current_U.dot(u)
                 buff = self.la.eye(self.Bdim, dtype=np.complex128)
-
-            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                GFs.append(self.make_symmetric_displacement(GF_0 @ current_U @ self.la.diag(current_D) @ current_V, valley = spin))
-            else:
-                GFs.append(self.make_symmetric_displacement(GF_0 @ current_U @ self.la.diag(current_D) @ current_V @ buff, valley = spin))
+            
+            GFs.append(self.make_symmetric_displacement((GF_0 - identity) @ current_U @ self.la.diag(current_D) @ current_V @ buff, valley = spin))
 
         return np.array(GFs)
 
