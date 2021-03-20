@@ -215,11 +215,8 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             G_up, G_down = phi_field.current_G_function_up * 1.0, phi_field.current_G_function_down * 1.0
             phi_field.refresh_G_functions()
 
-            if np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up) > 1e-10:
-                print('Warning! During refresh there is a big norm discrepancy in up:', np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up))
-
-            if np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) > 1e-10:
-                print('Warning! During refresh there is a big norm discrepancy in down:', np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) )
+            if np.log(np.max(np.abs(G_up - phi_field.current_G_function_up))) > -10:
+                print('Warning! During refresh there is a big log discrepancy in up:', np.log(np.max(np.abs(G_up - phi_field.current_G_function_up))))
 
             # print(np.max(np.abs(G_down - phi_field.current_G_function_down)))
             current_det_sign_before = current_det_sign * 1.0
@@ -469,11 +466,8 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             G_up, G_down = phi_field.current_G_function_up * 1.0, phi_field.current_G_function_down * 1.0
             phi_field.refresh_G_functions()
 
-            if np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up) > 1e-10:
-                print('Warning! During refresh there is a big norm discrepancy in up:', np.linalg.norm(G_up - phi_field.current_G_function_up) / np.linalg.norm(phi_field.current_G_function_up))
-
-            if np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) > 1e-10:
-                print('Warning! During refresh there is a big norm discrepancy in down:', np.linalg.norm(G_down - phi_field.current_G_function_down) / np.linalg.norm(phi_field.current_G_function_down) )
+            if np.log(np.max(np.abs(G_up - phi_field.current_G_function_up))) > -10:
+                print('Warning! During refresh there is a big log discrepancy in up:', np.log(np.max(np.abs(G_up - phi_field.current_G_function_up))))
 
             # print(np.max(np.abs(G_down - phi_field.current_G_function_down)))
             current_det_sign_before = current_det_sign * 1.0
@@ -504,8 +498,8 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
         if switch:
             phi_field.copy_to_CPU()
 
-        ### DEBUG ###
         '''
+        ### DEBUG ###
         GFs_up = np.array(phi_field.get_nonequal_time_GFs_inverted(+1.0, phi_field.current_G_function_up))
         for t in range(len(GFs_up)):
             beta = phi_field.config.Nt * phi_field.config.dt
@@ -514,7 +508,7 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             states = states.T.conj()
             assert np.allclose(phi_field.K_matrix_plus, phi_field.K_matrix_plus.conj().T)
             assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), phi_field.K_matrix_plus)
-            correct_string = np.einsum('i,ij,ik->jk', np.exp(-current_tau * energies) / (1. + np.exp(beta * energies)), states.conj(), states)
+            correct_string = -np.einsum('i,ij,ik->jk', np.exp((beta -current_tau) * energies) / (1. + np.exp(beta * energies)), states.conj(), states)
 
             print(t, np.linalg.norm(GFs_up[t] - correct_string) / np.linalg.norm(correct_string))
         '''

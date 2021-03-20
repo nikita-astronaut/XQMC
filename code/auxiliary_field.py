@@ -72,7 +72,7 @@ class AuxiliaryFieldIntraorbital:
     def propose_move(self, sp_index, time_slice, o_index):
         return -self.configuration[time_slice, sp_index, o_index], 1.0  # gauge factor is always 1
 
-    def SVD(self, matrix, mode = 'right_to_left'):
+    def SVD(self, matrix, mode='right_to_left'):
         def checkSVDDone(D, threshold):
             N = len(D)
 
@@ -100,7 +100,7 @@ class AuxiliaryFieldIntraorbital:
                 Q[:, c] *= phase
             return Q, R
 
-        def svd_recursive(M, threshold = 1e-2, north_pass = 2):
+        def svd_recursive(M, threshold = 1e-3):
             rho = -np.dot(M, M.conj().T)
             D, U = np.linalg.eigh(rho)
 
@@ -119,9 +119,8 @@ class AuxiliaryFieldIntraorbital:
             v = V[:, start:]
             b = u.conj().T.dot(np.dot(M, v))  # a square matrix still
 
-            bu,bd,bv = svd_recursive(b,
-                          threshold=threshold,
-                          north_pass=north_pass)
+            bu, bd, bv = svd_recursive(b,
+                          threshold=threshold)
 
             U[:, start:] = np.dot(U[:, start:], bu)
             V[:, start:] = np.dot(V[:, start:], bv)
@@ -544,26 +543,34 @@ class AuxiliaryFieldIntraorbital:
         return np.array(GFs)
 
     def get_nonequal_time_GFs_inverted(self, spin, GF_0):
-        current_GF = 1. * GF_0.copy()
-        
-        identity = self.la.eye(self.Bdim, dtype=np.complex128)
-        GFs = [1. * self.make_symmetric_displacement(self.to_numpy(current_GF), valley = spin) - identity]
-        current_V = self.la.eye(self.Bdim, dtype=np.complex128)
-        current_D = self.la.ones(self.Bdim, dtype=np.complex128)
-        current_U = self.la.eye(self.Bdim, dtype=np.complex128)
-        buff = self.la.eye(self.Bdim, dtype=np.complex128)
+        identity = np.eye(self.Bdim, dtype=np.complex128)
+        current_GF = 1. * GF_0.copy() - identity
+        self.left_decompositions = self._get_left_partial_SVD_decompositions(spin)
+        self.right_decompositions = self._get_right_partial_SVD_decompositions(spin)
+        GFs = [1. * self.make_symmetric_displacement(self.to_numpy(current_GF), valley = spin)]
 
-        for nr, slice_idx in enumerate(range(1, self.config.Nt)):
-            B = self.B_l(spin, slice_idx, inverse=True)
-            buff = buff.dot(B)
-            if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
-                u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
-                current_U = current_U.dot(u)
-                buff = self.la.eye(self.Bdim, dtype=np.complex128)
-            
-            GFs.append(self.make_symmetric_displacement((GF_0 - identity) @ current_U @ self.la.diag(current_D) @ current_V @ buff, valley = spin))
+        for tau in range(1, self.config.Nt):
+            B = self.B_l(spin, tau - 1, inverse=True)
 
+            if tau % self.config.s_refresh != 0:
+                current_GF = current_GF @ B  # just wrap-up
+            else:  # recompute GF from scratch
+                u1, s1, v1 = self.compute_B_chain(spin, tau, 0)  # tau - 1 | ... | 0
+                u2, s2, v2 = self.compute_B_chain(spin, self.config.Nt, tau)  # Nt - 1 | ... | tau
+                s1_min = 1.0 * s1; s1_max = 1.0 * s1
+                s1_min[s1_min > 1.] = 1.
+                s1_max[s1_max < 1.] = 1.
+
+                s2_min = 1.0 * s2; s2_max = 1.0 * s2
+                s2_min[s2_min > 1.] = 1.
+                s2_max[s2_max < 1.] = 1.
+                m = self.la.diag(s2_max ** -1).dot(u2.T.conj()).dot(v1.T.conj()).dot(self.la.diag(s1_max ** -1)) + \
+                    self.la.diag(s2_min).dot(v2).dot(u1).dot(self.la.diag(s1_min))
+                current_GF = -(v1.T.conj()).dot(self.la.diag(s1_max ** -1)).dot(self.la.linalg.inv(m)).dot(self.la.diag(s2_min)).dot(v2)
+
+            GFs.append(self.make_symmetric_displacement(1.0 * self.to_numpy(current_GF), valley = spin))
         return np.array(GFs)
+
 
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice, return_udv = False):
