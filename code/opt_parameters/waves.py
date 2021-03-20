@@ -3,14 +3,25 @@ import models
 from opt_parameters import pairings
 from copy import deepcopy
 
+#Ipauli = np.array([[1, 0], [0, 1]])
+#Xpauli = np.array([[0, 1], [1, 0]])
+#iYpauli = np.array([[0, 1], [-1, 0]])
+#Ypauli = 1.0j * np.array([[0, 1], [-1, 0]])
+#Zpauli = np.array([[1, 0], [0, -1]])
+
+#sigma_1 = (Ipauli - Ypauli) / 2.
+#sigma_2 = (Ipauli + Ypauli) / 2.
+
+
 Ipauli = np.array([[1, 0], [0, 1]])
 Xpauli = np.array([[0, 1], [1, 0]])
 iYpauli = np.array([[0, 1], [-1, 0]])
-Ypauli = 1.0j * np.array([[0, 1], [-1, 0]])
 Zpauli = np.array([[1, 0], [0, -1]])
 
-sigma_1 = -(Zpauli - Ipauli) / 2.
-sigma_2 = (Zpauli + Ipauli) / 2.
+sigma_1 = np.diag([1, 0]) # (Zpauli - 1.0j * Xpauli) / 2.
+sigma_2 = np.diag([0, 1]) # (Zpauli + 1.0j * Xpauli) / 2.
+
+
 delta_hex_AB = None 
 delta_hex_BA = None
 identity = np.array([[1]])
@@ -28,16 +39,16 @@ def construct_2orb_hex(config):
     ]
     '''
     print('Checking (S_z)x(S_1&S_2)x(S_z) wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[0:2], term_type = 'bilinear')
-    pairings.check_irrep_properties(config, orders_on_site[0:2], term_type = 'bilinear', chiral = True)
+    #pairings.check_irrep_properties(config, orders_on_site[0:2], term_type = 'bilinear')
+    #pairings.check_irrep_properties(config, orders_on_site[0:2], term_type = 'bilinear', chiral = True)
 
     print('Checking (S_0)x(S_1&S_2)x(S_z) wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[2:4], term_type = 'bilinear')
-    pairings.check_irrep_properties(config, orders_on_site[2:4], term_type = 'bilinear', chiral = True)
+    #pairings.check_irrep_properties(config, orders_on_site[2:4], term_type = 'bilinear')
+    #pairings.check_irrep_properties(config, orders_on_site[2:4], term_type = 'bilinear', chiral = True)
 
     print('Checking (S_z)x(S_x&S_y)x(S_0)/(S_z)x(S_z&S_x)x(S_0) wave symmetries')
-    pairings.check_irrep_properties(config, orders_on_site[4:6], term_type = 'bilinear', chiral = True)
-    pairings.check_irrep_properties(config, orders_on_site[4:6], term_type = 'bilinear')
+    #pairings.check_irrep_properties(config, orders_on_site[4:6], term_type = 'bilinear', chiral = True)
+    #pairings.check_irrep_properties(config, orders_on_site[4:6], term_type = 'bilinear')
 
     print('Checking (S_0)x(S_x&S_y)x(S_0)/(S_0)x(S_z&S_x)x(S_0) wave symmetries')
     pairings.check_irrep_properties(config, orders_on_site[6:8], term_type = 'bilinear')
