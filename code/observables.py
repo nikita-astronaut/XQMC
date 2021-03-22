@@ -401,9 +401,9 @@ class Observables:
                 phi.refresh_G_functions()
 
 
-            phi.wrap_up(time_slice)
             GFs_up_equaltime.append(identity - phi.current_G_function_up)
             GFs_down_equaltime.append(identity - phi.current_G_function_down)
+            phi.wrap_up(time_slice)
 
         # contains G_tt
         GFs_equaltime = np.array([\
