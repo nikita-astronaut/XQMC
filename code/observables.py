@@ -400,10 +400,18 @@ class Observables:
                 phi.append_new_decomposition(phi.refresh_checkpoints[index - 1], time_slice)
                 phi.refresh_G_functions()
 
-
+            GFs_up_equaltime.append(phi.make_symmetric_displacement(identity - phi.current_G_function_up, valley=+1))
+            GFs_down_equaltime.append(phi.make_symmetric_displacement(identity - phi.current_G_function_down, valley=-1))
             phi.wrap_up(time_slice)
-            GFs_up_equaltime.append(identity - phi.current_G_function_up)
-            GFs_down_equaltime.append(identity - phi.current_G_function_down)
+
+        GFs_up_naive = phi.get_G_tau_tau_naive(+1)
+        for i in range(phi.config.Nt):
+            print(np.sum(np.abs(-GFs_up_equaltime[i] + identity - GFs_up_naive[i])))
+
+
+        GFs_down_naive = phi.get_G_tau_tau_naive(-1)
+        for i in range(phi.config.Nt):
+            print(np.sum(np.abs(-GFs_down_equaltime[i] + identity - GFs_down_naive[i])))
 
         # contains G_tt
         GFs_equaltime = np.array([\
@@ -415,13 +423,24 @@ class Observables:
 
 
         ### forwards ###
-        phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]  # FIXME: why is this so slow?
+        phi.current_G_function_up = phi.get_G_no_optimisation(+1, -1)[0]
         phi.current_G_function_down = phi.get_G_no_optimisation(-1, -1)[0]
         print('G_0_noopt takes', time() - t); t = time()
 
         GFs_up = np.array(phi.get_nonequal_time_GFs(+1.0, phi.current_G_function_up))
         GFs_down = np.array(phi.get_nonequal_time_GFs(-1.0, phi.current_G_function_down))
         print('G_nonequal_time takes', time() - t); t = time()
+
+
+        #GFs_up_naive = phi.get_G_tau_0_naive(+1)
+        #for i in range(phi.config.Nt):
+        #    print(np.sum(np.abs(GFs_up[i] - GFs_up_naive[i])))
+
+
+        #GFs_down_naive = phi.get_G_tau_0_naive(-1)
+        #for i in range(phi.config.Nt):
+        #    print(np.sum(np.abs(GFs_down[i] - GFs_down_naive[i])))
+
 
         GFs = np.array([\
                 np.kron(gf_up, np.array([[1, 0], [0, 0]])) + \
@@ -442,6 +461,17 @@ class Observables:
         GFs_up = np.array(phi.get_nonequal_time_GFs_inverted(+1.0, phi.current_G_function_up))
         GFs_down = np.array(phi.get_nonequal_time_GFs_inverted(-1.0, phi.current_G_function_down))
         print('G_nonequal_time takes', time() - t); t = time()
+
+
+        #GFs_up_naive = phi.get_G_0_tau_naive(+1)
+        #for i in range(phi.config.Nt):
+        #    print(np.sum(np.abs(GFs_up[i] - GFs_up_naive[i])))
+
+
+        #GFs_down_naive = phi.get_G_0_tau_naive(-1)
+        #for i in range(phi.config.Nt):
+        #    print(np.sum(np.abs(GFs_down[i] - GFs_down_naive[i])))
+
 
         GFs = np.array([\
                 np.kron(gf_up, np.array([[1, 0], [0, 0]])) + \

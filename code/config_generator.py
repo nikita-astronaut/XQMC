@@ -5,7 +5,7 @@ from opt_parameters import pairings, waves
 import pickle
 
 dt_in_inv_t1 = 1. / 3
-U_in_t1 = np.array([1.0])
+U_in_t1 = np.array([0.0])
 V_in_t1 = np.array([0.0])
 main_hopping = 1.0
 
@@ -15,7 +15,7 @@ class simulation_parameters:
         
         self.Ls = 6
         # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([40])
+        self.Nt = np.array([200])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -43,7 +43,7 @@ class simulation_parameters:
         self.n_print_frequency = 100  # write to log every n_print_frequency spin flips
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        self.s_refresh = 5
+        self.s_refresh = 10
 
         self.workdir = '/home/astronaut/Documents/XQMC/logs_dqmc_real/'
         self.workdir_heavy = '/home/astronaut/Documents/XQMC/logs_dqmc_real/'

@@ -249,8 +249,13 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
             phi_field.copy_to_CPU()
 
         ### DEBUG ###
-        '''
+
         GFs_up = np.array(phi_field.get_nonequal_time_GFs(+1.0, phi_field.current_G_function_up))
+        GFs_up_naive = np.array(phi_field.get_G_tau_0_naive(+1.0))
+
+        for gf, gf_naive in zip(GFs_up, GFs_up_naive):
+            print(np.sum(np.abs(gf - gf_naive)))
+        '''
         for t in range(len(GFs_up)):
             beta = phi_field.config.Nt * phi_field.config.dt
             current_tau = t * phi_field.config.dt
@@ -262,7 +267,6 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
 
             print(t, np.linalg.norm(GFs_up[t] - correct_string) / np.linalg.norm(correct_string))
         '''
-
         #energies, states = np.linalg.eigh(phi_field.K_matrix_plus)
         #beta = phi_field.config.Nt * phi_field.config.dt
         #correct_energy = np.sum(energies / (1. + np.exp(beta * energies)))
@@ -493,11 +497,32 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             #print('refresh: ', time() - t); t =time()
         # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
         #t = time()
-        phi_field.wrap_up(time_slice)
+        
         #print('wrap up', time() - t)
         if switch:
             phi_field.copy_to_CPU()
+        '''
+        GFs_up = phi_field.get_nonequal_time_GFs(+1.0, phi_field.current_G_function_up)
+        GFs_up_naive = np.array(phi_field.get_G_tau_0_naive(+1.0))
+        print(GFs_up.shape, GFs_up_naive.shape)
 
+
+        for i in range(phi_field.config.Nt):
+            print(np.sum(np.abs(GFs_up[i] - GFs_up_naive[i])), flush=True)
+
+
+        GFs_up = phi_field.get_nonequal_time_GFs_inverted(+1.0, phi_field.current_G_function_up)
+        GFs_up_naive = np.array(phi_field.get_G_0_tau_naive(+1.0))
+        print(GFs_up.shape, GFs_up_naive.shape)
+
+
+        for i in range(phi_field.config.Nt):
+            print(np.sum(np.abs(GFs_up[i] - GFs_up_naive[i])), flush=True)
+
+        '''
+        phi_field.wrap_up(time_slice)
+
+        # exit(-1)
         '''
         ### DEBUG ###
         GFs_up = np.array(phi_field.get_nonequal_time_GFs_inverted(+1.0, phi_field.current_G_function_up))

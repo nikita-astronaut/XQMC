@@ -601,6 +601,57 @@ class AuxiliaryFieldIntraorbital:
         
         return res, self.la.sum(self.la.log(sm ** -1)), np.linalg.slogdet(res)[0] #res / np.abs(res)
 
+    def get_G_tau_0_naive(self, spin):
+        G0 = np.eye(self.Bdim, dtype=np.complex128)
+        for time_slice in np.arange(self.config.Nt):
+            B = self.B_l(spin, time_slice)
+            G0 = B.dot(G0)
+
+        G0 = np.linalg.inv(np.eye(self.Bdim, dtype=np.complex128) + G0)
+
+        GFs = [self.make_symmetric_displacement(G0, valley = spin)]
+        for t in range(0, self.config.Nt - 1):
+            B = self.B_l(spin, t)
+            G0 = B.dot(G0)
+            GFs.append(self.make_symmetric_displacement(G0, valley = spin))
+
+        return GFs
+
+    def get_G_tau_tau_naive(self, spin):
+        G0 = np.eye(self.Bdim, dtype=np.complex128)
+        for time_slice in np.arange(self.config.Nt):
+            B = self.B_l(spin, time_slice)
+            G0 = B.dot(G0)
+
+        G0 = np.linalg.inv(np.eye(self.Bdim, dtype=np.complex128) + G0)
+
+        GFs = [self.make_symmetric_displacement(G0, valley = spin)]
+        for t in range(0, self.config.Nt - 1):
+            B = self.B_l(spin, t)
+            Binv = self.B_l(spin, t, inverse=True)
+            G0 = B.dot(G0).dot(Binv)
+            GFs.append(self.make_symmetric_displacement(G0, valley = spin))
+
+        return GFs
+
+    def get_G_0_tau_naive(self, spin):
+        G0 = np.eye(self.Bdim, dtype=np.complex128)
+        for time_slice in np.arange(self.config.Nt):
+            B = self.B_l(spin, time_slice)
+            G0 = B.dot(G0)
+
+        G0 = np.linalg.inv(np.eye(self.Bdim, dtype=np.complex128) + G0) - np.eye(self.Bdim, dtype=np.complex128)
+
+        GFs = [self.make_symmetric_displacement(G0, valley = spin)]
+        for t in range(0, self.config.Nt - 1):
+            B = self.B_l(spin, t, inverse=True)
+            G0 = G0.dot(B)
+            GFs.append(self.make_symmetric_displacement(G0, valley = spin))
+
+        return GFs
+
+
+
     def get_assymetry_factor(self):
         G_up = self.get_G_no_optimisation(+1, 0)[0]
         G_down = self.get_G_no_optimisation(-1, 0)[0]
