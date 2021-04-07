@@ -4,8 +4,8 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-dt_in_inv_t1 = 1. / 20
 U_in_t1 = np.array([1.0])
+dt_in_inv_t1 = 1. / 3
 V_in_t1 = np.array([0.0])
 main_hopping = 1.0
 
@@ -45,9 +45,9 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 10
 
-        self.workdir = '/home/astronaut/Documents/XQMC/logs_dqmc_real/'
-        self.workdir_heavy = '/home/astronaut/Documents/XQMC/logs_dqmc_real/'
-        self.thermalization = 1  # after how many sweeps start computing observables
+        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
+        self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
+        self.thermalization = 400  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]

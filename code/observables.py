@@ -404,14 +404,14 @@ class Observables:
             GFs_down_equaltime.append(phi.make_symmetric_displacement(identity - phi.current_G_function_down, valley=-1))
             phi.wrap_up(time_slice)
 
-        GFs_up_naive = phi.get_G_tau_tau_naive(+1)
-        for i in range(phi.config.Nt):
-            print(np.sum(np.abs(-GFs_up_equaltime[i] + identity - GFs_up_naive[i])))
+        #GFs_up_naive = phi.get_G_tau_tau_naive(+1)
+        #for i in range(phi.config.Nt):
+        #    print(np.sum(np.abs(-GFs_up_equaltime[i] + identity - GFs_up_naive[i])))
 
 
-        GFs_down_naive = phi.get_G_tau_tau_naive(-1)
-        for i in range(phi.config.Nt):
-            print(np.sum(np.abs(-GFs_down_equaltime[i] + identity - GFs_down_naive[i])))
+        #GFs_down_naive = phi.get_G_tau_tau_naive(-1)
+        #for i in range(phi.config.Nt):
+        #    print(np.sum(np.abs(-GFs_down_equaltime[i] + identity - GFs_down_naive[i])))
 
         # contains G_tt
         GFs_equaltime = np.array([\
