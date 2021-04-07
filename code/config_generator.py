@@ -4,8 +4,8 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-dt_in_inv_t1 = 1. / 3
-U_in_t1 = np.array([0.0])
+dt_in_inv_t1 = 1. / 20
+U_in_t1 = np.array([1.0])
 V_in_t1 = np.array([0.0])
 main_hopping = 1.0
 
@@ -15,7 +15,7 @@ class simulation_parameters:
         
         self.Ls = 6
         # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([200])
+        self.Nt = np.array([10])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
