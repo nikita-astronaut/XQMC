@@ -81,12 +81,15 @@ def get_jastrow(L, mod):
 
 
 
-@jit(nopython=True)
+#@jit(nopython=True)
 def get_jastrow_fromshift(all_translations, L, all_distances_rounded, dist_threshold = 1):
+    print('translatins', len(all_translations))
     orb_ij = []; orb_k = []; n_orb = 0
     matrix = np.zeros((4 * L ** 2, 4 * L ** 2), dtype=np.int64) - 1
     cur_jastrow = 0
     dist = list(np.sort(np.unique(all_distances_rounded)))
+    print(dist)
+    assigns = 0
 
     for i in range(0, 4):
         for j in range(i + 1, 4 * L ** 2):
@@ -96,8 +99,12 @@ def get_jastrow_fromshift(all_translations, L, all_distances_rounded, dist_thres
             oi = i % 2; oj = j % 2
 
             d_ij = all_distances_rounded[i, j]
+
+            if oi > oj and j > 3:
+                print(i, j)
+                continue
             if d_ij > 0 + 1e-5:
-                jastrow_idx = dist.index(d_ij) * 4 + oi * 2 + oj - 3
+                jastrow_idx = dist.index(d_ij) * 3 + (oi + oj) - 2
                 #if oi == oj:
                 #    jastrow_idx = dist.index(d_ij) * 2
                 #else:
@@ -106,15 +113,29 @@ def get_jastrow_fromshift(all_translations, L, all_distances_rounded, dist_thres
                 jastrow_idx = 0  # then we know the orbitals are different
 
 
-            for trans in all_translations:
+            for idx, trans in enumerate(all_translations):
+                if matrix[trans[i], trans[j]] != -1 and matrix[trans[i], trans[j]] != jastrow_idx:
+                    print(idx, trans[i], trans[j], 'problem', matrix[trans[i], trans[j]], jastrow_idx)
+                    exit(-1)
+                if matrix[trans[j], trans[i]] != -1 and matrix[trans[j], trans[i]] != jastrow_idx:
+                    print(idx, trans[j], trans[i], 'problem', matrix[trans[j], trans[i]], jastrow_idx)
+                    exit(-1)
+
+                if matrix[trans[j], trans[i]] != -1:
+                    continue
+                if matrix[trans[i], trans[j]] != -1:
+                    continue
+
                 matrix[trans[i], trans[j]] = jastrow_idx
                 matrix[trans[j], trans[i]] = jastrow_idx
+                assigns += 2
+
                 orb_ij.append((trans[i], trans[j]))
                 orb_k.append(jastrow_idx)
                 orb_ij.append((trans[j], trans[i]))
                 orb_k.append(jastrow_idx)
     cur_jastrow = matrix.max()
-
+    print('assigns', assigns)
     return orb_ij, orb_k, cur_jastrow, matrix
 
 
@@ -181,6 +202,8 @@ def get_interaction(config, U_list):
     tx, ty = np.array(tx), np.array(ty)
     assert np.allclose(tx[ty], ty[tx])
 
+    np.save('tx.npy', tx)
+    np.save('ty.npy', ty)
     path = '/home/astronaut/Documents/all_Imada_formats/'
 
 
@@ -289,6 +312,8 @@ def get_kinetic_orbitals(config, filling):
         ty.append(np.where(Ty[i, :] == 1)[0][0])
 
     tx, ty = np.array(tx), np.array(ty)
+    np.save('tx.npy', tx)
+    np.save('ty.npy', ty)
     assert np.allclose(tx[ty], ty[tx])
 
     tx_valley = tx[::2] // 2; ty_valley = ty[::2] // 2;
@@ -354,7 +379,8 @@ def get_kinetic_orbitals(config, filling):
 
     f = open(os.path.join(path, 'jastrowidx_TRSbroken_{:d}.def'.format(Ls)), 'w')
     jastrow_ij, jastrow_k, n_jastrows, matrix_jastrows = get_jastrow_fromshift(all_translations, config.Ls, np.around(np.array(config.all_distances), decimals = 5), dist_threshold=5.)
-    #np.save('check.npy', matrix_jastrows)
+    np.save('check.npy', matrix_jastrows)
+    # G)
 
     assert np.allclose(matrix_jastrows, matrix_jastrows.T)
 
@@ -382,9 +408,8 @@ def get_kinetic_orbitals(config, filling):
                 continue
             f.write('    {:d}      {:d}      {:d}\n'.format(i, j, matrix_jastrows[i, j]))
 
-    for i in range(n_jastrows):
+    for i in range(n_jastrows + 1):
         f.write('    {:d}      1\n'.format(i))
-    f.write('    {:d}      0\n'.format(n_jastrows))
     f.close()
 
 
@@ -472,23 +497,36 @@ def get_kinetic_orbitals(config, filling):
     twist = (0, 0.5)
     twist_exp = [np.exp(2 * np.pi * 1.0j * twist[0]), np.exp(2 * np.pi * 1.0j * twist[1])]
     fft = get_fft_APBCy(config.Ls)
-    for gap_idx in range(len(config.idx_map)):
-        print('gap_idx = ', gap_idx, 'gap_id = ',config.idx_map[gap_idx] )
-        if config.idx_map[gap_idx] != 13:
-            continue
+    for gap_idx in [40, 9, 36, 14]:
+                   #[0, 32, 43, 17, 11, 19]:  # 40, 43, 9, 36[!!]
+        print('gap_idx = ', gap_idx)
+        #if config.idx_map[gap_idx] != 13:
+        #    continue
 
-        for gap_val in [0.00, 0.003, 0.006, 0.010, 0.02, 0.03]:
-            if gap_idx == 0:
-                g = 0.0 * K0
-            else:
-                g = gap_val * np.load('the_wave_extended_{:d}.npy'.format(config.Ls))
-                #models.xy_to_chiral(pairings.combine_product_terms(config, pairings.twoorb_hex_all[config.idx_map[gap_idx]]), 'pairing', config, True)
+        for gap_val in [0.0, 0.003, 0.02]:
+            #g = gap_val * np.load('the_wave_extended_{:d}.npy'.format(config.Ls))
+            g = gap_val * np.load('/home/astronaut/Documents/DQMC_TBG/gaps_8x8/gap_{:d}.npy'.format(gap_idx))
+            # = gap_val * np.load('/home/astronaut/Documents/XQMC/gaps_6x6_extended/twist_0/gap_{:d}.npy'.format(gap_idx))
+            #gap_val * np.load('/home/astronaut/Documents/DQMC_TBG/gaps_8x8/gap_{:d}.npy'.format(gap_idx))
+            if config.Ls == 6:
+                g = models.xy_to_chiral(g, 'pairing', config, True)
+
+            TRS = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(g.shape[0] // 2)])
+            g_TRS = g[:, TRS]
+            g_TRS = g_TRS[TRS, :]
+            g = g + g_TRS # * (0.1 if gap_val == 0.02 else 1.)
+            #np.save('sheck.npy', g)
+            if gap_idx in [11, 19]:
+                g = g / 1.0j
 
             # g = (g + g.conj()) / np.sqrt(2)
-            #print(g[0], 'g[0]')
-            #print(g[1], 'g[1]')
+            print(g[0], 'g[0]')
+            print(g[1], 'g[1]')
+
+            assert np.allclose(g, g.T)
             swave = 1e-5 * models.xy_to_chiral(pairings.combine_product_terms(config, pairings.twoorb_hex_all[1]), 'pairing', config, True)
-            #print(swave[0], 'swave')
+            assert np.allclose(swave, swave.T)
+            print(swave[0], swave[1], 'swave in chiral basis')
 
             g = g + swave
             gap = models.apply_TBC(config, twist_exp, deepcopy(g), inverse = False)
@@ -511,7 +549,8 @@ def get_kinetic_orbitals(config, filling):
             K0_down = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = True)
             K0_downT = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = True).T
             K0_upT = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = False).T
-            print('energies {:d}'.format(config.Ls), np.linalg.eigh(K0_up)[0])
+            #print('energies {:d}'.format(config.Ls), np.linalg.eigh(K0_up)[0])
+            #exit(-1)
 
             #### check twist is correct ###
             K0_fft_plus = fft.conj().T.dot(K0_up).dot(fft)
@@ -696,13 +735,13 @@ def get_kinetic_orbitals(config, filling):
             Q, V = W[:W.shape[0] // 2, :W.shape[0] // 2], \
                    W[W.shape[0] // 2:, :W.shape[0] // 2]
             Z = (Q.dot(np.linalg.inv(V)))
-            print('max U^{-1} = ', np.max(np.abs(np.linalg.inv(Q))))
+            print('max U^{-1} = ', np.max(np.abs(np.linalg.inv(Q))), gap_val, gap_idx)
 
 
             np.save('Z_fast.npy', Z) 
             result = Z[Z.shape[0] // 2:, :Z.shape[0] // 2]
 
-            Z = Z / np.abs(np.max(Z))
+            Z = Z / np.max(np.abs(Z))
             print(np.sum(np.abs(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T)))
             print(np.sum(np.abs(np.real(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T))))
             print(np.sum(np.abs(np.imag(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T))))
@@ -810,7 +849,7 @@ def get_kinetic_orbitals(config, filling):
 
 
 
-            f = open(os.path.join(path, 'InOrbital_extended_{:d}_{:d}_{:d}_{:.4f}.def'.format(Ls, config.idx_map[gap_idx], filling, gap_val)), 'w')
+            f = open(os.path.join(path, 'InOrbital_extended_{:d}_{:d}_{:d}_{:.4f}.def'.format(Ls, gap_idx, filling, gap_val)), 'w')
             f.write('======================\n')
             f.write('NOrbitalIdx  {:d}\n'.format(current_orb_idx))
             f.write('======================\n')
@@ -830,7 +869,7 @@ def get_kinetic_orbitals(config, filling):
 
 
             ########### writing the orbitals indexes ##########
-            f = open(os.path.join(path, 'orbitalidx_extended_{:d}_{:d}_{:d}.def'.format(Ls, config.idx_map[gap_idx], filling)), 'w')
+            f = open(os.path.join(path, 'orbitalidx_extended_{:d}_{:d}_{:d}.def'.format(Ls, gap_idx, filling)), 'w')
 
             f.write('=============================================\n')
             f.write('NOrbitalIdx         {:d}\n'.format(current_orb_idx))
@@ -886,5 +925,5 @@ if __name__ == "__main__":
     monte_carlo_vmc.print_model_summary(config_vmc)
 
 
-    #get_interaction(config_vmc, np.linspace(0.0, 0.9, 4))
-    get_kinetic_orbitals(config_vmc, int(sys.argv[3]))
+    get_interaction(config_vmc, np.linspace(1.2, 2.1, 4))
+    #get_kinetic_orbitals(config_vmc, int(sys.argv[3]))

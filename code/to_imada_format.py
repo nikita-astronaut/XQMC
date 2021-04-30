@@ -73,40 +73,34 @@ def get_jastrow(L, mod):
 
 
 @jit(nopython=True)
-def get_jastrow_fromshift(L, mod, all_distances, dist_threshold = 1):
+def get_jastrow_fromshift(L, all_distances_rounded, dist_threshold = 1):
     orb_ij = []; orb_k = []; n_orb = 0
-    seen_shifts = [(0, 0)]
     matrix = np.zeros((4 * L ** 2, 4 * L ** 2), dtype=np.int64) - 1
     cur_jastrow = 0
+    dist = list(np.sort(np.unique(all_distances_rounded)))
 
-    for modx in range(mod):
-        for mody in range(mod):
-            for li in range(4):
-                for lj in range(4):
-                    for dx in range(L):
-                        for dy in range(L):
-                            net_unknown = False
-                            for x in range(L // mod):
-                                for y in range(L // mod):
-                                    i = li + (mod * x + modx) * 4 + (mod * y + mody) * L * 4
-                                    j = lj + ((mod * x + modx + dx) % L) * 4 + ((mod * y + mody + dy) % L) * 4 * L
+    for i in range(4 * L ** 2):
+        for j in range(4 * L ** 2):
+            if i == j:
+                continue
 
-                                    if i == j:
-                                        continue
+            oi = i % 2; oj = j % 2
 
-                                    if all_distances[i, j] > dist_threshold + 1e-5:
-                                        continue
+            d_ij = all_distances_rounded[i, j]
+            if d_ij > 0 + 1e-5:
+                if oi == oj:
+                    jastrow_idx = dist.index(d_ij) * 2
+                else:
+                    jastrow_idx = dist.index(d_ij) * 2 - 1
+            else:
+                jastrow_idx = 0  # then we know the orbitals are different
 
-                                    if matrix[i, j] == -1:
-                                        matrix[i, j] = cur_jastrow; matrix[j, i] = cur_jastrow
-                                        orb_ij.append((i, j)); orb_ij.append((j, i));
-                                        orb_k.append(cur_jastrow); orb_k.append(cur_jastrow)
-                                        net_unknown = True
+            matrix[i, j] = jastrow_idx
+            orb_ij.append((i, j))
+            orb_k.append(jastrow_idx)
+    cur_jastrow = matrix.max()
 
-                            if net_unknown:
-                                cur_jastrow += 1
-
-    return orb_ij, orb_k, cur_jastrow, seen_shifts, matrix
+    return orb_ij, orb_k, cur_jastrow, matrix
 
 
 
@@ -218,11 +212,12 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     #exit(-1)
 
 
-    path = os.path.join(config.workdir, 'imada_format_L_{:d}_Ne_{:d}_U_{:.3f}_mod_{:d}_periodic_{:b}'.format(config.Ls, config.Ne, U, mod, periodic))
+    path = os.path.join(config.workdir, 'imada_format_L_{:d}_Ne_{:d}_U_{:.3f}_mod_{:d}_periodic_{:b}_forcheck'.format(config.Ls, config.Ne, U, mod, periodic))
     os.makedirs(path, exist_ok=True)
 
     
-
+    config.mu = -0.15416910392893438
+    K0 = K0 - np.eye(K0.shape[0]) * config.mu
     twist = (0, 0.5)
     twist_exp = [np.exp(2 * np.pi * 1.0j * twist[0]), np.exp(2 * np.pi * 1.0j * twist[1])]
     K0_up = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = False)
@@ -256,10 +251,10 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     assert np.allclose(K0_trans, K0)
 
 
-    
-
     for i in range(K0.shape[0]):
         for j in range(K0.shape[1]):
+            if i == j:
+                continue
             if np.abs(K0[i, j]) > 1e-7:
                 f.write('    {:d}     0     {:d}     0   {:.6f}  {:.6f}\n'.format(i, j, np.real(-K0_up[i, j]), np.imag(-K0_up[i, j])))  # why j, i instead of ij? think!
                 f.write('    {:d}     1     {:d}     1   {:.6f}  {:.6f}\n'.format(i, j, np.real(-K0_down[i, j]), np.imag(-K0_down[i, j])))
@@ -267,6 +262,15 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f.close()
 
     assert np.allclose(models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = True).T, models.apply_TBC(config, twist_exp, deepcopy(K0).T, inverse = True))
+
+    
+
+    
+
+
+    
+    g = 0.01 * config.pairings_list_unwrapped[0]
+
 
     K0_downT = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = True).T
     K0_upT = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = False).T
@@ -276,18 +280,18 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
                 print(i, j)
                 exit(-1)
 
-    
+    swave = 0. * models.xy_to_chiral(pairings.combine_product_terms(config, pairings.twoorb_hex_all[1]), 'pairing', config, True)
 
-
-    config.mu = 0
-    K0 = K0 - np.eye(K0.shape[0]) * config.mu
-    g = 0.0001 * config.pairings_list_unwrapped[0]
+    g = g + swave
     gap = models.apply_TBC(config, twist_exp, deepcopy(g), inverse = False)
     gapT = models.apply_TBC(config, twist_exp, deepcopy(g).T, inverse = True)
     #print(gap); exit(-1)
 
-    #swave = 0.00001 * models.xy_to_chiral(pairings.combine_product_terms(config, pairings.twoorb_hex_all[1]), 'pairing', config, True)
+    
+    print('energies = ', np.linalg.eigh(K0_upT)[0])
+    print(np.diag(K0_upT))
 
+    #exit(-1)
     print(np.min(np.abs(np.linalg.eig(gap)[0])) / 0.03, 'minimum gap mode')
     # assert np.allclose(gap, gap.T)
     #print(config.pairings_list_unwrapped[0])
@@ -317,11 +321,12 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     gap_check = gap_fft.copy()
     for i in range(gap_check.shape[0] // 4):
         #print(i % 4, i // 4)
-        #print(np.abs(np.linalg.eig(gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4])[0]) )
-
+        print(np.abs(np.linalg.eig(gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4])[0]), i)
+        # print(gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4])
         #assert np.allclose(gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4], gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4].conj().T)
         gap_check[i * 4:i * 4 + 4,i * 4:i * 4 + 4] = 0.0
     assert np.isclose(np.sum(np.abs(gap_check)), 0.0)
+
     #exit(-1)
     #exit(-1)
     # first basis
@@ -442,7 +447,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     L = K0.shape[0]
     totalM = np.zeros((4 * L, 4 * L), dtype=np.complex128)
     totalM[:L, :L] = K0_up; totalM[L:2 * L, L:2 * L] = K0_down; totalM[2 * L:3 * L, 2 * L:3 * L] = -K0_upT; totalM[3 * L:, 3 * L:] = -K0_downT
-    totalM[3 * L:, :L] = gap; totalM[2 * L: 3 * L, L:2 * L] = -gapT; totalM[L: 2 * L, 2 * L:3 * L] = -gapT.conj().T; totalM[:L, 3 * L:] = gap.conj().T; 
+    totalM[:L, 3 * L:] = gap; totalM[L: 2 * L, 2 * L:3 * L] = -gapT; totalM[2 * L: 3 * L, L:2 * L] = -gapT.conj().T; totalM[3 * L:, :L] = gap.conj().T;
 
     selected_idxs = np.concatenate([np.arange(0, L), np.arange(2 * L, 3 * L)])
     totalM_updown = totalM[:, selected_idxs]; totalM_updown = totalM_updown[selected_idxs, ...]
@@ -468,10 +473,8 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     assert np.allclose(en_updown, np.sort(-en_updown))
     assert np.allclose(en_downup, np.sort(-en_downup))
     en_total, W = np.linalg.eigh(totalM)
-    #print(en_total)
-    #exit(-1)
-
     print(en_total)
+
     for i in range(W_updown.shape[1] // 2):
         v = W_updown[:, i]
         en = en_updown[i]
@@ -573,8 +576,9 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     Q, V = W[:W.shape[0] // 2, :W.shape[0] // 2], \
            W[W.shape[0] // 2:, :W.shape[0] // 2]
 
-    state = np.array([2, 4, 6, 7, 10, 13, 14, 24, 29, 32, 33, 34, 35, 37, 38, 39, 41, 44, 45, 46, 47, 48, 49, 50, 51, 52, 55, 56, 59, 60, 61, 63, \
-                      65, 69, 70, 71, 72, 75, 77, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 96, 98, 105, 106, 109, 110, 112, 114, 115, 118, 119, 120, 121, 125])
+    #state = np.array([2, 4, 6, 7, 10, 13, 14, 24, 29, 32, 33, 34, 35, 37, 38, 39, 41, 44, 45, 46, 47, 48, 49, 50, 51, 52, 55, 56, 59, 60, 61, 63, \
+    #                  65, 69, 70, 71, 72, 75, 77, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 96, 98, 105, 106, 109, 110, 112, 114, 115, 118, 119, 120, 121, 125])
+    state =  np.array([0, 1, 4, 5, 6, 9, 12, 13, 15, 17, 18, 21, 24, 26, 27, 30, 32, 36, 37, 38, 41, 42, 44, 46, 47, 49, 53, 55, 57, 58, 59, 62, 64, 65, 67, 68, 71, 76, 77, 78, 79, 82, 85, 86, 87, 90, 91, 92, 96, 98, 100, 101, 105, 106, 107, 108, 111, 114, 115, 117, 119, 124, 126, 127])
     state_ph = []
     for s in state:
         if s < 64:
@@ -600,12 +604,15 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     #Z = (Q.dot(np.linalg.inv(V + 0. * np.eye(V.shape[0]))))
     #Z = (V.dot(np.linalg.inv(Q))).conj()
     #Z = np.linalg.inv(Z).conj()
-    Z = (Q.dot(np.linalg.inv(V)))#.conj()
+
+
+
+    Z = (Q.dot(np.linalg.inv(V)))
     print('max U^{-1} = ', np.max(np.abs(np.linalg.inv(Q))))
     #exit(-1)
     #Z = Z.conj()
 
-
+    np.save('Z.npy', Z)
     #print(np.abs(Z) > 1e-6)
     result = Z[Z.shape[0] // 2:, :Z.shape[0] // 2]
 
@@ -645,7 +652,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
             print(i, j, det_new / det_0 * (-1) ** j_pos * (-1))
             total_energy += det_new / det_0 * (-1) ** j_pos * (-1) * K0.T[i, j]
             #print(det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j], K0[i, j], total_energy)
-    print('energy assessed within Slater determinants up', -total_energy * 2.)
+    print('energy assessed within Slater determinants up', -total_energy)
 
 
     total_energy = 0.0 + 0.0j
@@ -664,7 +671,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
             print(i, j, det_new / det_0 * (-1) ** j_pos * (-1))
             total_energy += det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j]
             # print(det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j], K0[i, j])
-    print('energy assessed within Slater determinants down', -total_energy * 2.)
+    print('energy assessed within Slater determinants down', -total_energy)
 
 
     
@@ -674,9 +681,11 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     # print(Z[Z.shape[0] // 2:, :Z.shape[0] // 2])
     # print(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T)
 
-
+    print(config.pairings_list_names)
     Z = Z / np.abs(np.max(Z))
     print(np.sum(np.abs(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T)))
+    print(np.sum(np.abs(np.real(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T))))
+    print(np.sum(np.abs(np.imag(Z[Z.shape[0] // 2:, :Z.shape[0] // 2] + Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T))))
     assert np.allclose(Z[Z.shape[0] // 2:, :Z.shape[0] // 2], -Z[:Z.shape[0] // 2, Z.shape[0] // 2:].T)  # how does this condition look for triplet?
     assert np.allclose(Z[Z.shape[0] // 2:, Z.shape[0] // 2:], Z[Z.shape[0] // 2:, Z.shape[0] // 2:] * 0.0)  # indeed, there are no such terms even for triplet [cool]
     assert np.allclose(Z[:Z.shape[0] // 2, :Z.shape[0] // 2], Z[:Z.shape[0] // 2, :Z.shape[0] // 2] * 0.0)
@@ -703,17 +712,137 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     print()
     #assert np.isclose(np.sum(np.abs(result - result_trans)), 0.0)
 
-
+    vol = 4 * Ls ** 2
+    orbital_idxs = -np.ones((vol, vol), dtype=np.int64)
 
     f_ij = result
-
-    for k in np.arange(1, 64, 4):
-        print(f_ij[k, ((k + 5)% 64)], k)
-
-    # print(np.abs(f_ij + 289.8182432682885-1.4968950523552849e-09j) < 1e-5)
-
-
     f_ij = f_ij / np.abs(np.max(f_ij))
+    np.save('f_ij.npy', f_ij)
+
+    '''
+    energies, orbitals = np.linalg.eigh(K0_up)
+    orbitals = orbitals.T
+    orbitals = orbitals[energies < 0.]
+    energies = energies[energies < 0.]
+    orbitals = orbitals.T
+    overlaps = orbitals.dot(orbitals.T)
+    # f_ij = overlaps
+    np.save('orbitals.npy', orbitals)
+    np.save('f_ij.npy', f_ij)
+    '''
+
+    current_orb_idx = 0
+    for xshift in range(Ls):
+        for yshift in range(Ls):
+            for iorb in range(4):
+                for jorb in range(4):
+                    if yshift > 0:
+                        for ipos in range(Ls ** 2):
+                            i = ipos * 4 + iorb
+                            oi, si, xi, yi = models.from_linearized_index(i, config.Ls, config.n_orbitals, config.n_sublattices)
+                            j = models.to_linearized_index((xi + xshift) % Ls, (yi + yshift) % Ls, jorb % 2, jorb // 2, Ls, 2, 2)
+                            if yi + yshift > Ls - 1:
+                                orbital_idxs[i, j] = current_orb_idx
+                        current_orb_idx += 1
+
+                    for ipos in range(Ls ** 2):
+                        i = ipos * 4 + iorb
+                        oi, si, xi, yi = models.from_linearized_index(i, config.Ls, config.n_orbitals, config.n_sublattices)
+                        j = models.to_linearized_index((xi + xshift) % Ls, (yi + yshift) % Ls, jorb % 2, jorb // 2, Ls, 2, 2)
+                        if yi + yshift <= Ls - 1:
+                            orbital_idxs[i, j] = current_orb_idx
+                    current_orb_idx += 1
+    print('orbitals after enforcing APBCy remaining:', current_orb_idx)
+    for i in range(current_orb_idx):
+        values = f_ij.flatten()[orbital_idxs.flatten() == i]
+        assert np.isclose(np.std(values - values.mean()), 0.0)
+
+
+
+    if np.allclose(f_ij, f_ij.T):
+        print('symmetric f_ij = f_ji (singlet): restricting su(2) parameters')
+
+        for i in range(vol):
+            for j in range(vol):
+                orb_ij = orbital_idxs[i, j]
+                orb_ji = orbital_idxs[j, i]
+                orbital_idxs[i, j] = np.min([orb_ij, orb_ji])
+                orbital_idxs[j, i] = np.min([orb_ij, orb_ji])
+        new_orbitals = np.unique(orbital_idxs.flatten())
+        mapping = list(np.sort(new_orbitals))
+
+        for i in range(vol):
+            for j in range(vol):
+                orbital_idxs[i, j] = mapping.index(orbital_idxs[i, j])
+
+        for i in range(len(mapping)):
+            values = f_ij.flatten()[orbital_idxs.flatten() == i]
+            assert np.isclose(np.std(values - values.mean()), 0.0)
+        print('total orbitals su(2) with APBCy', len(mapping))
+        current_orb_idx = len(mapping)
+
+    TRS = np.concatenate([[2 * i + 1, 2 * i] for i in range(vol // 2)])
+    f_trs = f_ij[:, TRS]
+    f_trs = f_trs[TRS, :]
+    if np.allclose(f_trs, f_ij):
+        print('f_ij = TRS f_ij: resticting TRS parameters')
+
+
+        for i in range(vol):
+            for j in range(vol):
+                orb_ij = orbital_idxs[i, j]
+                i_trs = ((i // 2) * 2) + (((i % 2) + 1) % 2)
+                j_trs = ((j // 2) * 2) + (((j % 2) + 1) % 2)
+                orb_ij_trs = orbital_idxs[i_trs, j_trs]
+                #print(f_ij[i, j], f_ij[i_trs, j_trs])
+                assert np.isclose(f_ij[i, j], f_ij[i_trs, j_trs])
+
+                orbital_idxs[i, j] = np.min([orb_ij, orb_ij_trs])
+                orbital_idxs[i_trs, j_trs] = np.min([orb_ij, orb_ij_trs])
+
+        #for i in range(current_orb_idx):
+        #    if np.sum(orbital_idxs.flatten() == i) == 0:
+        #        print('orbital', i, 'is missing')
+        new_orbitals = np.unique(orbital_idxs.flatten())
+        mapping = list(np.sort(new_orbitals))
+
+        for i in range(vol):
+            for j in range(vol):
+                orbital_idxs[i, j] = mapping.index(orbital_idxs[i, j])
+
+        for i in range(len(mapping)):
+            values = f_ij.flatten()[orbital_idxs.flatten() == i]
+            assert np.isclose(np.std(values - values.mean()), 0.0)
+        print('total orbitals su(2) with APBCy and TRS!', len(mapping) + 1)
+        current_orb_idx = len(mapping)
+
+    np.save('orbital_idxs.npy', orbital_idxs)
+    '''
+    zero_idxs = []
+    nonzero_idxs = []
+    for i in range(len(mapping)):
+        values = f_ij.flatten()[orbital_idxs.flatten() == i]
+        assert np.isclose(np.std(values - values.mean()), 0.0)
+        if np.isclose(np.abs(values.mean()), 0.):
+            zero_idxs.append(i)
+        else:
+            nonzero_idxs.append(i)
+
+    nonzero_idxs = np.array(nonzero_idxs, dtype=np.int64)
+    mapping = list(np.sort(nonzero_idxs))
+    n_nonzero = len(nonzero_idxs)
+
+    for i in range(64):
+        for j in range(64):
+            if orbital_idxs[i, j] in zero_idxs:
+                orbital_idxs[i, j] = n_nonzero
+            else:
+                orbital_idxs[i, j] = mapping.index(orbital_idxs[i, j])
+
+    print('total orbitals su(2) with APBCy and TRS, nonzero!', len(mapping) + 1)
+    '''
+
+
 
     
     eig, _ = np.linalg.eigh(K0)
@@ -728,11 +857,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     #print(Z)
     #exit(-1)
 
-
-
     '''
-    exit(-1)
-
     K_0_plus = K0[:, np.arange(0, 4 * Ls ** 2, 2)]; K_0_plus = K_0_plus[np.arange(0, 4 * Ls ** 2, 2), :]
     K_0_minus = K0[:, np.arange(1, 4 * Ls ** 2, 2)]; K_0_minus = K_0_minus[np.arange(1, 4 * Ls ** 2, 2), :]
     
@@ -842,12 +967,19 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     print(energies_plus)
     #exit(-1)
     energies_minus = energies_minus[selected_minus]
+    '''
+
+
+    ### trying now the normal state -- will it blend? ###
+    '''
+    energies, orbitals = np.linalg.eigh(K0_up)
+    orbitals = orbitals.T
+    orbitals = orbitals[energies < 0.]
+    energies = energies[energies < 0.]
+    orbitals = orbitals.T
+    overlaps = orbitals.T.dot(orbitals)
+    f_ij = overlaps
     
-
-    orbitals = np.kron(orbitals_minus, np.array([[0, 0], [0, 1]])) + np.kron(orbitals_plus, np.array([[1, 0], [0, 0]]))
-
-    energies = np.concatenate([np.array([energies_plus[i], energies_minus[i]]) for i in range(len(energies_minus))], axis = -1)
-
     for i in range(len(energies)):
         o = orbitals[:, i]
         assert np.allclose(K0.dot(o), o * energies[i])
@@ -855,8 +987,9 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
 
         K0realo = K0.real.dot(o)
         angle = np.dot(o, K0realo) / np.sqrt(np.dot(o, o) * np.dot(K0realo, K0realo))
+    
 
-    overlaps = orbitals.T.conj().dot(orbitals)
+    overlaps = orbitals.T.dot(orbitals)
     assert np.allclose(overlaps, np.eye(overlaps.shape[0]))
     # print(orbitals)  # PLUS HELPED
     #orbitals_all = np.concatenate([orbitals_minus, orbitals_plus], axis = -1)
@@ -870,17 +1003,19 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
 
     print(np.linalg.eigh(K0)[0])
     print(np.linalg.eigh(K0.real)[0])
-
-    if periodic:
-        f_ij = (orbitals.dot(orbitals.T.conj()))
-    else:
-        f_ij = (orbitals.dot(orbitals.T))
+    '''
+    #if periodic:
+    ##    f_ij = (orbitals.dot(orbitals.T.conj()))
+    #else:
+    #    f_ij = (orbitals.dot(orbitals.T))
+    # f_ij = overlaps
     #for i in range(config.Ls ** 2 * 4):
     #    for j in range(config.Ls ** 2 * 4):
     #        if i != j:
     #            continue
     #        print('f[{:d}, {:d}] = {:10f} + I {:10f}'.format(i, j, f_ij[i, j].real, f_ij[i, j].imag))
     #print(f_ij)
+    '''
     if periodic:
         f_ij_tx = f_ij[tx, :]; f_ij_tx = f_ij_tx[:, tx]
         assert np.allclose(f_ij, f_ij_tx)
@@ -943,7 +1078,6 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
             total_energy += det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j]
             print(det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j], K0[i, j], total_energy)
     print('energy assessed within Slater determinants up', total_energy)
-
     '''
     #rotation = np.array([0, 1, 14, 15, 8, 9, 6, 7, 12, 13, 2, 3, 4, 5, 10, 11])
     #assert np.allclose(valley[valley], np.arange(16))
@@ -1013,8 +1147,8 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     ########### writing the jastrows ##########
     ## we use the mod/mod structure
     f = open(os.path.join(path, 'jastrowidx.def'), 'w')
-    jastrow_ij, jastrow_k, n_jastrows, seen_shifts, matrix_jastrows = get_jastrow_fromshift(config.Ls, mod, config.all_distances, dist_threshold=1.)
-    print(len(np.unique(jastrow_k)))
+    jastrow_ij, jastrow_k, n_jastrows, matrix_jastrows = get_jastrow_fromshift(config.Ls, np.around(np.array(config.all_distances), decimals = 5), dist_threshold=5.)
+
     assert np.allclose(matrix_jastrows, matrix_jastrows.T)
 
 
@@ -1050,21 +1184,19 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
         assert np.allclose(matrix_jastrows_trans, matrix_jastrows)
 
 
-    real_jastrow = False
-
     f.write('=============================================\n')
     f.write('NJastrowIdx         {:d}\n'.format(n_jastrows + 1))
-    f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
+    f.write('ComplexType          {:d}\n'.format(0))
     f.write('=============================================\n')
     f.write('=============================================\n')
+
+    uniques = []
     for i in range(config.Ls ** 2 * 4):
         for j in range(config.Ls ** 2 * 4):
             if i == j:
                 continue
-            if (i, j) not in jastrow_ij:
-                f.write('    {:d}      {:d}      {:d}\n'.format(i, j, n_jastrows))
-            else:
-                f.write('    {:d}      {:d}      {:d}\n'.format(i, j, jastrow_k[jastrow_ij.index((i, j))]))
+            f.write('    {:d}      {:d}      {:d}\n'.format(i, j, matrix_jastrows[i, j]))
+
     for i in range(n_jastrows):
         f.write('    {:d}      1\n'.format(i))
     f.write('    {:d}      0\n'.format(n_jastrows))
@@ -1072,9 +1204,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
 
 
 
-
-
-    f = open(os.path.join(path, 'InJastrow.def'), 'w')
+    f = open(os.path.join(path, 'InJastrow_{:d}.def'.format(Ls)), 'w')
     f.write('======================\n')
     f.write('NJastrowIdx  {:d}\n'.format(n_jastrows + 1))
     f.write('======================\n')
@@ -1082,7 +1212,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f.write('======================\n')
     for i in range(n_jastrows):
         f.write('{:d} {:.10f}  {:.10f}\n'.format(i, \
-                np.random.uniform(0.0, 1.0) * 0, np.random.uniform(0.0, 1.0) * 0 if not real_jastrow else 0.0))
+                np.random.uniform(0.0, 1.0) * 0, np.random.uniform(0.0, 1.0) * 0))
     f.write('{:d} {:.10f}  {:.10f}\n'.format(n_jastrows, 0, 0))
     f.close()
 
@@ -1099,35 +1229,29 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
 
 
 
-    f = open(os.path.join(path, 'gutzwilleridx.def'), 'w')
+    f = open(os.path.join(path, 'gutzwilleridx_{:d}.def'.format(Ls)), 'w')
 
     f.write('=============================================\n')
-    f.write('NGutzwillerIdx          {:d}\n'.format(4 * mod ** 2))
-    f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
+    f.write('NGutzwillerIdx          {:d}\n'.format(1))
+    f.write('ComplexType          {:d}\n'.format(0))
     f.write('=============================================\n')
     f.write('=============================================\n')
 
-    for i in range(K0.shape[0]):
-        oi, si, xi, yi = models.from_linearized_index(i, config.Ls, config.n_orbitals, config.n_sublattices)
-
-        modx = xi % mod
-        mody = yi % mod
-
-        idx = mod ** 2 * (si * 2 + oi) + mod * modx + mody
+    for i in range(4 * Ls ** 2):
         f.write('    {:d}      {:d}\n'.format(i, 0))#idx))
-    for i in range(4 * mod ** 2):
+    for i in range(1):
         f.write('    {:d}      1\n'.format(i))
     f.close()
 
 
     f = open(os.path.join(path, 'InGutzwiller.def'), 'w')
     f.write('======================\n')
-    f.write('NGutzwillerIdx  {:d}\n'.format(4 * mod ** 2))
+    f.write('NGutzwillerIdx  {:d}\n'.format(1))
     f.write('======================\n')
     f.write('== i_j_GutzwillerIdx  ===\n')
     f.write('======================\n')
-    for i in range(4 * mod ** 2):
-        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0) * 0, np.random.uniform(0.0, 1.0) * 0 if not real_jastrow else 0.0))
+    for i in range(1):
+        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0) * 0, np.random.uniform(0.0, 1.0) * 0))
     f.close()
 
 
@@ -1177,55 +1301,33 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f = open(os.path.join(path, 'orbitalidx.def'), 'w')
 
     f.write('=============================================\n')
-    if not periodic:
-        f.write('NOrbitalIdx         {:d}\n'.format((config.Ls ** 2 * 4) ** 2))#n_orbits))
-    else:
-        f.write('NOrbitalIdx         {:d}\n'.format((n_orbits)))
+    f.write('NOrbitalIdx         {:d}\n'.format(current_orb_idx))
 
     f.write('ComplexType          {:d}\n'.format(1))
     f.write('=============================================\n')
     f.write('=============================================\n')
 
 
-    if periodic:
-        for ij, k in zip(orbit_ij, orbit_k):
-            f.write('    {:d}      {:d}      {:d}\n'.format(ij[0], ij[1], k))
-            i, j = orbit_ij[orbit_k.index(k)]
-        for i in range(n_orbits):
-            f.write('    {:d}      1\n'.format(i))  # FIXME
-    else:
-        orb_num = 0
-        for i in range(config.Ls ** 2 * 4):
-            for j in range(config.Ls ** 2 * 4):
-                f.write('    {:d}      {:d}      {:d}\n'.format(i, j, orb_num))
-                orb_num += 1
-        for i in range(orb_num):
-            f.write('    {:d}      1\n'.format(i))
+    
+    for i in range(config.Ls ** 2 * 4):
+        for j in range(config.Ls ** 2 * 4):
+            f.write('    {:d}      {:d}      {:d}\n'.format(i, j, orbital_idxs[i, j]))
+
+    for i in range(current_orb_idx):
+        f.write('    {:d}      1\n'.format(i))
     f.close()
+
 
     f = open(os.path.join(path, 'InOrbital.def'), 'w')
     f.write('======================\n')
-    if not periodic:
-        f.write('NOrbitalIdx  {:d}\n'.format(orb_num)) #n_orbits))
-    else:
-        f.write('NOrbitalIdx  {:d}\n'.format(n_orbits))
+    f.write('NOrbitalIdx  {:d}\n'.format(current_orb_idx))
     f.write('======================\n')
     f.write('== i_j_OrbitalIdx  ===\n')
     f.write('======================\n')
-    if not periodic:
-        orb_num = 0
-        for i in range(config.Ls ** 2 * 4):
-            for j in range(config.Ls ** 2 * 4):
-                f.write('{:d} {:.20f}  {:.20f}\n'.format(orb_num, f_ij[i, j].real, f_ij[i, j].imag))
-                orb_num += 1
-
-
-    else:
-        for k in range(n_orbits):
-            i, j = orbit_ij[orbit_k.index(k)]
-            # print(i, j)
-            #f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0), np.random.uniform(0.0, 1.0) if not real_jastrow else 0.0))
-            f.write('{:d} {:.20f}  {:.20f}\n'.format(k, f_ij[i, j].real, f_ij[i, j].imag))
+    for k in range(current_orb_idx):
+        mask = (orbital_idxs == k)
+        val = np.sum(f_ij * mask) / np.sum(mask)
+        f.write('{:d} {:.20f}  {:.20f}\n'.format(k, val.real, val.imag))
 
 
 
@@ -1302,7 +1404,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f.write('NDataQtySmp    1\n')
     f.write('--------------------\n')
     f.write('Nsite          {:d}\n'.format(K0.shape[0]))
-    f.write('Ncond          {:d}\n'.format(64))
+    f.write('Ncond          {:d}\n'.format(144 - 10 * 2))
     f.write('2Sz            0\n')
     f.write('NSPGaussLeg    1\n')
     f.write('NSPStot        0\n')
@@ -1312,9 +1414,9 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f.write('DSROptRedCut   0.0010000000\n')
     f.write('DSROptStaDel   0.0200000000\n')
     f.write('DSROptStepDt   0.0000000000\n')
-    f.write('NVMCWarmUp     100\n')
+    f.write('NVMCWarmUp     0\n')
     f.write('NVMCInterval   1\n')
-    f.write('NVMCSample     1000\n')
+    f.write('NVMCSample     1\n')
     f.write('NExUpdatePath  0\n')
     f.write('RndSeed        1\n')
     f.write('NSplitSize     1\n')

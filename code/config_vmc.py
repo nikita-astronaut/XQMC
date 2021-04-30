@@ -1,8 +1,7 @@
 import models
 import numpy as np
-import hamiltonians_vmc
-from opt_parameters import pairings, jastrow, waves, hoppings
-import wavefunction_vmc as wfv
+#from opt_parameters import pairings, jastrow, waves, hoppings
+from opt_parameters import jastrow
 from copy import deepcopy
 from scipy import interpolate
 
@@ -12,7 +11,7 @@ class MC_parameters:
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
         self.Ne = Ls ** 2 * 4#  - 4 * 2#  - 2 * 4
-        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
+        self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
         self.L_twists_uniform = 6
         assert self.BC_twist  # this is always true
         self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
@@ -23,7 +22,7 @@ class MC_parameters:
 
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)  # this option is only valid for Koshino model
-        print('energies =', np.linalg.eigh(self.K_0)[0])
+        #print('energies =', np.linalg.eigh(self.K_0)[0])
 
         check_chirality(self.K_0, self.chiral_basis)
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
@@ -68,18 +67,19 @@ class MC_parameters:
         self.load_parameters_path = None
         self.offset = 0
         self.all_distances = models.get_distances_list(self)
-        # np.save('dist_ik_8.npy', self.all_distances)
+        #np.save(self.all_distances)
+        #np.save('dist_ik_12.npy', self.all_distances)
         # exit(-1)
 
         ### variational parameters settings ###
-        pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
-        self.idx_map = [0, 1, 5, 6, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20]
-        self.pairings_list = pairings.twoorb_hex_all[1] #idx_map[2]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
+        #pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
+        #self.idx_map = [0, 1, 5, 6, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20]
+        #self.pairings_list = pairings.twoorb_hex_all[13] #idx_map[2]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
         # self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]]
-        self.pairings_list_names = [p[-1] for p in self.pairings_list]
-        self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
-        self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
-            self, self.chiral_basis) for g in self.pairings_list_unwrapped]
+        #self.pairings_list_names = [p[-1] for p in self.pairings_list]
+        #self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
+        #self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
+        #    self, self.chiral_basis) for g in self.pairings_list_unwrapped]
 
         '''
         L_twists = 8
@@ -107,20 +107,16 @@ class MC_parameters:
             print(projection, name)
 
         ### SDW/CDW parameters setting ###
-        waves.obtain_all_waves(self)
-        self.waves_list = waves.hex_2orb
-        self.waves_list_unwrapped = [w[0] for w in self.waves_list]
-        self.waves_list_names = [w[-1] for w in self.waves_list]
-        #self.waves_list_unwrapped = [models.xy_to_chiral(g, 'wave', \
-        #     self, self.chiral_basis) for g in self.waves_list_unwrapped]
-        '''
-        for g in self.waves_list_unwrapped:
-            for i in range(g.shape[0]):
-                for j in range(g.shape[1]):
-                    if not np.isclose(g[i, j], 0) and i % 2 != j % 2:
-                        print(g[i, j], i, j)
-                        exit(-1)
-        '''
+        #waves.obtain_all_waves(self)
+        #self.waves_list = waves.hex_2orb
+        #self.waves_list_unwrapped = [w[0] for w in self.waves_list]
+        #self.waves_list_names = [w[-1] for w in self.waves_list]
+        #self.waves_list_unwrapped = [models.xy_to_chiral(g, 'wave', self, self.chiral_basis) for g in self.waves_list_unwrapped]
+        #for i, wave in enumerate(self.waves_list_unwrapped):
+        #    np.save('waves_6_all/wave_{:d}.npy'.format(i), wave)
+        #np.save('waves_6_all/waves_names.npy', self.waves_list_names)
+        #exit(-1)
+
 
         self.enforce_valley_orbitals = False #FIXME
         for name in self.pairings_list_names:
@@ -149,10 +145,10 @@ class MC_parameters:
 
 
         ### SDW/CDW parameters setting ###
-        waves.obtain_all_waves(self)
-        self.waves_list = [] # waves.hex_2orb
-        self.waves_list_names = [w[-1] for w in self.waves_list]
-        self.waves_list_unwrapped = []
+        #waves.obtain_all_waves(self)
+        #self.waves_list = [] # waves.hex_2orb
+        #self.waves_list_names = [w[-1] for w in self.waves_list]
+        #self.waves_list_unwrapped = []
 
         ### optimisation parameters ###
         self.MC_chain = 2000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
@@ -198,7 +194,7 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03, 0, 0, 0, 0, 0, 0, 0, 0])
+        #self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03, 0, 0, 0, 0, 0, 0, 0, 0])
         #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:
@@ -223,7 +219,7 @@ class MC_parameters:
             np.ones(self.layout[4]) * 3e+4,  # jastrows
         ])
 
-        self.initial_parameters[:self.layout[0]] = 0.0#self.select_initial_muBCS_Koshino(self.Ne)
+        self.initial_parameters[:self.layout[0]] = -0.15416910392893438 #self.select_initial_muBCS_Koshino(self.Ne)
         self.mu = 0.0 #-1.2 #self.initial_parameters[0]
         #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
