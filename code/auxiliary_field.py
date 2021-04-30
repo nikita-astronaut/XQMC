@@ -72,7 +72,7 @@ class AuxiliaryFieldIntraorbital:
     def propose_move(self, sp_index, time_slice, o_index):
         return -self.configuration[time_slice, sp_index, o_index], 1.0  # gauge factor is always 1
 
-    def SVD(self, matrix, mode = 'right_to_left'):
+    def SVD(self, matrix, mode='right_to_left'):
         def checkSVDDone(D, threshold):
             N = len(D)
 
@@ -100,7 +100,7 @@ class AuxiliaryFieldIntraorbital:
                 Q[:, c] *= phase
             return Q, R
 
-        def svd_recursive(M, threshold = 1e-2, north_pass = 2):
+        def svd_recursive(M, threshold = 1e-3):
             rho = -np.dot(M, M.conj().T)
             D, U = np.linalg.eigh(rho)
 
@@ -119,9 +119,8 @@ class AuxiliaryFieldIntraorbital:
             v = V[:, start:]
             b = u.conj().T.dot(np.dot(M, v))  # a square matrix still
 
-            bu,bd,bv = svd_recursive(b,
-                          threshold=threshold,
-                          north_pass=north_pass)
+            bu, bd, bv = svd_recursive(b,
+                          threshold=threshold)
 
             U[:, start:] = np.dot(U[:, start:], bu)
             V[:, start:] = np.dot(V[:, start:], bv)
@@ -543,6 +542,36 @@ class AuxiliaryFieldIntraorbital:
             GFs.append(self.make_symmetric_displacement(1.0 * self.to_numpy(current_GF), valley = spin))
         return np.array(GFs)
 
+    def get_nonequal_time_GFs_inverted(self, spin, GF_0):
+        identity = np.eye(self.Bdim, dtype=np.complex128)
+        current_GF = 1. * GF_0.copy() - identity
+        self.left_decompositions = self._get_left_partial_SVD_decompositions(spin)
+        self.right_decompositions = self._get_right_partial_SVD_decompositions(spin)
+        GFs = [1. * self.make_symmetric_displacement(self.to_numpy(current_GF), valley = spin)]
+
+        for tau in range(1, self.config.Nt):
+            B = self.B_l(spin, tau - 1, inverse=True)
+
+            if tau % self.config.s_refresh != 0:
+                current_GF = current_GF @ B  # just wrap-up
+            else:  # recompute GF from scratch
+                u1, s1, v1 = self.compute_B_chain(spin, tau, 0)  # tau - 1 | ... | 0
+                u2, s2, v2 = self.compute_B_chain(spin, self.config.Nt, tau)  # Nt - 1 | ... | tau
+                s1_min = 1.0 * s1; s1_max = 1.0 * s1
+                s1_min[s1_min > 1.] = 1.
+                s1_max[s1_max < 1.] = 1.
+
+                s2_min = 1.0 * s2; s2_max = 1.0 * s2
+                s2_min[s2_min > 1.] = 1.
+                s2_max[s2_max < 1.] = 1.
+                m = self.la.diag(s2_max ** -1).dot(u2.T.conj()).dot(v1.T.conj()).dot(self.la.diag(s1_max ** -1)) + \
+                    self.la.diag(s2_min).dot(v2).dot(u1).dot(self.la.diag(s1_min))
+                current_GF = -(v1.T.conj()).dot(self.la.diag(s1_max ** -1)).dot(self.la.linalg.inv(m)).dot(self.la.diag(s2_min)).dot(v2)
+
+            GFs.append(self.make_symmetric_displacement(1.0 * self.to_numpy(current_GF), valley = spin))
+        return np.array(GFs)
+
+
     ####### DEBUG ######
     def get_G_no_optimisation(self, spin, time_slice, return_udv = False):
         current_V = self.la.eye(self.Bdim, dtype=np.complex128)
@@ -557,85 +586,71 @@ class AuxiliaryFieldIntraorbital:
             buff = buff.dot(B)
             if nr % self.config.s_refresh == self.config.s_refresh - 1 or nr == self.config.Nt - 1:
                 u, current_D, current_V = self.SVD(self.la.diag(current_D).dot(np.dot(current_V, buff)))
-
-                #print(self.la.sum(self.la.abs(u.dot(self.la.diag(s)).dot(v) - M)) / self.la.sum(self.la.abs(M)), 'discrepancy of SVD')
-                # assert self.la.linalg.norm(u.dot(self.la.diag(s)).dot(v) - M) / self.la.linalg.norm(M) < 1e-13
                 current_U = current_U.dot(u)
                 buff = self.la.eye(self.Bdim, dtype=np.complex128)
 
         v = current_V
         s = current_D
 
-        '''
-        if spin == 1.0:
-        
-            current_tau = self.config.Nt * self.config.dt
-            energies, states = np.linalg.eigh(self.K_matrix_plus)
-            states = states.T.conj()
-            assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
-            assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
-            correct_string_B = np.einsum('i,ij,ik->jk', np.exp(current_tau * energies), states.conj(), states)
-            ub, db, vb = self.SVD(correct_string_B)
-            #string_B_svd = ub.dot(self.la.diag(db)).dot(vb)
-            #db_after = self.SVD(string_B_svd)[1]
-            #print((db_after - db) / db, '!!!')
-
-            print(self.la.linalg.norm(current_U.dot(self.la.diag(current_D)).dot(current_V) - correct_string_B) / self.la.linalg.norm(correct_string_B), 'GF_noopt discrepancy before inversion', nr, flush=True)
-            sing_true = self.SVD(correct_string_B)[1]
-            #print((current_D - sing_true) / sing_true)
-        '''
-
         m = current_U.conj().T.dot(v.conj().T) + self.la.diag(s)
-        # print(s, 'sing values nonoptimized')
         um, sm, vm = self.SVD(m)
-        #print(self.la.linalg.norm(um.dot(self.la.diag(sm)).dot(vm) - m) / self.la.linalg.norm(m), 'svd of M discrepancy')
-        #assert np.allclose(((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T) ,\
-        #                   np.linalg.inv(self.la.eye(self.config.total_dof // 2, dtype=np.complex128) + current_U.dot(self.la.diag(s)).dot(v)))
 
         if return_udv:
             return (vm.dot(v)).conj().T, self.la.diag(sm ** -1), (current_U.dot(um)).conj().T
-            #return (vm.dot(v)).conj().T, self.la.diag(sm ** -1), (current_U.dot(current_U)).conj()
-        '''
-        #res = ((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T)
-        sm_max = current_D.copy(); sm_max[sm_max < 1.] = 1.
-        sm_min = current_D.copy(); sm_min[sm_min > 1.] = 1.
-
-        print(np.max(current_D), np.min(current_D), 'range of singular values')
-
-        M = current_V.conj().T.dot(self.la.diag(sm_max ** -1)) + current_U.dot(self.la.diag(sm_min))
-        um, sm, vm = self.SVD(M)
-        #res = current_V.conj().T.dot(self.la.diag(sm_max ** -1)).dot(vm.conj().T).dot(self.la.diag(sm ** -1)).dot(um.conj().T)
-
-        A = current_V.conj().T.dot(self.la.diag(sm_max ** -1)) + current_U.dot(self.la.diag(sm_min))
-        assert np.allclose(np.eye(self.Bdim), A.dot(self.la.linalg.inv(A)))
-        res = current_V.conj().T.dot(self.la.diag(sm_max ** -1)).dot(self.la.linalg.inv(current_V.conj().T.dot(self.la.diag(sm_max ** -1)) + current_U.dot(self.la.diag(sm_min))))
-        # res = self.la.linalg.inv(np.eye(self.Bdim) + current_U.dot(self.la.diag(current_D)).dot(current_V))
-        '''
-
         res = ((vm.dot(v)).conj().T).dot(self.la.diag(sm ** -1)).dot((current_U.dot(um)).conj().T)
-        '''
-        if spin == 1.0:
-            current_tau = self.config.Nt * self.config.dt
-            energies, states = np.linalg.eigh(self.K_matrix_plus)
-            states = states.T.conj()
-            assert np.allclose(self.K_matrix_plus, self.K_matrix_plus.conj().T)
-            assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), self.K_matrix_plus)
-            correct_string = np.einsum('i,ij,ik->jk', 1. / (1. + np.exp(current_tau * energies)), states.conj(), states)
-            # inv_B = self.la.linalg.inv(self.la.eye(self.Bdim) + correct_string_B)
-            print(self.la.linalg.norm(res - correct_string) / self.la.linalg.norm(correct_string), 'GF_noopt final discrepancy', flush=True)
-            # print(self.la.linalg.norm(inv_B - correct_string) / self.la.linalg.norm(correct_string), 'correct strings discrepancy', nr, flush=True)
-
-
-            d_res = self.SVD(res)[1]
-            d_correct = self.SVD(correct_string)[1]
-            idx = np.where(np.abs((d_res - d_correct) / d_res) > 1e-2)[0][0]
-
-            print((d_res - d_correct) / d_correct, 'discrepancy noopt', d_correct[idx])
-        '''
         
         return res, self.la.sum(self.la.log(sm ** -1)), np.linalg.slogdet(res)[0] #res / np.abs(res)
-        #return ((v.dot(vm)).conj()).dot(self.la.diag(sm ** -1)).dot((um.dot(current_U)).conj()), self.la.sum(self.la.log(sm ** -1)), \
-        #        np.sign(np.linalg.det(((v.dot(vm)).conj())) * np.linalg.det((um.dot(current_U)).conj()))
+
+    def get_G_tau_0_naive(self, spin):
+        G0 = np.eye(self.Bdim, dtype=np.complex128)
+        for time_slice in np.arange(self.config.Nt):
+            B = self.B_l(spin, time_slice)
+            G0 = B.dot(G0)
+
+        G0 = np.linalg.inv(np.eye(self.Bdim, dtype=np.complex128) + G0)
+
+        GFs = [self.make_symmetric_displacement(G0, valley = spin)]
+        for t in range(0, self.config.Nt - 1):
+            B = self.B_l(spin, t)
+            G0 = B.dot(G0)
+            GFs.append(self.make_symmetric_displacement(G0, valley = spin))
+
+        return GFs
+
+    def get_G_tau_tau_naive(self, spin):
+        G0 = np.eye(self.Bdim, dtype=np.complex128)
+        for time_slice in np.arange(self.config.Nt):
+            B = self.B_l(spin, time_slice)
+            G0 = B.dot(G0)
+
+        G0 = np.linalg.inv(np.eye(self.Bdim, dtype=np.complex128) + G0)
+
+        GFs = [self.make_symmetric_displacement(G0, valley = spin)]
+        for t in range(0, self.config.Nt - 1):
+            B = self.B_l(spin, t)
+            Binv = self.B_l(spin, t, inverse=True)
+            G0 = B.dot(G0).dot(Binv)
+            GFs.append(self.make_symmetric_displacement(G0, valley = spin))
+
+        return GFs
+
+    def get_G_0_tau_naive(self, spin):
+        G0 = np.eye(self.Bdim, dtype=np.complex128)
+        for time_slice in np.arange(self.config.Nt):
+            B = self.B_l(spin, time_slice)
+            G0 = B.dot(G0)
+
+        G0 = np.linalg.inv(np.eye(self.Bdim, dtype=np.complex128) + G0) - np.eye(self.Bdim, dtype=np.complex128)
+
+        GFs = [self.make_symmetric_displacement(G0, valley = spin)]
+        for t in range(0, self.config.Nt - 1):
+            B = self.B_l(spin, t, inverse=True)
+            G0 = G0.dot(B)
+            GFs.append(self.make_symmetric_displacement(G0, valley = spin))
+
+        return GFs
+
+
 
     def get_assymetry_factor(self):
         G_up = self.get_G_no_optimisation(+1, 0)[0]
@@ -1302,6 +1317,191 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
             return self.K_plus_inverse.dot(np.conj(self.V[l, ...]))
         return self.K_minus_inverse.dot(np.conj(self.V[l, ...]))  # in case of imaginary HST, inversion = c.c.
 
+
+class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccurateImagNN):
+    def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
+        self.conf_path = os.path.join(local_workdir, 'last_conf')
+
+        self.K_plus = K[::2, :]
+        self.K_plus = self.K_plus[:, ::2]
+        self.K_minus = K[1::2, :]
+        self.K_minus = self.K_minus[:, 1::2]
+
+        self.K_plus_inverse = K_inverse[::2, :]
+        self.K_plus_inverse = self.K_plus_inverse[:, ::2]
+        self.K_minus_inverse = K_inverse[1::2, :]
+        self.K_minus_inverse = self.K_minus_inverse[:, 1::2]
+
+        self.K_plus_half = K_half[::2, :]
+        self.K_plus_half = self.K_plus_half[:, ::2]
+        self.K_minus_half = K_half[1::2, :]
+        self.K_minus_half = self.K_minus_half[:, 1::2]
+
+        self.K_plus_half_inverse = K_half_inverse[::2, :]
+        self.K_plus_half_inverse = self.K_plus_half_inverse[:, ::2]
+
+        self.K_minus_half_inverse = K_half_inverse[1::2, :]
+        self.K_minus_half_inverse = self.K_minus_half_inverse[:, 1::2]
+
+        self.K_matrix_plus = K_matrix[::2, :]
+        self.K_matrix_plus = self.K_matrix_plus[:, ::2]
+        self.K_matrix_minus = K_matrix[1::2, :]
+        self.K_matrix_minus = self.K_matrix_minus[:, 1::2]
+
+        assert np.allclose(np.linalg.inv(self.K_minus), self.K_minus_inverse)
+        assert np.allclose(np.linalg.inv(self.K_plus), self.K_plus_inverse)
+
+        K_oneband = K_matrix[np.arange(0, K_matrix.shape[0], 2), :];
+        K_oneband = K_oneband[:, np.arange(0, K_matrix.shape[0], 2)];
+
+        self.connectivity = (K_oneband == K_oneband.real.max()).astype(np.float64)
+        assert np.allclose(self.connectivity, self.connectivity.T)
+        self.n_hexagons = config.Ls ** 2  # int(np.sum(self.connectivity) / 2.)
+
+        self.hexagons = []  # hexagon -- typle of 6 sites
+        self.hexagons_by_site = []  # list of 3 hexagons that include this site into list
+
+
+        for i in range(self.connectivity.shape[0]):
+            adjacent_sites = np.where(self.connectivity[i, :] == 1.0)[0]
+            hexagons = []
+
+            for j in adjacent_sites:
+                hexagons.append(j // 2) # we only need the unit cell idx (hexagon = unit cell idx)
+            assert len(hexagons) == 3
+            self.hexagons_by_site.append(hexagons.copy())
+
+        for hexagon_idx in range(config.Ls ** 2):
+            hexagon = []
+
+            for i, a in enumerate(self.hexagons_by_site):
+                if hexagon_idx in a:
+                    hexagon.append(i)
+            assert len(hexagon) == 6
+            self.hexagons.append(hexagon.copy())
+        self.Bdim = config.total_dof // 2 // 2
+
+
+        super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
+
+        self.gauge_hexagon = {
+            -2 : (1. - np.sqrt(6) / 3 ) * np.exp(-4.0j * self.config.nu_U * self.eta[-2]),
+            +2 : (1. - np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[+2]),
+            -1 : (1. + np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[-1]),
+            +1 : (1. + np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[+1])
+        }
+
+        self.gauge_hexagon_log = {
+            -2 : np.log(1. - np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[-2],
+            +2 : np.log(1. - np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[+2],
+            -1 : np.log(1. + np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[-1],
+            +1 : np.log(1. + np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[+1]
+        }
+        print(self.hexagons_by_site)
+        print(self.hexagons)
+        return
+
+    def get_gauge_factor_move_hex(self, local_conf_old, local_conf):
+        return self.gauge_hexagon[local_conf] / self.gauge_hexagon[local_conf_old]
+
+    def get_current_gauge_factor_log_hex(self):
+        cf = self.hex.flatten()
+        factor_logs = np.zeros(len(cf), dtype=np.complex128)
+        factor_logs[cf == -2] = self.gauge_hexagon_log[-2]
+        factor_logs[cf == 2] = self.gauge_hexagon_log[2]
+        factor_logs[cf == 1] = self.gauge_hexagon_log[1]
+        factor_logs[cf == -1] = self.gauge_hexagon_log[-1]
+
+        return np.sum(factor_logs)
+
+    def _get_initial_field_configuration(self):
+        if self.config.start_type == 'cold':
+            exit(-1)
+        elif self.config.start_type == 'hot':
+            self.hex = np.random.choice(np.array([-2, -1, 1, 2]), \
+                                              size = (self.config.Nt, self.n_hexagons))
+
+        else:
+            loaded = False
+            if os.path.isfile(self.conf_path + '.npy'):
+                try:
+                    self.hex = np.load(self.conf_path + '.npy')
+                    print('Starting from a presaved field configuration', flush=True)
+                    loaded = True
+                except Exception:
+                    print('Failed during loading of configuration from default location: try from dump')
+
+                    try:
+                        self.hex = np.load(self.conf_path + '_dump.npy')
+
+                        print('Starting from a presaved field configuration in dump', flush=True)
+                        loaded = True
+                    except Exception:
+                        print('Failed during loading of configuration from dump location: initialize from scratch')
+            if not loaded:
+                print('Random initial configuration')
+                self.hex = np.random.choice(np.array([-2, -1, 1, 2]), \
+                                              size = (self.config.Nt, self.n_hexagons))
+
+
+        NtVolVol_shape = (self.config.Nt, self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)
+        self.V = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
+
+
+        for time_slice in range(self.config.Nt):
+            for sp_index in range(self.config.total_dof // 2 // 2):
+                hexagon = self.hexagons_by_site[sp_index]
+                hex_variables = np.array([self.hex[time_slice, b] for b in hexagon]) 
+                assert len(hex_variables) == 3
+
+                self.V[time_slice, sp_index, sp_index] = \
+                    _V_from_configuration_onesite_accurate_imag_hex(hex_variables, +1.0, +1.0, self.config.nu_U)
+        return
+    
+    def save_configuration(self):
+        addstring = '_dump' if self.n_times_saved % 2 == 1 else ''
+        self.n_times_saved += 1
+        return np.save(self.conf_path + addstring, self.hex)
+
+    def update_hex_field(self, hex_index, time_slice, new_conf):
+        '''
+            we update bond-variable, which affects 2 sites and 4 d.o.f., thus use `_V_from_configuration_onesite_accurate_imag`
+        '''
+        self.hex[time_slice, hex_index] = new_conf
+
+        for sp_index in self.hexagons[hex_index]:
+            hexagons = self.hexagons_by_site[sp_index]
+            hex_variables = np.array([self.hex[time_slice, b] for b in hexagons])  # all xi variables entering the site 1, including the one that has been changed (this is suboptimal)
+            assert len(hex_variables) == 3
+
+            self.V[time_slice, sp_index, sp_index] = \
+                _V_from_configuration_onesite_accurate_imag_hex(hex_variables, +1.0, +1.0, self.config.nu_U)
+        return
+
+
+    def compute_deltas_hex(self, sp_index, time_slice, local_conf, local_conf_proposed):
+        '''
+            deltas for bond-update of the xi-field (use the standard `_get_delta_interorbital_twosite_accurate_imag`)
+        '''
+        self.Delta = _get_delta_interorbital_twosite_accurate_imag_hex(local_conf, local_conf_proposed, +1, self.config.nu_U)  # here as well the same Delta
+        return
+
+
+    def get_current_hex(self, hex_index, time_slice):
+        return self.hex[time_slice, hex_index]
+
+
+    def update_G_seq_hex(self, hex_index):
+        idxs = np.array(self.hexagons[hex_index], dtype=np.int64)
+        self.current_G_function_up = _update_G_seq_inter_hex(self.current_G_function_up, self.Delta, idxs, self.config.total_dof // 2)
+        self.current_G_function_down = _update_G_seq_inter_hex(self.current_G_function_down, self.Delta, idxs, self.config.total_dof // 2)
+        return
+
+
+
+
+
+
 @jit(nopython = True)
 def _get_delta_interorbital_accurate(local_conf, local_conf_proposed, spin, \
                                      nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
@@ -1322,6 +1522,14 @@ def _get_delta_interorbital_twosite_accurate_imag(local_conf, local_conf_propose
     local_V_inv = _V_from_configuration_twosite_accurate_imag(local_conf, -1.0, spin, nu_V)
     local_V_proposed = _V_from_configuration_twosite_accurate_imag(local_conf_proposed, 1.0, spin, nu_V)
     return local_V_proposed * local_V_inv - np.eye(2)
+
+
+@jit(nopython = True)
+def _get_delta_interorbital_twosite_accurate_imag_hex(local_conf, local_conf_proposed, spin, nu_U):
+    local_V_inv = _V_from_configuration_twosite_accurate_imag_hex(local_conf, -1.0, spin, nu_U)
+    local_V_proposed = _V_from_configuration_twosite_accurate_imag_hex(local_conf_proposed, 1.0, spin, nu_U)
+    return local_V_proposed * local_V_inv - np.eye(6)
+
 
 @jit(nopython=True)
 def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
@@ -1353,12 +1561,32 @@ def _V_from_configuration_onesite_accurate_imag(eta_site, xi_bond, sign, spin, n
                                           eta[int(xi_bond[2]) + 2]) \
                                          ) * sign)  # bond-variable is the same for both sites
 
+@jit(nopython=True)
+def _V_from_configuration_onesite_accurate_imag_hex(hexagons, sign, spin, nu_U):  # used for initialization!
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
+           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
+    return np.exp(1.0j * (nu_U * (eta[int(hexagons[0]) + 2] + \
+                                  eta[int(hexagons[1]) + 2] + \
+                                  eta[int(hexagons[2]) + 2])) * sign / 3.)
+
+@jit(nopython=True)
+def _V_from_configuration_twosite_accurate_imag_hex(s, sign, spin, nu_U):  # !!! valid in this form ONLY for update (computation of Delta)
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
+           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
+    return np.diag(np.exp(1.0j * nu_U * eta[int(s) + 2] * sign * np.ones(6) / 3.))  # bond-variable is the same for both sites
+
+
+
 
 @jit(nopython=True)
 def _V_from_configuration_twosite_accurate_imag(s, sign, spin, nu_V):  # !!! valid in this form ONLY for update (computation of Delta)
     eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
            +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
     return np.diag(np.exp(1.0j * nu_V * eta[int(s) + 2] * sign * np.ones(2)))  # bond-variable is the same for both sites
+
+
+
+
 
 
 @jit(nopython=True)
@@ -1390,6 +1618,13 @@ def get_det_ratio_inter(sp_index1, sp_index2, Delta, G):
     return np.linalg.det(np.eye(2, dtype=np.complex128) + np.dot(Delta, np.eye(2, dtype=np.complex128) - G_slice))
 
 @jit(nopython=True)
+def get_det_ratio_inter_hex(idxs, Delta, G):
+    G_slice = G[idxs, :]
+    G_slice = G_slice[:, idxs]
+
+    return np.linalg.det(np.eye(6, dtype=np.complex128) + np.dot(Delta, np.eye(6, dtype=np.complex128) - G_slice))
+
+@jit(nopython=True)
 def get_det_ratio_inter_bond(sp_index1, sp_index2, Delta, G):
     sx1 = sp_index1 * 2
     sy1 = sp_index1 * 2 + 1
@@ -1411,17 +1646,16 @@ def get_det_ratio_intra(sp_index, Delta, G):
 
 '''
 @jit(nopython=True)
-def _update_G_seq_inter(G, Delta, sp_index1, sp_index2, total_dof):
-    idxs = np.array([sp_index1, sp_index2], dtype=np.int64)
+def _update_G_seq_inter_hex(G, Delta, idxs, total_dof):
     G_sliced_right = G[:, idxs]
     G_sliced_left = G[idxs, :]
 
-    update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
-    update_matrix[:, idxs] = np.eye(2, dtype=np.complex128) + Delta
+    update_matrix = np.zeros((6, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
+    update_matrix[:, idxs] = np.eye(6, dtype=np.complex128) + Delta
     update_matrix -= np.dot(Delta, np.ascontiguousarray(G_sliced_left))
     det = np.linalg.det(update_matrix[:, idxs])
 
-    inverse_update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
+    inverse_update_matrix = np.zeros((6, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
 
     inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sp_index2] - \
                                     update_matrix[1, :] * update_matrix[0, sp_index2]) / det  # my vectorized det :))
@@ -1454,6 +1688,35 @@ def _update_G_seq_inter(G, Delta, sp_index1, sp_index2, total_dof):
 
     GU = G.dot(U)
     Zinv = np.linalg.inv(np.eye(2, dtype=np.complex128) - V.dot(U)).dot(V)
+    Zinv = np.ascontiguousarray(Zinv)
+
+    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
+    return G + GU.dot(Zinv)
+
+
+@jit(nopython=True)
+def _update_G_seq_inter_hex(G, Delta, idxs, total_dof):
+    #identity = np.eye(G.shape[0], dtype=np.complex128)
+    #large_Delta = identity * 0.
+    #for i in range(6):
+    #    large_Delta[idxs[i], idxs[i]] = Delta[i, i]
+    #return G.dot(np.linalg.inv(identity + large_Delta.dot(identity - G)))
+
+    #idxs = np.sort(idxs)
+    U = np.zeros((total_dof // 2, 6), dtype=np.complex128)
+    for i in range(6):
+        U[idxs[i], i] = Delta[i, i]
+    G_sliced_left = G[idxs, :] * 1.0
+    V = G_sliced_left
+
+    for i in range(6):
+        V[i, idxs[i]] -= 1
+    V = np.ascontiguousarray(V)
+    U = np.ascontiguousarray(U)
+    G = np.ascontiguousarray(G)
+
+    GU = G.dot(U)
+    Zinv = np.linalg.inv(np.eye(6, dtype=np.complex128) - V.dot(U)).dot(V)
     Zinv = np.ascontiguousarray(Zinv)
 
     #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')

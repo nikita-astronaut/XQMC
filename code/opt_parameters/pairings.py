@@ -890,6 +890,26 @@ def obtain_all_pairings(config):
         _, _, _, _, twoorb_hex_E_N_singlet_im, _, _, twoorb_hex_E_NN_singlet_im, twoorb_hex_E_NN_triplet_im = \
                                                                  construct_2orb_hex(config, NNN = False, real = False)
 
+
+        ### debug ###
+        '''
+        pairings_list = [construct_2orb_hex(config, NNN = True, real=True)[-2][2]]
+        pairings_list_names = [p[-1] for p in pairings_list]
+        pairings_list_unwrapped = [combine_product_terms(config, gap) for gap in pairings_list]
+        pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
+            config, True) for g in pairings_list_unwrapped]
+        print(pairings_list_unwrapped)
+        np.save('the_wave_extended_{:d}.npy'.format(config.Ls), pairings_list_unwrapped[0])
+
+        pairings_list = [construct_2orb_hex(config, NNN = False, real=True)[-2][2]]
+        pairings_list_names = [p[-1] for p in pairings_list]
+        pairings_list_unwrapped = [combine_product_terms(config, gap) for gap in pairings_list]
+        pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
+            config, True) for g in pairings_list_unwrapped]
+        print(pairings_list_unwrapped)
+        np.save('the_wave_{:d}.npy'.format(config.Ls), pairings_list_unwrapped[0])
+        exit(-1)
+        '''
         twoorb_hex_all = [[]] + \
                          [[gap] for gap in twoorb_hex_A1_N_singlet] + \
                          [[gap] for gap in twoorb_hex_A1_N_triplet] + \
