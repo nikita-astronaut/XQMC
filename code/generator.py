@@ -511,7 +511,7 @@ if __name__ == "__main__":
             if observables.n_cumulants > 0:
                 observables.write_light_observables(phi_field.config, n_sweep)
             last_n_sweep_log.write(str(n_sweep) + '\n'); last_n_sweep_log.flush()
-            #if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
-            #    t = time()
-            #    observables.write_heavy_observables(phi_field, n_sweep)
-            #    print('measurement and writing of heavy observables took ', time() - t)
+            if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
+                t = time()
+                observables.write_heavy_observables(phi_field, n_sweep)
+                print('measurement and writing of heavy observables took ', time() - t)

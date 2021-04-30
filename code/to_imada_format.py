@@ -7,6 +7,8 @@ import sys
 import config_vmc as cv_module
 from numba import jit
 from scipy.linalg import schur
+from copy import deepcopy
+
 @jit(nopython=True)
 def get_orb(L, mod):
     orb_ij = []; orb_k = []; n_orb = 0
@@ -148,30 +150,33 @@ def W_ij(U, xi, rhat):  # https://arxiv.org/pdf/1905.01887.pdf
     return res if res > 0.05 else 0.0  # Ohno relations
 
 
-def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
-    H = config.hamiltonian(config_vmc)
-    K0 = config.K_0 # already chiral
-    Ls = config.Ls
+def generate_Imada_format_Koshino(config, U, mod, doping=0, xi=0.0, \
+                                  periodic=True, fast_regime = False):
+    if not fast_regime:
+        H = config.hamiltonian(config_vmc)
+        K0 = config.K_0 # already chiral
+        K0 = models.apply_TBC(config_vmc, [np.exp(2.0j * np.pi * 0.1904), np.exp(2.0j * np.pi * (-0.1904 + 0.1))], deepcopy(K0), inverse = False) 
+        print('twist applied')
+        Ls = config.Ls
 
-    Tx, Ty = pairings.Tx_symmetry_map, pairings.Ty_symmetry_map
-    C3z = np.argmax(np.abs(pairings.C3z_symmetry_map_chiral), axis = 0)
-    C2y = np.argmax(np.abs(pairings.C2y_symmetry_map_chiral), axis = 0)
-    tx, ty = [], []
+        Tx, Ty = pairings.Tx_symmetry_map, pairings.Ty_symmetry_map
+        C3z = np.argmax(np.abs(pairings.C3z_symmetry_map_chiral), axis = 0)
+        C2y = np.argmax(np.abs(pairings.C2y_symmetry_map_chiral), axis = 0)
+        tx, ty = [], []
 
-    for i in range(Tx.shape[0]):
-        assert len(np.where(Tx[i, :] == 1)[0]) == 1
-        assert len(np.where(Ty[i, :] == 1)[0]) == 1
+        for i in range(Tx.shape[0]):
+            assert len(np.where(Tx[i, :] == 1)[0]) == 1
+            assert len(np.where(Ty[i, :] == 1)[0]) == 1
 
-        tx.append(np.where(Tx[i, :] == 1)[0][0])
-        ty.append(np.where(Ty[i, :] == 1)[0][0])
+            tx.append(np.where(Tx[i, :] == 1)[0][0])
+            ty.append(np.where(Ty[i, :] == 1)[0][0])
 
-    tx, ty = np.array(tx), np.array(ty)
-    assert np.allclose(tx[ty], ty[tx])
+        tx, ty = np.array(tx), np.array(ty)
+        assert np.allclose(tx[ty], ty[tx])
 
-    tx_valley = tx[::2] // 2; ty_valley = ty[::2] // 2;
-    assert np.allclose(tx_valley[ty_valley], ty_valley[tx_valley])
-
-    valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.Ls ** 2 * 2)])
+        tx_valley = tx[::2] // 2; ty_valley = ty[::2] // 2;
+        assert np.allclose(tx_valley[ty_valley], ty_valley[tx_valley])
+        valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.Ls ** 2 * 2)])
 
 
     np.save('./files_mvmc/tx_{:d}.npy'.format(config.Ls), tx)
@@ -221,10 +226,10 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     K_0_plus = K0[:, np.arange(0, 4 * Ls ** 2, 2)]; K_0_plus = K_0_plus[np.arange(0, 4 * Ls ** 2, 2), :]
     K_0_minus = K0[:, np.arange(1, 4 * Ls ** 2, 2)]; K_0_minus = K_0_minus[np.arange(1, 4 * Ls ** 2, 2), :]
     
-    K_0_plus_x = K_0_plus[tx_valley, :]; K_0_plus_x = K_0_plus_x[:, tx_valley]
-    assert np.allclose(K_0_plus_x, K_0_plus)
-    K_0_plus_y = K_0_plus[ty_valley, :]; K_0_plus_y = K_0_plus_y[:, ty_valley]
-    assert np.allclose(K_0_plus_y, K_0_plus)
+    #K_0_plus_x = K_0_plus[tx_valley, :]; K_0_plus_x = K_0_plus_x[:, tx_valley]
+    #assert np.allclose(K_0_plus_x, K_0_plus)
+    #K_0_plus_y = K_0_plus[ty_valley, :]; K_0_plus_y = K_0_plus_y[:, ty_valley]
+    #assert np.allclose(K_0_plus_y, K_0_plus)
 
     energies_plus, orbitals_plus = np.linalg.eigh(K_0_plus)
     energies_minus, orbitals_minus = np.linalg.eigh(K_0_minus)
@@ -376,9 +381,8 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     else:
         print('f_ij initial orbitals are exact (non-translationally invariant)')
 
-
     ## test: can det f_ij be complex?  #
-
+    '''
     sites_down = np.array([1, 8, 17, 32])
     sites_up = np.array([6, 9, 12, 29])
 
@@ -428,7 +432,7 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
             total_energy += det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j]
             print(det_new / det_0 * (-1) ** j_pos * (-1) * K0[i, j], K0[i, j], total_energy)
     print('energy assessed within Slater determinants up', total_energy)
-
+    '''
 
     #rotation = np.array([0, 1, 14, 15, 8, 9, 6, 7, 12, 13, 2, 3, 4, 5, 10, 11])
     #assert np.allclose(valley[valley], np.arange(16))
@@ -499,6 +503,27 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     ## we use the mod/mod structure
     f = open(os.path.join(path, 'jastrowidx.def'), 'w')
     jastrow_ij, jastrow_k, n_jastrows, seen_shifts, matrix_jastrows = get_jastrow_fromshift(config.Ls, mod, config.all_distances, dist_threshold=1.)
+    ### create associating map ###
+    associating_map = np.arange(n_jastrows + 1)
+    jastrow_k = np.array(jastrow_k)
+
+    distances = [config.all_distances[pair[0], pair[1]] for pair in jastrow_ij]
+    distances = np.around(np.array(distances), decimals = 5)
+    unique_dist = np.around(np.unique(np.array(distances)), decimals = 5)
+    n_unique = 0
+    for dist in unique_dist:
+        selected_pairs = np.where(distances == dist)[0]
+        if len(selected_pairs) == 0:
+            continue
+
+        j_idxs = np.array(jastrow_k)[selected_pairs]
+        jastrow_k[selected_pairs] = n_unique#np.min(j_idxs)
+        n_unique += 1
+    n_jastrows = np.max(jastrow_k) + 1
+    jastrow_k = list(jastrow_k)
+
+    print(matrix_jastrows, np.unique(matrix_jastrows))
+
     print(len(np.unique(jastrow_k)))
     assert np.allclose(matrix_jastrows, matrix_jastrows.T)
 
@@ -539,17 +564,22 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
 
     f.write('=============================================\n')
     f.write('NJastrowIdx         {:d}\n'.format(n_jastrows + 1))
-    f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
+    f.write('ComplexType          {:d}\n'.format(0))# if real_jastrow else 1))
     f.write('=============================================\n')
     f.write('=============================================\n')
+
+    uniques = []
     for i in range(config.Ls ** 2 * 4):
         for j in range(config.Ls ** 2 * 4):
             if i == j:
                 continue
             if (i, j) not in jastrow_ij:
                 f.write('    {:d}      {:d}      {:d}\n'.format(i, j, n_jastrows))
+                uniques.append(n_jastrows)
             else:
                 f.write('    {:d}      {:d}      {:d}\n'.format(i, j, jastrow_k[jastrow_ij.index((i, j))]))
+                uniques.append(jastrow_k[jastrow_ij.index((i, j))])
+    print(np.unique(np.array(uniques)))
     for i in range(n_jastrows):
         f.write('    {:d}      1\n'.format(i))
     f.write('    {:d}      0\n'.format(n_jastrows))
@@ -587,8 +617,8 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f = open(os.path.join(path, 'gutzwilleridx.def'), 'w')
 
     f.write('=============================================\n')
-    f.write('NGutzwillerIdx          {:d}\n'.format(4 * mod ** 2))
-    f.write('ComplexType          {:d}\n'.format(0 if real_jastrow else 1))
+    f.write('NGutzwillerIdx          {:d}\n'.format(mod ** 2))
+    f.write('ComplexType          {:d}\n'.format(0))# if real_jastrow else 1))
     f.write('=============================================\n')
     f.write('=============================================\n')
 
@@ -598,20 +628,20 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
         modx = xi % mod
         mody = yi % mod
 
-        idx = mod ** 2 * (si * 2 + oi) + mod * modx + mody
+        idx = mod * modx + mody
         f.write('    {:d}      {:d}\n'.format(i, 0))#idx))
-    for i in range(4 * mod ** 2):
+    for i in range(mod ** 2):
         f.write('    {:d}      1\n'.format(i))
     f.close()
 
 
     f = open(os.path.join(path, 'InGutzwiller.def'), 'w')
     f.write('======================\n')
-    f.write('NGutzwillerIdx  {:d}\n'.format(4 * mod ** 2))
+    f.write('NGutzwillerIdx  {:d}\n'.format(mod ** 2))
     f.write('======================\n')
     f.write('== i_j_GutzwillerIdx  ===\n')
     f.write('======================\n')
-    for i in range(4 * mod ** 2):
+    for i in range(mod ** 2):
         f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0) * 0, np.random.uniform(0.0, 1.0) * 0 if not real_jastrow else 0.0))
     f.close()
 
@@ -701,8 +731,9 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
         orb_num = 0
         for i in range(config.Ls ** 2 * 4):
             for j in range(config.Ls ** 2 * 4):
-                f.write('{:d} {:.10f}  {:.10f}\n'.format(orb_num, f_ij[i, j].real + 0 * np.random.uniform(3e-2, 3e-2), \
-                                                                  f_ij[i, j].imag + 0 * np.random.uniform(-3e-2, 3e-2)))
+                rand = 0 #np.abs(f_ij[i, j]) > 1e-7
+                f.write('{:d} {:.10f}  {:.10f}\n'.format(orb_num, f_ij[i, j].real + rand * np.random.uniform(-3e-3, 3e-3), \
+                                                                  f_ij[i, j].imag + rand * np.random.uniform(-3e-3, 3e-3)))
                 orb_num += 1
     else:
         for k in range(n_orbits):
@@ -806,6 +837,499 @@ def generate_Imada_format_Koshino(config, U, mod, doping=0, periodic=True):
     f.write('NSRCG          1\n')
     f.close()
 
+
+def get_interaction(config, U_list, xi_list):
+    Ls = config.Ls
+    K0 = config.K_0
+
+    Tx, Ty = pairings.Tx_symmetry_map, pairings.Ty_symmetry_map
+    C3z = np.argmax(np.abs(pairings.C3z_symmetry_map_chiral), axis = 0)
+    C2y = np.argmax(np.abs(pairings.C2y_symmetry_map_chiral), axis = 0)
+    tx, ty = [], []
+
+    for i in range(Tx.shape[0]):
+        assert len(np.where(Tx[i, :] == 1)[0]) == 1
+        assert len(np.where(Ty[i, :] == 1)[0]) == 1
+
+        tx.append(np.where(Tx[i, :] == 1)[0][0])
+        ty.append(np.where(Ty[i, :] == 1)[0][0])
+
+    tx, ty = np.array(tx), np.array(ty)
+    assert np.allclose(tx[ty], ty[tx])
+
+    def W_ij(U, xi, rhat):  # https://arxiv.org/pdf/1905.01887.pdf
+        if np.abs(rhat) < 1e-7:
+            return U
+        if np.abs(U) < 1e-7:
+            return 0
+
+        d = xi / rhat
+        ns = np.arange(-300000, 300001)
+        W = 11.077 * U / rhat * np.sum((-1.) ** ns / (1 + (ns * d) ** 2) ** 0.5)
+        res = U / (1. + (U / W) ** 5) ** 0.2
+
+        return res if res > 0.01 else 0.0  # Ohno relations
+
+    path = '/home/astronaut/Documents/all_Imada_formats/'
+
+
+    for U in U_list:
+        for xi in xi_list:
+            f = open(os.path.join(path, 'coulombintra_{:d}_{:.3f}_{:.3f}.def'.format(Ls, U, xi)), 'w')
+
+            f.write('=============================================\n')
+            f.write('NCoulombIntra          {:d}\n'.format(config.total_dof // 2))
+            f.write('=============================================\n')
+            f.write('================== CoulombIntra ================\n')
+            f.write('=============================================\n')
+
+            for i in range(K0.shape[0]):
+                f.write('    {:d}         {:.14f}\n'.format(i, U))
+            f.close()
+
+            interactions_site = np.zeros((config.total_dof // 2, config.total_dof // 2))
+            for i in range(4):
+                for j in range(config.total_dof // 2):
+                    r = np.sqrt(config.all_distances[i, j])  # TODO: check that!!!  (seems ok)
+
+                    if r > 1. + 1e-7:
+                        continue
+
+                    if i == j:
+                        assert W_ij(U, xi, r) == U
+                    else:
+                        interactions_site[i, j] = W_ij(U, xi, r)
+            interactions = np.zeros((config.total_dof // 2, config.total_dof // 2))
+            for shiftx in range(Ls):
+                interactions_site = interactions_site[tx, :]; interactions_site = interactions_site[:, tx]
+                for shifty in range(Ls):
+                    interactions_site = interactions_site[ty, :]; interactions_site = interactions_site[:, ty]
+                    interactions += interactions_site
+
+            f = open(os.path.join(path, 'coulombinter_{:d}_{:.3f}_{:.3f}.def'.format(Ls, U, xi)), 'w')
+            f.write('=============================================\n')
+            f.write('NCoulombInter          {:d}\n'.format(int(np.sum(np.abs(interactions) > 1e-5))))
+            f.write('=============================================\n')
+            f.write('================== CoulombInter ================\n')
+            f.write('=============================================\n')
+
+            for i in range(K0.shape[0]):
+                for j in range(K0.shape[1]):
+                    if interactions[i, j] != 0.0:
+                        f.write('   {:d}     {:d}  {:.4f}\n'.format(i, j, interactions[i, j] / 2.))
+            f.close()  # TODO: check very carefully the factor of 2
+    return
+
+def get_kinetic_orbitals(config, dopings_list, twists_list):
+    K0 = config.K_0
+    Ls = config.Ls
+    path = '/home/astronaut/Documents/all_Imada_formats/'
+
+
+    Tx, Ty = pairings.Tx_symmetry_map, pairings.Ty_symmetry_map
+    C3z = np.argmax(np.abs(pairings.C3z_symmetry_map_chiral), axis = 0)
+    C2y = np.argmax(np.abs(pairings.C2y_symmetry_map_chiral), axis = 0)
+    tx, ty = [], []
+
+    for i in range(Tx.shape[0]):
+        assert len(np.where(Tx[i, :] == 1)[0]) == 1
+        assert len(np.where(Ty[i, :] == 1)[0]) == 1
+
+        tx.append(np.where(Tx[i, :] == 1)[0][0])
+        ty.append(np.where(Ty[i, :] == 1)[0][0])
+
+    tx, ty = np.array(tx), np.array(ty)
+    assert np.allclose(tx[ty], ty[tx])
+
+    tx_valley = tx[::2] // 2; ty_valley = ty[::2] // 2;
+    assert np.allclose(tx_valley[ty_valley], ty_valley[tx_valley])
+    valley = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(config.Ls ** 2 * 2)])
+
+
+    ########### writing the spin locations (none) ##########
+    f = open(os.path.join(path, 'locspn.def'), 'w')
+    f.write('================================\n')
+    f.write('NlocalSpin     0\n')
+    f.write('================================\n')
+    f.write('========i_0LocSpn_1IteElc ======\n')
+    f.write('================================\n')
+    for i in range(Ls ** 2 * 4):
+        f.write('    {:d}      0\n'.format(i))
+    f.close()
+
+
+
+    symmetries = [np.arange(Ls ** 2 * 4)]
+    ########### writing the translational symmetries ##########
+    f = open(os.path.join(path, 'qptransidx_{:d}.def'.format(Ls)), 'w')
+    f.write('=============================================\n')
+    f.write('NQPTrans          {:d}\n'.format(len(symmetries)))
+    f.write('=============================================\n')
+    f.write('======== TrIdx_TrWeight_and_TrIdx_i_xi ======\n')
+    f.write('=============================================\n')
+
+    for i in range(len(symmetries)):
+        f.write('{:d}    1.00000\n'.format(i))
+
+    for i, symm in enumerate(symmetries):
+        for i_from in range(symm.shape[0]):
+            f.write('    {:d}      {:d}      {:d}\n'.format(i, i_from, symm[i_from]))
+    f.close()
+
+
+
+
+    ########### writing the orbitals indexes ##########
+    f = open(os.path.join(path, 'orbitalidx_{:d}.def'.format(Ls)), 'w')
+
+    f.write('=============================================\n')
+    f.write('NOrbitalIdx         {:d}\n'.format((config.Ls ** 2 * 4) ** 2))
+    f.write('ComplexType          {:d}\n'.format(1))
+    f.write('=============================================\n')
+    f.write('=============================================\n')
+
+    orb_num = 0
+    for i in range(config.Ls ** 2 * 4):
+        for j in range(config.Ls ** 2 * 4):
+            f.write('    {:d}      {:d}      {:d}\n'.format(i, j, orb_num))
+            orb_num += 1
+    for i in range(orb_num):
+        f.write('    {:d}      0\n'.format(i))  # orbits are not optimized to the first approximation
+    f.close()
+
+
+    
+    ########### writing the jastrows ##########
+    ## we use the mod/mod structure
+    f = open(os.path.join(path, 'jastrowidx_{:d}.def'.format(Ls)), 'w')
+    mod = 1
+    jastrow_ij, jastrow_k, n_jastrows, seen_shifts, matrix_jastrows = get_jastrow_fromshift(config.Ls, mod, config.all_distances, dist_threshold=5.)
+    ### create associating map ###
+    associating_map = np.arange(n_jastrows + 1)
+    jastrow_k = np.array(jastrow_k)
+
+    distances = [config.all_distances[pair[0], pair[1]] for pair in jastrow_ij]
+    distances = np.around(np.array(distances), decimals = 5)
+    unique_dist = np.around(np.unique(np.array(distances)), decimals = 5)
+    n_unique = 0
+    for dist in unique_dist:
+        selected_pairs = np.where(distances == dist)[0]
+        if len(selected_pairs) == 0:
+            continue
+
+        j_idxs = np.array(jastrow_k)[selected_pairs]
+        jastrow_k[selected_pairs] = n_unique#np.min(j_idxs)
+        n_unique += 1
+    n_jastrows = np.max(jastrow_k) + 1
+    jastrow_k = list(jastrow_k)
+
+    print(matrix_jastrows, np.unique(matrix_jastrows))
+
+    print(len(np.unique(jastrow_k)))
+    assert np.allclose(matrix_jastrows, matrix_jastrows.T)
+
+    matrix_jastrows_trans = matrix_jastrows.copy()
+    matrix_jastrows_trans = matrix_jastrows_trans[:, tx]    
+    matrix_jastrows_trans = matrix_jastrows_trans[tx, :]
+    assert np.allclose(matrix_jastrows_trans, matrix_jastrows)
+
+    matrix_jastrows_trans = matrix_jastrows.copy()
+    matrix_jastrows_trans = matrix_jastrows_trans[:, ty]    
+    matrix_jastrows_trans = matrix_jastrows_trans[ty, :]
+    assert np.allclose(matrix_jastrows_trans, matrix_jastrows)
+
+    f.write('=============================================\n')
+    f.write('NJastrowIdx         {:d}\n'.format(n_jastrows + 1))
+    f.write('ComplexType          {:d}\n'.format(0))
+    f.write('=============================================\n')
+    f.write('=============================================\n')
+
+    uniques = []
+    for i in range(config.Ls ** 2 * 4):
+        for j in range(config.Ls ** 2 * 4):
+            if i == j:
+                continue
+            if (i, j) not in jastrow_ij:
+                f.write('    {:d}      {:d}      {:d}\n'.format(i, j, n_jastrows))
+                uniques.append(n_jastrows)
+            else:
+                f.write('    {:d}      {:d}      {:d}\n'.format(i, j, jastrow_k[jastrow_ij.index((i, j))]))
+                uniques.append(jastrow_k[jastrow_ij.index((i, j))])
+    print(np.unique(np.array(uniques)))
+    for i in range(n_jastrows):
+        f.write('    {:d}      1\n'.format(i))
+    f.write('    {:d}      0\n'.format(n_jastrows))
+    f.close()
+
+
+
+    f = open(os.path.join(path, 'InJastrow_{:d}.def'.format(Ls)), 'w')
+    f.write('======================\n')
+    f.write('NJastrowIdx  {:d}\n'.format(n_jastrows + 1))
+    f.write('======================\n')
+    f.write('== i_j_JastrowIdx  ===\n')
+    f.write('======================\n')
+    for i in range(n_jastrows):
+        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, \
+                np.random.uniform(0.0, 1.0) * 0, np.random.uniform(0.0, 1.0) * 0))
+    f.write('{:d} {:.10f}  {:.10f}\n'.format(n_jastrows, 0, 0))
+    f.close()
+
+
+
+
+    f = open(os.path.join(path, 'gutzwilleridx_{:d}.def'.format(Ls)), 'w')
+
+    f.write('=============================================\n')
+    f.write('NGutzwillerIdx          {:d}\n'.format(1))
+    f.write('ComplexType          {:d}\n'.format(0))
+    f.write('=============================================\n')
+    f.write('=============================================\n')
+
+    for i in range(K0.shape[0]):
+        f.write('    {:d}      {:d}\n'.format(i, 0))#idx))
+    for i in range(1):
+        f.write('    {:d}      1\n'.format(i))
+    f.close()
+
+
+    f = open(os.path.join(path, 'InGutzwiller.def'), 'w')
+    f.write('======================\n')
+    f.write('NGutzwillerIdx  {:d}\n'.format(1))
+    f.write('======================\n')
+    f.write('== i_j_GutzwillerIdx  ===\n')
+    f.write('======================\n')
+    for i in range(1):
+        f.write('{:d} {:.10f}  {:.10f}\n'.format(i, np.random.uniform(0.0, 1.0) * 0, np.random.uniform(0.0, 1.0) * 0))
+    f.close()
+
+
+
+
+    for twist in twists_list:
+        twist_exp = [np.exp(2.0j * np.pi * twist[0]), np.exp(2.0j * np.pi * twist[1])]
+        K_0_twisted = models.apply_TBC(config, twist_exp, deepcopy(K0), inverse = False)
+
+
+        ########### writing the K--matrix ##########
+        f = open(os.path.join(path, 'trans_{:d}_{:.3f}_{:.3f}.def'.format(Ls, *twist)), 'w')
+
+        f.write('========================\n')
+        f.write('NTransfer      {:d}\n'.format(2 * np.sum(np.abs(K_0_twisted) > 1e-7)))
+        f.write('========================\n')
+        f.write('========i_j_s_tijs======\n')
+        f.write('========================\n')
+        assert np.allclose(K_0_twisted, K_0_twisted.T.conj())
+
+        for i in range(K_0_twisted.shape[0]):
+            for j in range(K_0_twisted.shape[1]):
+                if np.abs(K_0_twisted[i, j]) > 1e-7:
+                    f.write('    {:d}     0     {:d}     0   {:.6f}  {:.6f}\n'.format(i, j, np.real(-K_0_twisted[i, j]), np.imag(-K_0_twisted[i, j])))
+                    f.write('    {:d}     1     {:d}     1   {:.6f}  {:.6f}\n'.format(i, j, np.real(-K_0_twisted[i, j]), np.imag(-K_0_twisted[i, j])))
+        f.close()
+
+        for i in range(K_0_twisted.shape[0]):
+            for j in range(K_0_twisted.shape[1]):
+                if (i + j) % 2 == 1 and np.abs(K_0_twisted[i, j]) > 1e-12:
+                    print(i, j)
+                    exit(-1)
+
+        K_0_plus = K_0_twisted[:, np.arange(0, 4 * Ls ** 2, 2)]; K_0_plus = K_0_plus[np.arange(0, 4 * Ls ** 2, 2), :]
+        K_0_minus = K_0_twisted[:, np.arange(1, 4 * Ls ** 2, 2)]; K_0_minus = K_0_minus[np.arange(1, 4 * Ls ** 2, 2), :]
+    
+        if twist == [0, 0]:
+            K_0_plus_x = K_0_plus[tx_valley, :]; K_0_plus_x = K_0_plus_x[:, tx_valley]
+            assert np.allclose(K_0_plus_x, K_0_plus)
+            K_0_plus_y = K_0_plus[ty_valley, :]; K_0_plus_y = K_0_plus_y[:, ty_valley]
+            assert np.allclose(K_0_plus_y, K_0_plus)
+
+
+        energies_plus_all, orbitals_plus_all = np.linalg.eigh(K_0_plus)
+        energies_minus_all, orbitals_minus_all = np.linalg.eigh(K_0_minus)
+
+        assert np.allclose(orbitals_plus_all, orbitals_minus_all.conj())
+        assert np.allclose(K_0_plus, K_0_minus.conj())
+
+        if twist == [0, 0]:  # this is all only required in the PBC case, otherwise just take lowest levels (they are all degenerate)
+        ##################### Tx #########################
+            e_round = np.around(energies_plus_all, decimals=7)
+            orbitals_plus_tx = orbitals_plus_all * 0.0 + 0.0j
+
+            tx_plus_momenta = np.zeros(orbitals_plus_all.shape[0], dtype=np.complex128)  # this is later needed to select joint (e, t_x) sectors
+            for e_sector in np.unique(e_round):
+                idxs = np.where(e_round == e_sector)[0]
+            
+                tx_matrix = np.zeros((len(idxs), len(idxs)), dtype=np.complex128)
+                for i, ii in enumerate(idxs):
+                    for j, jj in enumerate(idxs):
+                        tx_matrix[i, j] = np.dot(orbitals_plus_all[:, ii].conj().T, orbitals_plus_all[:, jj][tx_valley])
+
+                momenta, Um = schur(tx_matrix)
+                momenta = np.diag(momenta)
+                orbitals_plus_tx[:, idxs] = orbitals_plus_all[:, idxs].dot(Um)
+                tx_plus_momenta[idxs] = momenta
+            orbitals_plus_all = orbitals_plus_tx
+            tx_plus_momenta = np.around(tx_plus_momenta, decimals=5)
+            print(tx_plus_momenta)
+
+            e_round = np.around(energies_minus_all, decimals=7)
+            orbitals_minus_tx = orbitals_minus_all * 0.0 + 0.0j
+            tx_minus_momenta = np.zeros(orbitals_minus_all.shape[0], dtype=np.complex128)
+            for e_sector in np.unique(e_round):
+                idxs = np.where(e_round == e_sector)[0]
+
+                tx_matrix = np.zeros((len(idxs), len(idxs)), dtype=np.complex128)
+                for i, ii in enumerate(idxs):
+                    for j, jj in enumerate(idxs):
+                        tx_matrix[i, j] = np.dot(orbitals_minus_all[:, ii].conj().T, orbitals_minus_all[:, jj][tx_valley])
+
+                momenta, Um = schur(tx_matrix)
+                momenta = np.diag(momenta)
+                orbitals_minus_tx[:, idxs] = orbitals_minus_all[:, idxs].dot(Um)
+                tx_minus_momenta[idxs] = momenta
+            orbitals_minus_all = orbitals_minus_tx
+            tx_minus_momenta = np.around(tx_minus_momenta, decimals=5)
+            print(tx_minus_momenta)
+
+            #################### Ty ######################
+            e_round = np.around(energies_plus_all, decimals=7)
+            orbitals_plus_ty = orbitals_plus_all * 0.0 + 0.0j
+
+            for e_sector in np.unique(e_round):
+                for kx_sector in np.unique(tx_plus_momenta):
+                    idxs = np.where((e_round == e_sector) & (tx_plus_momenta == kx_sector))[0]
+                    if len(idxs) == 0:
+                        continue
+
+                    ty_matrix = np.zeros((len(idxs), len(idxs)), dtype=np.complex128)
+                    for i, ii in enumerate(idxs):
+                        for j, jj in enumerate(idxs):
+                            ty_matrix[i, j] = np.dot(orbitals_plus_all[:, ii].conj().T, orbitals_plus_all[:, jj][ty_valley])
+
+                    momenta, Um = schur(ty_matrix)
+                    momenta = np.diag(momenta)
+                    orbitals_plus_ty[:, idxs] = orbitals_plus_all[:, idxs].dot(Um)
+            orbitals_plus_all = orbitals_plus_ty
+
+            
+            e_round = np.around(energies_minus_all, decimals=7)
+            orbitals_minus_ty = orbitals_minus_all * 0.0 + 0.0j
+            for e_sector in np.unique(e_round):
+                for kx_sector in np.unique(tx_minus_momenta):
+                    idxs = np.where((e_round == e_sector) & (tx_minus_momenta == kx_sector))[0]
+                    if len(idxs) == 0:
+                        continue
+
+                    ty_matrix = np.zeros((len(idxs), len(idxs)), dtype=np.complex128)
+                    for i, ii in enumerate(idxs):
+                        for j, jj in enumerate(idxs):
+                            ty_matrix[i, j] = np.dot(orbitals_minus_all[:, ii].conj().T, orbitals_minus_all[:, jj][ty_valley])
+
+                    momenta, Um = schur(ty_matrix)
+                    momenta = np.diag(momenta)
+                    orbitals_minus_ty[:, idxs] = orbitals_minus_all[:, idxs].dot(Um)
+            orbitals_minus_all = orbitals_minus_ty
+    
+        for doping in dopings_list:
+            selected_plus = np.argsort(energies_plus_all)[:len(energies_plus_all) // 2 - doping]
+            orbitals_plus = orbitals_plus_all[:, selected_plus]
+            
+            selected_minus = np.argsort(energies_minus_all)[:len(energies_minus_all) // 2 - doping]
+            orbitals_minus = orbitals_minus_all[:, selected_minus]
+
+            assert np.allclose(energies_plus_all, energies_minus_all)
+            energies_plus = energies_plus_all[selected_plus]
+            energies_minus = energies_minus_all[selected_minus]
+            
+            print(doping)
+            print(orbitals_minus[0])
+            print(orbitals_plus[0])
+            orbitals = np.kron(orbitals_minus, np.array([[0, 0], [0, 1]])) + np.kron(orbitals_plus, np.array([[1, 0], [0, 0]]))
+            energies = np.concatenate([np.array([energies_plus[i], energies_minus[i]]) for i in range(len(energies_minus))], axis = -1)
+
+
+            for i in range(len(energies)):
+                o = orbitals[:, i]
+                assert np.allclose(K_0_twisted.dot(o), o * energies[i])
+                print(i, np.dot(o.conj().T, o[tx]), np.dot(o.conj().T, o[ty]), np.dot(o.conj().T, o[C3z]), np.dot(o.conj().T, o[C2y]), energies[i])
+
+                K0realo = K0.real.dot(o)
+                angle = np.dot(o, K0realo) / np.sqrt(np.dot(o, o) * np.dot(K0realo, K0realo))
+
+            overlaps = orbitals.T.conj().dot(orbitals)
+            assert np.allclose(overlaps, np.eye(overlaps.shape[0]))
+
+            print((np.sum(energies_minus) + np.sum(energies_plus)) * 2., 'expected free energy')
+            print(2 * np.sum(np.linalg.eigh(K0)[0][:K0.shape[0] // 2 - 2 * doping]), 2 * np.sum(np.linalg.eigh(K0.real)[0][:K0.shape[0] // 2 - 2 * doping]), 'full energy full/real')
+            print(2 * np.sum(energies), \
+                  2 * np.trace(orbitals.conj().T.dot(K0).dot(orbitals)), \
+                  2 * np.trace(orbitals.conj().T.dot(K0.real).dot(orbitals)), \
+                  2 * np.trace(orbitals.real.conj().T.dot(K0.real).dot(orbitals.real)), \
+                  2 * np.trace(orbitals.real.conj().T.dot(K0).dot(orbitals.real)))
+
+
+            f_ij = (orbitals.dot(orbitals.T))
+            print(f_ij[0][0])
+            print(repr(orbitals[0]))
+            print('f_ij initial orbitals are exact (non-translationally invariant)')
+        
+
+            f = open(os.path.join(path, 'InOrbital_{:d}_{:d}_{:.3f}_{:.3f}.def'.format(Ls, doping, *twist)), 'w')
+            f.write('======================\n')
+            f.write('NOrbitalIdx  {:d}\n'.format(orb_num))
+            f.write('======================\n')
+            f.write('== i_j_OrbitalIdx  ===\n')
+            f.write('======================\n')
+            orb_num = 0
+            for i in range(config.Ls ** 2 * 4):
+                for j in range(config.Ls ** 2 * 4):
+                    f.write('{:d} {:.10f}  {:.10f}\n'.format(orb_num, f_ij[i, j].real, f_ij[i, j].imag))
+                    orb_num += 1
+
+
+
+            ########### writing the modpara ##########
+            f = open(os.path.join(path, 'modpara_{:d}_{:d}.def'.format(Ls, doping)), 'w')
+
+            f.write('--------------------\n')
+            f.write('Model_Parameters   0\n')
+            f.write('--------------------\n')
+            f.write('VMC_Cal_Parameters\n')
+            f.write('--------------------\n')
+            f.write('CDataFileHead  zvo\n')
+            f.write('CParaFileHead  zqp\n')
+            f.write('--------------------\n')
+            f.write('NVMCCalMode    0\n')
+            f.write('--------------------\n')
+            f.write('NDataIdxStart  1\n')
+            f.write('NDataQtySmp    1\n')
+            f.write('--------------------\n')
+            f.write('Nsite          {:d}\n'.format(Ls ** 2 * 4))
+            f.write('Ncond          {:d}\n'.format(Ls ** 2 * 4 - doping * 4))
+            f.write('2Sz            0\n')
+            f.write('NSPGaussLeg    8\n')
+            f.write('NSPStot        0\n')
+            f.write('NMPTrans       {:d}\n'.format(1))
+            f.write('NSROptItrStep  100\n')
+            f.write('NSROptItrSmp   40\n')
+            f.write('DSROptRedCut   0.0010000000\n')
+            f.write('DSROptStaDel   0.0200000000\n')
+            f.write('DSROptStepDt   0.0200000000\n')
+            f.write('NVMCWarmUp     400\n')
+            f.write('NVMCInterval   1\n')
+            f.write('NVMCSample     4000\n')
+            f.write('NExUpdatePath  0\n')
+            f.write('RndSeed        1\n')
+            f.write('NSplitSize     1\n')
+            f.write('NStore         0\n')
+            f.write('NSRCG          1\n')
+            f.close()
+    return
+
+
+    
+
+
 if __name__ == "__main__":
     config_vmc_file = monte_carlo_vmc.import_config(sys.argv[1])
     config_vmc_import = config_vmc_file.MC_parameters(int(sys.argv[2]), 0)
@@ -815,5 +1339,19 @@ if __name__ == "__main__":
 
     monte_carlo_vmc.print_model_summary(config_vmc)
 
-    generate_Imada_format_Koshino(config_vmc, float(sys.argv[3]), int(sys.argv[4]), \
-                                  doping=int(sys.argv[5]), periodic = (sys.argv[6] == '1'))
+
+    N_per_flavour = int(sys.argv[2]) ** 2
+    max_doping = 3#int(N_per_flavour * 0.5)
+
+    L = 8
+    twists = []
+    for i_x in range(L):
+        for i_y in range(L):
+            twists.append([(1. / L + 2. * i_x / L) / 2., \
+                           (1. / L + 2. * i_y / L) / 2.])
+
+    # twists = [[0., 0.]]
+    # get_interaction(config_vmc, np.linspace(3.0, 5.0, 11), np.linspace(0.0, 0.5, 26))
+    get_kinetic_orbitals(config_vmc, np.arange(max_doping), twists[0:1])
+    #generate_Imada_format_Koshino(config_vmc, float(sys.argv[3]), int(sys.argv[4]), \
+    #                              doping=int(sys.argv[5]), periodic = (sys.argv[6] == '1'))

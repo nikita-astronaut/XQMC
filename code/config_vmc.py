@@ -11,11 +11,11 @@ class MC_parameters:
     def __init__(self, Ls, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = Ls ** 2 * 4#  - 4 * 2#  - 2 * 4
-        self.BC_twist = True; self.twist_mesh = 'Baldereschi'  # apply BC-twist
+        self.Ne = Ls ** 2 * 4 - 2 * 10#  - 4 * 2#  - 2 * 4
+        self.BC_twist = True; self.twist_mesh = 'APBCy'  # apply BC-twist
         self.L_twists_uniform = 6
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 4; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 1; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
@@ -44,7 +44,7 @@ class MC_parameters:
 
 
         ### interaction parameters ###
-        self.epsilon = 2 #9.93 / 3. # 1e+10 #9.93 / 4
+        self.epsilon = 1e+10# 9.93 / 2. # 1e+10 #9.93 / 4
         self.xi = 0.10
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
         self.U = 0.
@@ -75,7 +75,7 @@ class MC_parameters:
         ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
         idx_map = [1, 5, 8, 9, 11, 12, 13, 15, 17, 18, 19, 20]
-        self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
+        self.pairings_list = pairings.twoorb_hex_all[13] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
 
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
@@ -101,8 +101,8 @@ class MC_parameters:
         ### hoppings parameters setting ###
         #all_Koshino_hoppings_real = hoppings.obtain_all_hoppings_Koshino_real(self, pairings)[1:] # exclude the mu_BCS term
         #all_Koshino_hoppings_complex = hoppings.obtain_all_hoppings_Koshino_complex(self, pairings)
-        #self.hoppings = [] #[h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
-        #self.hopping_names = [] #[h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
+        self.hoppings = [] #[h[-1] + 0.0j for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
+        self.hopping_names = [] #[h[0] for h in all_Koshino_hoppings_real + all_Koshino_hoppings_complex]
         #for h in self.hoppings:
         #    projection = np.trace(np.dot(self.K_0.conj().T, h)) / np.trace(np.dot(h.conj().T, h))
         #    print(projection, name)
@@ -156,12 +156,12 @@ class MC_parameters:
         self.waves_list_unwrapped = []
 
         ### optimisation parameters ###
-        self.MC_chain = 2000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
+        self.MC_chain = 1000000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 13000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-3, 0.02, 1.00]
+        self.opt_parameters = [1e-3, 0.03, 1.00]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 10
         self.generator_mode = True
@@ -185,7 +185,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.random.uniform(3e-2, 3e-2, size = self.layout[3]),  # gaps
+            np.random.uniform(1e-2, 1e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
 
@@ -199,8 +199,9 @@ class MC_parameters:
         ])
         '''
         
-        self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03, 0, 0, 0, 0, 0, 0, 0, 0])
-        #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
+        # self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03, 0, 0, 0, 0, 0, 0, 0, 0])
+        #self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02])
+        ##self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
 
         #if not self.PN_projection:
         #    f = -np.sum(np.array([A[0] * factor for factor, A in \
@@ -224,7 +225,7 @@ class MC_parameters:
             np.ones(self.layout[4]) * 3e+4,  # jastrows
         ])
 
-        self.initial_parameters[:self.layout[0]] = self.select_initial_muBCS_Koshino(self.Ne)
+        self.initial_parameters[:self.layout[0]] = -0.15416910392893438# self.select_initial_muBCS_Koshino(self.Ne)
         self.mu = 0.0 #-1.2 #self.initial_parameters[0]
         #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
