@@ -326,9 +326,9 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
                               True, final_state, orbitals_in_use, \
                               False, K_up, K_down, reg)
     print('WF Init takes {:.10f}'.format(time() - t))
-    #wf.perform_explicit_GF_update()
-    #print(hamiltonian(wf))
-    #print(wf.current_det)
+    wf.perform_explicit_GF_update()
+    print(hamiltonian(wf))
+    print(wf.current_det)
     configs = []
 
     t_steps = 0

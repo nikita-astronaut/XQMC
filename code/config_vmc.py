@@ -4,6 +4,7 @@ import numpy as np
 from opt_parameters import jastrow
 from copy import deepcopy
 from scipy import interpolate
+import hamiltonians_vmc
 
 class MC_parameters:
     # def __init__(self, Ls, irrep_idx, mu_BCS_fixed = None):
@@ -119,16 +120,16 @@ class MC_parameters:
 
 
         self.enforce_valley_orbitals = False #FIXME
-        for name in self.pairings_list_names:
-            if 'S_pm' not in name:
-                self.enforce_valley_orbitals = False
+        #for name in self.pairings_list_names:
+        #    if 'S_pm' not in name:
+        #        self.enforce_valley_orbitals = False
 
         self.adjacency_transition_matrix = models.get_transition_matrix(self.PN_projection, self.model(self, 0.0, spin = +1.0)[0], \
                                             self.n_orbitals, valley_conservation_K = self.valley_projection, 
                                             valley_conservation_Delta = self.enforce_valley_orbitals)
         #print(self.adjacency_transition_matrix)
-        self.name_group_dict = pairings.name_group_dict
-        print(self.name_group_dict)
+        #self.name_group_dict = pairings.name_group_dict
+        #print(self.name_group_dict)
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
@@ -162,17 +163,17 @@ class MC_parameters:
         self.generator_mode = True
 
         ### regularisation ###
-        if not self.enforce_valley_orbitals:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
-                                                    self, self.chiral_basis)  # FIXME
-        else:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
-                                                    self, self.chiral_basis) # FIXME
-        self.reg_gap_val = 0.000
+        #if not self.enforce_valley_orbitals:
+        #    self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
+        #                                            self, self.chiral_basis)  # FIXME
+        #else:
+        #    self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
+        #                                            self, self.chiral_basis) # FIXME
+        #self.reg_gap_val = 0.000
 
         ## initial values definition and layout ###
         #self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
-        self.layout = [1, 0, len(self.hoppings), len(self.pairings_list), len(self.jastrows_list)]
+        self.layout = [1, 0, len(self.hoppings), 0, len(self.jastrows_list)]
         
 
         self.initial_parameters = np.concatenate([
@@ -207,7 +208,7 @@ class MC_parameters:
             #np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
             #np.array(self.waves_list_names),  # waves
             np.array(self.hopping_names),  # hopping matrices
-            np.array(self.pairings_list_names),  # gaps
+            #[]#np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
         ])
 
@@ -215,7 +216,7 @@ class MC_parameters:
             np.ones(self.layout[0]) * 3e+4,  # mu_BCS
             #np.array([3e+4] if not self.PN_projection else []),  # fugacity
             np.ones(self.layout[2]) * 3e+4,  # waves
-            np.ones(self.layout[3]) * 3e+4,  # gaps
+            #np.ones(self.layout[3]) * 3e+4,  # gaps
             np.ones(self.layout[4]) * 3e+4,  # jastrows
         ])
 
@@ -224,8 +225,8 @@ class MC_parameters:
         #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
         ### check K-matrix irrep properties ###
-        pairings.check_irrep_properties(self, [[self.model(self, 0.0, spin = +1.0)[0], 'K_matrix']], \
-            term_type = 'K_matrix', chiral = self.chiral_basis)
+        #pairings.check_irrep_properties(self, [[self.model(self, 0.0, spin = +1.0)[0], 'K_matrix']], \
+        #    term_type = 'K_matrix', chiral = self.chiral_basis)
 
     def select_initial_muBCS_Koshino(self, Ne, parameters = []):
         if len(parameters) == 0:
