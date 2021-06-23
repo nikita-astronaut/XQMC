@@ -8,6 +8,41 @@ from scipy.linalg import schur
 from copy import deepcopy
 from time import time
 
+Alat = np.array([[np.sqrt(3) / 2., 1. / 2.], [np.sqrt(3) / 2., -1. / 2.]])
+G = 2 * np.pi * np.array([[1. / np.sqrt(3), +1], [1. / np.sqrt(3), -1.]])  # is this momentum compatible?
+
+@jit(nopython=True)
+def kappa(q):
+    #Alat = np.array([[np.sqrt(3) / 2., 1. / 2.], [np.sqrt(3) / 2., -1. / 2.]])
+
+    t1 = 0.331
+
+    return t1 * (1. + np.exp(q[:, 0]) + np.exp(q[:, 1]))
+
+@jit(nopython=True)
+def xi(q):
+    t5 = 0.097 * 1.0j
+    xi = t5 * (np.exp(q[:, 0] - 2 * q[:, 1]) + np.exp(-2 * q[:, 0] + q[:, 1]) + np.exp(q[:, 0] + q[:, 1]))
+    return xi - np.conj(xi)
+
+@jit(nopython=True)
+def energy(q, valley, band):
+    if valley == +1:
+        return xi(q) + (-1) ** (band + 1) * kappa(q)
+    return xi(-q) + (-1) ** (band + 1) * kappa(-q)
+
+@jit(nopython=True)
+def solution(q, valley, band):
+    k = kappa(q)
+    if valley = +1:
+        return np.array([k / np.abs(k) * (-1) ** (band + 1), 1.])
+    k = np.conj(k)
+
+    return np.array([k / np.abs(k) * (-1) ** (band + 1), 1.])
+
+
+
+
 @jit(nopython=True)
 def from_linearized_index(index, L, n_orbitals, n_sublattices = 2):
     orbit = index % n_orbitals
@@ -155,8 +190,7 @@ def fermi(energy, beta, mu):
     #    return 1.
     #elif energy == mu:
     #    return 0.5
-    #return 0.
-
+   
     return 1 / (1. + np.exp((energy - mu) * beta))
 
 @jit(nopython=True)
@@ -348,12 +382,32 @@ J = float(sys.argv[3])
 
 Ls = L
 n_bands = 4
-beta = L
+beta = float(sys.argv[4])
 fft = get_fft(L, n_bands)
 mapping = get_C3z_symmetry_map(L)
 C2 = get_C2y_symmetry_map(L)
 Tx = get_Tx_symmetry_map(L)
 Ty = get_Ty_symmetry_map(L)
+
+C3_fft = fft.dot(mapping).dot(fft.T.conj()) * 4.
+C3_fft = C3_fft[::n_bands, :]
+C3_fft = np.abs(C3_fft[:, ::n_bands]) > 0.5
+
+perm = []
+small_matr = []
+C3_fftfull = fft.dot(mapping).dot(fft.T.conj()) * 4.
+for i in range(L ** 2):
+    j = np.where(C3_fft[i] == 1)[0][0]
+    perm.append(j)
+    small_matr.append(C3_fftfull[n_bands * i : n_bands * i + 4, n_bands * j : n_bands * j + 4,])
+    print(i, j, np.diag(small_matr[-1]))
+#exit(-1)
+
+
+print(perm)
+perm = np.array(perm)
+print(perm[perm[perm]])
+
 
 K0 = _model_hex_2orb_Koshino(L)
 U_xy_to_chiral = np.kron(np.eye(K0.shape[0] // 2), np.array([[1, 1], [-1.0j, +1.0j]]) / np.sqrt(2))                                                   
@@ -383,6 +437,20 @@ assert np.allclose(np.linalg.eigh(K0_plus)[0], np.linalg.eigh(K0_minus)[0])
 energies_solid = np.linalg.eigh(K0)[0]
 print(energies_solid)
 ### doing the FFT of K0 ###
+
+diag = np.zeros(K0.shape[0])
+diag[::2] = -1e-6
+K0 += np.diag(diag)
+
+diag = np.zeros(K0.shape[0])
+diag[0::4] = -1e-7
+diag[1::4] = -1e-7
+diag[2::4] = +1e-7
+diag[3::4] = +1e-7
+
+K0 += np.diag(diag)
+
+
 K0_fft = fft.conj().T.dot(K0).dot(fft)
 K0_fft_plus = K0_fft[::2, :]
 K0_fft_plus = K0_fft_plus[:, ::2]
@@ -404,12 +472,26 @@ energies = np.zeros((L, L, n_bands), dtype=np.complex128)
 
 energies_plus = np.zeros((L, L, n_bands // 2), dtype=np.float64)
 energies_minus = np.zeros((L, L, n_bands // 2), dtype=np.float64)
+
+
+H_ffts = np.zeros((L, L, n_bands, n_bands), dtype=np.complex128)
 for i in range(K0_check.shape[0] // n_bands):
     kx, ky = i % L, i // L
-    mat = K0_fft[i * n_bands:i * n_bands + n_bands,i * n_bands:i * n_bands + n_bands] * 4.
+    mat = K0_fft[i * n_bands:i * n_bands + n_bands, i * n_bands:i * n_bands + n_bands] * 4.
+
+    print(kx, ky)
+    xi = mat[::2,:]
+    print(xi[:, ::2])
+    xi = mat[1::2, :]
+    print(xi[:, 1::2])
+
+    H_ffts[kx, ky] = mat
     assert np.allclose(mat.conj().T, mat)
     A[kx, ky, ...] = np.linalg.eigh(mat)[1]
-    
+
+
+    #print(kx, ky)
+    #print([np.isclose(np.sum(np.abs(A[kx, ky, np.arange(0, 4, 2), state]) ** 2), 1.0) for state in range(4)]) 
     nonch = 0
     for a in range(n_bands):
         for b in range(n_bands):
@@ -419,14 +501,117 @@ for i in range(K0_check.shape[0] // n_bands):
     
     
     energies[kx, ky, ...] = np.linalg.eigh(mat)[0]
+    #print(energies[kx, ky])
+    #print('----')
     energies_plus[kx, ky, ...] = \
         np.linalg.eigh(K0_fft_plus[i * n_bands // 2:i * n_bands // 2 + n_bands // 2, \
                                    i * n_bands // 2:i * n_bands // 2 + n_bands // 2])[0].real
     energies_minus[kx, ky, ...] = \
         np.linalg.eigh(K0_fft_minus[i * n_bands // 2:i * n_bands // 2 + n_bands // 2, \
                                     i * n_bands // 2:i * n_bands // 2 + n_bands // 2])[0].real
+exit(-1)
+for kx in range(L):
+    for ky in range(L):
+        print(kx, ky)
+        a = A[kx, ky]
+        #print(a.T)
+        TRSa = np.array([1, 0, 3, 2])
 
-assert np.allclose(np.sort(energies_plus.flatten()), np.sort(energies_minus.flatten()))
+        b = A[-kx, -ky].T.conj() * 1.
+        b = b[:, TRSa]
+        #print(b)
+        A[-kx, -ky] = a.conj()[TRSa, :]
+        #b = A[-kx, -ky].T.conj()
+        #b = b[:, TRS]
+
+        print(np.abs(b @ a.conj()) ** 2)
+        print(energies[kx, ky])
+        print(energies[-kx, -ky])
+        print('-----')
+
+A_rearranged = np.zeros((L, L, n_bands, n_bands), dtype=np.complex128)
+
+for kx in range(L):
+    for ky in range(L):
+        en = energies[kx, ky]
+        valleys = np.array([np.sum(np.abs(A[kx, ky, ::2, band]) ** 2) for band in range(n_bands)])
+        for val in valleys:
+            assert np.isclose(val, 1.) or np.isclose(val, 0.)
+
+        plus_idxs = np.where(np.abs(valleys - 1.) < 1e-6)[0]
+        minus_idxs = np.where(np.abs(valleys - 0.) < 1e-6)[0]
+
+        assert en[plus_idxs[0]] < en[plus_idxs[1]]
+        assert en[minus_idxs[0]] < en[minus_idxs[1]]
+
+        A_rearranged[kx, ky, :, 0] = A[kx, ky, :, plus_idxs[0]]
+        A_rearranged[kx, ky, :, 1] = A[kx, ky, :, minus_idxs[0]]
+        A_rearranged[kx, ky, :, 2] = A[kx, ky, :, plus_idxs[1]]
+        A_rearranged[kx, ky, :, 3] = A[kx, ky, :, minus_idxs[1]]
+
+for kx in range(L):
+    for ky in range(L):
+        TRSa = np.array([1, 0, 3, 2])
+        print(kx, ky)
+        print(A_rearranged[kx, ky, :, 0])
+        print(A_rearranged[-kx, -ky, TRSa, 1].conj())
+        print('----')
+        assert np.isclose(np.abs(np.vdot(A_rearranged[kx, ky, :, 0], A_rearranged[-kx, -ky, TRSa, 1].conj())), 1.0)
+
+A = A_rearranged
+
+for kx in range(L):
+    for ky in range(L):
+        for band in range(n_bands):
+            xi = A[kx, ky, :, band]
+
+            energy = np.vdot(H_ffts[kx, ky].dot(xi), xi) / np.vdot(xi, xi)
+            assert np.isclose(np.abs(np.vdot(H_ffts[kx, ky].dot(xi), xi)), np.sqrt(np.vdot(H_ffts[kx, ky].dot(xi), H_ffts[kx, ky].dot(xi)) * np.vdot(xi, xi)))
+
+            xi_bar = np.conj(xi[TRSa])
+
+            energy_bar = np.vdot(H_ffts[-kx, -ky].dot(xi_bar), xi_bar) / np.vdot(xi_bar, xi_bar)
+
+            assert np.isclose(energy, energy_bar, atol=1e-4, rtol=1e-3)
+
+            fr = kx + ky * L
+            to = perm[fr]
+
+            kxto, kyto = to % L, to // L
+
+            #if np.isclose(np.sum(np.abs(A[kxto, kyto, :, band] * xi)), 0.):
+            #    bandto = [1, 0, 3, 2][band]
+            #else:
+            #    bandto = band
+            bandto = band
+
+            xi_rot = A[kxto, kyto, :, bandto]
+            print(kx,ky, band)
+            print('energies:', energies[kx, ky])
+            print('energies rot:', energies[kxto, kyto])
+            print(np.vdot(H_ffts[kxto, kyto].dot(xi_rot), (xi_rot)) / np.vdot(xi_rot, xi_rot))
+            print(np.vdot(H_ffts[kx, ky].dot(xi), (xi)) / np.vdot(xi, xi))
+
+            xi_rot = xi_rot.dot(np.conj(small_matr[fr]))
+            print('xi rot after', xi_rot)
+            print('xi', xi)
+            print(xi_rot / (xi + 1e-8))
+            
+            #if np.abs(energies[kx, ky, 0]) > 1e-5:
+            assert np.isclose(np.abs(np.vdot(xi, xi_rot)), 1.0)
+            print(kx, ky, 'phase :', np.vdot(xi, xi_rot))
+
+            TRSa = np.array([1, 0, 3, 2])
+            print(np.outer(xi, np.conj(xi[TRSa])) / (np.outer(xi_rot, np.conj(xi_rot[TRSa])) + 1e-8))
+
+            print('---\n\n\n')
+
+
+
+
+
+
+#assert np.allclose(np.sort(energies_plus.flatten()), np.sort(energies_minus.flatten()))
 @jit(nopython=True)
 def get_susc_zero(Ls, n_bands, A, A_plus_q, energies, energies_plus_q, omega, temp, mu):
     chi = np.zeros((n_bands, n_bands, n_bands, n_bands), dtype=np.complex128)
@@ -446,36 +631,53 @@ def get_susc_zero(Ls, n_bands, A, A_plus_q, energies, energies_plus_q, omega, te
                                                np.conj(A_plus_q[kx, ky, t, beta]) / \
                                                 (omega + energies_plus_q[kx, ky, beta] - energies[kx, ky, alpha] + 1.0j * temp) * \
                                                 (fermi(energies_plus_q[kx, ky, beta], temp, mu) - fermi(energies[kx, ky, alpha], temp, mu))
-                                    if np.abs(energies_plus_q[kx, ky, beta] - energies[kx, ky, alpha]) < 1e-10:
-                                        chi[p, q, s, t] -= A[kx, ky, s, alpha] * \
-                                               np.conj(A[kx, ky, p, alpha]) * \
-                                                       A_plus_q[kx, ky, q, beta] * \
-                                               np.conj(A_plus_q[kx, ky, t, beta]) * (-1.0j * np.pi * 0. - temp * np.exp(temp * energies[kx, ky, alpha]) / (1 + np.exp(temp * energies[kx, ky, alpha])) ** 2)
+                                    #if np.abs(energies_plus_q[kx, ky, beta] - energies[kx, ky, alpha]) < 1e-10:
+                                    #    chi[p, q, s, t] -= A[kx, ky, s, alpha] * \
+                                    #           np.conj(A[kx, ky, p, alpha]) * \
+                                    #                   A_plus_q[kx, ky, q, beta] * \
+                                    #              np.conj(A_plus_q[kx, ky, t, beta]) * (-1.0j * np.pi * 0. - temp * np.exp(temp * energies[kx, ky, alpha]) / (1 + np.exp(temp * energies[kx, ky, alpha])) ** 2)
 
     return chi / n_bands / Ls ** 2
 
 @jit(nopython=True)
-def get_Gsinglet(Ls, n_bands, U_s, U_c, chi_s, chi_c):
+def get_Gsinglet(Ls, n_bands, U_s, U_c, chi_s, chi_c, A):
     Gsinglet = np.zeros((Ls, Ls, Ls, Ls, n_bands, n_bands, n_bands, n_bands), dtype=np.complex128)
+    Gsinglet_valleybasis = np.zeros((Ls, Ls, Ls, Ls, n_bands, n_bands), dtype=np.complex128)
     sh = (n_bands ** 2, n_bands ** 2)
     sh2 = (n_bands, n_bands, n_bands, n_bands)
     chi_s = chi_s.reshape((Ls, Ls, n_bands ** 2, n_bands ** 2))
     chi_c = chi_c.reshape((Ls, Ls, n_bands ** 2, n_bands ** 2))
+    TRSl = np.array([1, 0, 3, 2])
+
 
     for qx in range(Ls):
         for qy in range(Ls):
             for kx in range(Ls):
-                for ky in range(Ls):
+                for ky in range(Ls):  # FIXME: tree part of Gsinglet is just 0! how come?
                     Gsinglet[kx, ky, qx, qy, ...] = \
                                              U_s[(qx + kx) % Ls, (qy + ky) % Ls, ...] / 4. + \
                                              U_c[(qx + kx) % Ls, (qy + ky) % Ls, ...] / 4. + \
-                                             U_s[qx - kx, qy - ky, ...].transpose((0, 2, 1, 3)) / 4. + \
-                                             U_c[qx - kx, qy - ky, ...].transpose((0, 2, 1, 3)) / 4. + \
-                    3. / 4. * (U_s[(qx + kx) % Ls, (qy + ky) % Ls, ...].reshape(sh) @ chi_s[(qx + kx) % Ls, (qy + ky) % Ls, ...] @ U_s[(qx + kx) % Ls, (qy + ky) % Ls, ...].reshape(sh)).reshape(sh2) - \
-                    1. / 4. * (U_c[(qx + kx) % Ls, (qy + ky) % Ls, ...].reshape(sh) @ chi_c[(qx + kx) % Ls, (qy + ky) % Ls, ...] @ U_c[(qx + kx) % Ls, (qy + ky) % Ls, ...].reshape(sh)).reshape(sh2) + \
-                    3. / 4. * (U_s[qx - kx, qy - ky, ...].reshape(sh) @ chi_s[(qx - kx) % Ls, (qy - ky) % Ls, ...] @ U_s[qx - kx, qy - ky, ...].reshape(sh)).reshape(sh2).transpose((0, 2, 1, 3)) - \
-                    1. / 4. * (U_c[qx - kx, qy - ky, ...].reshape(sh) @ chi_c[(qx - kx) % Ls, (qy - ky) % Ls, ...] @ U_c[qx - kx, qy - ky, ...].reshape(sh)).reshape(sh2).transpose((0, 2, 1, 3))
-    return Gsinglet
+                                             U_s[(-qx + kx) % Ls, (-qy + ky) % Ls, ...].transpose((0, 2, 1, 3)) / 4. + \
+                                             U_c[(-qx + kx) % Ls, (-qy + ky) % Ls, ...].transpose((0, 2, 1, 3)) / 4. + \
+                    3. / 4. * (U_s[(-qx + kx) % Ls, (-qy + ky) % Ls, ...].reshape(sh) @ chi_s[(-qx + kx) % Ls, (-qy + ky) % Ls, ...] @ U_s[(-qx + kx) % Ls, (-qy + ky) % Ls, ...].reshape(sh)).reshape(sh2) - \
+                    1. / 4. * (U_c[(-qx + kx) % Ls, (-qy + ky) % Ls, ...].reshape(sh) @ chi_c[(-qx + kx) % Ls, (-qy + ky) % Ls, ...] @ U_c[(-qx + kx) % Ls, (-qy + ky) % Ls, ...].reshape(sh)).reshape(sh2) + \
+                    3. / 4. * (U_s[(qx + kx) % Ls, (qy + ky) % Ls, ...].reshape(sh) @ chi_s[(qx + kx) % Ls, (qy + ky) % Ls, ...] @ U_s[(qx + kx) % Ls, (qy + ky) % Ls, ...].reshape(sh)).reshape(sh2).transpose((0, 2, 1, 3)) - \
+                    1. / 4. * (U_c[(qx + kx) % Ls, (qy + ky) % Ls, ...].reshape(sh) @ chi_c[(qx + kx) % Ls, (qy + ky) % Ls, ...] @ U_c[(qx + kx) % Ls, (qy + ky) % Ls, ...].reshape(sh)).reshape(sh2).transpose((0, 2, 1, 3))
+
+                    for a in range(n_bands):
+                        #print(np.sum(np.abs(A[kx, ky, ::2, a]) ** 2), a)
+                        for b in range(n_bands):
+                            for l1 in range(n_bands):
+                                for l2 in range(n_bands):
+                                    for l3 in range(n_bands):
+                                        for l4 in range(n_bands):
+                                            Gsinglet_valleybasis[kx, ky, qx, qy, a, b] += np.conj(np.conj(A[-kx, -ky, l1, a]) * \
+                                                                                                 (A[-kx, -ky, TRSl[l2], a]) * \
+                                                                                                  (A[-qx, -qy, l3, b]) * \
+                                                                                                  np.conj(A[-qx, -qy, TRSl[l4], b])) * \
+                                                                                                  Gsinglet[kx, ky, qx, qy, l1, l3, l4, l2]
+
+    return Gsinglet, Gsinglet_valleybasis
 
 
 Alat = np.array([[np.sqrt(3) / 2., 1. / 2.], [np.sqrt(3) / 2., -1. / 2.]])
@@ -499,8 +701,8 @@ def get_gf_sum(Ls, n_bands, A, energy, temp, mu):
                                     delta_factor = (fermi(energy[qx, qy, alpha], temp, mu) - fermi(-energy[-qx, -qy, beta], temp, -mu)) / \
                                                    (energy[qx, qy, alpha] + energy[-qx, -qy, beta] - 2 * mu + 1e-10)
 
-                                    if np.abs(energy[qx, qy, alpha] + energy[-qx, -qy, beta] - 2 * mu) < 1e-7:
-                                        delta_factor = -np.exp(temp * (energy[qx, qy, alpha] - mu)) / ( 1 + np.exp(temp * (energy[qx, qy, alpha] - mu)) ) ** 2
+                                    #if np.abs(energy[qx, qy, alpha] + energy[-qx, -qy, beta] - 2 * mu) < 1e-7:
+                                    #    delta_factor = -np.exp(temp * (energy[qx, qy, alpha] - mu)) / ( 1 + np.exp(temp * (energy[qx, qy, alpha] - mu)) ) ** 2
                                     if np.abs(delta_factor) > temp / 10:
                                         n_active_sites += 1
                                     gf_sum[qx, qy, a, b, c, d] += A[qx, qy, a, alpha] * \
@@ -526,10 +728,8 @@ def construct_op(Ls, n_bands, Gsinglet, gf_sum):
                                     for a in range(n_bands):
                                         for b in range(n_bands):
                                             op[kx, ky, qx, qy, abar, bbar, cbar, dbar] -= 1. / Ls ** 2 * \
-                                                   Gsinglet[kx, ky, -qx, -qy, a, abar, bbar, b] * \
-                                                   gf_sum[qx, qy, a, cbar, b, dbar]
-                                                   #green[qx, qy, a, cbar] * \
-                                                   #green[-qx, -qy, b, dbar] # FIXME --> need conj?#np.conj(green[(-qx) % Ls, (-qy) % Ls, b, dbar])
+                                                               Gsinglet[kx, ky, -qx, -qy, a, abar, bbar, b] * \
+                                                               gf_sum[qx, qy, a, cbar, b, dbar]
                                             
     return op
 
@@ -545,7 +745,10 @@ def get_interaction(n_bands, qx, qy, U, J):
     q_phys = (G[0] * (-qx) + G[1] * (-qy)) / L
     exp_q1_mm = np.exp(1.0j * np.dot(q_phys, Alat[0]))
     exp_q2_mm = np.exp(1.0j * np.dot(q_phys, Alat[1]))
+   
     
+
+
     AB_factor_pp = (1. + exp_q1_pp + exp_q2_pp) / 2
     #AB_factor_pm = (1. + exp_q1_pm + exp_q2_pm) / 2
     #AB_factor_mp = (1. + exp_q1_mp + exp_q2_mp) / 2
@@ -561,14 +764,14 @@ def get_interaction(n_bands, qx, qy, U, J):
 
     for band in range(4):
         U_total[band, band, band + 4, band + 4] += -U
-        #U_total[band + 4, band, band + 4, band] += +U
-        #U_total[band, band + 4, band, band + 4] += +U
+        U_total[band + 4, band, band + 4, band] += +U
+        U_total[band, band + 4, band, band + 4] += +U
         U_total[band + 4, band + 4, band, band] += -U
         
     for band in range(4):
         U_total[band + 4, band + 4, band, band] += -U
-        #U_total[band, band + 4, band, band + 4] += +U
-        #U_total[band + 4, band, band + 4, band] += +U
+        U_total[band, band + 4, band, band + 4] += +U
+        U_total[band + 4, band, band + 4, band] += +U
         U_total[band, band, band + 4, band + 4] += -U
 
     for subl in range(2):
@@ -581,27 +784,45 @@ def get_interaction(n_bands, qx, qy, U, J):
                 for sbar in range(2):
                     #print('')
                     U_total[band + 4 * s, band + 4 * s, bandbar + 4 * sbar, bandbar + 4 * sbar] += -U
-                    #U_total[bandbar + 4 * sbar, band + 4 * s, bandbar + 4 * sbar, band + 4 * s] += +U
-                    #U_total[band + 4 * s, bandbar + 4 * sbar, band + 4 * s, bandbar + 4 * sbar] += +U
+
+                    #U_total[bandbar + 4 * sbar, band + 4 * s, band + 4 * s, bandbar + 4 * sbar] += -U
+                    #U_total[band + 4 * s, bandbar + 4 * sbar, bandbar + 4 * sbar, band + 4 * s] += -U
+                    #U_total[bandbar + 4 * sbar, bandbar + 4 * sbar, band + 4 * s, band + 4 * s] += +U
+
+                    U_total[bandbar + 4 * sbar, band + 4 * s, bandbar + 4 * sbar, band + 4 * s] += +U
+                    U_total[band + 4 * s, bandbar + 4 * sbar, band + 4 * s, bandbar + 4 * sbar] += +U
                     U_total[bandbar + 4 * sbar, bandbar + 4 * sbar, band + 4 * s, band + 4 * s] += -U
 
-    
+    '''
     for nuA in range(2):
         for nuB in range(2):
             for sA in range(2):
                 for sB in range(2):
-                    U_total[0 * 2 + nuA + 4 * sA, 1 * 2 + nuA + 4 * sA, 0 * 2 + nuB + 4 * sB, 1 * 2 + nuB + 4 * sB] = -J * AB_factor_pp
-                    #U_total[1 * 2 + nuB + 4 * sB, 1 * 2 + nuA + 4 * sA, 0 * 2 + nuB + 4 * sB, 0 * 2 + nuA + 4 * sA] = +J * AB_factor_pm
-                    #U_total[0 * 2 + nuA + 4 * sA, 0 * 2 + nuB + 4 * sB, 1 * 2 + nuA + 4 * sA, 1 * 2 + nuB + 4 * sB] = +J * AB_factor_mp
-                    U_total[1 * 2 + nuB + 4 * sB, 0 * 2 + nuB + 4 * sB, 1 * 2 + nuA + 4 * sA, 0 * 2 + nuA + 4 * sA] = -J * AB_factor_mm
+                    #U_total[0 * 2 + nuA + 4 * sA, 1 * 2 + nuA + 4 * sA, 0 * 2 + nuB + 4 * sB, 1 * 2 + nuB + 4 * sB] = -J * AB_factor_pp
+                    U_total[1 * 2 + nuB + 4 * sB, 1 * 2 + nuA + 4 * sA, 0 * 2 + nuB + 4 * sB, 0 * 2 + nuA + 4 * sA] = +J * AB_factor_pp
+                    U_total[0 * 2 + nuA + 4 * sA, 0 * 2 + nuB + 4 * sB, 1 * 2 + nuA + 4 * sA, 1 * 2 + nuB + 4 * sB] = +J * AB_factor_mm
+                    #U_total[1 * 2 + nuB + 4 * sB, 0 * 2 + nuB + 4 * sB, 1 * 2 + nuA + 4 * sA, 0 * 2 + nuA + 4 * sA] = -J * AB_factor_mm
                     
-                    U_total[1 * 2 + nuA + 4 * sA, 0 * 2 + nuA + 4 * sA, 1 * 2 + nuB + 4 * sB, 0 * 2 + nuB + 4 * sB] = -J * BA_factor_pp
-                    #U_total[0 * 2 + nuB + 4 * sB, 0 * 2 + nuA + 4 * sA, 1 * 2 + nuB + 4 * sB, 1 * 2 + nuA + 4 * sA] = +J * BA_factor_pm
-                    #U_total[1 * 2 + nuA + 4 * sA, 1 * 2 + nuB + 4 * sB, 0 * 2 + nuA + 4 * sA, 0 * 2 + nuB + 4 * sB] = +J * BA_factor_mp
-                    U_total[0 * 2 + nuB + 4 * sB, 1 * 2 + nuB + 4 * sB, 0 * 2 + nuA + 4 * sA, 1 * 2 + nuA + 4 * sA] = -J * BA_factor_mm   
-                    
-    #assert np.allclose(U_total, U_total.transpose((3, 2, 1, 0)).conj())    
-    return U_total
+                    #U_total[1 * 2 + nuA + 4 * sA, 0 * 2 + nuA + 4 * sA, 1 * 2 + nuB + 4 * sB, 0 * 2 + nuB + 4 * sB] = -J * BA_factor_pp
+                    U_total[0 * 2 + nuB + 4 * sB, 0 * 2 + nuA + 4 * sA, 1 * 2 + nuB + 4 * sB, 1 * 2 + nuA + 4 * sA] = +J * BA_factor_pp
+                    U_total[1 * 2 + nuA + 4 * sA, 1 * 2 + nuB + 4 * sB, 0 * 2 + nuA + 4 * sA, 0 * 2 + nuB + 4 * sB] = +J * BA_factor_mm
+                    #U_total[0 * 2 + nuB + 4 * sB, 1 * 2 + nuB + 4 * sB, 0 * 2 + nuA + 4 * sA, 1 * 2 + nuA + 4 * sA] = -J * BA_factor_mm   
+    '''
+
+
+    U_total[0, 0, 2, 2] = -J * AB_factor_pp
+    U_total[1, 1, 3, 3] = -J * AB_factor_pp
+    U_total[0, 1, 2, 3] = -J * AB_factor_pp
+    U_total[1, 0, 3, 2] = -J * AB_factor_pp
+
+    U_total[2, 2, 0, 0] = -J * BA_factor_pp
+    U_total[3, 3, 1, 1] = -J * BA_factor_pp
+    U_total[2, 3, 0, 1] = -J * BA_factor_pp
+    U_total[3, 2, 1, 0] = -J * BA_factor_pp
+
+
+    assert np.allclose(U_total, U_total.transpose((3, 2, 1, 0)).conj())    
+    return U_total.conj() / 2.
 
 
 for mu in np.linspace(-0.20, -0.05, 21):
@@ -632,9 +853,21 @@ for mu in np.linspace(-0.20, -0.05, 21):
     eigs = []
     for qx in range(Ls):
         for qy in range(Ls):
-            inter = get_interaction(n_bands, qx, qy, U, J).transpose((0, 2, 1, 3)).conj()
+            inter = get_interaction(n_bands, qx, qy, U, J) # .transpose((1, 2, 0, 3)).conj()
             U_s[qx, qy, ...] = inter[:4, :4, :4, :4] - inter[:4, :4, 4:, 4:]
             U_c[qx, qy, ...] = -inter[:4, :4, :4, :4] - inter[:4, :4, 4:, 4:]
+
+
+            print(U_s[qx, qy])
+            print(U_c[qx, qy])
+
+            for a in range(n_bands):
+                for b in range(n_bands):
+                    for c in range(n_bands):
+                        for d in range(n_bands):
+                            if not np.isclose(U_s[qx, qy, a, b, c, d], 0):
+                                print(a, b, c, d, U_s[qx, qy, a, b, c, d])
+                            
             U_t[qx, qy, ...] = inter
             chi_s[qx, qy, ...] = (np.linalg.inv(np.eye(n_bands ** 2) - susc_0[qx, qy, ...].reshape((n_bands ** 2, n_bands ** 2)) @ U_s[qx, qy, ...].reshape((n_bands ** 2, n_bands ** 2))) @ susc_0[qx, qy, ...].reshape((n_bands ** 2, n_bands ** 2))).reshape((n_bands, n_bands, n_bands, n_bands))
             chi_c[qx, qy, ...] = (np.linalg.inv(np.eye(n_bands ** 2) + susc_0[qx, qy, ...].reshape((n_bands ** 2, n_bands ** 2)) @ U_c[qx, qy, ...].reshape((n_bands ** 2, n_bands ** 2))) @ susc_0[qx, qy, ...].reshape((n_bands ** 2, n_bands ** 2))).reshape((n_bands, n_bands, n_bands, n_bands))
@@ -643,14 +876,12 @@ for mu in np.linspace(-0.20, -0.05, 21):
             eig_c = np.linalg.eigh(np.eye(n_bands ** 2) + susc_0[qx, qy, ...].reshape((n_bands ** 2, n_bands ** 2)) @ U_c[qx, qy, ...].reshape((n_bands ** 2, n_bands ** 2)))[0]
             #print(np.sum(np.abs(chi_s[qx, qy, ...] - chi_c[qx, qy, ...]) ** 2), qx, qy)
             #print(qx, qy)
-            #print(eig_s.min(), eig_s.max())
+            print(qx, qy, eig_s.min(), eig_s.max())
             #print(eig_c.min(), eig_c.max())
-            assert np.isclose(eig_s.max(), eig_c.max()) # property guaranteed by the P-symmetry
-            assert np.isclose(eig_s.min(), eig_c.min())
-            assert np.sum(eig_s < 0) == 0.
+            #assert np.isclose(eig_s.max(), eig_c.max()) # property guaranteed by the P-symmetry
+            #assert np.isclose(eig_s.min(), eig_c.min())
+            #assert np.sum(eig_s < 0) == 0.
             eigs.append(eig_s.min())
-            
-    print('t_Ucs: ', time() - t)
     print('min \chi eigenvalue', np.min(eigs))
     green = np.zeros((Ls, Ls, n_bands, n_bands), dtype=np.complex128)
 
@@ -673,7 +904,55 @@ for mu in np.linspace(-0.20, -0.05, 21):
     
     susc_0 = susc_0.reshape((Ls, Ls, n_bands, n_bands, n_bands, n_bands))
     t = time()
-    Gsinglet = get_Gsinglet(Ls, n_bands, U_s, U_c, chi_s, chi_c)
+    Gsinglet, Gsinglet_valleybasis = get_Gsinglet(Ls, n_bands, U_s, U_c, chi_s, chi_c, A)
+
+    
+    for i in range(L ** 2):
+        for z in range(L ** 2):
+            kx, ky = i % L, i // L
+            qx, qy = z % L, z // L
+            j = perm[i]
+            y = perm[z]
+            kxto, kyto = j % L, j // L
+
+            qxto, qyto = y % L, y // L
+
+            im = ((-kx) % L) + ((-ky) % L) * L
+            zm = ((-qx) % L) + ((-qy) % L) * L
+
+            print(kx, ky, qx, qy)
+            print(kx, ky, 'to', kxto, kyto)
+
+
+            print(Gsinglet_valleybasis[kx, ky, qx, qy, ...])
+            print(Gsinglet_valleybasis[kxto, kyto, qxto, qyto, ...])
+            assert np.isclose(np.sum(np.abs(Gsinglet_valleybasis[kx, ky, qx, qy, ...] - Gsinglet_valleybasis[kxto, kyto, qxto, qyto, ...])), 0.0)
+
+            #print(np.abs(Gsinglet[kx, ky, qx, qy]))
+            #print(np.abs(Gsinglet[kxto, kyto, qxto, qyto]))
+
+        
+            preimage = Gsinglet[kx, ky, qx, qy] * 1.
+            image = Gsinglet[kxto, kyto, qxto, qyto] * 1.
+            for a in range(n_bands):
+                for b in range(n_bands):
+                    for c in range(n_bands):
+                        for d in range(n_bands):
+                            if np.isclose(image[a, b, c, d], 0.):
+                                continue
+                            print(a, b, c, d, preimage[a, b, c, d], image[a, b, c, d], preimage[a, b, c, d] /  (image[a, b, c, d] + 1e-8))
+                            image[a, b, c, d] /= np.conj(small_matr[im][a, a] * small_matr[i][d, d] * np.conj(small_matr[zm][b, b] * small_matr[z][c, c]))
+
+                            print(a, b, c, d, preimage[a, b, c, d], image[a, b, c, d], preimage[a, b, c, d] /  (image[a, b, c, d] + 1e-8))
+                            print(small_matr[im][a, a], small_matr[i][d, d], np.conj(small_matr[z][b, b]), np.conj(small_matr[zm][c, c]))
+                            print('-----')
+            assert np.allclose(preimage, image)
+            assert np.isclose(np.sum(np.abs(np.abs(Gsinglet[kxto, kyto, qxto, qyto]) - np.abs(Gsinglet[kx, ky, qx, qy]))), 0.0)
+            
+            print('----\n\n\n\n\n')
+    exit(-1)
+ 
+
     print('t_gsinglet: ', time() - t)
     t = time()
     op = construct_op(Ls, n_bands, Gsinglet, gf_sum)
@@ -744,4 +1023,4 @@ for mu in np.linspace(-0.20, -0.05, 21):
         print('-----')
     print('t_gapsymmetries: ', time() - t)
     print('\n\n\n\n')
-    exit(-1)
+exit(-1)
