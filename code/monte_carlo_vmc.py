@@ -87,7 +87,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     print(forces, 'FORCES --- are they real?')
     forces = forces.real
     #forces = forces / 36. * config_vmc.Ls ** 2
-    print('E_im = {:.10f} +/- {:.10f}'.format(np.mean(np.array(energies)), np.std(np.array(energies).flatten())))
+    print('E = {:.10f} +/- {:.10f}'.format(np.mean(np.array(energies)), np.std(np.array(energies).flatten())))
 
     ### SR STEP ###
     Os_mean = [np.repeat(Os_mean_theta[np.newaxis, ...], len(Os_theta), axis = 0) for Os_mean_theta, Os_theta in zip(Os_mean, Os)]
@@ -97,10 +97,14 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     # S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     S_cov = np.mean(S_cov, axis = 0)
     print(S_cov)
+    print(np.diag(S_cov))
 
     eigvals, eigvecs = np.linalg.eigh(S_cov)
     #print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
     print('S_cov eigvals = ', eigvals)
+    for i, vector in enumerate(eigvecs.T):
+        print('SR eigenvector', i, vector)
+
     print(np.diag(S_cov))
     for val, vec in zip(eigvals, eigvecs.T):
         if np.abs(val) < 1e-6:
@@ -109,36 +113,19 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
                 if np.abs(val) > 1e-1:
                     print(name, val)
 
-    # https://journals.jps.jp/doi/pdf/10.1143/JPSJ.77.114701 (formula 71)
-    # removal of diagonal singularities
+    S_cov_pc = S_cov + config_vmc.opt_parameters[1] * np.diag(np.diag(S_cov))
+    S_cov_pc += np.eye(S_cov.shape[0]) * 1e-2
 
-    '''
-    S_cov += config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
-
-    # https://journals.jps.jp/doi/10.1143/JPSJ.77.114701 (formula 76)
-    # regularized inversion with truncation of redundant directions
-    u, s, v = np.linalg.svd(S_cov)
-    S_cov_inv = np.zeros(S_cov.shape)
-    keep_lambdas = (s / s.max()) > config_vmc.opt_parameters[3]
-    for lambda_idx in range(len(s)):
-        if not keep_lambdas[lambda_idx]:
-            continue
-        S_cov_inv += (1. / s[lambda_idx]) * \
-                      np.einsum('i,j->ij', v.T[:, lambda_idx], u.T[lambda_idx, :])
-    step = S_cov_inv.dot(forces)
-    '''
-    #if n_iter < 20:
-    #    S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
-    #else:
-    S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
-    S_cov_pc += np.eye(S_cov.shape[0]) * 1e-3
+    if config_vmc.condensation_energy_check_regime:
+        S_cov_pc[config_vmc.layout[:3].sum():config_vmc.layout[:4].sum(), ...] = 0
+        S_cov_pc[..., config_vmc.layout[:3].sum():config_vmc.layout[:4].sum()] = 0
+        for i in range(config_vmc.layout[:3].sum(), config_vmc.layout[:4].sum()):
+            S_cov_pc[i, i] = 1.0
+        forces[config_vmc.layout[:3].sum():config_vmc.layout[:4].sum()] = 0.
 
     step = np.linalg.inv(S_cov_pc).dot(forces)
-    #print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
-    #                                                              np.sqrt(np.sum(step ** 2))))
-    #print(forces[-3], step[-3], 'forces of gap')
-    print(forces)
-    print(step)
+    print('forces before SR:', forces)
+    print('step after SR:', step)
     return step, forces
 
 
@@ -327,8 +314,6 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
                               False, K_up, K_down, reg)
     print('WF Init takes {:.10f}'.format(time() - t))
     wf.perform_explicit_GF_update()
-    print(hamiltonian(wf))
-    print(wf.current_det)
     configs = []
 
     t_steps = 0
@@ -437,10 +422,9 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
 
 def run_simulation(delta_reg, previous_params):
     config_vmc_file = import_config(sys.argv[1])
-    # mu_BCS_fixed = - 1. /80 * rank # FIXME
-    config_vmc_import = config_vmc_file.MC_parameters(int(sys.argv[2]), rank)
+    config_vmc_import = config_vmc_file.MC_parameters(int(sys.argv[2]), int(sys.argv[3]), rank)
 
-    config_vmc = cv_module.MC_parameters(int(sys.argv[2]), rank)
+    config_vmc = cv_module.MC_parameters(int(sys.argv[2]), int(sys.argv[3]), rank)
     config_vmc.__dict__ = config_vmc_import.__dict__.copy()
 
     print_model_summary(config_vmc)
@@ -449,9 +433,7 @@ def run_simulation(delta_reg, previous_params):
     if previous_params is not None:
         config_vmc.initial_parameters = previous_params
 
-    #config_vmc.initial_parameters[config_vmc.layout[0] + config_vmc.layout[1] + config_vmc.layout[2]:config_vmc.layout[0] + \
-    #                          config_vmc.layout[1] + config_vmc.layout[2] + config_vmc.layout[3]] = delta_reg
-    config_vmc.workdir = config_vmc.workdir + '/irrep_{:d}_delta_{:.3f}/'.format(rank, delta_reg)
+    config_vmc.workdir = config_vmc.workdir + '/irrep_{:d}_Ne_{:d}/'.format(rank, int(sys.argv[3]))
     
     os.makedirs(config_vmc.workdir, exist_ok=True)
     with open(os.path.join(config_vmc.workdir, 'config.py'), 'w') as target, \
@@ -523,10 +505,12 @@ def run_simulation(delta_reg, previous_params):
     print(twists)
     print('Number of twists: {:d}, number of chains {:d}, twists per cpu {:2f}'.format(len(twists), config_vmc.n_chains, twists_per_cpu))
     K_matrices_up = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.K_0), inverse = False) for twist in twists]
+    print(repr(K_matrices_up[0]))
+    print(config_vmc.K_0)
+    #exit(-1)
     K_matrices_down = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.K_0).T, inverse = True) for twist in twists]
     reg_terms = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.reg_gap_term), inverse = False) * \
                  config_vmc.reg_gap_val for twist in twists]
-
 
 
     config_vmc.MC_chain = config_vmc.MC_chain // len(twists) # the MC_chain contains the total required number of samples
@@ -556,10 +540,9 @@ def run_simulation(delta_reg, previous_params):
     else:
         parameters = config_vmc.initial_parameters
         last_step = 0
-    # parameters[1] = 5e-3  # FIXME
-    # parameters[0] = config_vmc.select_initial_muBCS(parameters = parameters) # FIXME: add flag for this (correct mu_BCS on relaunch) ??
-    #if in_parameters is not None:
-    #    parameters = in_parameters
+
+    if config_vmc.condensation_energy_check_regime:
+        parameters[config_vmc.layout[:3].sum():config_vmc.layout[:4].sum()] = 0.
  
     log_file = open(os.path.join(local_workdir, 'general_log.dat'), 'a+')
     force_file = open(os.path.join(local_workdir, 'force_log.dat'), 'a+')
@@ -579,7 +562,6 @@ def run_simulation(delta_reg, previous_params):
     n_step = last_step
     while n_step < config_vmc.optimisation_steps:
         t = time()
-        
         if twists_per_cpu > 1:
             with parallel_backend("loky", inner_max_num_threads=1):
                 results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)( \
@@ -633,9 +615,11 @@ def run_simulation(delta_reg, previous_params):
         ### gradient step ###
         if config_vmc.generator_mode:  # evolve parameters only if it's necessary
             mask = np.ones(np.sum(config_vmc.layout))
-            #if n_step < 50000:  # jastrows and mu_BCS have not converged yet
-            #    mask = np.ones(np.sum(config_vmc.layout))
-            #    # mask[-config_vmc.layout[4]:] = 1.
+            factor_stages = 1
+            if n_step < 100:  # jastrows and mu_BCS have not converged yet
+                mask = np.zeros(np.sum(config_vmc.layout))
+                mask[-config_vmc.layout[4]:] = 1.
+                factor_stages = 30.
             #    # mask[:config_vmc.layout[0]] = 1.
             #    mask[config_vmc.layout[0] + config_vmc.layout[1] + config_vmc.layout[2]:config_vmc.layout[0] + \
             #         config_vmc.layout[1] + config_vmc.layout[2] + config_vmc.layout[3]] = 0.
@@ -656,7 +640,14 @@ def run_simulation(delta_reg, previous_params):
             step = step * config_vmc.opt_parameters[1]
             #step = clip_forces(config_vmc.all_clips, step)
 
-            parameters += step * mask  # lr better be ~0.01..0.1
+            parameters += step * mask * factor_stages  # lr better be ~0.01..0.1
+
+             
+            if parameters[0] < config_vmc.mu_BCS_min:
+                parameters[0] = config_vmc.mu_BCS_min
+            if parameters[0] > config_vmc.mu_BCS_max:
+                parameters[0] = config_vmc.mu_BCS_max
+
             save_parameters(parameters, config_vmc.workdir, n_step)
         ### END SR STEP ###
 
