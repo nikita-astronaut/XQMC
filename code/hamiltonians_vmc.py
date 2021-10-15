@@ -74,7 +74,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         edges_quadric = np.eye(self.config.total_dof // 2) * U / 2.0
         edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * U / 2.0
         edges_J = edges_quadric * 0
-        for site, W, J in zip(range(1, len(self.config.adjacency_list) // 3), [2 * U / 3., U / 3., U / 3.], [0.6 * U, 0., 0.]):  # on-site accounted already
+        for site, W, J in zip(range(1, len(self.config.adjacency_list) // 3), [2 * U / 3., U / 3., U / 3.], [0.4 * U, 0., 0.]):  # on-site accounted already
             edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * W / 2
             edges_J += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * J / 2
 

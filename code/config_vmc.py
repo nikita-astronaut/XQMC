@@ -9,15 +9,16 @@ from scipy import interpolate
 import hamiltonians_vmc
 
 class MC_parameters:
-    def __init__(self, Ls, irrep_idx):
+    def __init__(self, Ls, Ne, irrep_idx):
     	### geometry and general settings ###
         self.Ls = Ls  # spatial size, the lattice will be of size Ls x Ls
-        self.Ne = Ls ** 2 * 4# - 4 * 2
+        self.Ne = Ne#Ls ** 2 * 4 - 4 * 7 * 2 
         self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
         self.BC = 'PBC'
         self.L_twists_uniform = 6
+        self.rank = irrep_idx
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 1; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 8; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
@@ -84,7 +85,7 @@ class MC_parameters:
          ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
         self.idx_map = []
-        self.pairings_list = pairings.Koshino_united[6]#pairings.twoorb_hex_all[1]#irrep_idx] #idx_map[2]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
+        self.pairings_list = pairings.Koshino_united[irrep_idx]#pairings.twoorb_hex_all[1]#irrep_idx] #idx_map[2]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
         # self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
@@ -129,31 +130,32 @@ class MC_parameters:
         #self.waves_list_unwrapped = []
 
         ### optimisation parameters ###
-        self.MC_chain = 400000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
+        self.MC_chain = 1600000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 100000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-3, 0.03, 1.00]
+        self.opt_parameters = [1e-2, 0.003, 1.00]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 1
         self.generator_mode = True
+        self.condensation_energy_check_regime = False#True
 
         ### regularisation ###
         if not self.enforce_valley_orbitals:
-            reg_valley = np.array([[-0.00041341, -0.00064892], [-0.0006587,   0.00064063]])
+            reg_valley = np.array([[-0.41341, -0.64892], [-0.9587,   0.64063]])
             self.reg_gap_term = np.kron(np.eye(self.total_dof // 2 // 2), reg_valley)
-            #self.reg_gap_term = np.kron(np.eye(self.total_dof // 2 // 2), np.random.uniform(-1, 1, size=(2, 2)))
             #models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
-                                #                    self, self.chiral_basis) + 0.5 * models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', self, self.chiral_basis)
+                                #                    self, self.chiral_basis)
+                                                    # + models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
+                                                    #self, self.chiral_basis)
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
-                                                    self, self.chiral_basis)
-        self.reg_gap_val = 1#0.003
+                                                    self, self.chiral_basis) # FIXME
+        self.reg_gap_val = 0.0005
 
         ## initial values definition and layout ###
-        #self.layout = [1, 1 if not self.PN_projection else 0, len(self.waves_list), len(self.pairings_list), len(self.jastrows_list)]
-        self.layout = [1, 0, len(self.hoppings), len(self.pairings_list_names), len(self.jastrows_list)]
+        self.layout = np.array([1, 0, len(self.hoppings), len(self.pairings_list_names), len(self.jastrows_list)])
         
 
         self.initial_parameters = np.concatenate([
@@ -161,7 +163,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.array([2.3891649e-05,  1.2157273e-02]),#np.random.uniform(1e-2, 1e-2, size = self.layout[3]),  # gaps
+            np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
 
@@ -175,20 +177,9 @@ class MC_parameters:
         ])
         '''
         
-        #self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03, 0, 0, 0, 0, 0, 0, 0, 0])
-        #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
-
-        #if not self.PN_projection:
-        #    f = -np.sum(np.array([A[0] * factor for factor, A in \
-        #                zip(self.initial_parameters[-self.layout[4]:], self.jastrows_list)])) / (self.total_dof // 2)
-        #    self.initial_parameters[self.layout[0]] = 0.0 #f
-
-
        
         self.all_names = np.concatenate([
             np.array(['mu_BCS']),  # mu_BCS
-            #np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
-            #np.array(self.waves_list_names),  # waves
             np.array(self.hopping_names),  # hopping matrices
             np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
@@ -203,11 +194,9 @@ class MC_parameters:
         ])
 
         self.initial_parameters[:self.layout[0]], self.mu_BCS_min, self.mu_BCS_max = self.select_initial_muBCS_Koshino(self.Ne)
-
-        #self.initial_parameters = np.array([-3.7082305e-01, 4.0087596e-01,  3.3978019e-01,  1.9875278e-01 , 1.8863777e-01 , 3.4714608e-02,  2.5056562e-02,  2.0173583e-02,  1.7724358e-02,  2.4310068e-02  ,1.2542362e-02 , 1.1893469e-02 , 7.1329210e-03,  2.5480886e-03,  1.3336808e-03 , 5.7109201e-03])
+        print(self.initial_parameters[:self.layout[0]], self.mu_BCS_min, self.mu_BCS_max)
 
         self.mu = 0.0 #-1.2 #self.initial_parameters[0]
-        #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
         ### check K-matrix irrep properties ###
         #pairings.check_irrep_properties(self, [[self.model(self, 0.0, spin = +1.0)[0], 'K_matrix']], \
@@ -237,7 +226,6 @@ class MC_parameters:
         print('energy_free_theory = ', np.sum(np.sort(energies)[:self.total_dof // 2 // 2] * 2 / (self.total_dof // 2)))
         assert np.allclose(K_0_twisted, K_0_twisted.T.conj())
         print('energy_free_theory = ', np.sum(energies[:self.Ne // 2] * 2) / 16.)
-        print(repr(energies))
 
 
         K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0).T, inverse = True)

@@ -80,7 +80,9 @@ class wavefunction_singlet():
 
         # assert self.var_mu[0] == 0.0
 
+        print('ABCDEFG', np.linalg.norm(self.K_up- self.K_down.conj()))
         assert np.allclose(self.K_up, self.K_down.conj())
+
         #print(np.linalg.eigh(self.K_up)[0])
 
         if particle_hole:
@@ -115,6 +117,7 @@ class wavefunction_singlet():
                 self.occupancy = self.state[:len(self.state) // 2] - self.state[len(self.state) // 2:]
             else:
                 self.occupied_sites, self.empty_sites, self.place_in_string = self._generate_configuration(particle_hole)
+                print(len(self.occupied_sites), 'length of occupied states')
                 # print('fresh state')
             self.U_tilde_matrix = self._construct_U_tilde_matrix()
             if np.linalg.matrix_rank(self.U_tilde_matrix) == self.config.total_dof // 2:
@@ -123,6 +126,7 @@ class wavefunction_singlet():
             else:
                 print('the rank of this initialization is {:d}'.format(np.linalg.matrix_rank(self.U_tilde_matrix)))
                 print('dimensions are', self.U_tilde_matrix.shape)
+                print('SHAPEEE', self.U_tilde_matrix.shape, flush=True)
                 print('the determinant is', np.linalg.det(self.U_tilde_matrix))
                 self.with_previous_state = False  # if previous state failed, reinitialize from scratch
                 print('degenerate: will retry the wave function initialisation', flush = True)
@@ -250,6 +254,7 @@ class wavefunction_singlet():
                                self.pairings_list_unwrapped, self.var_params_gap, self.hoppings_list_TBC_up, self.hoppings_list_TBC_down, \
                                self.var_hoppings, self.reg_gap_term, \
                                particle_hole = self.particle_hole, ph_test = self.ph_test, trs_test = self.trs_test)
+
 
         if self.ph_test:
             self.T = -self.T.conj()
@@ -799,7 +804,7 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
     print(var_params_gap)
 
     ### TEST ALL LEVELS ARE REPULSED ###
-
+    '''
     energies, solutions = np.linalg.eigh(K_up)
     TRS = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(len(K_up) // 2)])
     for en, sol in zip(energies, solutions.T):
@@ -862,8 +867,26 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
     ### END ###
 
 
-
+    '''
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
+    ### TEST GAPS REPULSION ###
+    '''
+    energies, states = np.linalg.eigh(T)
+    states = states.T
+
+    Deltamat = T * 0.
+    Deltamat[:config.total_dof // 2, config.total_dof // 2:] = Delta
+    Deltamat[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T
+
+    repulsion = np.abs(states @ Deltamat @ states.conj().T)
+    for i in range(states.shape[0]):
+        for j in range(states.shape[1]):
+            if not np.isclose(np.abs(repulsion[i, j]), 0.0):
+                print(repulsion[i, j], i, j)
+    exit(-1)
+    '''
+    ### END TEST GAPS REPULSION ###
+
 
     ## various local pairing terms ##
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta# if not particle_hole else Delta.conj().T
@@ -876,7 +899,6 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
     T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
     T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
 
-    # print(np.linalg.eigh(T)[0], 'energies all of T')    
     return T
 
 @jit(nopython = True)

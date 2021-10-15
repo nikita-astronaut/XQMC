@@ -928,8 +928,8 @@ def obtain_all_pairings(config):
             need_cut = False
             for gap in element:
                 if 'S_1' in gap[-1] or 'S_2' in gap[-1]:
-                    if len(gap[-1]) < 30:
-                        need_cut = True
+                    #if len(gap[-1]) < 30:
+                    need_cut = True
             if need_cut:
                 del twoorb_hex_all[idx][-1]
                 ### create TRS combination ###
