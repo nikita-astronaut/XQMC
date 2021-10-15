@@ -14,6 +14,7 @@ class MC_parameters:
         self.BC_twist = True; self.twist_mesh = 'PBC'  # apply BC-twist
         self.BC = 'PBC'
         self.L_twists_uniform = 6
+        self.rank = irrep_idx
         assert self.BC_twist  # this is always true
         self.twist = np.array([1, 1]); self.n_chains = 8; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
@@ -22,6 +23,8 @@ class MC_parameters:
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, 0.0, spin = +1.0, BC=self.BC)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)
+        #print(repr(np.linalg.eigh(self.K_0)[0]))
+        #exit(-1)
 
         print(np.sum(self.K_0) / 0.331)
 
@@ -57,7 +60,7 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False;
-        self.workdir = '/users/nastrakh/DQMC_TBG/logs/simulations_J04_stages_smalllr_9x9/'
+        self.workdir = '/users/nastrakh/DQMC_TBG/logs/final_J_04_smallerreg_9x9/'
 
         self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
@@ -130,7 +133,7 @@ class MC_parameters:
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [3e-2, 0.001, 1.00]
+        self.opt_parameters = [1e-2, 0.003, 1.00]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 1
         self.generator_mode = True
@@ -138,13 +141,16 @@ class MC_parameters:
 
         ### regularisation ###
         if not self.enforce_valley_orbitals:
-            self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
-                                                    self, self.chiral_basis) + models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
-                                                    self, self.chiral_basis)
+            reg_valley = np.array([[-0.41341, -0.64892], [-0.9587,   0.64063]])
+            self.reg_gap_term = np.kron(np.eye(self.total_dof // 2 // 2), reg_valley)
+            #models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[1][0]), 'pairing', \
+                                #                    self, self.chiral_basis)
+                                                    # + models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
+                                                    #self, self.chiral_basis)
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis) # FIXME
-        self.reg_gap_val = 0.001
+        self.reg_gap_val = 0.0005
 
         ## initial values definition and layout ###
         self.layout = np.array([1, 0, len(self.hoppings), len(self.pairings_list_names), len(self.jastrows_list)])
@@ -155,7 +161,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.random.uniform(1e-2, 1e-2, size = self.layout[3]),  # gaps
+            np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
 
@@ -169,20 +175,9 @@ class MC_parameters:
         ])
         '''
         
-        #self.initial_parameters[-np.sum(self.layout[4]):] = np.array([2.3359661e+00, 5.8076667e-01, 2.2726323e-01, 1.4520647e-01, 1.0464664e-01, 7.5184277e-02, 4.9742100e-02, 3.9357516e-02, 2.9703446e-02, 0.0515010e-02, 1.3563998e-02, 3.1781949e-03, 1.3616264e-02, 1.0089667e-02, 6.7512409e-03, 0, 0, 0, 0, 0, 0, 0, 0])
-        #self.initial_parameters[np.sum(self.layout[:-1]) + 1] = 0.5 # FIXME
-
-        #if not self.PN_projection:
-        #    f = -np.sum(np.array([A[0] * factor for factor, A in \
-        #                zip(self.initial_parameters[-self.layout[4]:], self.jastrows_list)])) / (self.total_dof // 2)
-        #    self.initial_parameters[self.layout[0]] = 0.0 #f
-
-
        
         self.all_names = np.concatenate([
             np.array(['mu_BCS']),  # mu_BCS
-            #np.array(['fugacity'] if not self.PN_projection else []),  # fugacity
-            #np.array(self.waves_list_names),  # waves
             np.array(self.hopping_names),  # hopping matrices
             np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
@@ -197,14 +192,9 @@ class MC_parameters:
         ])
 
         self.initial_parameters[:self.layout[0]], self.mu_BCS_min, self.mu_BCS_max = self.select_initial_muBCS_Koshino(self.Ne)
-
-        #self.initial_parameters[-15:] = np.array([3.8171218e-01 , 3.7608871e-01 , 2.4956033e-01 , 2.4818661e-01  ,4.6840902e-02  ,4.1183872e-02 , 3.0382321e-02 , 3.1729018e-02 , 4.5863189e-02 , 2.7996449e-02 , 2.6566911e-02,  1.7887349e-02  ,1.8690043e-02 , 1.6124514e-02 , 6.9651963e-03])
-        #self.initial_parameters[-15:] = np.array([3.0446890e-01,  3.2871935e-01,  2.1175295e-01 , 2.0514555e-01 , 3.0496546e-02 , 1.8398068e-02 , 2.3302194e-02 , 2.1362910e-02 , 2.7869425e-02 , 1.5398463e-02 , 1.7850680e-02  ,1.4572472e-02,  3.0626407e-03  ,3.3412260e-03 , 5.4037546e-03]) # 88
-        # self.initial_parameters[-15:] = np.array([ 3.5498449e-01,  3.6347718e-01 , 2.4031571e-01 , 2.3684898e-01,  3.8185267e-02,  3.1182535e-02 , 1.7951170e-02  ,1.6299736e-02 , 3.7570095e-02 , 1.6153562e-02 , 1.9615766e-02 , 1.4260268e-02,  9.2363953e-03 , 9.2331839e-03 , -3.3717880e-04])  # 100
-        #self.initial_parameters = np.array([-3.7082305e-01, 4.0087596e-01,  3.3978019e-01,  1.9875278e-01 , 1.8863777e-01 , 3.4714608e-02,  2.5056562e-02,  2.0173583e-02,  1.7724358e-02,  2.4310068e-02  ,1.2542362e-02 , 1.1893469e-02 , 7.1329210e-03,  2.5480886e-03,  1.3336808e-03 , 5.7109201e-03])
+        print(self.initial_parameters[:self.layout[0]], self.mu_BCS_min, self.mu_BCS_max)
 
         self.mu = 0.0 #-1.2 #self.initial_parameters[0]
-        #self.initial_parameters[:self.layout[0]] = self.guess_mu_BCS_approximate(0.813) # self.mu
 
         ### check K-matrix irrep properties ###
         #pairings.check_irrep_properties(self, [[self.model(self, 0.0, spin = +1.0)[0], 'K_matrix']], \

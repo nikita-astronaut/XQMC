@@ -113,8 +113,16 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
                 if np.abs(val) > 1e-1:
                     print(name, val)
 
-    S_cov_pc = S_cov + config_vmc.opt_parameters[1] * np.diag(np.diag(S_cov))
-    S_cov_pc += np.eye(S_cov.shape[0]) * 1e-2
+
+    MT2 = S_cov @ S_cov.T.conj()
+    eigvals, eigstates = np.linalg.eigh(MT2)
+    eigvals += 1e-6
+    assert np.all(eigvals > 0)
+    S_cov_pc = np.einsum('i,ij,ik->jk', np.sqrt(eigvals), eigstates.T, eigstates.T.conj()) + config_vmc.opt_parameters[1] * np.eye(S_cov.shape[0])
+    #    S_cov_pc = 
+ 
+    #S_cov_pc = S_cov + config_vmc.opt_parameters[1] * np.diag(np.diag(S_cov))
+    #S_cov_pc += np.eye(S_cov.shape[0]) * 1e-2
 
     if config_vmc.condensation_energy_check_regime:
         S_cov_pc[config_vmc.layout[:3].sum():config_vmc.layout[:4].sum(), ...] = 0

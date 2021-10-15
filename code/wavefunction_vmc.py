@@ -80,7 +80,9 @@ class wavefunction_singlet():
 
         # assert self.var_mu[0] == 0.0
 
+        print('ABCDEFG', np.linalg.norm(self.K_up- self.K_down.conj()))
         assert np.allclose(self.K_up, self.K_down.conj())
+
         #print(np.linalg.eigh(self.K_up)[0])
 
         if particle_hole:
@@ -252,6 +254,7 @@ class wavefunction_singlet():
                                self.pairings_list_unwrapped, self.var_params_gap, self.hoppings_list_TBC_up, self.hoppings_list_TBC_down, \
                                self.var_hoppings, self.reg_gap_term, \
                                particle_hole = self.particle_hole, ph_test = self.ph_test, trs_test = self.trs_test)
+
 
         if self.ph_test:
             self.T = -self.T.conj()
@@ -833,6 +836,8 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
     ## regularisation ##
     T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
     T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
+
+
 
     # print(np.linalg.eigh(T)[0], 'energies all of T')    
     return T
