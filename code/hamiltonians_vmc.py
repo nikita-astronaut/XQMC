@@ -18,6 +18,7 @@ class HubbardHamiltonian(object):
         print('apply pbc takes {:.15f}'.format(time() - t))
 
         self.edges_quadratic = scipy.linalg.block_diag(K_matrix_up, -K_matrix_down)
+
     def _get_edges(self):
         raise NotImplementedError()
     def __call__(self, wf):
@@ -30,8 +31,8 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         self.plus_orbital = np.arange(0, self.config.total_dof // 2, 2)  # chiral basis now
         self.minus_orbital = self.plus_orbital + 1
 
-        self.JH = 0.0 # (self.U - self.V) / 2
-        self.J = 0.0 #-1. / 5. * long_range
+        self.JH = 0.0
+        self.J = 0.0
 
         self.epsilon = self.config.epsilon
         self.xi = self.config.xi
@@ -39,6 +40,13 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         self.edges_quadric, self.edges_J = self._get_interaction()
         self.edges_quadric_diag = np.diag(self.edges_quadric)
         self.edges_quadric_nondiag = self.edges_quadric - np.diag(np.diag(self.edges_quadric))
+
+        self.energies_kinetic = []
+        self.energies_pot = []
+        self.energies_U = []
+        self.energies_V = []
+        self.energies_J = []
+        self.ctr = 0
 
     def W_ij(self, rhat):  # https://arxiv.org/pdf/1905.01887.pdf
         U_0 = 30 * 0.331 / self.epsilon #  look up notes
@@ -61,23 +69,30 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         #  term U / 2 \sum_{nu = +/-} (n_nu)^2
         #  term V / 2 n_+ n_i + n_- n_+
 
+        U = self.config.U #30 * 0.331 / self.epsilon
+
+        edges_quadric = np.eye(self.config.total_dof // 2) * U / 2.0
+        edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * U / 2.0
+        edges_J = edges_quadric * 0
+        for site, W, J in zip(range(1, len(self.config.adjacency_list) // 3), [2 * U / 3., U / 3., U / 3.], [0.6 * U, 0., 0.]):  # on-site accounted already
+            edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * W / 2
+            edges_J += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * J / 2
+
+            sites = []
+            for i in range(16):
+                for j in range(16):
+                    if np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0)[i, j] != 0.:
+                        sites.append((i, j))
+        print(repr(edges_quadric))
+        '''
         edges_quadric = np.eye(self.config.total_dof // 2) * self.W_ij(0) / 2.0
         edges_quadric += np.kron(np.eye(self.config.total_dof // 2 // 2), np.array([[0, 1], [1, 0]])) * self.W_ij(0) / 2.0
-
-
-        print('V({:.2f}) = {:.2f}'.format(0.0, self.W_ij(0)))
-
-        #t = time()
         for site in range(1, len(self.config.adjacency_list) // 3):  # on-site accounted already
             r = np.sqrt(self.config.adjacency_list[3 * site][-1])
             edges_quadric += np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0) * self.W_ij(r) / 2
-            print('V({:.2f}) = {:.2f}'.format(r, self.W_ij(r)))
-            # print(np.sum(np.array([adj[0] for adj in self.config.adjacency_list[3 * site:3 * site + 3]]), axis = 0))
 
-        #print('loop takes', time() - t)
-
-        # np.save('test_edges.npy', edges_quadric)
         edges_J = np.array([adj[0] for adj in self.config.adjacency_list[3:6]]).sum(axis = 0) * self.J / 2 / self.epsilon + 0.0j
+        '''
         return edges_quadric, edges_J
 
     def __call__(self, wf):
@@ -87,22 +102,33 @@ class hamiltonian_Koshino(HubbardHamiltonian):
             where j ~ i are the all indixes having non-zero matrix element with i H_{ij}
         '''
 
+
+
+        self.ctr += 1
         assert wf.n_stored_updates == 0
+
 
         E_loc = 0.0 + 0.0j
         base_state = wf.state
         particles, holes = base_state[:len(base_state) // 2], base_state[len(base_state) // 2:]
 
+
         wf_state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
 
-        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
-        #E_loc += 2. * np.dot(particles, self.edges_quadric_diag.dot(1 - holes))
-        #E_loc += 2. * np.sum(particles * (1 - holes) * self.edges_quadric_diag)
 
-        #E_loc += np.dot(particles - holes + 1, self.edges_quadric_nondiag.dot(particles - holes + 1))
-        E_loc += np.dot(particles - holes, self.edges_quadric.dot(particles - holes))
+        E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)
+        self.energies_kinetic.append(get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f))
+        E_loc += np.dot(particles - holes + 1, self.edges_quadric.dot(particles - holes + 1))
+        self.energies_pot.append(np.dot(particles - holes + 1, self.edges_quadric.dot(particles - holes + 1)))
+        E_loc += get_EJ(self.edges_J, wf_state, wf.var_f)
+        self.energies_J.append(get_EJ(self.edges_J, wf_state, wf.var_f))
+        if self.ctr % 1000 == 0:
+            print(np.mean(self.energies_kinetic), np.mean(self.energies_pot), np.mean(self.energies_J))
+
 
         E_loc -= self.config.mu * np.sum(particles - holes)
+        
+        '''
         # on-site Hund term https://arxiv.org/pdf/2003.09513.pdf (Eq. 2)
         if self.JH != 0.0:
             E_loc += -self.config.JH * (get_E_J_Hund(self.plus_orbital, self.minus_orbital, wf_state, wf.var_f) + \
@@ -111,6 +137,7 @@ class hamiltonian_Koshino(HubbardHamiltonian):
         if self.J != 0.0:
             E_loc += get_E_J_Hund_long(self.edges_J, wf_state, wf.var_f, self.config.twist, \
                                        self.config.Ls, self.config.n_orbitals, self.config.n_sublattices)
+        '''
         return E_loc
 
 
@@ -131,6 +158,7 @@ class hamiltonian_1orb_shortrange(HubbardHamiltonian):
             where j ~ i are the all indixes having non-zero matrix element with i H_{ij}
         '''
 
+
         E_loc = 0.0 + 0.0j
         base_state = wf.state
         density = base_state[:len(base_state) // 2] - base_state[len(base_state) // 2:]  # TODO: move that to T_C_Koshino
@@ -140,14 +168,13 @@ class hamiltonian_1orb_shortrange(HubbardHamiltonian):
         E_loc += get_E_quadratic(base_state, self.edges_quadratic, wf_state, wf.var_f)  # K--term TODO: wf.state is passed twice
         E_loc -= self.config.mu * np.sum(density)
 
+
+
         return E_loc + 0.5 * self.config.U * np.sum(density ** 2)
 
-#@jit(nopython=True)
+@jit(nopython=True)
 def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
     E_loc = 0.0 + 0.0j
-
-    energies_up = 0.0 + 0.0j
-    energies_down = 0.0 + 0.0j
 
     for i in range(len(base_state)):
         for j in range(len(base_state)):
@@ -156,31 +183,16 @@ def get_E_quadratic(base_state, edges_quadratic, wf_state, total_fugacity):
 
             if i == j:
                 E_loc += edges_quadratic[i, i] * density(wf_state[2], i)
+                #print(E_loc, edges_quadratic[i, i], density(wf_state[2], i), 'density')
+                #exit(-1)
                 continue
             if not (base_state[i] == 1 and base_state[j] == 0):
                 continue
-            print('{:d} -> {:d} at {:d} = ({:.20f} + I {:.20f}) x ({:.20f} + I {:.20f})'.format(i % 144, j % 144, i // 144, edges_quadratic[i, j].real, edges_quadratic[i, j].imag, get_wf_ratio(*wf_state, total_fugacity, i, j).real, get_wf_ratio(*wf_state, total_fugacity, i, j).imag))  # I multiply K_ij by GF(i, j) -- is GF(i, j) = <c^{dag}_i c_j> ? but in get_wf it is (moved_site, empty_site). 
-
-            if i >= 144:
-                energies_down += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)
-            else:
-                energies_up += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)
             E_loc += edges_quadratic[i, j] * get_wf_ratio(*wf_state, total_fugacity, i, j)
-            #print(energies_down)
-    print('energy_up =', energies_up)
-    print('energy_down =', energies_down)
-
-    print('total energy =', energies_up + energies_down)
-    exit(-1)
+            #print(get_wf_ratio(*wf_state, total_fugacity, i, j), i, j, total_fugacity)
+            #print(E_loc, edges_quadratic[i, j], get_wf_ratio(*wf_state, total_fugacity, i, j), 'kinetik')
     return E_loc
 
-@jit(nopython=True)  # http://sces.phys.utk.edu/mostcited/mc1_1114.pdf
-def get_E_C_Koshino(electrons, holes, size, U, V):
-    density = electrons - holes
-    result_U = 0.5 * U * np.sum(density ** 2)
-    result_V = V * np.sum(density[np.arange(0, size, 2)] * density[np.arange(0, size, 2) + 1])
-
-    return result_U + result_V
 
 
 @jit(nopython=True)
@@ -197,6 +209,41 @@ def get_E_J_Hund(plus_orbital, minus_orbital, wf_state, total_fugacity):
         E_loc += get_wf_ratio_double_exchange(*wf_state, total_fugacity, y, x + L, y + L, x)
         E_loc += (1 - density(wf_state[2], x + L)) * (1 - density(wf_state[2], y + L))
     return E_loc
+
+
+
+@jit(nopython=True)
+def get_EJ(edges_J, wf_state, tf):
+    L = len(wf_state[3]) // 2
+    E_loc = 0.0 + 0.0j
+
+    for i in range(edges_J.shape[0] // 2):
+        for j in range(edges_J.shape[1] // 2):
+
+            if edges_J[i * 2, j * 2] == 0:
+                continue
+
+            for s in range(2):
+                for o in range(2):
+                    for sp in range(2):
+                        for op in range(2):
+
+                            if s == 0 and sp == 0:
+                                E_loc += -edges_J[2 * i, 2 * j] * get_wf_ratio_double_exchange(*wf_state, tf, 2 * i + o, 2 * i + op, 2 * j + op, 2 * j + o)
+                            if s == 0 and sp == 1:
+                                E_loc += -edges_J[2 * i, 2 * j] * (-get_wf_ratio_double_exchange(*wf_state, tf, 2 * i + o, 2 * j + op + L, 2 * i + op + L, 2 * j + o))  # no delta since i != j by definition of NN Hund
+                            if s == 1 and sp == 0:
+                                E_loc += -edges_J[2 * i, 2 * j] * (-get_wf_ratio_double_exchange(*wf_state, tf, 2 * j + op, 2 * i + o + L, 2 * j + o + L, 2 * i + op))
+
+                            if s == 1 and sp == 1:
+                                d_o_op = 1.0 if o == op else 0.0
+                                E_loc += -edges_J[2 * i, 2 * j] * (get_wf_ratio_double_exchange(*wf_state, tf, 2 * i + op + L, 2 * i + o + L, 2 * j + o + L, 2 * j + op + L) + d_o_op ** 2 - d_o_op * (get_wf_ratio(*wf_state, tf, 2 * j + o + L, 2 * j + op + L) + get_wf_ratio(*wf_state, tf, 2 * i + o + L, 2 * i + op + L)))
+    return E_loc
+
+
+
+
+
 
 @jit(nopython=True)
 def get_E_J_Hund_long(edges_J, wf_state, total_fugacity, twist, Ls, n_orbitals, n_sublattices):

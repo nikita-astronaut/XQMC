@@ -11,7 +11,10 @@ U_xy_to_chiral = None
 
 
 @jit(nopython=True)
-def diff_modulo(x, y, L, d):
+def diff_modulo(x, y, L, d, BC='PBC'):
+    if BC == 'OBC':
+        return x - y == d
+
     if d >= 0:
         return (x - y + L) % L == d  # or (x - y + L) % L == L - d
     return (x - y + L) % L == L + d
@@ -45,28 +48,28 @@ def physical_to_lattice(physical, geometry):
 
 
 @jit(nopython=True)
-def nearest_neighbor(r1, r2, L, geometry):
+def nearest_neighbor(r1, r2, L, geometry, BC='PBC'):
     if geometry == 'square':
-        return nearest_neighbor_square(r1, r2, L)
+        return nearest_neighbor_square(r1, r2, L, BC)
     if geometry == 'hexagonal':
-        return nearest_neighbor_hexagonal(r1, r2, L)
+        return nearest_neighbor_hexagonal(r1, r2, L, BC)
     print('Geometry', geometry, 'is not supported!!! Terminate.')
     return False, 0
 
 
 @jit(nopython=True)
-def nearest_neighbor_hexagonal(r1, r2, L):
+def nearest_neighbor_hexagonal(r1, r2, L, BC):
     if r1[1] == r2[1] and r1[0] == r2[0]:
         return True, 1
-    if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, 1):
+    if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, 1, BC):
         return True, 2
-    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1):
+    if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1, BC):
         return True, 3
     return False, 0
 
 
 @jit(nopython=True)
-def nearest_neighbor_square(r1, r2, L):
+def nearest_neighbor_square(r1, r2, L, BC):
     if r1[0] == r2[0] and diff_modulo(r1[1], r2[1], L, 1):
         return True, 1
     if r1[1] == r2[1] and diff_modulo(r1[0], r2[0], L, 1):
@@ -111,12 +114,12 @@ def next_nearest_neighbor_hexagonal(r1, r2, L):
 
 
 @jit(nopython=True)
-def fifth_nearest_neighbor(r1, r2, L):
-    if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, -2):
+def fifth_nearest_neighbor(r1, r2, L, BC):
+    if diff_modulo(r1[0], r2[0], L, 1, BC) and diff_modulo(r1[1], r2[1], L, -2, BC):
         return True
-    if diff_modulo(r1[0], r2[0], L, -2) and diff_modulo(r1[1], r2[1], L, 1):
+    if diff_modulo(r1[0], r2[0], L, -2, BC) and diff_modulo(r1[1], r2[1], L, 1, BC):
         return True
-    if diff_modulo(r1[0], r2[0], L, 1) and diff_modulo(r1[1], r2[1], L, 1):
+    if diff_modulo(r1[0], r2[0], L, 1, BC) and diff_modulo(r1[1], r2[1], L, 1, BC):
         return True
     return False
 
@@ -219,7 +222,7 @@ def xy_to_chiral(M, term_type, config, chiral = False):
 
 
 @jit(nopython=True)
-def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
+def _model_hex_2orb_Koshino(Ls, twist, mu, spin, BC):
     n_orbitals = 2
     n_sublattices = 2
     total_dof = Ls ** 2 * n_orbitals * n_sublattices * 2
@@ -235,23 +238,26 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
             r1 = np.array([x1, y1])
             r2 = np.array([x2, y2])
 
-            if orbit1 == orbit2 and nearest_neighbor_hexagonal(r1, r2, Ls)[0] and sublattice1 == 0 and sublattice2 == 1:
+            if orbit1 == orbit2 and nearest_neighbor_hexagonal(r1, r2, Ls, BC)[0] and sublattice1 == 0 and sublattice2 == 1:
                 K[first, second] = t1
 
 
-            if orbit2 == orbit1 and fifth_nearest_neighbor(r1, r2, Ls) and sublattice2 == sublattice1:
+            if orbit2 == orbit1 and fifth_nearest_neighbor(r1, r2, Ls, BC) and sublattice2 == sublattice1:
                 K[first, second] = np.real(t2)
-            if orbit2 != orbit1 and fifth_nearest_neighbor(r1, r2, Ls) and sublattice2 == sublattice1:
+            if orbit2 != orbit1 and fifth_nearest_neighbor(r1, r2, Ls, BC) and sublattice2 == sublattice1:
                 if orbit1 == 0 and orbit2 == 1:
                     K[first, second] = np.imag(t2)
                 else:
                     K[first, second] = -np.imag(t2)
 
-            if orbit1 == orbit2 and fourth_nearest_neighbor(r1, r2, Ls) and sublattice1 == 1 and sublattice2 == 0:
-                K[first, second] = t5
-            if orbit1 == orbit2 and sixth_nearest_neighbor(r1, r2, Ls) and sublattice1 == 1 and sublattice2 == 0:
-                K[first, second] = t4
+            #if orbit1 == orbit2 and fourth_nearest_neighbor(r1, r2, Ls, BC) and sublattice1 == 1 and sublattice2 == 0:
+            #    K[first, second] = t5
+            #if orbit1 == orbit2 and sixth_nearest_neighbor(r1, r2, Ls, BC) and sublattice1 == 1 and sublattice2 == 0:
+            #    K[first, second] = t4
 
+    #print(repr(K))
+    #exit(-1)
+    #exit(-1)
     K = K + K.conj().T
 
     inverse = False if spin > 0 else True
@@ -259,8 +265,8 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin):
 #_apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, inverse = inverse), n_orbitals, n_sublattices
 
 
-def model_hex_2orb_Koshino(config, mu, spin = +1.0):
-    return _model_hex_2orb_Koshino(config.Ls, config.twist, mu, spin)
+def model_hex_2orb_Koshino(config, mu, spin = +1.0, BC='PBC'):
+    return _model_hex_2orb_Koshino(config.Ls, config.twist, mu, spin, BC)
 
 
 @jit(nopython=True)
@@ -311,7 +317,7 @@ def get_bc_copies(r, R, Ls, sublattice):
     return copies
 
 
-def get_adjacency_list(config, orbital_mod = True):
+def get_adjacency_list(config, orbital_mod = True, BC='PBC'):
     if config.n_sublattices == 2:
         R = R_hexagonal
     else:
@@ -325,8 +331,15 @@ def get_adjacency_list(config, orbital_mod = True):
             _, sublattice2, x2, y2 = from_linearized_index(second, config.Ls, 1, config.n_sublattices)
             
             r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)  # always 0 in the square case
-            r2s = get_bc_copies(np.array([1.0 * x2, 1.0 * y2]), R, config.Ls, sublattice2)
-            A[first, second] = np.min(np.array([np.sum((r1 - r2) ** 2) for r2 in r2s]))
+            if BC == 'PBC':
+                r2s = get_bc_copies(np.array([1.0 * x2, 1.0 * y2]), R, config.Ls, sublattice2)
+                A[first, second] = np.min(np.array([np.sum((r1 - r2) ** 2) for r2 in r2s]))
+            else:
+                r2 = np.array([x2, y2]).dot(R) + sublattice2 * np.array([1, 0]) / np.sqrt(3)
+                A[first, second] = np.sum((r1 - r2) ** 2)
+
+
+
 
     A_rounded = A.round(decimals = 10)
     distances = np.sort(np.unique(A_rounded))
@@ -344,7 +357,7 @@ def get_adjacency_list(config, orbital_mod = True):
     return adjacency_list, longest_distance
 
 
-def get_distances_list(config):
+def get_distances_list(config, BC = 'PBC'):
     # returns |r_i - r_j|^2 for all sites i, j
     if config.n_sublattices == 2:
         R = R_hexagonal
@@ -359,8 +372,12 @@ def get_distances_list(config):
             _, sublattice2, x2, y2 = from_linearized_index(second, config.Ls, config.n_orbitals, config.n_sublattices)
             
             r1 = np.array([x1, y1]).dot(R) + sublattice1 * np.array([1, 0]) / np.sqrt(3)  # always 0 in the square case
-            r2s = get_bc_copies(np.array([1.0 * x2, 1.0 * y2]), R, config.Ls, sublattice2)
-            A[first, second] = np.min(np.array([np.sum((r1 - r2) ** 2) for r2 in r2s]))  # account for PBC
+            if BC == 'PBC':
+                r2s = get_bc_copies(np.array([1.0 * x2, 1.0 * y2]), R, config.Ls, sublattice2)
+                A[first, second] = np.min(np.array([np.sum((r1 - r2) ** 2) for r2 in r2s]))  # account for PBC
+            else:
+                r2 = np.array([x2, y2]).dot(R) + sublattice2 * np.array([1, 0]) / np.sqrt(3)
+                A[first, second] = np.sum((r1 - r2) ** 2)
     return A
 
 
@@ -412,6 +429,8 @@ def model_square_1orb(config, mu, spin = +1.0):
 def get_transition_matrix(PN_projection, K, n_orbitals = 1, \
                           valley_conservation_K=True, valley_conservation_Delta=True):
     assert valley_conservation_K and PN_projection
+
+
     adjacency_matrix = np.zeros(K.shape)
     unit_matrix = np.eye(n_orbitals) if valley_conservation_K else np.ones((n_orbitals, n_orbitals))
     for i in range(K.shape[0] // n_orbitals):
@@ -421,11 +440,16 @@ def get_transition_matrix(PN_projection, K, n_orbitals = 1, \
                                  j * n_orbitals:j * n_orbitals + n_orbitals] = unit_matrix  # valley-charge conservation
     big_adjacency_matrix = np.kron(np.eye(2), adjacency_matrix)
 
+    
+
+    '''
     if not PN_projection:
         adjacency_matrix_Delta = np.kron(np.eye(K.shape[0] // n_orbitals), \
             np.eye(n_orbitals) if valley_conservation_Delta else np.array([[0, 1], [1, 0]]))
         big_adjacency_matrix += np.kron(np.array([[0, 1], [1, 0]]), adjacency_matrix_Delta)
-        
+    '''
+
+
 
     adjacency_list = [np.where(big_adjacency_matrix[:, i] > 0)[0] \
                       for i in range(big_adjacency_matrix.shape[1])]
@@ -451,7 +475,7 @@ def get_transition_matrix_range(config, K, PN_projection, n_orbitals = 1, valley
 
     return adjacency_list
 
-# @jit(nopython=True)  # TODO: check this is valid for gaps
+@jit(nopython=True)  # TODO: check this is valid for gaps
 def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, \
                inverse = False, factor = 1, chiral_basis=True):  # inverse = True in the case of spin--down
     x_factor = twist[0] if not inverse else 1. / twist[0]
@@ -460,49 +484,54 @@ def _apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, \
     if factor != 1:
         x_factor = x_factor ** factor
         y_factor = y_factor ** factor
-    for first, second in far_indices:
-        orbit1, sublattice1, x1, y1 = from_linearized_index(first, Ls, n_orbitals, n_sublattices)
-        orbit2, sublattice2, x2, y2 = from_linearized_index(second, Ls, n_orbitals, n_sublattices)
+    #for first, second in far_indices:
+    for first in range(K.shape[0]):
+        for second in range(K.shape[1]):
+            orbit1, sublattice1, x1, y1 = from_linearized_index(first, Ls, n_orbitals, n_sublattices)
+            orbit2, sublattice2, x2, y2 = from_linearized_index(second, Ls, n_orbitals, n_sublattices)
 
-        if np.isclose(K[first, second], 0.0):
-            continue
+            if np.abs(K[first, second]) < 1e-7:
+                continue
 
-        #if np.abs(K[first, second]) < 1e-1:
-        #    print(first, second, 'connection within', y1, y2)
+            if np.abs(y1 - y2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
+            #if (first // 2, second // 2) == (2, 5) or (first // 2, second // 2) == (5, 2) or \
+            #   (first // 2, second // 2) == (1, 6) or (first // 2, second // 2) == (6, 1):
+                if y2 > y1:
+                    if chiral_basis and orbit1 == 0:
+                        K[first, second] *= y_factor
+                    elif chiral_basis and orbit1 == 1:
+                        K[first, second] *= np.conj(y_factor)
+                    else:
+                        K[first, second] *= y_factor
+                else:
+                    if chiral_basis and orbit2 == 0:
+                        K[first, second] *= np.conj(y_factor)
+                    elif chiral_basis and orbit2 == 1:
+                        K[first, second] *= y_factor
+                    else:
+                        K[first, second] *= np.conj(y_factor)
 
-        if np.abs(x1 - x2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
-            if x2 > x1:
-                if chiral_basis and orbit1 == 0:
-                    K[first, second] *= x_factor
-                elif chiral_basis and orbit1 == 1:
-                    K[first, second] *= np.conj(x_factor)
+            if np.abs(x1 - x2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
+            #if (first // 2, second // 2) == (0, 7) or (first // 2, second // 2) == (7, 0) or \
+            #   (first // 2, second // 2) == (0, 5) or (first // 2, second // 2) == (5, 0) or \
+            #   (first // 2, second // 2) == (2, 7) or (first // 2, second // 2) == (7, 2) or \
+            #   (first // 2, second // 2) == (2, 5) or (first // 2, second // 2) == (5, 2):
+                #if np.abs(K[first, second]) < 1e-1:
+                #    print(first, second, 'connection outer', y1, y2)
+                if x2 > x1:
+                    if chiral_basis and orbit1 == 0:
+                        K[first, second] *= x_factor
+                    elif chiral_basis and orbit1 == 1:
+                        K[first, second] *= np.conj(x_factor)
+                    else:
+                        K[first, second] *= x_factor
                 else:
-                    K[first, second] *= x_factor
-            else:
-                if chiral_basis and orbit2 == 0:
-                    K[first, second] *= np.conj(x_factor)
-                elif chiral_basis and orbit2 == 1:
-                    K[first, second] *= x_factor
-                else:
-                    K[first, second] *= np.conj(x_factor)
-
-        if np.abs(y1 - y2) > Ls // 2:  # for sufficiently large lattices, this is the critetion of going beyond the boundary
-            #if np.abs(K[first, second]) < 1e-1:
-            #    print(first, second, 'connection outer', y1, y2)
-            if y2 > y1:
-                if chiral_basis and orbit1 == 0:
-                    K[first, second] *= y_factor
-                elif chiral_basis and orbit1 == 1:
-                    K[first, second] *= np.conj(y_factor)
-                else:
-                    K[first, second] *= y_factor
-            else:
-                if chiral_basis and orbit2 == 0:
-                    K[first, second] *= np.conj(y_factor)
-                elif chiral_basis and orbit2 == 1:
-                    K[first, second] *= y_factor
-                else:
-                    K[first, second] *= np.conj(y_factor)
+                    if chiral_basis and orbit2 == 0:
+                        K[first, second] *= np.conj(x_factor)
+                    elif chiral_basis and orbit2 == 1:
+                        K[first, second] *= x_factor
+                    else:
+                        K[first, second] *= np.conj(x_factor)
     return K
 
 

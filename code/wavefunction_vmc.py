@@ -4,13 +4,13 @@ from opt_parameters import pairings, waves
 import models
 from copy import deepcopy
 from numba import jit
-from numba.core.errors import NumbaPerformanceWarning
+#from numba.core.errors import NumbaPerformanceWarning
 import scipy
 import warnings
 import os
 from time import sleep
 
-warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
+#warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 
 class wavefunction_singlet():
     def __init__(self, config, pairings_list, parameters, \
@@ -28,6 +28,18 @@ class wavefunction_singlet():
 
         self.pairings_list_unwrapped = [models.apply_TBC(self.config, self.config.twist, deepcopy(gap), inverse = False) \
                                         for gap in self.config.pairings_list_unwrapped]
+
+        ### check TRS of gaps functions ###
+        '''
+        TRS = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(K_up.shape[0] // 2)], axis=0)
+        for gap in self.pairings_list_unwrapped:
+            gap_TRS = gap[TRS]
+            gap_TRS = gap_TRS[..., TRS].conj()
+            assert np.allclose(gap, gap_TRS)
+            print('passed')
+        exit(-1)
+        '''
+
         self.hoppings_list_TBC_up = [models.apply_TBC(self.config, self.config.twist, deepcopy(h), inverse = False) \
                                      for h in self.config.hoppings]
         self.hoppings_list_TBC_down = [models.apply_TBC(self.config, self.config.twist, deepcopy(h).T, inverse = True) \
@@ -52,14 +64,17 @@ class wavefunction_singlet():
         if K_up is None:
             self.K_up = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0), inverse = False)
         else:
-            self.K_up = K_up
+            self.K_up = K_up.copy() * 1.0
+            #print(self.K_up)
         self.K_up -= np.diag(plus_valley_mesh) * self.var_mu[0]
         self.K_up -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-8)
 
         if K_down is None:
             self.K_down = models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.K_0).T, inverse = True)
         else:
-            self.K_down = K_down
+            self.K_down = K_down.copy() * 1.0
+            #print(self.K_down)
+        #exit(-1)
         self.K_down -= np.diag(plus_valley_mesh) * self.var_mu[0]
         self.K_down -= np.diag(minus_valley_mesh) * (self.var_mu[0] + 1e-8)
 
@@ -156,7 +171,8 @@ class wavefunction_singlet():
     def _refresh_rnd(self):
         self.random_numbers_acceptance = np.random.random(size = self._rnd_size)
         self.random_numbers_move = np.random.randint(0, len(self.occupied_sites), size = self._rnd_size)
-        #self.random_numbers_direction = np.random.randint(0, len(self.adjacency_list[0]), size = self._rnd_size)
+        #print(len(self.occupied_sites))
+        #exit(-1)
         self.random_numbers_direction = np.random.randint(0, int(1e+7), size = self._rnd_size)
         return
 
@@ -242,9 +258,7 @@ class wavefunction_singlet():
         plus_valley = np.arange(0, self.config.total_dof, 2)
         self.T[plus_valley, plus_valley] += 1e-11  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number
         E, U = np.linalg.eigh(self.T)
-        # print(E, 'energies')
-        #print(U)
-
+        print(E, 'energies')
         #print(np.trace(U[:U.shape[0] // 2, :U.shape[0] // 2]), np.trace(U[U.shape[0] // 2:, U.shape[0] // 2:].conj()))
         #assert np.isclose(np.trace(U[:U.shape[0] // 2, :U.shape[0] // 2]), np.trace(U[U.shape[0] // 2:, U.shape[0] // 2:].conj()))
         #assert np.allclose(U[:U.shape[0] // 2, :U.shape[0] // 2], U[U.shape[0] // 2:, U.shape[0] // 2:].conj())
@@ -314,9 +328,9 @@ class wavefunction_singlet():
             #print(self.E)
             
             plus_valley = np.einsum('ij,ij->j', self.U_full[np.arange(0, self.config.total_dof, 2), ...], self.U_full[np.arange(0, self.config.total_dof, 2), ...].conj()).real
-            # print(plus_valley)
+            print(np.sort(plus_valley))
             plus_valley = plus_valley > 0.99
-            # print(np.sum(plus_valley), np.sum(~plus_valley))
+            print(np.sum(plus_valley), np.sum(~plus_valley))
             
             assert np.sum(plus_valley) == self.config.total_dof // 2
             assert np.sum(~plus_valley) == self.config.total_dof // 2
@@ -461,32 +475,6 @@ class wavefunction_singlet():
                 particles_plus, holes_plus = holes_plus - self.config.total_dof // 2, particles_plus + self.config.total_dof // 2
                 particles_minus, holes_minus = holes_minus - self.config.total_dof // 2, particles_minus + self.config.total_dof // 2
             occupied_sites = np.concatenate([particles_plus, particles_minus, holes_plus, holes_minus])
-            #occupied_sites = np.array([0, 1, 13, 27, 28, 36, 37, 43, 44, 50, 66, 68, 79, 83, 85, 89, 93, 95, 98, 99, 100, 101, 102, 107, 110, 111, 113, 114, 118, 124, 126, 131, 132, 134, 136, 137, 140, 143, 144, 147, 149, 150, 151, 152, 155, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 170, 172, 173, 175, 176, 178, 180, 181, 182, 184, 185, 189, 191, 192, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 207, 208, 211, 212, 213, 214, 217, 218, 219, 220, 221, 223, 225, 226, 228, 229, 230, 231, 233, 234, 236, 237, 238, 239, 241, 242, 243, 244, 246, 247, 248, 249, 250, 251, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 267, 268, 269, 270, 271, 272, 276, 277, 278, 279, 280, 281, 282, 283, 285, 286, 287])
-            occupied_sites = np.array([0, 1, 2, 4, 9, 10, 12, 13, 14, 16, 18, 22, 25, 27, 30, 33, 35, 37, 38, 39, 42, 43, 44, 46, 49, 54, 60, 61, 65, 66, 70, 71, 74, 78, 79, 80, 82, 83, 85, 86, 89, 91, 92, 93, 95, 99, 101, 102, 104, 107, 111, 113, 114, 120, 121, 122, 128, 129, 131, 136, 137, 143, 144, 145, 147, 148, 149, 150, 151, 156, 160, 164, 165, 166, 170, 172, 173, 174, 175, 179, 180, 181, 182, 184, 185, 186, 189, 190, 191, 193, 195, 197, 200, 201, 202, 203, 204, 206, 208, 209, 211, 213, 215, 216, 218, 220, 222, 225, 226, 227, 228, 232, 234, 236, 237, 238, 239, 240, 241, 243, 244, 245, 246, 249, 250, 252, 253, 257, 259, 262, 265, 267, 268, 269, 270, 272, 273, 275, 279, 282, 283, 285, 286, 287])
-            #occupied_sites = np.array([0, 1, 9, 13, 27, 36, 37, 39, 42, 43, 50, 65, 66, 68, 78, 79, 83, 85, 88, 89, 93, 95, 96, 98, 99, 100, 101, 102, 107, 108, 110, 111, 113, 114, 118, 122, 124, 126, 131, 132, 134, 137, 140, 143, 147, 149, 150, 151, 152, 153, 158, 161, 162, 163, 164, 165, 166, 168, 170, 172, 173, 175, 176, 178, 180, 181, 183, 184, 185, 189, 191, 192, 194, 195, 196, 197, 199, 200, 201, 202, 203, 206, 207, 208, 209, 211, 212, 213, 217, 218, 219, 220, 221, 222, 223, 225, 226, 228, 229, 230, 231, 232, 233, 234, 236, 237, 238, 239, 241, 242, 243, 244, 246, 249, 250, 252, 253, 254, 256, 257, 258, 259, 260, 261, 262, 263, 266, 267, 268, 269, 270, 271, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287])
-            ##occupied_sites = np.array([146, 147, 148, 149, 150, 151, 152, 154, 155, 156, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 172, 173, 174, 175, 176, 177, 178, 179, 182, 184, 185, 188, 189, 190, 191, 192, 193, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 211, 213, 214, 215, 216, 217, 218, 219, 220, 221, 224, 225, 226, 228, 230, 231, 234, 235, 236, 238, 241, 247, 248, 249, 250, 253, 256, 259, 260, 261, 263, 264, 265, 267, 269, 271, 272, 273, 274, 277, 279, 280, 282, 283, 285, 286, 0, 1, 2, 4, 10, 11, 12, 13, 15, 16, 23, 25, 27, 30, 33, 35, 38, 42, 43, 44, 46, 49, 54, 60, 61, 66, 70, 71, 72, 80, 83, 91, 96, 101, 103, 104, 107, 111, 120, 121, 128, 129, 130, 131])
-            #occupied_sites = np.array([3, 4, 9, 12, 14, 18, 30, 31, 43, 47, 49, 50, 53, 54, 56, 63, 66, 67, 75, 78, 80, 82, 84, 95, 100, 105, 109, 115, 117, 119, 127, 130, 132, 134, 136, 137, 138, 143, 144, 145, 146, 147, 148, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 164, 169, 171, 172, 173, 176, 177, 178, 179, 180, 182, 183, 184, 186, 187, 190, 191, 192, 193, 194, 195, 196, 199, 200, 201, 205, 207, 208, 209, 210, 211, 212, 213, 214, 215, 218, 219, 220, 221, 223, 224, 227, 228, 229, 230, 231, 232, 233, 234, 235, 237, 238, 239, 240, 241, 244, 245, 246, 247, 248, 249, 250, 252, 253, 254, 256, 257, 258, 259, 260, 263, 265, 266, 267, 268, 272, 273, 275, 277, 278, 279, 280, 281, 282, 283, 284, 286, 287])
-            #occupied_sites = np.array([0, 2, 3, 8, 10, 13, 16, 18, 19, 21, 23, 25, 38, 40, 41, 50, 52, 53, 63, 64, 65, 69, 71, 73, 79, 80, 82, 83, 86, 102, 104, 105, 110, 114, 119, 122, 123, 125, 129, 132, 134, 135, 138, 141, 144, 145, 146, 147, 149, 150, 152, 153, 154, 157, 159, 160, 161, 162, 163, 164, 165, 167, 168, 169, 170, 172, 177, 179, 182, 183, 184, 187, 190, 191, 193, 194, 196, 198, 200, 201, 202, 205, 206, 207, 208, 209, 210, 211, 212, 213, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 227, 228, 232, 233, 234, 235, 237, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 250, 251, 252, 253, 254, 255, 256, 258, 259, 260, 261, 262, 263, 266, 267, 268, 269, 271, 274, 276, 278, 279, 280, 283, 285, 286, 287])
-
-            #occupied_sites = np.array([3, 4, 9, 12, 14, 18, 23, 30, 31, 41, 43, 44, 47, 49, 53, 54, 56, 58, 60, 62, 63, 67, 75, 78, 80, 82, 92, 95, 98, 100, 105, 109, 115, 117, 119, 126, 127, 130, 132, 134, 137, 138, 141, 143, 144, 145, 147, 148, 150, 151, 152, 155, 156, 157, 158, 159, 160, 161, 162, 164, 167, 169, 171, 172, 173, 174, 177, 178, 179, 182, 183, 184, 186, 187, 188, 190, 191, 192, 193, 194, 195, 196, 198, 199, 200, 204, 205, 206, 207, 208, 209, 210, 212, 215, 218, 219, 223, 224, 227, 228, 229, 231, 232, 233, 234, 235, 236, 238, 239, 240, 241, 242, 244, 245, 246, 247, 248, 249, 250, 252, 253, 256, 257, 258, 259, 260, 261, 263, 265, 266, 267, 272, 273, 274, 275, 277, 278, 279, 281, 282, 283, 284, 285, 287])
-            #occupied_sites = np.array([
-            #occupied_sites = np.array([0, 1, 2, 6, 8, 10, 15, 17, 22, 24, 27, 31, 32, 33, 35, 37, 38, 39, 41, 52, 54, 59, 60, 63, 64, 65, 66, 67, 69, 71, 72, 73, 76, 77, 78, 80, 81, 83, 86, 90, 91, 92, 93, 96, 97, 99, 100, 102, 103, 106, 107, 109, 110, 112, 114, 115, 116, 117, 118, 119, 121, 122, 126, 127])
-            #occupied_sites = np.array([0, 1, 2, 5, 7, 13, 16, 18, 21, 22, 24, 26, 27, 28, 33, 40, 41, 42, 43, 53, 54, 55, 57, 62, 64, 65, 66, 67, 68, 69, 72, 74, 75, 77, 80, 81, 82, 83, 84, 85, 86, 91, 92, 94, 95, 99, 101, 102, 104, 105, 107, 108, 109, 110, 111, 112, 115, 116, 118, 119, 124, 125, 126, 127])
-            #occupied_sites = np.array([1, 4, 6, 7, 14, 15, 16, 17, 25, 26, 29, 32, 33, 37, 39, 40, 42, 43, 47, 52, 58, 59, 60, 62, 65, 66, 67, 69, 70, 73, 74, 76, 78, 79, 80, 81, 83, 84, 86, 87, 89, 90, 93, 94, 95, 96, 99, 100, 102, 103, 104, 105, 106, 107, 111, 112, 114, 116, 119, 121, 123, 124, 125, 126])
-            #occupied_sites = np.array([1, 4, 6, 10, 15, 17, 18, 20, 22, 24, 25, 27, 31, 33, 34, 35, 37, 39, 40, 41, 44, 52, 54, 56, 59, 60, 61, 63, 65, 66, 69, 71, 72, 76, 79, 80, 81, 82, 83, 84, 86, 90, 91, 95, 96, 97, 99, 102, 103, 104, 107, 108, 109, 110, 112, 114, 115, 117, 118, 121, 124, 125, 126, 127])
-            #occupied_sites = np.array([0, 1, 4, 6, 7, 10, 11, 15, 17, 18, 24, 25, 28, 29, 30, 33, 37, 38, 39, 40, 43, 44, 46, 47, 51, 53, 54, 56, 58, 59, 62, 63, 65, 67, 69, 72, 73, 75, 78, 79, 80, 81, 82, 83, 84, 87, 89, 90, 94, 95, 96, 99, 100, 106, 107, 108, 110, 112, 117, 118, 119, 121, 122, 126])
-            #occupied_sites = np.array([1, 4, 5, 6, 7, 9, 12, 13, 14, 15, 16, 18, 21, 23, 24, 26, 27, 30, 32, 33, 34, 41, 42, 43, 44, 46, 53, 55, 57, 58, 59, 62, 67, 68, 70, 71, 76, 77, 79, 80, 82, 84, 85, 86, 87, 88, 90, 91, 96, 98, 101, 105, 106, 107, 108, 110, 111, 112, 115, 117, 119, 124, 125, 127])
-            #occupied_sites = np.array([1, 4, 6, 10, 11, 15, 17, 18, 20, 23, 24, 25, 27, 28, 30, 31, 33, 34, 35, 36, 37, 39, 40, 41, 42, 44, 56, 58, 59, 60, 61, 63, 65, 68, 70, 71, 74, 79, 81, 82, 83, 84, 86, 87, 90, 91, 95, 96, 97, 99, 100, 103, 104, 106, 107, 108, 109, 112, 114, 115, 117, 122, 124, 127])
-            # occupied_sites = np.array([0, 1, 4, 5, 6, 9, 12, 13, 15, 17, 18, 21, 24, 26, 27, 30, 32, 36, 37, 38, 41, 42, 44, 46, 47, 49, 53, 55, 57, 58, 59, 62, 64, 65, 67, 68, 71, 76, 77, 78, 79, 82, 85, 86, 87, 90, 91, 92, 96, 98, 100, 101, 105, 106, 107, 108, 111, 114, 115, 117, 119, 124, 126, 127])
-            #occupied_sites = np.array([2, 4, 6, 7, 10, 13, 14, 24, 29, 32, 33, 34, 35, 37, 38, 39, 41, 44, 45, 46, 47, 48, 49, 50, 51, 52, 55, 56, 59, 60, 61, 63, \
-            #                         65, 69, 70, 71, 72, 75, 77, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 96, 98, 105, 106, 109, 110, 112, 114, 115, 118, 119, 120, 121, 125]) # FIXME
-            #occupied_sites = np.array([2,   4,   6,   7,  10,  13,  14,  24,  29,  32,  33,  34,  35,  37,  38,  39,  41,  44,  45,  46,  47,  48,  49,  50,  51,  52,  55,  56,  59,  60,  61,  63,  64,  66,  67,  68,  73,  74,  76,  78,  79,  91,  92,  93,  94,  95,  97,  99, 100, 101, 102, 103, 104, 107, 108, 111, 113, 116, 117, 122, 123, 124, 126, 127])  # rnd 1
-            # occupied_sites = np.array([1, 6, 7, 9, 10, 11, 13, 16, 17, 19, 24, 26, 28, 29, 30, 31, 32, 34, 36, 37, 38, 39, 41, 42, 43, 44, 45, 46, 51, 52, 58, 59, 64, 65, 67, 69, 74, 75, 76, 77, 79, 80, 81, 82, 85, 87, 92, 97, 98, 99, 103, 104, 107, 108, 112, 113, 114, 116, 117, 118, 119, 122, 124, 126]) # rnd 2
-            # occupied_sites = np.array([2, 3, 8, 11, 13, 14, 15, 16, 17, 22, 23, 24, 25, 26, 27, 29, 31, 35, 36, 38, 39, 43, 46, 47, 48, 50, 52, 55, 56, 58, 60, 61, 68, 71, 72, 74, 76, 77, 78, 79, 80, 81, 84, 85, 86, 88, 89, 91, 95, 100, 101, 102, 105, 106, 109, 110, 113, 114, 115, 116, 119, 122, 123, 125])  # rnd 3
-            # occupied_sites = np.array([1, 3, 7, 8, 10, 12, 14, 15, 17, 18, 19, 20, 22, 27, 32, 33, 34, 35, 36, 38, 39, 45, 50, 53, 54, 56, 57, 59, 60, 61, 62, 63, 66, 67, 69, 70, 72, 73, 75, 77, 78, 80, 83, 85, 87, 92, 95, 98, 99, 100, 102, 104, 107, 108, 109, 111, 112, 113, 114, 115, 118, 120, 122, 123])  # rnd 4
-            #occupied_sites = np.array([0, 1, 2, 3, 5, 7, 8, 9, 10, 12, 16, 18, 19, 20, 21, 22, 23, 25, 27, 29, 32, 40, 41, 43, 45, 47, 48, 50, 53, 56, 58, 62, 65, 66, 68, 70, 72, 75, 76, 79, 80, 81, 83, 85, 87, 89, 90, 91, 94, 95, 96, 97, 98, 100, 108, 109, 113, 116, 117, 118, 119, 120, 122, 123])  # rnd 5
-            #print('N occupied sites = {:d}'.format(len(occupied_sites)))
-            #exit(-1)
         else:
             occupied_sites_particles = np.random.choice(np.arange(self.config.total_dof // 2), 
                                                         size = n_particles, replace = False)
@@ -496,28 +484,6 @@ class wavefunction_singlet():
                 occupied_sites_particles, occupied_sites_holes = occupied_sites_holes - self.config.total_dof // 2, occupied_sites_particles + self.config.total_dof // 2
 
             occupied_sites = np.concatenate([occupied_sites_particles, occupied_sites_holes])
-            #occupied_sites = np.array([0, 1, 9, 13, 27, 36, 37, 39, 42, 43, 50, 65, 66, 68, 78, 79, 83, 85, 88, 89, 93, 95, 96, 98, 99, 100, 101, 102, 107, 108, 110, 111, 113, 114, 118, 122, 124, 126, 131, 132, 134, 137, 140, 143, 147, 149, 150, 151, 152, 153, 158, 161, 162, 163, 164, 165, 166, 168, 170, 172, 173, 175, 176, 178, 180, 181, 183, 184, 185, 189, 191, 192, 194, 195, 196, 197, 199, 200, 201, 202, 203, 206, 207, 208, 209, 211, 212, 213, 217, 218, 219, 220, 221, 222, 223, 225, 226, 228, 229, 230, 231, 232, 233, 234, 236, 237, 238, 239, 241, 242, 243, 244, 246, 249, 250, 252, 253, 254, 256, 257, 258, 259, 260, 261, 262, 263, 266, 267, 268, 269, 270, 271, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287])
-            #occupied_sites = np.array([0, 1, 13, 27, 28, 36, 37, 43, 44, 50, 66, 68, 79, 83, 85, 89, 93, 95, 98, 99, 100, 101, 102, 107, 110, 111, 113, 114, 118, 124, 126, 131, 132, 134, 136, 137, 140, 143, 144, 147, 149, 150, 151, 152, 155, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 170, 172, 173, 175, 176, 178, 180, 181, 182, 184, 185, 189, 191, 192, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 206, 207, 208, 211, 212, 213, 214, 217, 218, 219, 220, 221, 223, 225, 226, 228, 229, 230, 231, 233, 234, 236, 237, 238, 239, 241, 242, 243, 244, 246, 247, 248, 249, 250, 251, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 267, 268, 269, 270, 271, 272, 276, 277, 278, 279, 280, 281, 282, 283, 285, 286, 287])
-            #occupied_sites = np.array([146, 147, 148, 149, 150, 151, 152, 154, 155, 156, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 172, 173, 174, 175, 176, 177, 178, 179, 182, 184, 185, 188, 189, 190, 191, 192, 193, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 211, 213, 214, 215, 216, 217, 218, 219, 220, 221, 224, 225, 226, 228, 230, 231, 234, 235, 236, 238, 241, 247, 248, 249, 250, 253, 256, 259, 260, 261, 263, 264, 265, 267, 269, 271, 272, 273, 274, 277, 279, 280, 282, 283, 285, 286, 0, 1, 2, 4, 10, 11, 12, 13, 15, 16, 23, 25, 27, 30, 33, 35, 38, 42, 43, 44, 46, 49, 54, 60, 61, 66, 70, 71, 72, 80, 83, 91, 96, 101, 103, 104, 107, 111, 120, 121, 128, 129, 130, 131])
-            #occupied_sites = np.array([3, 4, 9, 12, 14, 18, 30, 31, 43, 47, 49, 50, 53, 54, 56, 63, 66, 67, 75, 78, 80, 82, 84, 95, 100, 105, 109, 115, 117, 119, 127, 130, 132, 134, 136, 137, 138, 143, 144, 145, 146, 147, 148, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 164, 169, 171, 172, 173, 176, 177, 178, 179, 180, 182, 183, 184, 186, 187, 190, 191, 192, 193, 194, 195, 196, 199, 200, 201, 205, 207, 208, 209, 210, 211, 212, 213, 214, 215, 218, 219, 220, 221, 223, 224, 227, 228, 229, 230, 231, 232, 233, 234, 235, 237, 238, 239, 240, 241, 244, 245, 246, 247, 248, 249, 250, 252, 253, 254, 256, 257, 258, 259, 260, 263, 265, 266, 267, 268, 272, 273, 275, 277, 278, 279, 280, 281, 282, 283, 284, 286, 287])
-            #occupied_sites = np.array([0, 2, 3, 8, 10, 13, 16, 18, 19, 21, 23, 25, 38, 40, 41, 50, 52, 53, 63, 64, 65, 69, 71, 73, 79, 80, 82, 83, 86, 102, 104, 105, 110, 114, 119, 122, 123, 125, 129, 132, 134, 135, 138, 141, 144, 145, 146, 147, 149, 150, 152, 153, 154, 157, 159, 160, 161, 162, 163, 164, 165, 167, 168, 169, 170, 172, 177, 179, 182, 183, 184, 187, 190, 191, 193, 194, 196, 198, 200, 201, 202, 205, 206, 207, 208, 209, 210, 211, 212, 213, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 227, 228, 232, 233, 234, 235, 237, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 250, 251, 252, 253, 254, 255, 256, 258, 259, 260, 261, 262, 263, 266, 267, 268, 269, 271, 274, 276, 278, 279, 280, 283, 285, 286, 287])
-            #occupied_sites = np.array([3, 4, 9, 12, 14, 18, 23, 30, 31, 41, 43, 44, 47, 49, 53, 54, 56, 58, 60, 62, 63, 67, 75, 78, 80, 82, 92, 95, 98, 100, 105, 109, 115, 117, 119, 126, 127, 130, 132, 134, 137, 138, 141, 143, 144, 145, 147, 148, 150, 151, 152, 155, 156, 157, 158, 159, 160, 161, 162, 164, 167, 169, 171, 172, 173, 174, 177, 178, 179, 182, 183, 184, 186, 187, 188, 190, 191, 192, 193, 194, 195, 196, 198, 199, 200, 204, 205, 206, 207, 208, 209, 210, 212, 215, 218, 219, 223, 224, 227, 228, 229, 231, 232, 233, 234, 235, 236, 238, 239, 240, 241, 242, 244, 245, 246, 247, 248, 249, 250, 252, 253, 256, 257, 258, 259, 260, 261, 263, 265, 266, 267, 272, 273, 274, 275, 277, 278, 279, 281, 282, 283, 284, 285, 287])
-            occupied_sites = np.array([0, 1, 2, 4, 9, 10, 12, 13, 14, 16, 18, 22, 25, 27, 30, 33, 35, 37, 38, 39, 42, 43, 44, 46, 49, 54, 60, 61, 65, 66, 70, 71, 74, 78, 79, 80, 82, 83, 85, 86, 89, 91, 92, 93, 95, 99, 101, 102, 104, 107, 111, 113, 114, 120, 121, 122, 128, 129, 131, 136, 137, 143, 144, 145, 147, 148, 149, 150, 151, 156, 160, 164, 165, 166, 170, 172, 173, 174, 175, 179, 180, 181, 182, 184, 185, 186, 189, 190, 191, 193, 195, 197, 200, 201, 202, 203, 204, 206, 208, 209, 211, 213, 215, 216, 218, 220, 222, 225, 226, 227, 228, 232, 234, 236, 237, 238, 239, 240, 241, 243, 244, 245, 246, 249, 250, 252, 253, 257, 259, 262, 265, 267, 268, 269, 270, 272, 273, 275, 279, 282, 283, 285, 286, 287])
-            #occupied_sites = np.array([0, 1, 2, 6, 8, 10, 15, 17, 22, 24, 27, 31, 32, 33, 35, 37, 38, 39, 41, 52, 54, 59, 60, 63, 64, 65, 66, 67, 69, 71, 72, 73, 76, 77, 78, 80, 81, 83, 86, 90, 91, 92, 93, 96, 97, 99, 100, 102, 103, 106, 107, 109, 110, 112, 114, 115, 116, 117, 118, 119, 121, 122, 126, 127])
-            #occupied_sites = np.array([0, 1, 2, 5, 7, 13, 16, 18, 21, 22, 24, 26, 27, 28, 33, 40, 41, 42, 43, 53, 54, 55, 57, 62, 64, 65, 66, 67, 68, 69, 72, 74, 75, 77, 80, 81, 82, 83, 84, 85, 86, 91, 92, 94, 95, 99, 101, 102, 104, 105, 107, 108, 109, 110, 111, 112, 115, 116, 118, 119, 124, 125, 126, 127])
-            #occupied_sites = np.array([1, 4, 6, 7, 14, 15, 16, 17, 25, 26, 29, 32, 33, 37, 39, 40, 42, 43, 47, 52, 58, 59, 60, 62, 65, 66, 67, 69, 70, 73, 74, 76, 78, 79, 80, 81, 83, 84, 86, 87, 89, 90, 93, 94, 95, 96, 99, 100, 102, 103, 104, 105, 106, 107, 111, 112, 114, 116, 119, 121, 123, 124, 125, 126])
-            #occupied_sites = np.array([1, 4, 6, 10, 15, 17, 18, 20, 22, 24, 25, 27, 31, 33, 34, 35, 37, 39, 40, 41, 44, 52, 54, 56, 59, 60, 61, 63, 65, 66, 69, 71, 72, 76, 79, 80, 81, 82, 83, 84, 86, 90, 91, 95, 96, 97, 99, 102, 103, 104, 107, 108, 109, 110, 112, 114, 115, 117, 118, 121, 124, 125, 126, 127])
-            #occupied_sites = np.array([0, 1, 4, 6, 7, 10, 11, 15, 17, 18, 24, 25, 28, 29, 30, 33, 37, 38, 39, 40, 43, 44, 46, 47, 51, 53, 54, 56, 58, 59, 62, 63, 65, 67, 69, 72, 73, 75, 78, 79, 80, 81, 82, 83, 84, 87, 89, 90, 94, 95, 96, 99, 100, 106, 107, 108, 110, 112, 117, 118, 119, 121, 122, 126])
-            #occupied_sites = np.array([1, 4, 5, 6, 7, 9, 12, 13, 14, 15, 16, 18, 21, 23, 24, 26, 27, 30, 32, 33, 34, 41, 42, 43, 44, 46, 53, 55, 57, 58, 59, 62, 67, 68, 70, 71, 76, 77, 79, 80, 82, 84, 85, 86, 87, 88, 90, 91, 96, 98, 101, 105, 106, 107, 108, 110, 111, 112, 115, 117, 119, 124, 125, 127])
-            #occupied_sites = np.array([1, 4, 6, 10, 11, 15, 17, 18, 20, 23, 24, 25, 27, 28, 30, 31, 33, 34, 35, 36, 37, 39, 40, 41, 42, 44, 56, 58, 59, 60, 61, 63, 65, 68, 70, 71, 74, 79, 81, 82, 83, 84, 86, 87, 90, 91, 95, 96, 97, 99, 100, 103, 104, 106, 107, 108, 109, 112, 114, 115, 117, 122, 124, 127])
-            #occupied_sites = np.array([0, 1, 4, 5, 6, 9, 12, 13, 15, 17, 18, 21, 24, 26, 27, 30, 32, 36, 37, 38, 41, 42, 44, 46, 47, 49, 53, 55, 57, 58, 59, 62, 64, 65, 67, 68, 71, 76, 77, 78, 79, 82, 85, 86, 87, 90, 91, 92, 96, 98, 100, 101, 105, 106, 107, 108, 111, 114, 115, 117, 119, 124, 126, 127])
-            #occupied_sites = np.array([2, 4, 6, 7, 10, 13, 14, 24, 29, 32, 33, 34, 35, 37, 38, 39, 41, 44, 45, 46, 47, 48, 49, 50, 51, 52, 55, 56, 59, 60, 61, 63, \
-            #                         65, 69, 70, 71, 72, 75, 77, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 96, 98, 105, 106, 109, 110, 112, 114, 115, 118, 119, 120, 121, 125]) # FIXME
-            # occupied_sites = np.array([  2,   4,   6,   7,  10,  13,  14,  24,  29,  32,  33,  34,  35,  37,  38,  39,  41,  44,  45,  46,  47,  48,  49,  50,  51,  52,  55,  56,  59,  60,  61,  63,  64,  66,  67,  68,  73,  74,  76,  78,  79,  91,  92,  93,  94,  95,  97,  99, 100, 101, 102, 103, 104, 107, 108, 111, 113, 116, 117, 122, 123, 124, 126, 127])  # rnd 1
-            # occupied_sites = np.array([1, 6, 7, 9, 10, 11, 13, 16, 17, 19, 24, 26, 28, 29, 30, 31, 32, 34, 36, 37, 38, 39, 41, 42, 43, 44, 45, 46, 51, 52, 58, 59, 64, 65, 67, 69, 74, 75, 76, 77, 79, 80, 81, 82, 85, 87, 92, 97, 98, 99, 103, 104, 107, 108, 112, 113, 114, 116, 117, 118, 119, 122, 124, 126])  # rnd 2
-            #occupied_sites = np.array([2, 3, 8, 11, 13, 14, 15, 16, 17, 22, 23, 24, 25, 26, 27, 29, 31, 35, 36, 38, 39, 43, 46, 47, 48, 50, 52, 55, 56, 58, 60, 61, 68, 71, 72, 74, 76, 77, 78, 79, 80, 81, 84, 85, 86, 88, 89, 91, 95, 100, 101, 102, 105, 106, 109, 110, 113, 114, 115, 116, 119, 122, 123, 125])  # rnd 3
-            # occupied_sites = np.array([1, 3, 7, 8, 10, 12, 14, 15, 17, 18, 19, 20, 22, 27, 32, 33, 34, 35, 36, 38, 39, 45, 50, 53, 54, 56, 57, 59, 60, 61, 62, 63, 66, 67, 69, 70, 72, 73, 75, 77, 78, 80, 83, 85, 87, 92, 95, 98, 99, 100, 102, 104, 107, 108, 109, 111, 112, 113, 114, 115, 118, 120, 122, 123])  # rnd 4
-            #occupied_sites = np.array([0, 1, 2, 3, 5, 7, 8, 9, 10, 12, 16, 18, 19, 20, 21, 22, 23, 25, 27, 29, 32, 40, 41, 43, 45, 47, 48, 50, 53, 56, 58, 62, 65, 66, 68, 70, 72, 75, 76, 79, 80, 81, 83, 85, 87, 89, 90, 91, 94, 95, 96, 97, 98, 100, 108, 109, 113, 116, 117, 118, 119, 120, 122, 123])  # rnd 5
 
         place_in_string = (np.zeros(self.config.total_dof) - 1).astype(np.int64)
         place_in_string[occupied_sites] = np.arange(len(occupied_sites))
@@ -536,6 +502,7 @@ class wavefunction_singlet():
 
     def perform_MC_step(self, proposed_move = None, enforce = False, demand_accept = False):
         self.wf_ampls.append(self.current_ampl)
+        assert not demand_accept
         if demand_accept:
             t = time()
             MC_step_index_previous = self.MC_step_index
@@ -547,31 +514,37 @@ class wavefunction_singlet():
         else:
             self.MC_step_index += 1
             rnd_index = self.MC_step_index % self._rnd_size
+            if rnd_index == self._rnd_size - 1:
+                self._refresh_rnd()
         
             if proposed_move == None:
                 moved_site_idx = self.random_numbers_move[rnd_index]
                 moved_site = self.occupied_sites[moved_site_idx]
+
+                #moved_site = self.random_numbers_move[rnd_index]
+                #moved_site_idx = self.place_in_string[moved_site]
+
                 t = time()
                 empty_site, empty = _choose_site(self.adjacency_list[moved_site], \
                                                  self.state, \
                                                  self.random_numbers_direction[rnd_index])
-                # print(moved_site, self.adjacency_list[moved_site])
+                #empty_site = self.random_numbers_direction[rnd_index] % len(self.state)
+                #empty = self.state[empty_site] == 0
+                # print(moved_site, self.adjacency_list[moved_site], self.state, self.random_numbers_direction[rnd_index])
                 self.t_choose_site += time() - t
-                #print('choose_site = {:.10f}'.format(time() - t))
             else:  # only in testmode
                 moved_site, empty_site = proposed_move
                 moved_site_idx = self.place_in_string[moved_site]
                 if empty_site not in self.empty_sites or moved_site not in self.occupied_sites:
                     return False, 1, 1, moved_site, empty_site
 
-            if proposed_move == None and not empty:
+            if proposed_move == None and ((not empty) or self.state[moved_site] == 0):
                 return False, 1, 1, moved_site, empty_site
 
 
             t = time()
             det_ratio = self.W_GF[empty_site, moved_site_idx] + np.dot(self.a_update_list[empty_site, :self.n_stored_updates],
                                                                        self.b_update_list[moved_site_idx, :self.n_stored_updates])
-
             self.t_det += time() - t
             #print('det = {:.10f}'.format(time() - t))
             t = time()
@@ -738,6 +711,7 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
     state_packed = (Jastrow, W_GF, place_in_string, state, occupancy)
 
     ## have to explicitly work-around degenerate cases ##
+    '''
     if i == j:
         n_i = density(place_in_string, i)
         return 0.0 + 0.0j if n_i == 0 else get_wf_ratio(*state_packed, total_fugacity, k, l)
@@ -758,11 +732,14 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
     if l == k and l == i:
         n_i = density(place_in_string, i)
         return 0.0 + 0.0j if n_i == 1 else get_wf_ratio(*state_packed, total_fugacity, i, j)
-
-    ## bus if everything is non-equal... ##
+    '''
+    ## but if everything is non-equal... ##
     delta_jk = 1.0 if j == k else 0.0
     ratio_det = get_det_ratio(*state_packed, i, j) * get_det_ratio(*state_packed, k, l) - \
                 get_det_ratio(*state_packed, i, l) * get_det_ratio(*state_packed, k, j)
+    #print(state)
+    #print(get_det_ratio(*state_packed, i, j), get_det_ratio(*state_packed, k, l))
+    #print(get_det_ratio(*state_packed, i, l) * get_det_ratio(*state_packed, k, j))
     jastrow = 0.0
     if True:#np.abs(ratio_det) > 1e-10:
         jastrow = get_Jastrow_ratio(Jastrow, occupancy, state, total_fugacity, i, j)
@@ -774,7 +751,8 @@ def get_wf_ratio_double_exchange(Jastrow, W_GF, place_in_string, state, occupanc
         jastrow *= get_Jastrow_ratio(Jastrow, occupancy, state, total_fugacity, k, l)
         occupancy[i % L] += delta_i
         occupancy[j % L] -= delta_j
-    return jastrow * ratio_det
+    #print(delta_jk, get_det_ratio(*state_packed, i, l))
+    return jastrow * (ratio_det + delta_jk * get_det_ratio(*state_packed, i, l))
 
 
 @jit(nopython=True)
@@ -816,24 +794,87 @@ def jit_get_O_jastrow(Jastrow_A, occupancy):
 def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap, \
                   hoppings_list_TBC_up, hoppings_list_TBC_down,
                   var_hoppings, reg_gap_term, particle_hole = False, ph_test = False, trs_test = False):
+    
     Delta = pairings.get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params_gap) * (-1. if ph_test else 1)
+    print(var_params_gap)
+
+    ### TEST ALL LEVELS ARE REPULSED ###
+
+    energies, solutions = np.linalg.eigh(K_up)
+    TRS = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(len(K_up) // 2)])
+    for en, sol in zip(energies, solutions.T):
+        sol_TRS = sol[TRS]
+        en_TRS = np.vdot(-K_up.T.dot(sol_TRS), sol_TRS)
+
+        #print(-en, en_TRS)
+        assert np.abs(en_TRS + en) < 1e-7
+        assert not np.isclose(np.vdot(sol, reg_gap_term @ sol_TRS), 0.0)
+        print(np.vdot(sol, reg_gap_term @ sol_TRS))
+
+
+
+    gaps = []
+    spectrum_simple = np.linalg.eigh(K_up)[0]
+    for mu_BCS in np.linspace(-1, 1, 300000):
+        if np.sum(np.abs(spectrum_simple - mu_BCS) < 1e-3) == 0:
+            continue
+        #print(mu_BCS)
+        T = scipy.linalg.block_diag(K_up - np.eye(K_up.shape[0]) * mu_BCS, -K_down + np.eye(K_up.shape[0]) * mu_BCS) + 0.0j
+        
+        T[:config.total_dof // 2, config.total_dof // 2:] = Delta# if not particle_hole else Delta.conj().T
+        T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T# if not particle_hole else Delta
+
+        T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
+        T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
+        onlyreg = T * 0.0
+        onlyreg[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
+        onlyreg[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
+
+        levels, states = np.linalg.eigh(T)
+        states = states.T
+
+        gap = np.abs(levels[K_up.shape[0] - 1] - levels[K_up.shape[0]])
+        T = scipy.linalg.block_diag(K_up + np.eye(K_up.shape[0]) * mu_BCS, -K_down - np.eye(K_up.shape[0]) * mu_BCS) + 0.0j
+        levels_wo = np.linalg.eigh(T)[0]
+        #print(levels - levels_wo)
+        gaps.append(gap)
+        threshold = 1e-4
+        print(mu_BCS, gap, np.min(gaps))
+        if gap < threshold:
+            print(levels[np.abs(levels) < threshold])
+            states_plus = states[(levels < threshold) & (levels > 0.0)]
+            states_minus = states[(levels > -threshold) & (levels < 0.0)]
+            gapmat = states_plus.conj() @ onlyreg @ states_minus.T
+            print(gapmat)
+            print(np.linalg.eig(gapmat)[0])
+            #a, b = states[np.abs(levels) < 1e-5]
+            #print(onlyreg[:config.total_dof // 2, config.total_dof // 2:])
+            #print('THE PAIRING:', np.vdot(a[:config.total_dof // 2], onlyreg[:config.total_dof // 2, config.total_dof // 2:] @ b[config.total_dof // 2:]))
+            exit(-1)
+
+
+            print(mu_BCS, gap, np.max(np.abs(np.sort(levels) - np.sort(levels_wo))))
+    print('min gap', np.min(gaps))
+    print(reg_gap_term[:2, :2])
+    exit(-1)
+
+
+    ### END ###
+
+
+
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
-
-    #for hop_up, hop_down, coeff in zip(hoppings_list_TBC_up, hoppings_list_TBC_down, var_hoppings):
-    #    T[:config.total_dof // 2, :config.total_dof // 2] += hop_up * coeff
-    #    T[config.total_dof // 2:, config.total_dof // 2:] += -hop_down * coeff
-
-
-    if trs_test:
-        T = T.conj()
 
     ## various local pairing terms ##
     T[:config.total_dof // 2, config.total_dof // 2:] = Delta# if not particle_hole else Delta.conj().T
     T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T# if not particle_hole else Delta
 
+    if trs_test:
+        T = T.conj()
+
     ## regularisation ##
-    #T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
-    #T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
+    T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
+    T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
 
     # print(np.linalg.eigh(T)[0], 'energies all of T')    
     return T
