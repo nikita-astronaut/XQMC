@@ -87,7 +87,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     print(forces, 'FORCES --- are they real?')
     forces = forces.real
     #forces = forces / 36. * config_vmc.Ls ** 2
-    print('E_im = {:.10f} +/- {:.10f}'.format(np.mean(np.array(energies)), np.std(np.array(energies).flatten())))
+    print('E = {:.10f} +/- {:.10f}'.format(np.mean(np.array(energies)), np.std(np.array(energies).flatten())))
 
     ### SR STEP ###
     Os_mean = [np.repeat(Os_mean_theta[np.newaxis, ...], len(Os_theta), axis = 0) for Os_mean_theta, Os_theta in zip(Os_mean, Os)]
@@ -97,10 +97,14 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     # S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     S_cov = np.mean(S_cov, axis = 0)
     print(S_cov)
+    print(np.diag(S_cov))
 
     eigvals, eigvecs = np.linalg.eigh(S_cov)
     #print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
     print('S_cov eigvals = ', eigvals)
+    for i, vector in enumerate(eigvecs.T):
+        print('SR eigenvector', i, vector)
+
     print(np.diag(S_cov))
     for val, vec in zip(eigvals, eigvecs.T):
         if np.abs(val) < 1e-6:
@@ -109,36 +113,12 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
                 if np.abs(val) > 1e-1:
                     print(name, val)
 
-    # https://journals.jps.jp/doi/pdf/10.1143/JPSJ.77.114701 (formula 71)
-    # removal of diagonal singularities
-
-    '''
-    S_cov += config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
-
-    # https://journals.jps.jp/doi/10.1143/JPSJ.77.114701 (formula 76)
-    # regularized inversion with truncation of redundant directions
-    u, s, v = np.linalg.svd(S_cov)
-    S_cov_inv = np.zeros(S_cov.shape)
-    keep_lambdas = (s / s.max()) > config_vmc.opt_parameters[3]
-    for lambda_idx in range(len(s)):
-        if not keep_lambdas[lambda_idx]:
-            continue
-        S_cov_inv += (1. / s[lambda_idx]) * \
-                      np.einsum('i,j->ij', v.T[:, lambda_idx], u.T[lambda_idx, :])
-    step = S_cov_inv.dot(forces)
-    '''
-    #if n_iter < 20:
-    #    S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
-    #else:
     S_cov_pc = S_cov + config_vmc.opt_parameters[0] * np.diag(np.diag(S_cov))
     S_cov_pc += np.eye(S_cov.shape[0]) * 1e-3
 
     step = np.linalg.inv(S_cov_pc).dot(forces)
-    #print('\033[94m |f| = {:.4e}, |f_SR| = {:.4e} \033[0m'.format(np.sqrt(np.sum(forces ** 2)), \
-    #                                                              np.sqrt(np.sum(step ** 2))))
-    #print(forces[-3], step[-3], 'forces of gap')
-    print(forces)
-    print(step)
+    print('forces before SR:', forces)
+    print('step after SR:', step)
     return step, forces
 
 
@@ -327,8 +307,6 @@ def _get_MC_chain_result(n_iter, config_vmc, pairings_list, \
                               False, K_up, K_down, reg)
     print('WF Init takes {:.10f}'.format(time() - t))
     wf.perform_explicit_GF_update()
-    print(hamiltonian(wf))
-    print(wf.current_det)
     configs = []
 
     t_steps = 0
@@ -523,10 +501,12 @@ def run_simulation(delta_reg, previous_params):
     print(twists)
     print('Number of twists: {:d}, number of chains {:d}, twists per cpu {:2f}'.format(len(twists), config_vmc.n_chains, twists_per_cpu))
     K_matrices_up = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.K_0), inverse = False) for twist in twists]
+    print(repr(K_matrices_up[0]))
+    print(config_vmc.K_0)
+    #exit(-1)
     K_matrices_down = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.K_0).T, inverse = True) for twist in twists]
     reg_terms = [models.apply_TBC(config_vmc, twist, deepcopy(config_vmc.reg_gap_term), inverse = False) * \
                  config_vmc.reg_gap_val for twist in twists]
-
 
 
     config_vmc.MC_chain = config_vmc.MC_chain // len(twists) # the MC_chain contains the total required number of samples
@@ -579,7 +559,7 @@ def run_simulation(delta_reg, previous_params):
     n_step = last_step
     while n_step < config_vmc.optimisation_steps:
         t = time()
-        
+        print('N ITERATION', n_step, np.diag(K_matrices_up[0]))
         if twists_per_cpu > 1:
             with parallel_backend("loky", inner_max_num_threads=1):
                 results_batched = Parallel(n_jobs=n_cpus)(delayed(get_MC_chain_result)( \
@@ -657,6 +637,13 @@ def run_simulation(delta_reg, previous_params):
             #step = clip_forces(config_vmc.all_clips, step)
 
             parameters += step * mask  # lr better be ~0.01..0.1
+
+             
+            if parameters[0] < config_vmc.mu_BCS_min:
+                parameters[0] = config_vmc.mu_BCS_min
+            if parameters[0] > config_vmc.mu_BCS_max:
+                parameters[0] = config_vmc.mu_BCS_max
+
             save_parameters(parameters, config_vmc.workdir, n_step)
         ### END SR STEP ###
 
