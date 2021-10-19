@@ -530,9 +530,13 @@ class wavefunction_singlet():
                 #moved_site_idx = self.place_in_string[moved_site]
 
                 t = time()
+                shift = len(self.state) // 2
+                if moved_site < len(self.state) // 2:
+                    shift = 0
                 empty_site, empty = _choose_site(self.adjacency_list[moved_site], \
                                                  self.state, \
-                                                 self.random_numbers_direction[rnd_index])
+                                                 self.random_numbers_direction[rnd_index],
+                                                 shift, moved_site % 2)
                 #empty_site = self.random_numbers_direction[rnd_index] % len(self.state)
                 #empty = self.state[empty_site] == 0
                 # print(moved_site, self.adjacency_list[moved_site], self.state, self.random_numbers_direction[rnd_index])
@@ -863,7 +867,9 @@ def _jit_delayed_update(a_update_list, b_update_list, n_stored_updates, \
     return a_new, b_new
 
 @jit(nopython=True)
-def _choose_site(adjacency, state, rnd):
+def _choose_site(adjacency, state, rnd, shift, valley):
+    #element = shift + (rnd % (len(state) // 4)) * 2 + valley
+    #return element, state[element] == 0
     return adjacency[rnd % len(adjacency)], state[adjacency[rnd % len(adjacency)]] == 0
 
 
