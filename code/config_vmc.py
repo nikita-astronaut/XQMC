@@ -48,7 +48,7 @@ class MC_parameters:
         self.epsilon = 5
         self.xi = 0.10
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
-        self.U = 1.0
+        self.U = 3.0
 
         ### density VQMC parameters ###
         self.valley_imbalance = 0
@@ -60,7 +60,7 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False;
-        self.workdir = '/users/nastrakh/DQMC_TBG/logs/final_J_04_smallerreg_9x9/'
+        self.workdir = '/users/nastrakh/DQMC_TBG/logs/8x8_U=3/'
 
         self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
@@ -133,7 +133,7 @@ class MC_parameters:
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-2, 0.003, 1.00]
+        self.opt_parameters = [3e-2, 0.001, 1.00]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 1
         self.generator_mode = True
@@ -161,7 +161,7 @@ class MC_parameters:
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
             np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[3]),  # gaps
+            np.random.uniform(2.5e-2, 2.5e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
 
