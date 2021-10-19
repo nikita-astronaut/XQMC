@@ -3,7 +3,7 @@ import numpy as np
 import sys
 np.set_printoptions(threshold=sys.maxsize)
 #from opt_parameters import pairings, jastrow, waves, hoppings
-from opt_parameters import jastrow, pairings
+from opt_parameters import jastrow, pairings, waves
 from copy import deepcopy
 from scipy import interpolate
 import hamiltonians_vmc
@@ -18,7 +18,7 @@ class MC_parameters:
         self.L_twists_uniform = 6
         self.rank = irrep_idx
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 8; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
@@ -28,7 +28,7 @@ class MC_parameters:
         #print(repr(np.linalg.eigh(self.K_0)[0]))
         #exit(-1)
 
-        print(np.sum(self.K_0) / 0.331)
+        #print(np.sum(self.K_0) / 0.331)
 
         check_chirality(self.K_0, self.chiral_basis)
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
@@ -50,7 +50,7 @@ class MC_parameters:
         self.epsilon = 5
         self.xi = 0.10
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
-        self.U = 1.0
+        self.U = 2.0
 
         ### density VQMC parameters ###
         self.valley_imbalance = 0
@@ -85,7 +85,7 @@ class MC_parameters:
          ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
         self.idx_map = []
-        self.pairings_list = pairings.Koshino_united[irrep_idx]#pairings.twoorb_hex_all[1]#irrep_idx] #idx_map[2]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
+        self.pairings_list = []# FIXMEpairings.Koshino_united[irrep_idx]#pairings.twoorb_hex_all[1]#irrep_idx] #idx_map[2]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
         # self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
@@ -94,10 +94,10 @@ class MC_parameters:
 
 
         ### SDW/CDW parameters setting ###
-        #waves.obtain_all_waves(self)
-        #self.waves_list = waves.hex_2orb
-        #self.waves_list_unwrapped = [w[0] for w in self.waves_list]
-        #self.waves_list_names = [w[-1] for w in self.waves_list]
+        waves.obtain_all_waves(self)
+        self.waves_list = waves.hex_2orb
+        self.waves_list_unwrapped = [w[0] for w in self.waves_list]
+        self.waves_list_names = [w[-1] for w in self.waves_list]
         #self.waves_list_unwrapped = [models.xy_to_chiral(g, 'wave', self, self.chiral_basis) for g in self.waves_list_unwrapped]
 
 
@@ -106,31 +106,16 @@ class MC_parameters:
                                             self.n_orbitals, valley_conservation_K = self.valley_projection, 
                                             valley_conservation_Delta = self.enforce_valley_orbitals)
         print(self.adjacency_transition_matrix)
-        #self.name_group_dict = pairings.name_group_dict
-        #print(self.name_group_dict)
+
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
-        #self.jastrows_list = jastrow.jastrow_Koshino_Gutzwiller 
         self.jastrows_list = jastrow.jastrow_Koshino_simple#[:2]
-        #print(self.jastrows_list, 'jastrow')
-        # print(np.sum(self.jastrows_list[0][0]))
-        # print(self.jastrows_list[0][0])
-        # print(np.sum(self.jastrows_list[1][0]))
-        # print(self.jastrows_list[1][0])
-        # exit(-1)
 
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
-
-        ### SDW/CDW parameters setting ###
-        #waves.obtain_all_waves(self)
-        #self.waves_list = [] # waves.hex_2orb
-        #self.waves_list_names = [w[-1] for w in self.waves_list]
-        #self.waves_list_unwrapped = []
-
         ### optimisation parameters ###
-        self.MC_chain = 1600000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
+        self.MC_chain = 400000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 100000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
@@ -152,17 +137,17 @@ class MC_parameters:
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
                                                     self, self.chiral_basis) # FIXME
-        self.reg_gap_val = 0.0005
+        self.reg_gap_val = 0.000
 
         ## initial values definition and layout ###
-        self.layout = np.array([1, 0, len(self.hoppings), len(self.pairings_list_names), len(self.jastrows_list)])
+        self.layout = np.array([1, 0, len(self.waves_list_names), len(self.pairings_list_names), len(self.jastrows_list)])
         
 
         self.initial_parameters = np.concatenate([
             np.array([0.0]),  # mu_BCS
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
-            np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
+            np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[2]),  # waves
             np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
@@ -180,7 +165,7 @@ class MC_parameters:
        
         self.all_names = np.concatenate([
             np.array(['mu_BCS']),  # mu_BCS
-            np.array(self.hopping_names),  # hopping matrices
+            np.array(self.waves_list_names),  # hopping matrices
             np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
         ])
