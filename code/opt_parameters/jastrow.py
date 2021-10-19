@@ -178,7 +178,6 @@ def get_jastrow_Koshino_simple_TRS(config):
         print(site, 'intra', np.array([adj[0] for adj in config.adjacency_list[3 * site:3 * site + 1]]).sum() + \
                              np.array([adj[0] for adj in config.adjacency_list[3 * site + 2:3 * site + 3]]).sum())
         print(site, 'inter', np.array([adj[0] for adj in config.adjacency_list[3 * site + 1:3 * site + 2]]).sum())
-    #exit(-1)
 
     return jastrow_list[:-2]  # cut redundant Jastrows
 

@@ -1,5 +1,7 @@
 import models
 import numpy as np
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 #from opt_parameters import pairings, jastrow, waves, hoppings
 from opt_parameters import jastrow, pairings
 from copy import deepcopy
@@ -224,7 +226,6 @@ class MC_parameters:
         print('energy_free_theory = ', np.sum(np.sort(energies)[:self.total_dof // 2 // 2] * 2 / (self.total_dof // 2)))
         assert np.allclose(K_0_twisted, K_0_twisted.T.conj())
         print('energy_free_theory = ', np.sum(energies[:self.Ne // 2] * 2) / 16.)
-        print(energies)
 
 
         K_0_twisted_holes = -models.apply_TBC(self, twist, deepcopy(self.K_0).T, inverse = True)

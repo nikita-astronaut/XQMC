@@ -660,7 +660,7 @@ def run_simulation(delta_reg, previous_params):
             step = step * config_vmc.opt_parameters[1]
             #step = clip_forces(config_vmc.all_clips, step)
 
-            parameters += step * mask * factor_stages  # lr better be ~0.01..0.1
+            parameters += step * mask * factor_stages # lr better be ~0.01..0.1
 
              
             #if parameters[0] < config_vmc.mu_BCS_min:

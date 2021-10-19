@@ -803,13 +803,76 @@ def jit_get_O_jastrow(Jastrow_A, occupancy):
 def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap, \
                   hoppings_list_TBC_up, hoppings_list_TBC_down,
                   var_hoppings, reg_gap_term, particle_hole = False, ph_test = False, trs_test = False):
+    
     Delta = pairings.get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params_gap) * (-1. if ph_test else 1)
+    print(var_params_gap)
+
+    ### TEST ALL LEVELS ARE REPULSED ###
+    '''
+    energies, solutions = np.linalg.eigh(K_up)
+    TRS = np.concatenate([np.array([2 * i + 1, 2 * i]) for i in range(len(K_up) // 2)])
+    for en, sol in zip(energies, solutions.T):
+        sol_TRS = sol[TRS]
+        en_TRS = np.vdot(-K_up.T.dot(sol_TRS), sol_TRS)
+
+        #print(-en, en_TRS)
+        assert np.abs(en_TRS + en) < 1e-7
+        assert not np.isclose(np.vdot(sol, reg_gap_term @ sol_TRS), 0.0)
+        print(np.vdot(sol, reg_gap_term @ sol_TRS))
+
+
+
+    gaps = []
+    spectrum_simple = np.linalg.eigh(K_up)[0]
+    for mu_BCS in np.linspace(-1, 1, 300000):
+        if np.sum(np.abs(spectrum_simple - mu_BCS) < 1e-3) == 0:
+            continue
+        #print(mu_BCS)
+        T = scipy.linalg.block_diag(K_up - np.eye(K_up.shape[0]) * mu_BCS, -K_down + np.eye(K_up.shape[0]) * mu_BCS) + 0.0j
+        
+        T[:config.total_dof // 2, config.total_dof // 2:] = Delta# if not particle_hole else Delta.conj().T
+        T[config.total_dof // 2:, :config.total_dof // 2] = Delta.conj().T# if not particle_hole else Delta
+
+        T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
+        T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
+        onlyreg = T * 0.0
+        onlyreg[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
+        onlyreg[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
+
+        levels, states = np.linalg.eigh(T)
+        states = states.T
+
+        gap = np.abs(levels[K_up.shape[0] - 1] - levels[K_up.shape[0]])
+        T = scipy.linalg.block_diag(K_up + np.eye(K_up.shape[0]) * mu_BCS, -K_down - np.eye(K_up.shape[0]) * mu_BCS) + 0.0j
+        levels_wo = np.linalg.eigh(T)[0]
+        #print(levels - levels_wo)
+        gaps.append(gap)
+        threshold = 1e-4
+        print(mu_BCS, gap, np.min(gaps))
+        if gap < threshold:
+            print(levels[np.abs(levels) < threshold])
+            states_plus = states[(levels < threshold) & (levels > 0.0)]
+            states_minus = states[(levels > -threshold) & (levels < 0.0)]
+            gapmat = states_plus.conj() @ onlyreg @ states_minus.T
+            print(gapmat)
+            print(np.linalg.eig(gapmat)[0])
+            #a, b = states[np.abs(levels) < 1e-5]
+            #print(onlyreg[:config.total_dof // 2, config.total_dof // 2:])
+            #print('THE PAIRING:', np.vdot(a[:config.total_dof // 2], onlyreg[:config.total_dof // 2, config.total_dof // 2:] @ b[config.total_dof // 2:]))
+            exit(-1)
+
+
+            print(mu_BCS, gap, np.max(np.abs(np.sort(levels) - np.sort(levels_wo))))
+    print('min gap', np.min(gaps))
+    print(reg_gap_term[:2, :2])
+    exit(-1)
+
+
+    ### END ###
+
+
+    '''
     T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
-
-    #for hop_up, hop_down, coeff in zip(hoppings_list_TBC_up, hoppings_list_TBC_down, var_hoppings):
-    #    T[:config.total_dof // 2, :config.total_dof // 2] += hop_up * coeff
-    #    T[config.total_dof // 2:, config.total_dof // 2:] += -hop_down * coeff
-
     ### TEST GAPS REPULSION ###
     '''
     energies, states = np.linalg.eigh(T)
@@ -826,7 +889,6 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
                 print(repulsion[i, j], i, j)
     exit(-1)
     '''
-    
     ### END TEST GAPS REPULSION ###
 
 
@@ -841,9 +903,6 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
     T[:config.total_dof // 2, config.total_dof // 2:] += reg_gap_term * (-1. if ph_test else 1)
     T[config.total_dof // 2:, :config.total_dof // 2] += reg_gap_term.conj().T * (-1. if ph_test else 1)
 
-
-
-    # print(np.linalg.eigh(T)[0], 'energies all of T')    
     return T
 
 @jit(nopython = True)
