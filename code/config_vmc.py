@@ -25,8 +25,8 @@ class MC_parameters:
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, 0.0, spin = +1.0, BC=self.BC)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)
-        #print(repr(np.linalg.eigh(self.K_0)[0]))
-        #exit(-1)
+        print(repr(np.linalg.eigh(self.K_0)[0]))
+        exit(-1)
 
         #print(np.sum(self.K_0) / 0.331)
 
@@ -50,7 +50,7 @@ class MC_parameters:
         self.epsilon = 5
         self.xi = 0.10
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
-        self.U = 2.0
+        self.U = 1.5
 
         ### density VQMC parameters ###
         self.valley_imbalance = 0
@@ -62,7 +62,7 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False;
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/testgapping/'
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/wavestest_shortjastrow_neworder/'
 
         self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
@@ -110,17 +110,17 @@ class MC_parameters:
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
-        self.jastrows_list = jastrow.jastrow_Koshino_simple#[:2]
+        self.jastrows_list = jastrow.jastrow_Koshino_simple[:10]
 
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
 
         ### optimisation parameters ###
-        self.MC_chain = 400000; self.MC_thermalisation = 20000; self.opt_raw = 1500;
+        self.MC_chain = 400000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 100000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
         self.observables_frequency = self.MC_chain // 3  # how often to compute observables
-        self.opt_parameters = [1e-2, 0.003, 1.00]
+        self.opt_parameters = [1e-1, 0.001, 1.00]
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 1
         self.generator_mode = True
@@ -147,7 +147,7 @@ class MC_parameters:
             np.array([0.0]),  # mu_BCS
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
-            np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[2]),  # waves
+            np.random.uniform(2.5e-2, 2.5e-2, size = self.layout[2]),  # waves
             np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])

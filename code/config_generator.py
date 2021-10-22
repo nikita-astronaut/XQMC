@@ -4,8 +4,8 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-U_in_t1 = np.array([1.0])
-dt_in_inv_t1 = 1. / 3
+U_in_t1 = np.array([4.0])
+dt_in_inv_t1 = 1. / 10
 V_in_t1 = np.array([0.0])
 main_hopping = 1.0
 
@@ -13,14 +13,15 @@ class simulation_parameters:
     def __init__(self):
         self.gpu = False
         
-        self.Ls = 6
+        self.Ls = 2
         # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([10])
+        self.Nt = np.array([1600])
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
         self.field = auxiliary_field.AuxiliaryFieldInterorbitalAccurateCluster
         self.chiral_basis = True
+        self.n_spins = 1
         self.n_copy = 0
 
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
@@ -45,9 +46,9 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 10
 
-        self.workdir = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
-        self.workdir_heavy = '/s/ls4/users/astrakhantsev/DQMC_TBG/logs_dqmc_real/'
-        self.thermalization = 400  # after how many sweeps start computing observables
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc_real/2/'
+        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc_real/2/'
+        self.thermalization = 40000  # after how many sweeps start computing observables
         
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]

@@ -445,7 +445,7 @@ def perform_sweep_longrange(phi_field, observables, n_sweep, switch = True):
 
 
 
-def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
+def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = True):
     hex_index_range = phi_field.config.total_dof // 2 // 2 // 2
     assert hex_index_range == phi_field.n_hexagons
 
@@ -456,7 +456,7 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
 
     for time_slice in range(phi_field.config.Nt):
         if time_slice == 0:
-            current_det_log, current_det_sign = -2 * phi_field.log_det_up - 2 * phi_field.log_det_down, 1. / phi_field.sign_det_up ** 2 / phi_field.sign_det_down ** 2
+            current_det_log, current_det_sign = -n_spins * phi_field.log_det_up - n_spins * phi_field.log_det_down, 1. / phi_field.sign_det_up ** n_spins / phi_field.sign_det_down ** n_spins
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log_hex()
 
@@ -476,7 +476,7 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
             # print(np.max(np.abs(G_down - phi_field.current_G_function_down)))
             current_det_sign_before = current_det_sign * 1.0
             current_det_log_before = current_det_log * 1.0
-            current_det_log, current_det_sign = -phi_field.log_det_up * 2 - phi_field.log_det_down * 2, 1. / phi_field.sign_det_up ** 2 / phi_field.sign_det_down ** 2
+            current_det_log, current_det_sign = -phi_field.log_det_up * n_spins - phi_field.log_det_down * n_spins, 1. / phi_field.sign_det_up ** n_spins / phi_field.sign_det_down ** n_spins
             current_det_sign = current_det_sign.item()
 
             #if np.abs(current_det_sign_before - current_det_sign) > 1e-6:  # refresh of Green's function must preserve sign (robust)
@@ -559,8 +559,8 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
                 idxs = np.array(phi_field.hexagons[hex_idx], dtype=np.int64)
 
                 #t = time()
-                det_ratio = auxiliary_field.get_det_ratio_inter_hex(idxs, phi_field.Delta, phi_field.current_G_function_up) ** 2 * \
-                            auxiliary_field.get_det_ratio_inter_hex(idxs, phi_field.Delta, phi_field.current_G_function_down) ** 2
+                det_ratio = auxiliary_field.get_det_ratio_inter_hex(idxs, phi_field.Delta, phi_field.current_G_function_up) ** n_spins * \
+                            auxiliary_field.get_det_ratio_inter_hex(idxs, phi_field.Delta, phi_field.current_G_function_down) ** n_spins
                 #print('det ratio xi:', time() - t)
                 local_det_factors.append(det_ratio)
 
@@ -607,9 +607,9 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, switch = True):
                     print('\033[91m Warning: GF test failed! \033[0m', d_gf_up, d_gf_down)
                 else:
                     print('test of hex cluster update passed')
-                print('log |det| discrepancy:', current_det_log + 2 * det_log_up_check + 2 * det_log_down_check)
+                print('log |det| discrepancy:', current_det_log + n_spins * det_log_up_check + n_spins * det_log_down_check)
                 print('Gauge factor log discrepancy:', current_gauge_factor_log - phi_field.get_current_gauge_factor_log_hex())
-                print('phase det discrepancy:', phase_up_check ** 2 * phase_down_check ** 2 * current_det_sign)
+                print('phase det discrepancy:', phase_up_check ** n_spins * phase_down_check ** n_spins * current_det_sign)
                 print(phase_up_check)
                 need_check = False
 
@@ -675,6 +675,8 @@ if __name__ == "__main__":
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
         twist = real_twists[0] #[(rank + config.offset) % len(real_twists)]  # each rank knows its twist
         K_matrix = models.xy_to_chiral(K_matrix, 'K_matrix', config, config.chiral_basis)
+
+        energies = np.linalg.eigh(K_matrix)[0]
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False)
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
 
@@ -707,7 +709,7 @@ if __name__ == "__main__":
             t = time()
             # phi_field, observables = perform_sweep(phi_field, observables, n_sweep)
             #phi_field, observables = perform_sweep_longrange(phi_field, observables, n_sweep)
-            phi_field, observables = perform_sweep_cluster(phi_field, observables, n_sweep)
+            phi_field, observables = perform_sweep_cluster(phi_field, observables, n_sweep, config.n_spins)
             print('total sweep takes ', time() - t)
             print('total SVD time ', phi_field.total_SVD_time); phi_field.total_SVD_time = 0.0
 

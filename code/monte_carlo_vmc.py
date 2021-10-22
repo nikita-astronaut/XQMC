@@ -94,10 +94,8 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     S_cov = [(np.einsum('nk,nl->kl', (Os_theta - Os_mean_theta).conj(), (Os_theta - Os_mean_theta)) / Os_theta.shape[0]).real \
              for Os_mean_theta, Os_theta in zip(Os_mean, Os)]  # SR_matrix is computed independently for every twist angle theta
 
-    # S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
+    #S_cov = np.array([remove_singularity(S_cov_theta) for S_cov_theta in S_cov])
     S_cov = np.mean(S_cov, axis = 0)
-    print(S_cov)
-    print(np.diag(S_cov))
 
     eigvals, eigvecs = np.linalg.eigh(S_cov)
     #print('total_redundancies = ', np.sum(np.abs(eigvals) < 1e-6))
@@ -105,7 +103,6 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
     for i, vector in enumerate(eigvecs.T):
         print('SR eigenvector', i, vector)
 
-    print(np.diag(S_cov))
     for val, vec in zip(eigvals, eigvecs.T):
         if np.abs(val) < 1e-6:
             print('redundancy observed:', vec)
@@ -113,6 +110,7 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
                 if np.abs(val) > 1e-1:
                     print(name, val)
 
+    '''
 
     MT2 = S_cov @ S_cov.T.conj()
     eigvals, eigstates = np.linalg.eigh(MT2)
@@ -123,6 +121,13 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
  
     #S_cov_pc = S_cov + config_vmc.opt_parameters[1] * np.diag(np.diag(S_cov))
     #S_cov_pc += np.eye(S_cov.shape[0]) * 1e-2
+    '''
+
+
+    S_cov += np.eye(S_cov.shape[0]) * 3e-4 # stupid diagonal reg
+
+    S_cov_pc = np.einsum('ij,i,j->ij', S_cov, 1 / np.sqrt(np.diag(S_cov)), 1 / np.sqrt(np.diag(S_cov)))
+    S_cov_pc += config_vmc.opt_parameters[1] * np.eye(S_cov_pc.shape[0])  # scale-inv reg
 
     if config_vmc.condensation_energy_check_regime:
         S_cov_pc[config_vmc.layout[:3].sum():config_vmc.layout[:4].sum(), ...] = 0
@@ -131,7 +136,14 @@ def make_SR_step(Os, energies, config_vmc, twists, gaps, n_iter, mask):
             S_cov_pc[i, i] = 1.0
         forces[config_vmc.layout[:3].sum():config_vmc.layout[:4].sum()] = 0.
 
-    step = np.linalg.inv(S_cov_pc).dot(forces)
+    S_pc_inv = np.linalg.inv(S_cov_pc)
+
+    forces_pc = forces / np.sqrt(np.diag(S_cov))
+    step_pc = S_pc_inv.dot(forces_pc)
+    step = step_pc / np.sqrt(np.diag(S_cov))
+
+
+    #step = np.linalg.inv(S_cov_pc).dot(forces)
     print('forces before SR:', forces)
     print('step after SR:', step)
     return step, forces
@@ -651,10 +663,10 @@ def run_simulation(delta_reg, previous_params):
             parameters += step * mask * factor_stages # lr better be ~0.01..0.1
 
              
-            if parameters[0] < config_vmc.mu_BCS_min:
-                parameters[0] = config_vmc.mu_BCS_min
-            if parameters[0] > config_vmc.mu_BCS_max:
-                parameters[0] = config_vmc.mu_BCS_max
+            #if parameters[0] < config_vmc.mu_BCS_min:
+            #    parameters[0] = config_vmc.mu_BCS_min
+            #if parameters[0] > config_vmc.mu_BCS_max:
+            #    parameters[0] = config_vmc.mu_BCS_max
 
             save_parameters(parameters, config_vmc.workdir, n_step)
         ### END SR STEP ###

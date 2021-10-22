@@ -1385,17 +1385,17 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
 
         self.gauge_hexagon = {
-            -2 : (1. - np.sqrt(6) / 3 ) * np.exp(-4.0j * self.config.nu_U * self.eta[-2]),
-            +2 : (1. - np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[+2]),
-            -1 : (1. + np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[-1]),
-            +1 : (1. + np.sqrt(6) / 3.) * np.exp(-4.0j * self.config.nu_U * self.eta[+1])
+            -2 : (1. - np.sqrt(6) / 3 ) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[-2]),
+            +2 : (1. - np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[+2]),
+            -1 : (1. + np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1]),
+            +1 : (1. + np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1])
         }
 
         self.gauge_hexagon_log = {
-            -2 : np.log(1. - np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[-2],
-            +2 : np.log(1. - np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[+2],
-            -1 : np.log(1. + np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[-1],
-            +1 : np.log(1. + np.sqrt(6) / 3) - 4.0j * self.config.nu_U * self.eta[+1]
+            -2 : np.log(1. - np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[-2],
+            +2 : np.log(1. - np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[+2],
+            -1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1],
+            +1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1]
         }
         print(self.hexagons_by_site)
         print(self.hexagons)

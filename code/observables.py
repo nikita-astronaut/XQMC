@@ -898,17 +898,17 @@ def Coloumb_energy(phi):
 
     energy = 0.0 + 0.0j
     for h in phi.hexagons:
-        total_h_charge = np.sum(G_function_up[np.array(h), np.array(h)] + G_function_down[np.array(h), np.array(h)]) * 2.
+        total_h_charge = np.sum(G_function_up[np.array(h), np.array(h)] + G_function_down[np.array(h), np.array(h)]) * phi.config.n_spins
         energy += phi.config.U / 9. / 2. * total_h_charge ** 2
         energy -= phi.config.U / 9. / 2. * np.sum(G_function_up[np.array(h), np.array(h)] ** 2 + \
-                                                  G_function_down[np.array(h), np.array(h)] ** 2) * 2 
+                                                  G_function_down[np.array(h), np.array(h)] ** 2) * phi.config.n_spins
 
         for i in h:
             for j in h:
                 if i == j:
                     continue
-                energy -= phi.config.U / 9. / 2 * G_function_up[i, j] * G_function_up[j, i] * 2.
-                energy -= phi.config.U / 9. / 2 * G_function_down[i, j] * G_function_down[j, i] * 2.
+                energy -= phi.config.U / 9. / 2 * G_function_up[i, j] * G_function_up[j, i] * phi.config.n_spins
+                energy -= phi.config.U / 9. / 2 * G_function_down[i, j] * G_function_down[j, i] * phi.config.n_spins
 
     return energy / G_function_up.shape[0] / 2., 0.0
 
