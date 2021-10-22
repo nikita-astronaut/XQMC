@@ -30,7 +30,7 @@ class Observables:
         self.local_workdir = local_workdir
         self.local_workdir_heavy = local_workdir_heavy
 
-        open_mode = 'a' if phi.config.start_type == 'presaved' else 'w'
+        open_mode = 'a' if phi.config.obs_start_type == 'presaved' else 'w'
         
         self.log_file = open(os.path.join(self.local_workdir, 'general_log.dat'), open_mode)
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
@@ -38,8 +38,6 @@ class Observables:
 
         self.X_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl')
         self.Z_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl')
-        self.X_equalt_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_equalt_ijkl')
-        self.Z_equalt_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_equalt_ijkl')
         self.G_sum_filename = os.path.join(self.local_workdir_heavy, 'G_sum')
         self.G_sum_equaltime_filename = os.path.join(self.local_workdir_heavy, 'G_sum_equaltime')
         self.G_sum_backwards_filename = os.path.join(self.local_workdir_heavy, 'G_sum_backwards')
@@ -59,7 +57,7 @@ class Observables:
         # print(len(self.ijkl))
         # exit(-1)
         np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
-        #exit(-1)
+        #oexit(-1)
 
         # for order-order susceptibility
         self.reduced_A_order = models.get_reduced_adjacency_matrix(self.config, \
@@ -122,7 +120,7 @@ class Observables:
 
         # the data is stored in two copies to avoid the bug with file corruption
         # upon restart we are happy to load any copy
-        if self.config.start_type == 'presaved' and (os.path.isfile(self.G_sum_filename + '.npy') \
+        if self.config.obs_start_type == 'presaved' and (os.path.isfile(self.G_sum_filename + '.npy') \
                                                   or os.path.isfile(self.G_sum_filename + '_dump.npy')):
             try:
                 self.GF_sum = np.load(self.G_sum_filename + '.npy')
@@ -130,8 +128,6 @@ class Observables:
                 self.GF_sum_equaltime = np.load(self.G_sum_equaltime_filename + '.npy')
                 self.X_ijkl = np.load(self.X_ijkl_filename + '.npy')
                 self.Z_ijkl = np.load(self.Z_ijkl_filename + '.npy')
-                self.X_equalt_ijkl = np.load(self.X_equalt_ijkl_filename + '.npy')
-                self.Z_equalt_ijkl = np.load(self.Z_equalt_ijkl_filename + '.npy')
 
                 self.num_chi_samples = np.load(self.num_samples_filename + '.npy')[0]
 
@@ -146,8 +142,6 @@ class Observables:
                     self.GF_sum_equaltime = np.load(self.G_sum_equaltime_filename + '_dump.npy')
                     self.X_ijkl = np.load(self.X_ijkl_filename + '_dump.npy')
                     self.Z_ijkl = np.load(self.Z_ijkl_filename + '_dump.npy')
-                    self.X_equalt_ijkl = np.load(self.X_equalt_ijkl_filename + '_dump.npy')
-                    self.Z_equalt_ijkl = np.load(self.Z_equalt_ijkl_filename + '_dump.npy')
 
                     self.num_chi_samples = np.load(self.num_samples_filename + '_dump.npy')[0]
 
@@ -158,14 +152,12 @@ class Observables:
 
         if not loaded:
             print('Initialized GFs buffer from scratch')
-            self.GF_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
-            self.GF_sum_backwards = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
-            self.GF_sum_equaltime = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
+            self.GF_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
+            self.GF_sum_backwards = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
+            self.GF_sum_equaltime = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
             self.num_chi_samples = 0
-            self.X_ijkl = np.zeros(len(self.ijkl), dtype=np.complex128)
-            self.Z_ijkl = np.zeros(len(self.ljki), dtype=np.complex128)
-            self.X_equalt_ijkl = np.zeros(len(self.ijkl), dtype=np.complex128)
-            self.Z_equalt_ijkl = np.zeros(len(self.ljki), dtype=np.complex128)
+            self.X_ijkl = np.zeros((self.config.Nt, len(self.ijkl)), dtype=np.complex64)
+            self.Z_ijkl = np.zeros((self.config.Nt, len(self.ljki)), dtype=np.complex64)
         return
 
     def save_GF_data(self):
@@ -177,8 +169,6 @@ class Observables:
         np.save(self.G_sum_equaltime_filename + addstring, self.GF_sum_equaltime)
         np.save(self.X_ijkl_filename + addstring, self.X_ijkl)
         np.save(self.Z_ijkl_filename + addstring, self.Z_ijkl)
-        np.save(self.X_equalt_ijkl_filename + addstring, self.X_equalt_ijkl)
-        np.save(self.Z_equalt_ijkl_filename + addstring, self.Z_equalt_ijkl)
 
         np.save(self.num_samples_filename + addstring, np.array([self.num_chi_samples]))
         self.n_saved_times += 1
@@ -189,9 +179,9 @@ class Observables:
 
         ### buffer for efficient GF-measurements ###
         self.cur_buffer_size = 0; self.max_buffer_size = 4
-        self.GF_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
-        self.GF_stored_backwards = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
-        self.GF_stored_equaltime = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex128)
+        self.GF_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
+        self.GF_stored_backwards = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
+        self.GF_stored_equaltime = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
 
         # self.gap_observables_list = OrderedDict()
         # self.order_observables_list = OrderedDict()
@@ -249,7 +239,7 @@ class Observables:
 
     def print_greerings(self):
         print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
-                "lattice = {:d}^2 x {:d}".format(self.config.start_type, 1.0 / self.config.dt / self.config.Nt, \
+                "lattice = {:d}^2 x {:d}".format(self.config.obs_start_type, 1.0 / self.config.dt / self.config.Nt, \
                         self.config.mu, self.config.Ls, self.config.Nt))
         print('# sweep ⟨r⟩ ⟨acc⟩ ⟨sign⟩ ⟨Re n⟩ ⟨Im n⟩ ⟨Re E_K⟩ ⟨Im E_K⟩ ⟨Re E_CU⟩ ⟨Im E_CU⟩ ⟨Re E_CV⟩ ⟨Im E_CV⟩ ⟨Re E_T⟩ ⟨Im E_T⟩ ⟨m_z^2⟩ non-hermicity imaginary')
         return
@@ -534,10 +524,12 @@ class Observables:
         shape = self.GF_stored[:self.cur_buffer_size, ...].shape
         new_shape = (shape[0], shape[2], shape[3])
 
-        G_prepared_00 = np.asfortranarray(self.GF_stored_equaltime[:self.cur_buffer_size, 0, ...].reshape(new_shape))
-        G_prepared_tt = np.asfortranarray(self.GF_stored_equaltime[:self.cur_buffer_size, ...].sum(axis=1).reshape(new_shape))
+        G_prepared_00 = np.asfortranarray(np.repeat(self.GF_stored_equaltime[:self.cur_buffer_size, 0:1, ...], self.config.Nt, axis=1))
+        G_prepared_tt = np.asfortranarray(self.GF_stored_equaltime[:self.cur_buffer_size, ...])
 
         t = time()
+
+        print(G_prepared_00.shape, G_prepared_tt.shape, flush=True)
         self.X_ijkl += measure_gfs_correlatorX(G_prepared_00, G_prepared_tt, self.ijkl, self.config.Ls)
 
 
@@ -545,13 +537,13 @@ class Observables:
         new_shape = (shape[0] * shape[1], shape[2], shape[3])
 
         ### G_prepared-- list 0 ...tau, G_prepared_backwards -- similarly
-        G_prepared = np.asfortranarray(self.GF_stored[:self.cur_buffer_size, ...].reshape(new_shape))
-        G_prepared_backwards = np.asfortranarray(self.GF_stored_backwards[:self.cur_buffer_size, ...].reshape(new_shape))
+        G_prepared = np.asfortranarray(self.GF_stored[:self.cur_buffer_size, ...])
+        G_prepared_backwards = np.asfortranarray(self.GF_stored_backwards[:self.cur_buffer_size, ...])
         self.Z_ijkl += measure_gfs_correlatorZ(G_prepared, G_prepared_backwards, self.ijkl, self.config.Ls)
 
 
 
-
+        '''
         new_shape = (shape[0], shape[2], shape[3])
 
         G_prepared = np.asfortranarray(self.GF_stored[:self.cur_buffer_size, 0, ...].reshape(new_shape))
@@ -561,7 +553,7 @@ class Observables:
 
         G_prepared_00 = np.asfortranarray(self.GF_stored_equaltime[:self.cur_buffer_size, 0, ...].reshape(new_shape))
         self.X_equalt_ijkl += measure_gfs_correlatorX(G_prepared_00, G_prepared_00, self.ijkl, self.config.Ls)
-
+        '''
 
         #G_down_prepared = np.asfortranarray(np.einsum('ijkl,i->ijkl', self.GF_down_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape))
         #G_up_prepared = np.asfortranarray(self.GF_up_stored[:self.cur_buffer_size, ...].reshape(new_shape))
@@ -915,8 +907,7 @@ def Coloumb_energy(phi):
 
 @jit(nopython=True)
 def measure_gfs_correlatorX(GF_00, GF_tt, ijkl, L):
-    C_ijkl = np.zeros(len(ijkl), dtype=np.complex128)
-    idx = 0
+    C_ijkl = np.zeros((GF_00.shape[1], len(ijkl)), dtype=np.complex128)
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
@@ -932,15 +923,14 @@ def measure_gfs_correlatorX(GF_00, GF_tt, ijkl, L):
                 k_shift = ko + ((kx + shift_x) % L) * 4 * L + ((ky + shift_y) % L) * 4
                 l_shift = lo + ((lx + shift_x) % L) * 4 * L + ((ly + shift_y) % L) * 4
 
-                C_ijkl[xi] += np.dot(GF_tt[:, i_shift, j_shift], GF_00[:, l_shift, k_shift])
+                C_ijkl[:, xi] += np.sum(GF_tt[:, :, i_shift, j_shift] * GF_00[:, :, l_shift, k_shift], axis = 0)
 
-    return C_ijkl / (L ** 2)
+    return C_ijkl / (L ** 2) / 4.
 
 
 @jit(nopython=True)
 def measure_gfs_correlatorZ(GF_forwards, GF_backwards, ijkl, L):
-    C_ijkl = np.zeros(len(ijkl), dtype=np.complex128)
-    idx = 0
+    C_ijkl = np.zeros((GF_forwards.shape[1], len(ijkl)), dtype=np.complex128)
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
@@ -956,9 +946,9 @@ def measure_gfs_correlatorZ(GF_forwards, GF_backwards, ijkl, L):
                 k_shift = ko + ((kx + shift_x) % L) * 4 * L + ((ky + shift_y) % L) * 4
                 l_shift = lo + ((lx + shift_x) % L) * 4 * L + ((ly + shift_y) % L) * 4
 
-                C_ijkl[xi] += np.dot(GF_forwards[:, i_shift, k_shift], GF_backwards[:, l_shift, j_shift])
+                C_ijkl[:, xi] += np.sum(GF_forwards[:, :, i_shift, k_shift] * GF_backwards[:, :, l_shift, j_shift], axis=0)
 
-    return C_ijkl / (L ** 2)
+    return C_ijkl / (L ** 2) / 4.
 
 
 @jit(nopython=True)
