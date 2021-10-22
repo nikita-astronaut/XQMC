@@ -348,8 +348,10 @@ def construct_2orb_hex(config, NNN=True, real = True):
 
     A1_NNN_singlet = [
         [(Ipauli, Ipauli, u1, 1.0), factor, addstring + '(S_0)x(S_0&S_x)x(u_1)'],
-        [(Ipauli, sigma_1, u2, 1.0), (Ipauli, sigma_2, u3, 1.0), factor, addstring + '[(S_0)x(S_1)x(u_2)+(S_0)x(S_2)x(u_3)]'],
-        [(Zpauli, sigma_1, u2, 1.0), (Zpauli, sigma_2, u3, -1.0), factor, addstring + '[(S_z)x(S_1)x(u_2)-(S_z)x(S_2)x(u_3)]'],
+        #[(Ipauli, sigma_1, u2, 1.0), (Ipauli, sigma_2, u3, 1.0), factor, addstring + '[(S_0)x(S_1)x(u_2)+(S_0)x(S_2)x(u_3)]'],
+        #[(Zpauli, sigma_1, u2, 1.0), (Zpauli, sigma_2, u3, -1.0), factor, addstring + '[(S_z)x(S_1)x(u_2)-(S_z)x(S_2)x(u_3)]'],
+        #[(Ipauli, sigma_1, u2, 1.0), factor, addstring + '(S_0)x(S_1)x(u_2)'],
+        #[(Zpauli, sigma_1, u2, 1.0), factor, addstring + '(S_z)x(S_1)x(u_2)']
     ]
     print('Testing the A1_NNN_singlet properties')
     [check_irrep_properties(config, A1_NNN_singlet[i:i + 1]) for i in range(len(A1_NNN_singlet))]
@@ -363,9 +365,11 @@ def construct_2orb_hex(config, NNN=True, real = True):
     [check_irrep_properties(config, A1_NNN_triplet[i:i + 1], chiral = True) for i in range(len(A1_NNN_triplet))]
 
     A2_NNN_singlet = [
-        [(Ipauli, sigma_1, u3, 1.0), (Ipauli, sigma_2, u2, -1.0), factor, addstring + '[(S_0)x(S_1)x(u_3)-(S_0)x(S_2)x(u_2)]'],
+        #[(Ipauli, sigma_1, u3, 1.0), (Ipauli, sigma_2, u2, -1.0), factor, addstring + '[(S_0)x(S_1)x(u_3)-(S_0)x(S_2)x(u_2)]'],
+        # [(Ipauli, sigma_1, u3, 1.0), factor, addstring + '(S_0)x(S_1)x(u_3)'],
         [(Zpauli, Ipauli, u1, 1.0), factor, addstring + '(S_z)x(S_0&S_x)x(u_1)'],
-        [(Zpauli, sigma_1, u3, 1.0), (Zpauli, sigma_2, u2, 1.0), factor, addstring + '[(S_z)x(S_1)x(u_3)+(S_z)x(S_2)x(u_2)]'],
+        # [(Zpauli, sigma_1, u3, 1.0), factor, addstring + '(S_z)x(S_1)x(u_3)'],
+        # [(Zpauli, sigma_1, u3, 1.0), (Zpauli, sigma_2, u2, 1.0), factor, addstring + '[(S_z)x(S_1)x(u_3)+(S_z)x(S_2)x(u_2)]']
     ]
     print('Testing the A2_NNN_singlet properties')
     [check_irrep_properties(config, A2_NNN_singlet[i:i + 1]) for i in range(len(A2_NNN_singlet))]
@@ -383,6 +387,8 @@ def construct_2orb_hex(config, NNN=True, real = True):
         [(Ipauli, Ipauli, u2, 1.0), factor, addstring + '(S_0)x(S_0&S_x)x(u_2)'], [(Ipauli, Ipauli, u3, 1.0), factor, addstring + '(S_0)x(S_0&S_x)x(u_3)'],
         [(Ipauli, sigma_1, u3, 1.0), factor, addstring + '(S_0)x(S_1)x(u_3)'], [(Ipauli, sigma_2, u2, 1.0), factor, addstring + '(S_0)x(S_2)x(u_2)'],
         [(Zpauli, iYpauli, u2, 1.0), factor, addstring + '(S_z)x(iS_y&S_y)x(u_2)'], [(Zpauli, iYpauli, u3, 1.0), factor, addstring + '(S_z)x(iS_y&S_y)x(u_3)'],
+        [(Ipauli, sigma_1, u2, 1.0), factor, addstring + '(S_0)x(S_1)x(u_2)'], [(Ipauli, sigma_2, u3, 1.0), factor, addstring + '(S_0)x(S_2)x(u_3)'],
+        [(Ipauli, sigma_1, u3, 1.0), factor, addstring + '(S_0)x(S_1)x(u_3)'], [(Ipauli, sigma_2, u2, 1.0), factor, addstring + '(S_0)x(S_2)x(u_2)'],
     ]
     print('Testing the E_NNN_singlet properties')
     [check_irrep_properties(config, E_NNN_singlet[2 * i:2 * i + 2]) for i in range(len(E_NNN_singlet) // 2)]
@@ -879,16 +885,20 @@ def obtain_all_pairings(config):
         C2y_symmetry_map_chiral = get_C2y_symmetry_map(config, chiral=True)
 
         twoorb_hex_A1_N_singlet, twoorb_hex_A1_N_triplet, twoorb_hex_A2_N_singlet, twoorb_hex_A2_N_triplet, twoorb_hex_E_N_singlet, \
-            twoorb_hex_A1_NN_singlet, twoorb_hex_A2_NN_triplet, twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet = construct_2orb_hex(config, NNN = False, real = True)
+            twoorb_hex_A1_NN_singlet, twoorb_hex_A2_NN_triplet, twoorb_hex_E_NN_singlet, twoorb_hex_E_NN_triplet, \
+            twoorb_hex_A1_NNN_singlet, twoorb_hex_A1_NNN_triplet, twoorb_hex_A2_NNN_singlet, twoorb_hex_A2_NNN_triplet, \
+            twoorb_hex_E_NNN_singlet, twoorb_hex_E_NNN_triplet = construct_2orb_hex(config, NNN = True, real = True)
 
         twoorb_hex_all_dqmc = twoorb_hex_A1_N_singlet + twoorb_hex_A1_N_triplet + twoorb_hex_A2_N_singlet + twoorb_hex_A2_N_triplet + twoorb_hex_E_N_singlet + \
-            twoorb_hex_A1_NN_singlet + twoorb_hex_A2_NN_triplet + twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet
+            twoorb_hex_A1_NN_singlet + twoorb_hex_A2_NN_triplet + twoorb_hex_E_NN_singlet + twoorb_hex_E_NN_triplet + twoorb_hex_A1_NNN_singlet + \
+            twoorb_hex_A1_NNN_triplet + twoorb_hex_A2_NNN_singlet + twoorb_hex_A2_NNN_triplet + twoorb_hex_E_NNN_singlet + twoorb_hex_E_NNN_triplet
 
         print(name_group_dict) 
 
 
-        _, _, _, _, twoorb_hex_E_N_singlet_im, _, _, twoorb_hex_E_NN_singlet_im, twoorb_hex_E_NN_triplet_im = \
-                                                                 construct_2orb_hex(config, NNN = False, real = False)
+        _, _, _, _, twoorb_hex_E_N_singlet_im, _, _, twoorb_hex_E_NN_singlet_im, twoorb_hex_E_NN_triplet_im, _, _, _, _, twoorb_hex_E_NNN_singlet_im, twoorb_hex_E_NNN_triplet_im = \
+                                                                 construct_2orb_hex(config, NNN = True, real = False)
+
 
         twoorb_hex_all = [[]] + \
                          [[gap] for gap in twoorb_hex_A1_N_singlet] + \
@@ -913,6 +923,7 @@ def obtain_all_pairings(config):
             if need_cut:
                 del twoorb_hex_all[idx][-1]
                 ### create TRS combination ###
+                print(gap[-1], flush=True)
                 twoorb_hex_all[idx] = [[twoorb_hex_all[idx][0][0], twoorb_hex_all[idx][1][0], 1, twoorb_hex_all[idx][0][-1].replace('S_1', 'S_pm')]]
             if len(element) == 3:
                 twoorb_hex_all[idx] = [twoorb_hex_all[idx][0]]  # FIXME (for simplicity)
