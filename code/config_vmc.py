@@ -113,6 +113,11 @@ class MC_parameters:
         self.waves_list_names = [w[-1] for w in self.waves_list]
         #self.waves_list_unwrapped = [models.xy_to_chiral(g, 'wave', \
         #     self, self.chiral_basis) for g in self.waves_list_unwrapped]
+        for i, wave in enumerate(self.waves_list_unwrapped):
+            np.save('./waves_12x12/wave_{:d}.npy'.format(i), wave)
+        np.save('./waves_12x12/waves_names.npy', np.array(self.waves_list_names))
+        exit(-1)
+
         '''
         for g in self.waves_list_unwrapped:
             for i in range(g.shape[0]):
