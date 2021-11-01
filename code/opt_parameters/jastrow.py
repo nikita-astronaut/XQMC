@@ -172,9 +172,14 @@ def get_jastrow_Koshino_simple_TRS(config):
 
     for site in range(len(config.adjacency_list) // 3):
         r = np.sqrt(config.adjacency_list[3 * site][-1])
-        jastrow_list.append([np.array([adj[0] for adj in config.adjacency_list[3 * site:3 * site + 3]]).sum(axis = 0), 'J({:.2f})'.format(r)])
+        jastrow_list.append([np.array([adj[0] for adj in config.adjacency_list[3 * site:3 * site + 1]]).sum(axis = 0) + \
+                             np.array([adj[0] for adj in config.adjacency_list[3 * site + 2:3 * site + 3]]).sum(axis = 0), 'J_intra_({:.2f})'.format(r)])
+        jastrow_list.append([np.array([adj[0] for adj in config.adjacency_list[3 * site + 1:3 * site + 2]]).sum(axis = 0), 'J_inter_({:.2f})'.format(r)])
+        print(site, 'intra', np.array([adj[0] for adj in config.adjacency_list[3 * site:3 * site + 1]]).sum() + \
+                             np.array([adj[0] for adj in config.adjacency_list[3 * site + 2:3 * site + 3]]).sum())
+        print(site, 'inter', np.array([adj[0] for adj in config.adjacency_list[3 * site + 1:3 * site + 2]]).sum())
 
-    return jastrow_list[:-1]  # only NN and nearest-neighbors  # cut redundant Jastrows
+    return jastrow_list[:-2]  # cut redundant Jastrows
 
 
 jastrow_on_site_1orb = None

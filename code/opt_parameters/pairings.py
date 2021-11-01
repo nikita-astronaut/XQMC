@@ -900,6 +900,26 @@ def obtain_all_pairings(config):
                                                                  construct_2orb_hex(config, NNN = True, real = False)
 
 
+
+        ### debug ###
+        '''
+        pairings_list = [construct_2orb_hex(config, NNN = True, real=True)[-2][2]]
+        pairings_list_names = [p[-1] for p in pairings_list]
+        pairings_list_unwrapped = [combine_product_terms(config, gap) for gap in pairings_list]
+        pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
+            config, True) for g in pairings_list_unwrapped]
+        print(pairings_list_unwrapped)
+        np.save('the_wave_extended_{:d}.npy'.format(config.Ls), pairings_list_unwrapped[0])
+
+        pairings_list = [construct_2orb_hex(config, NNN = False, real=True)[-2][2]]
+        pairings_list_names = [p[-1] for p in pairings_list]
+        pairings_list_unwrapped = [combine_product_terms(config, gap) for gap in pairings_list]
+        pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
+            config, True) for g in pairings_list_unwrapped]
+        print(pairings_list_unwrapped)
+        np.save('the_wave_{:d}.npy'.format(config.Ls), pairings_list_unwrapped[0])
+        exit(-1)
+        '''
         twoorb_hex_all = [[]] + \
                          [[gap] for gap in twoorb_hex_A1_N_singlet] + \
                          [[gap] for gap in twoorb_hex_A1_N_triplet] + \
@@ -918,27 +938,28 @@ def obtain_all_pairings(config):
             need_cut = False
             for gap in element:
                 if 'S_1' in gap[-1] or 'S_2' in gap[-1]:
-                    if len(gap[-1]) < 30:
-                        need_cut = True
+                    #if len(gap[-1]) < 30:
+                    need_cut = True
             if need_cut:
                 del twoorb_hex_all[idx][-1]
                 ### create TRS combination ###
                 print(gap[-1], flush=True)
                 twoorb_hex_all[idx] = [[twoorb_hex_all[idx][0][0], twoorb_hex_all[idx][1][0], 1, twoorb_hex_all[idx][0][-1].replace('S_1', 'S_pm')]]
             if len(element) == 3:
-                twoorb_hex_all[idx] = [twoorb_hex_all[idx][0]]  # FIXME (for simplicity)
+                twoorb_hex_all[idx] = [[twoorb_hex_all[idx][0][0], twoorb_hex_all[idx][1][0], 1, twoorb_hex_all[idx][0][-1]]]  # FIXME (for simplicity)
 
- 
         Koshino_united = [
                               twoorb_hex_all[0], \
-                              twoorb_hex_all[12] + twoorb_hex_all[11], \
-                              twoorb_hex_all[10], \
+                              twoorb_hex_all[11] + twoorb_hex_all[12], \
+                              #twoorb_hex_all[10], \
                               twoorb_hex_all[19] + twoorb_hex_all[20], \
                               twoorb_hex_all[15], \
                               twoorb_hex_all[17], \
-                              twoorb_hex_all[5] + twoorb_hex_all[7] + twoorb_hex_all[6] + twoorb_hex_all[8], \
-                              twoorb_hex_all[2] + twoorb_hex_all[3], \
-                              twoorb_hex_all[13] + twoorb_hex_all[14] + twoorb_hex_all[16] + twoorb_hex_all[18], \
+                              twoorb_hex_all[5] + twoorb_hex_all[6], \
+                              twoorb_hex_all[7] + twoorb_hex_all[8], \
+                              #twoorb_hex_all[2] + twoorb_hex_all[3], \
+                              twoorb_hex_all[13] + twoorb_hex_all[14], \
+                              twoorb_hex_all[16] + twoorb_hex_all[18]
                           ]
         
         #for irrep in Koshino_united:  # make TRS symmetric explicitly

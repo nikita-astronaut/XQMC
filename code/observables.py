@@ -36,8 +36,10 @@ class Observables:
         self.gap_file = open(os.path.join(self.local_workdir, 'gap_log.dat'), open_mode)
         self.gf_file = open(os.path.join(self.local_workdir, 'gf_log.dat'), open_mode)
 
-        self.X_ijkl_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl')
-        self.Z_ijkl_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl')
+        self.X_ijkl_collinear_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl_collinear')
+        self.X_ijkl_anticollinear_filename = os.path.join(self.local_workdir_heavy, 'C_ijkl_anticollinear')
+        self.Z_ijkl_collinear_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl_collinear')
+        self.Z_ijkl_anticollinear_filename = os.path.join(self.local_workdir_heavy, 'Phi_ijkl_anticollinear')
         self.G_sum_filename = os.path.join(self.local_workdir_heavy, 'G_sum')
         self.G_sum_equaltime_filename = os.path.join(self.local_workdir_heavy, 'G_sum_equaltime')
         self.G_sum_backwards_filename = os.path.join(self.local_workdir_heavy, 'G_sum_backwards')
@@ -126,8 +128,10 @@ class Observables:
                 self.GF_sum = np.load(self.G_sum_filename + '.npy')
                 self.GF_sum_backwards = np.load(self.G_sum_backwards_filename + '.npy')
                 self.GF_sum_equaltime = np.load(self.G_sum_equaltime_filename + '.npy')
-                self.X_ijkl = np.load(self.X_ijkl_filename + '.npy')
-                self.Z_ijkl = np.load(self.Z_ijkl_filename + '.npy')
+                self.X_ijkl_collinear = np.load(self.X_ijkl_collinear_filename + '.npy')
+                self.X_ijkl_anticollinear = np.load(self.X_ijkl_anticollinear_filename + '.npy')
+                self.Z_ijkl_collinear = np.load(self.Z_ijkl_collinear_filename + '.npy')
+                self.Z_ijkl_anticollinear = np.load(self.Z_ijkl_anticollinear_filename + '.npy')
 
                 self.num_chi_samples = np.load(self.num_samples_filename + '.npy')[0]
 
@@ -140,8 +144,12 @@ class Observables:
                     self.GF_sum = np.load(self.G_sum_filename + '_dump.npy')
                     self.GF_sum_backwards = np.load(self.G_sum_backwards_filename + '_dump.npy')
                     self.GF_sum_equaltime = np.load(self.G_sum_equaltime_filename + '_dump.npy')
-                    self.X_ijkl = np.load(self.X_ijkl_filename + '_dump.npy')
-                    self.Z_ijkl = np.load(self.Z_ijkl_filename + '_dump.npy')
+
+                    self.X_ijkl_collinear = np.load(self.X_ijkl_collinear_filename + '_dump.npy')
+                    self.X_ijkl_anticollinear = np.load(self.X_ijkl_anticollinear_filename + '_dump.npy')
+
+                    self.Z_ijkl_collinear = np.load(self.Z_ijkl_collinear_filename + '_dump.npy')
+                    self.Z_ijkl_anticollinear = np.load(self.Z_ijkl_anticollinear_filename + '_dump.npy')
 
                     self.num_chi_samples = np.load(self.num_samples_filename + '_dump.npy')[0]
 
@@ -156,8 +164,10 @@ class Observables:
             self.GF_sum_backwards = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
             self.GF_sum_equaltime = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
             self.num_chi_samples = 0
-            self.X_ijkl = np.zeros((self.config.Nt, len(self.ijkl)), dtype=np.complex64)
-            self.Z_ijkl = np.zeros((self.config.Nt, len(self.ljki)), dtype=np.complex64)
+            self.X_ijkl_collinear = np.zeros((self.config.Nt, len(self.ijkl)), dtype=np.complex64)
+            self.X_ijkl_anticollinear = np.zeros((self.config.Nt, len(self.ijkl)), dtype=np.complex64)
+            self.Z_ijkl_collinear = np.zeros((self.config.Nt, len(self.ljki)), dtype=np.complex64)
+            self.Z_ijkl_anticollinear = np.zeros((self.config.Nt, len(self.ljki)), dtype=np.complex64)
         return
 
     def save_GF_data(self):
@@ -167,8 +177,10 @@ class Observables:
         np.save(self.G_sum_filename + addstring, self.GF_sum)
         np.save(self.G_sum_backwards_filename + addstring, self.GF_sum_backwards)
         np.save(self.G_sum_equaltime_filename + addstring, self.GF_sum_equaltime)
-        np.save(self.X_ijkl_filename + addstring, self.X_ijkl)
-        np.save(self.Z_ijkl_filename + addstring, self.Z_ijkl)
+        np.save(self.X_ijkl_collinear_filename + addstring, self.X_ijkl_collinear)
+        np.save(self.X_ijkl_anticollinear_filename + addstring, self.X_ijkl_anticollinear) 
+        np.save(self.Z_ijkl_collinear_filename + addstring, self.Z_ijkl_collinear)
+        np.save(self.Z_ijkl_anticollinear_filename + addstring, self.Z_ijkl_anticollinear)
 
         np.save(self.num_samples_filename + addstring, np.array([self.num_chi_samples]))
         self.n_saved_times += 1
@@ -287,12 +299,12 @@ class Observables:
             ))
         return
     def measure_light_observables(self, phi, current_det_sign, n_sweep, print_gf = False):
-        if print_gf:
-            gf_print = phi.G_up_sum[:, 0]
-            for i in range(8):
-                self.gf_file.write('{:.20f} '.format(gf_print[i] / phi.n_gf_measures))
-            self.gf_file.write('\n')
-            self.gf_file.flush()  # TODO: DEBUG
+        #if print_gf:
+        #    gf_print = phi.G_up_sum[:, 0]
+        #    for i in range(8):
+        #        self.gf_file.write('{:.20f} '.format(gf_print[i] / phi.n_gf_measures))
+        #    self.gf_file.write('\n')
+        #    self.gf_file.flush()  # TODO: DEBUG
         self.light_signs_history.append(current_det_sign)  
 
         k = kinetic_energy(phi).item()
@@ -493,30 +505,6 @@ class Observables:
 
         self.num_chi_samples += self.cur_buffer_size
 
-        '''
-        print('start fft', flush=True)  # FIXME: debug (this is for later)
-        GF_fft = np.dot(self.GF_sum, self.fft)
-        GF_fft = np.dot(self.fft.conj().T, GF_fft).transpose((1, 0, 2))
-
-        # G_fft = np.einsum('ij,ajk,kl->ail', self.fft.conj().T, self.GF_sum, self.fft)
-
-        K_fft = np.dot(self.fft.conj().T, self.phi.K_matrix.dot(self.fft))
-        print(GF_fft.shape)
-        for k in range(GF_fft.shape[1] // 4):
-            print('k: ', k // self.config.Ls, k % self.config.Ls, flush=True)
-            K_k = K_fft[4 * k : 4 * k + 4, 4 * k : 4 * k + 4]
-            print('energies: ', np.linalg.eigh(K_k)[0] / self.config.Ls ** 2)
-            print('states: ', np.linalg.eigh(K_k)[1].T)
-
-            for t in range(self.GF_sum.shape[0] // 2):
-                #print(t, np.sum(GF_fft[t, np.arange(k * 4, k * 4 + 4), np.arange(k * 4, k * 4 + 4)]).real / self.num_chi_samples / self.GF_sum.shape[1], flush=True)
-                print(t, np.log(np.sum(GF_fft[t, np.arange(k * 4, k * 4 + 4), np.arange(k * 4, k * 4 + 4)]).real / np.sum(GF_fft[t + 1, np.arange(k * 4, k * 4 + 4), np.arange(k * 4, k * 4 + 4)]).real) / self.config.dt)
-                # print(t, np.log(np.sum(GF_fft[t, 4 * k, 4 * k]).real / np.sum(GF_fft[t + 1, 4 * k, 4 * k]).real))
-
-                #print(t, np.log(np.sum(GF_fft[t, 4 * k, 4 * k] + GF_fft[t, 4 * k + 2, 4 * k + 2]).real / np.sum(GF_fft[t + 1, 4 * k, 4 * k] + GF_fft[t + 1, 4 * k + 2, 4 * k + 2]).real))
-        '''
-
-
         print('current buffer size = {:d}'.format(self.cur_buffer_size))
         t = time()
 
@@ -527,108 +515,22 @@ class Observables:
         G_prepared_00 = np.asfortranarray(np.repeat(self.GF_stored_equaltime[:self.cur_buffer_size, 0:1, ...], self.config.Nt, axis=1))
         G_prepared_tt = np.asfortranarray(self.GF_stored_equaltime[:self.cur_buffer_size, ...])
 
+        ### G_prepared-- list 0 ...tau, G_prepared_backwards -- similarly
+        G_prepared = np.asfortranarray(self.GF_stored[:self.cur_buffer_size, ...])
+        G_prepared_backwards = np.asfortranarray(self.GF_stored_backwards[:self.cur_buffer_size, ...])
         t = time()
 
-        print(G_prepared_00.shape, G_prepared_tt.shape, flush=True)
-        self.X_ijkl += measure_gfs_correlatorX(G_prepared_00, G_prepared_tt, self.ijkl, self.config.Ls)
-
+        dX_ijkl_collinear, dX_ijkl_anticollinear = measure_gfs_correlatorX(G_prepared_00, G_prepared_tt, G_prepared, G_prepared_backwards, self.ijkl, self.config.Ls)
+        self.X_ijkl_collinear += dX_ijkl_collinear
+        self.X_ijkl_anticollinear += dX_ijkl_anticollinear
 
 
         new_shape = (shape[0] * shape[1], shape[2], shape[3])
 
-        ### G_prepared-- list 0 ...tau, G_prepared_backwards -- similarly
-        G_prepared = np.asfortranarray(self.GF_stored[:self.cur_buffer_size, ...])
-        G_prepared_backwards = np.asfortranarray(self.GF_stored_backwards[:self.cur_buffer_size, ...])
-        self.Z_ijkl += measure_gfs_correlatorZ(G_prepared, G_prepared_backwards, self.ijkl, self.config.Ls)
+        dZ_ijkl_collinear, dZ_ijkl_anticollinear = measure_gfs_correlator_sametime(G_prepared[:, 0:1, ...], self.ijkl, self.config.Ls)
+        self.Z_ijkl_collinear += dZ_ijkl_collinear
+        self.Z_ijkl_anticollinear += dZ_ijkl_anticollinear
 
-
-
-        '''
-        new_shape = (shape[0], shape[2], shape[3])
-
-        G_prepared = np.asfortranarray(self.GF_stored[:self.cur_buffer_size, 0, ...].reshape(new_shape))
-        G_prepared_backwards = np.asfortranarray(self.GF_stored_backwards[:self.cur_buffer_size, 0, ...].reshape(new_shape))
-        self.Z_equalt_ijkl += measure_gfs_correlatorZ(G_prepared, G_prepared_backwards, self.ijkl, self.config.Ls)
-
-
-        G_prepared_00 = np.asfortranarray(self.GF_stored_equaltime[:self.cur_buffer_size, 0, ...].reshape(new_shape))
-        self.X_equalt_ijkl += measure_gfs_correlatorX(G_prepared_00, G_prepared_00, self.ijkl, self.config.Ls)
-        '''
-
-        #G_down_prepared = np.asfortranarray(np.einsum('ijkl,i->ijkl', self.GF_down_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape))
-        #G_up_prepared = np.asfortranarray(self.GF_up_stored[:self.cur_buffer_size, ...].reshape(new_shape))
-
-        #self.C_ijkl += measure_gfs_correlator(G_down_prepared, G_up_prepared, self.ijkl) / 2.  # SU(2) symmetry to stabilyze the measurements
-
-        print('X/Z_ijkl take', time() - t)
-        #self.PHI_ijkl += measure_gfs_correlator(np.asfortranarray(np.einsum('ijkl,i->ijkl', \
-        #               self.GF_up_stored[:self.cur_buffer_size, 0:1, ...], signs).reshape((shape[0] * 1, shape[2], shape[3]))), \
-        #    np.asfortranarray(self.GF_down_stored[:self.cur_buffer_size, 0:1, ...].reshape((shape[0] * 1, shape[2], shape[3]))), self.ijkl)
-
-        #t = time()
-        #self.Z_uu_ijkl += measure_Z_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
-        #self.Z_dd_ijkl += measure_Z_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
-
-        #print('Z_ss_ijkl take', time() - t)
-        #t = time()
-
-        #self.X_uu_ijkl += measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
-        #                                       self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
-        
-        #self.X_ud_ijkl += measure_X_correlator(self.GF_up_stored[:self.cur_buffer_size, 0, ...], \
-        #                                       self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
-        
-        #self.X_du_ijkl += measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
-        #                                       self.GF_up_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
-        
-        #self.X_dd_ijkl += measure_X_correlator(self.GF_down_stored[:self.cur_buffer_size, 0, ...], \
-        #                                       self.GF_down_stored[:self.cur_buffer_size, 0, ...], signs, self.ijkl_order)
-        #print('X_s1s2_ijkl take', time() - t)
-
-
-        '''
-        ### chi_ijkl_total ###
-        t = time()
-        shape = self.GF_up_stored[:self.cur_buffer_size, ...].shape
-        new_shape = (shape[0] * shape[1], shape[2] // self.n_bands, self.n_bands, shape[3] // self.n_bands, self.n_bands)
-        
-        G_up_prepared = np.einsum('ijkl,i->ijkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs).reshape(new_shape).transpose((2, 4, 0, 1, 3))
-        G_down_prepared = self.GF_down_stored[:self.cur_buffer_size, ...].reshape(new_shape).transpose((2, 4, 0, 1, 3))
-
-        G_up_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_up_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
-        G_down_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_down_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
-
-        G_down_prepared_ft = G_down_prepared_ft[:, :, :, self.invert_momenta, :]
-        G_down_prepared_ft = G_down_prepared_ft[:, :, :, :, self.invert_momenta]
-
-        self.chi_ijkl_total = self.config.dt * np.einsum('ikabc,jlabc->ijklbc', G_up_prepared_ft, G_down_prepared_ft) / self.total_sign
-        print('chi_ijkl_total take', time() - t)
-
-
-        self.GF_up_sum += np.einsum('ijkl,i->jkl', self.GF_up_stored[:self.cur_buffer_size, ...], signs)
-        self.GF_down_sum += np.einsum('ijkl,i->jkl', self.GF_down_stored[:self.cur_buffer_size, ...], signs)
-        self.cur_buffer_size = 0
-
-
-
-        ### chi_ijkl_free ###
-        t = time()
-        shape = self.GF_up_sum.shape
-        new_shape = (shape[0], shape[1] // self.n_bands, self.n_bands, shape[2] // self.n_bands, self.n_bands)
-
-        G_up_prepared = self.GF_up_sum.reshape(new_shape).transpose((2, 4, 0, 1, 3))
-        G_down_prepared = self.GF_down_sum.reshape(new_shape).transpose((4, 2, 0, 1, 3))
-
-        G_up_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_up_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
-        G_down_prepared_ft = np.dot(np.dot(self.U_ft_space.conj().T, G_down_prepared), self.U_ft_space).transpose((1, 2, 3, 4, 0))
-
-        G_down_prepared_ft = G_down_prepared_ft[:, :, :, self.invert_momenta, :]
-        G_down_prepared_ft = G_down_prepared_ft[:, :, :, :, self.invert_momenta]
-
-        self.chi_ijkl_free = self.config.dt * np.einsum('ikabc,jlabc->ijklbc', G_up_prepared_ft, G_down_prepared_ft) / self.total_sign ** 2
-
-        print('chi_ijkl_free take', time() - t)
-        '''
         self.cur_buffer_size = 0
         return
 
@@ -890,29 +792,31 @@ def Coloumb_energy(phi):
 
     energy = 0.0 + 0.0j
     for h in phi.hexagons:
-        total_h_charge = np.sum(G_function_up[np.array(h), np.array(h)] + G_function_down[np.array(h), np.array(h)]) * 2.
+        total_h_charge = np.sum(G_function_up[np.array(h), np.array(h)] + G_function_down[np.array(h), np.array(h)]) * phi.config.n_spins
         energy += phi.config.U / 9. / 2. * total_h_charge ** 2
         energy -= phi.config.U / 9. / 2. * np.sum(G_function_up[np.array(h), np.array(h)] ** 2 + \
-                                                  G_function_down[np.array(h), np.array(h)] ** 2) * 2 
+                                                  G_function_down[np.array(h), np.array(h)] ** 2) * phi.config.n_spins
 
         for i in h:
             for j in h:
                 if i == j:
                     continue
-                energy -= phi.config.U / 9. / 2 * G_function_up[i, j] * G_function_up[j, i] * 2.
-                energy -= phi.config.U / 9. / 2 * G_function_down[i, j] * G_function_down[j, i] * 2.
+                energy -= phi.config.U / 9. / 2 * G_function_up[i, j] * G_function_up[j, i] * phi.config.n_spins
+                energy -= phi.config.U / 9. / 2 * G_function_down[i, j] * G_function_down[j, i] * phi.config.n_spins
 
     return energy / G_function_up.shape[0] / 2., 0.0
 
 
+
 @jit(nopython=True)
-def measure_gfs_correlatorX(GF_00, GF_tt, ijkl, L):
-    C_ijkl = np.zeros((GF_00.shape[1], len(ijkl)), dtype=np.complex128)
+def measure_gfs_correlator_sametime(GF, ijkl, L):
+    C_ijkl_collinear = np.zeros((len(ijkl)), dtype=np.complex128)
+    C_ijkl_anticollinear = np.zeros((len(ijkl)), dtype=np.complex128)
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
-        for shift_x in range(L):
-            for shift_y in range(L):
+        for shift_x in range(1):  # FIXME FIXME FIXME
+            for shift_y in range(1):  # FIXME FIXME FIXME
                 ix, iy, io = (i // 4) // L, (i // 4) % L, i % 4
                 jx, jy, jo = (j // 4) // L, (j // 4) % L, j % 4
                 kx, ky, ko = (k // 4) // L, (k // 4) % L, k % 4
@@ -923,11 +827,45 @@ def measure_gfs_correlatorX(GF_00, GF_tt, ijkl, L):
                 k_shift = ko + ((kx + shift_x) % L) * 4 * L + ((ky + shift_y) % L) * 4
                 l_shift = lo + ((lx + shift_x) % L) * 4 * L + ((ly + shift_y) % L) * 4
 
-                C_ijkl[:, xi] += np.sum(GF_tt[:, :, i_shift, j_shift] * GF_00[:, :, l_shift, k_shift], axis = 0)
 
-    return C_ijkl / (L ** 2) / 4.
+                A = np.sum(GF[:, 0, i_shift, j_shift] * GF[:, 0, l_shift, k_shift])
+                B = np.sum(GF[:, 0, l_shift, j_shift] * GF[:, 0, i_shift, k_shift])
+                C_ijkl_collinear[xi] += A - B
+                C_ijkl_anticollinear[xi] += -B
+
+    return C_ijkl_collinear / (L ** 2) / 4., C_ijkl_anticollinear / (L ** 2) / 4.
 
 
+
+@jit(nopython=True)
+def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
+    C_ijkl_collinear = np.zeros((GF_00.shape[1], len(ijkl)), dtype=np.complex64)
+    C_ijkl_anticollinear = np.zeros((GF_00.shape[1], len(ijkl)), dtype=np.complex64)
+
+
+    for xi in range(ijkl.shape[0]):
+        i, j, k, l = ijkl[xi]
+        for shift_x in range(1):
+            for shift_y in range(1):  # FIXME FIXME FIXME
+                ix, iy, io = (i // 4) // L, (i // 4) % L, i % 4
+                jx, jy, jo = (j // 4) // L, (j // 4) % L, j % 4
+                kx, ky, ko = (k // 4) // L, (k // 4) % L, k % 4
+                lx, ly, lo = (l // 4) // L, (l // 4) % L, l % 4
+
+                i_shift = io + ((ix + shift_x) % L) * 4 * L + ((iy + shift_y) % L) * 4
+                j_shift = jo + ((jx + shift_x) % L) * 4 * L + ((jy + shift_y) % L) * 4
+                k_shift = ko + ((kx + shift_x) % L) * 4 * L + ((ky + shift_y) % L) * 4
+                l_shift = lo + ((lx + shift_x) % L) * 4 * L + ((ly + shift_y) % L) * 4
+
+                A = np.sum(GF_tt[:, :, i_shift, j_shift] * GF_00[:, :, l_shift, k_shift], axis = 0)
+                B = np.sum(GF_forward[:, :, i_shift, k_shift] * GF_backward[:, :, l_shift, j_shift], axis = 0)
+
+                C_ijkl_collinear[:, xi] += A - B
+                C_ijkl_anticollinear[:, xi] += -B
+
+    return C_ijkl_collinear / (L ** 2) / 4., C_ijkl_anticollinear / (L ** 2) / 4.,
+
+'''
 @jit(nopython=True)
 def measure_gfs_correlatorZ(GF_forwards, GF_backwards, ijkl, L):
     C_ijkl = np.zeros((GF_forwards.shape[1], len(ijkl)), dtype=np.complex128)
@@ -949,7 +887,7 @@ def measure_gfs_correlatorZ(GF_forwards, GF_backwards, ijkl, L):
                 C_ijkl[:, xi] += np.sum(GF_forwards[:, :, i_shift, k_shift] * GF_backwards[:, :, l_shift, j_shift], axis=0)
 
     return C_ijkl / (L ** 2) / 4.
-
+'''
 
 @jit(nopython=True)
 def get_idxs_list(reduced_A):

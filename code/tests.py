@@ -239,7 +239,7 @@ def test_single_move_check(config):
     #    wf.perform_MC_step()
     #wf.perform_explicit_GF_update()
 
-    for _ in range(200):
+    for _ in range(20):
         wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         L = len(wf.state) // 2
         i, j = np.random.randint(0, 2 * L, size = 2)
@@ -247,7 +247,6 @@ def test_single_move_check(config):
         initial_ampl = wf.current_ampl
         state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
         ratio_fast = get_wf_ratio(*state, wf.var_f, i, j)
-        
         acc = wf.perform_MC_step((i, j), enforce = True)[0]
         if not acc:
             continue
@@ -257,9 +256,6 @@ def test_single_move_check(config):
 
         if np.isclose(final_ampl / initial_ampl, ratio_fast) and np.isclose(final_ampl_solid, final_ampl):
             n_agreed += 1
-            print(ratio_fast)
-            #if np.abs(i - j) >= 144:
-            #    print('WOW MOTHERFUCKER', final_ampl / initial_ampl, ratio_fast, final_ampl_solid, final_ampl)
 
         else:
             print('single move check ⟨x|d^{\\dag}_i d_k|Ф⟩ / ⟨x|Ф⟩ failed:', final_ampl / initial_ampl, ratio_fast)
@@ -449,6 +445,7 @@ def test_gf_symmetry(config):
             print('failed PHS!', ampl, ampl_new, ampl / ampl_new, \
                                  wf.get_cur_det() / wf_transformed.get_cur_det(), \
                                  wf.get_cur_Jastrow_factor() / wf_transformed.get_cur_Jastrow_factor())
+        print('\n\n\n\n')
 
 
 
@@ -461,7 +458,7 @@ def test_chain_moves(config):
     n_agreed = 0
     n_failed = 0
 
-    for _ in range(200):
+    for _ in range(20):
         wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         ratio_acc = 1. + 0.0j
         initial_ampl = wf.current_ampl
@@ -503,7 +500,7 @@ def test_chiral_gap_preserves_something(config):
     n_agreed = 0
     n_failed = 0 
 
-    for _ in range(200):
+    for _ in range(20):
         wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         i, j = np.random.randint(0, config.total_dof // 2, size = 2)
         j += config.total_dof // 2
@@ -609,10 +606,12 @@ def test_double_move_check(config):
     n_agreed = 0
     n_failed = 0
     # wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
-    while n_agreed < 100:
+    while n_agreed < 20:
+        print('try', n_agreed)
         wf = wavefunction_singlet(config, config.pairings_list, config.initial_parameters, False, None)
         L = len(wf.state) // 2
         i, j, k, l = np.random.randint(0, 2 * L, size = 4)
+        print(i, j, k, l)
         #if i == j or i == l or k == l or k == j:
         #    continue  # the degenerate cases are considered separately (directly by density operator)
 
@@ -621,9 +620,10 @@ def test_double_move_check(config):
         ratio_fast = get_wf_ratio_double_exchange(*state, wf.var_f, i, j, k, l)
         
         W_ij_0 = get_wf_ratio(*state, wf.var_f, i, j)
-        acc = wf.perform_MC_step(proposed_move = (i, j), enforce = True)[0]
+        acc = wf.perform_MC_step(proposed_move = (i, j))[0]
 
         if not acc:
+            print('failed first acc')
             continue
         wf.perform_explicit_GF_update()
         state = (wf.Jastrow, wf.W_GF, wf.place_in_string, wf.state, wf.occupancy)
@@ -633,8 +633,9 @@ def test_double_move_check(config):
         W_kl_upd = get_wf_ratio(*state, wf.var_f, k, l)
         ratio_check = W_kl_upd * W_ij_0
 
-        acc = wf.perform_MC_step(proposed_move = (k, l), enforce = True)[0]
+        acc = wf.perform_MC_step(proposed_move = (k, l))[0]
         if not acc:
+            print('failed 2nd acc')
             continue
         wf.perform_explicit_GF_update()
         final_ampl = wf.current_ampl
@@ -643,10 +644,12 @@ def test_double_move_check(config):
 
         if np.allclose([ratio_fast, ratio_fast], [ratio_straight, ratio_check], atol = 1e-11, rtol = 1e-11):
             n_agreed += 1
+            print('success', i, j, k, l)
         else:
             print('double move check ⟨x|d^{\\dag}_i d_j d^{\\dag}_k d_l|Ф⟩ / ⟨x|Ф⟩ failed:', ratio_fast / ratio_straight, ratio_straight, ratio_check, i, j, k, l)
             n_failed += 1
             success = False
+            exit(-1)
     if n_failed == 0:
         print('Passed')
     else:
@@ -784,23 +787,21 @@ def test_simple_Koshino_Jastrow_equaldistant_allaccounting(config):
 
 def perform_all_tests(config):
     success = True
+    success = success and test_double_move_check(config)
+    success = success and test_numerical_derivative_check(config)
+    success = success and test_gf_symmetry(config)
     success = success and test_simple_Koshino_Jastrow_equaldistant_allaccounting(config)
     success = success and test_FT_BC_twist(config)
-    success = success and test_gf_symmetry(config)
-    success = success and test_numerical_derivative_check(config)
     success = success and test_BC_twist(config)
     success = success and test_chiral_gap_preserves_something(config)
     success = success and test_chain_moves(config)
     success = success and test_single_move_check(config)
     success = success and test_delayed_updates_check(config)
-    success = success and test_numerical_derivative_check(config)
-    success = success and test_particle_hole(config)
-    success = success and test_BC_twist(config)
+    #success = success and test_particle_hole(config)
     success = success and test_all_jastrow_factors_included_only_once(config)
     success = success and test_explicit_factors_check(config)
     success = success and test_double_move_commutation_check(config)
     
     success = success and test_onsite_gf_is_density_check(config)
     
-    # success = success and test_double_move_check(config)
     return success
