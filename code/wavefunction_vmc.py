@@ -46,6 +46,9 @@ class wavefunction_singlet():
         #                               for h in self.config.hoppings]
         self.waves_list_unwrapped = config.waves_list_unwrapped
         self.waves_list_ph = [waves.waves_particle_hole(self.config, m) for m in self.waves_list_unwrapped]
+        for wave in self.waves_list_ph:
+            print(np.linalg.norm(wave - wave.conj().T))
+            assert np.allclose(wave, wave.conj().T)
 
         #print(self.pairings_list_unwrapped[0])
         self.reg_gap_term = reg if reg is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.reg_gap_term), inverse = False) * \
@@ -255,6 +258,7 @@ class wavefunction_singlet():
                                particle_hole = self.particle_hole, ph_test = self.ph_test, trs_test = self.trs_test)
 
 
+        print(self.T - self.T.conj().T)
         if self.ph_test:
             self.T = -self.T.conj()
         # assert not self.ph_test  # FIXME

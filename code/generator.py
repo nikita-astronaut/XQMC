@@ -670,7 +670,7 @@ if __name__ == "__main__":
         config.nu_U = np.sqrt(config.dt / 2 * U)
         config.nu_V = 0.#np.sqrt(config.dt / 2 * V)
 
-        K_matrix = config.model(config, config.mu)[0]
+        K_matrix = config.model(config, config.mu, config.BC)[0]
         ### application of real TBCs ###
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
         twist = real_twists[0] #[(rank + config.offset) % len(real_twists)]  # each rank knows its twist
@@ -680,8 +680,6 @@ if __name__ == "__main__":
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False)
         config.pairings_list_unwrapped = [models.apply_TBC(config, twist, deepcopy(gap), inverse = False) for gap in config.pairings_list_unwrapped]
 
-        #print(K_matrix.real)
-        #exit(-1)
         ### creating precomputed exponents ###
         K_operator = scipy.linalg.expm(config.dt * K_matrix)
         K_operator_inverse = scipy.linalg.expm(-config.dt * K_matrix)
