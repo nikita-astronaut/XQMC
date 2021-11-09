@@ -3,7 +3,7 @@ import numpy as np
 import sys
 np.set_printoptions(threshold=sys.maxsize)
 #from opt_parameters import pairings, jastrow, waves, hoppings
-from opt_parameters import jastrow, pairings
+from opt_parameters import jastrow, pairings, waves
 from copy import deepcopy
 from scipy import interpolate
 import hamiltonians_vmc
@@ -18,17 +18,17 @@ class MC_parameters:
         self.L_twists_uniform = 6
         self.rank = irrep_idx
         assert self.BC_twist  # this is always true
-        self.twist = np.array([1, 1]); self.n_chains = 8; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
+        self.twist = np.array([1, 1]); self.n_chains = 6; assert self.twist[0] == 1 and self.twist[1] == 1  # twist MUST be set to [1, 1] here
         
         self.model = models.model_hex_2orb_Koshino
         self.chiral_basis = True
         self.K_0, self.n_orbitals, self.n_sublattices, = self.model(self, 0.0, spin = +1.0, BC=self.BC)  # K_0 is the tb-matrix, which before twist and particle-hole is the same for spin-up and spin-down
 
         self.K_0 = models.xy_to_chiral(self.K_0, 'K_matrix', self, self.chiral_basis)
-        #print(repr(np.linalg.eigh(self.K_0)[0]))
-        #exit(-1)
+        print(repr(np.linalg.eigh(self.K_0)[0]))
+        exit(-1)
 
-        print(np.sum(self.K_0) / 0.331)
+        #print(np.sum(self.K_0) / 0.331)
 
         check_chirality(self.K_0, self.chiral_basis)
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
@@ -92,11 +92,10 @@ class MC_parameters:
 
 
         ### SDW/CDW parameters setting ###
-        #waves.obtain_all_waves(self)
-        #self.waves_list = waves.hex_2orb
-        #self.waves_list_unwrapped = [w[0] for w in self.waves_list]
-        #self.waves_list_names = [w[-1] for w in self.waves_list]
-        #self.waves_list_unwrapped = [models.xy_to_chiral(g, 'wave', self, self.chiral_basis) for g in self.waves_list_unwrapped]
+        waves.obtain_all_waves(self)
+        self.waves_list = waves.hex_2orb
+        self.waves_list_unwrapped = [w[0] for w in self.waves_list]
+        self.waves_list_names = [w[-1] for w in self.waves_list]
 
 
         self.enforce_valley_orbitals = False
@@ -104,8 +103,7 @@ class MC_parameters:
                                             self.n_orbitals, valley_conservation_K = self.valley_projection, 
                                             valley_conservation_Delta = self.enforce_valley_orbitals)
         print(self.adjacency_transition_matrix)
-        #self.name_group_dict = pairings.name_group_dict
-        #print(self.name_group_dict)
+
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
@@ -116,15 +114,8 @@ class MC_parameters:
         print(self.jastrows_list_names)
 
 
-
-        ### SDW/CDW parameters setting ###
-        #waves.obtain_all_waves(self)
-        #self.waves_list = [] # waves.hex_2orb
-        #self.waves_list_names = [w[-1] for w in self.waves_list]
-        #self.waves_list_unwrapped = []
-
         ### optimisation parameters ###
-        self.MC_chain = 1200000; self.MC_thermalisation = 200000; self.opt_raw = 1500;
+        self.MC_chain = 400000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
         self.optimisation_steps = 10000; self.thermalization = 100000; self.obs_calc_frequency = 20
         # thermalisation = steps w.o. observables measurement | obs_calc_frequency -- how often calculate observables (in opt steps)
         self.correlation = (self.total_dof // 2) * 5
@@ -149,15 +140,15 @@ class MC_parameters:
         self.reg_gap_val = 0.0005# if not self.condensation_energy_check_regime else 0.
 
         ## initial values definition and layout ###
-        self.layout = np.array([1, 0, len(self.hoppings), len(self.pairings_list_names), len(self.jastrows_list)])
+        self.layout = np.array([1, 0, len(self.waves_list_names), len(self.pairings_list_names), len(self.jastrows_list)])
         
 
         self.initial_parameters = np.concatenate([
             np.array([0.0]),  # mu_BCS
             #np.array([0.0] if not self.PN_projection else []),  # fugacity
             np.array([]),  # no fugacity
-            np.random.uniform(-0.000, 0.000, size = self.layout[2]),  # hoppings
-            np.random.uniform(2.5e-2, 2.5e-2, size = self.layout[3]),  # gaps
+            np.random.uniform(2.5e-2, 2.5e-2, size = self.layout[2]),  # waves
+            np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
         #self.initial_parameters[-self.layout[4]:-self.layout[4] + 16] = np.array([7.3187606e-02 , 6.0324221e-01 , 1.3468416e-01 , 6.1753768e-01 , 2.0022604e-01 , 2.9362039e-01,  2.2077280e-01 , 2.6178142e-01 , 2.8158927e-02  ,7.2660561e-02,  1.5578811e-02,  6.2218900e-02,  8.2826054e-03  ,4.8288188e-02 , -4.7837225e-03 , 5.2365285e-02])
@@ -175,7 +166,7 @@ class MC_parameters:
        
         self.all_names = np.concatenate([
             np.array(['mu_BCS']),  # mu_BCS
-            np.array(self.hopping_names),  # hopping matrices
+            np.array(self.waves_list_names),  # hopping matrices
             np.array(self.pairings_list_names),  # gaps
             np.array(self.jastrows_list_names),
         ])

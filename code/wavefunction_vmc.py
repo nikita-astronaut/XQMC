@@ -39,18 +39,18 @@ class wavefunction_singlet():
         exit(-1)
         '''
 
-        self.hoppings_list_TBC_up = [models.apply_TBC(self.config, self.config.twist, deepcopy(h), inverse = False) \
-                                     for h in self.config.hoppings]
-        self.hoppings_list_TBC_down = [models.apply_TBC(self.config, self.config.twist, deepcopy(h).T, inverse = True) \
-                                       for h in self.config.hoppings]
-
-
+        #self.hoppings_list_TBC_up = [models.apply_TBC(self.config, self.config.twist, deepcopy(h), inverse = False) \
+        #                             for h in self.config.hoppings]
+        #self.hoppings_list_TBC_down = [models.apply_TBC(self.config, self.config.twist, deepcopy(h).T, inverse = True) \
+        #                               for h in self.config.hoppings]
+        self.waves_list_unwrapped = config.waves_list_unwrapped
+        self.waves_list_ph = [waves.waves_particle_hole(self.config, m) for m in self.waves_list_unwrapped]
 
         #print(self.pairings_list_unwrapped[0])
         self.reg_gap_term = reg if reg is not None else models.apply_TBC(self.config, self.config.twist, deepcopy(self.config.reg_gap_term), inverse = False) * \
                                                         self.config.reg_gap_val
 
-        self.var_mu, self.var_f, self.var_hoppings, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
+        self.var_mu, self.var_f, self.var_waves, self.var_params_gap, self.var_params_Jastrow = config.unpack_parameters(parameters)
 
         self.var_f = 0. #self.var_f if not config.PN_projection else 0.
 
@@ -150,10 +150,9 @@ class wavefunction_singlet():
         self.W_mu_derivative = self._get_derivative(self._construct_mu_V(np.arange(0, self.config.total_dof // 2)))
 
         self.W_k_derivatives = np.array([self._get_derivative(self._construct_gap_V(gap)) for gap in self.pairings_list_unwrapped])
-        #self.W_waves_derivatives = np.array([self._get_derivative(waves.waves_particle_hole(self.config, wave)) \
-        #                                     for wave in self.config.waves_list_unwrapped])
-        self.W_hoppings_derivatives = np.array([self._get_derivative(self._construct_hopping_V(h_up, h_down)) \
-                                                for h_up, h_down in zip(self.hoppings_list_TBC_up, self.hoppings_list_TBC_down)])
+        self.W_waves_derivatives = np.array([self._get_derivative(wave) for wave in self.waves_list_ph])
+        #self.W_hoppings_derivatives = np.array([self._get_derivative(self._construct_hopping_V(h_up, h_down)) \
+        #                                        for h_up, h_down in zip(self.hoppings_list_TBC_up, self.hoppings_list_TBC_down)])
 
 
         ### allowed 1-particle moves ###
@@ -239,18 +238,18 @@ class wavefunction_singlet():
         O_fugacity = []#[self.get_O_fugacity()] if not self.config.PN_projection else []
         O_pairing = jit_get_O_pairing(self.W_k_derivatives, self.W_GF_complete.T) if len(self.W_k_derivatives) > 0 else []
         O_Jastrow = jit_get_O_jastrow(self.Jastrow_A, self.occupancy * 1.0)
-        #O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
-        O_hoppings = jit_get_O_pairing(self.W_hoppings_derivatives, self.W_GF_complete.T) if len(self.W_hoppings_derivatives) > 0 else []
+        O_waves = jit_get_O_pairing(self.W_waves_derivatives, self.W_GF_complete.T) if len(self.W_waves_derivatives) > 0 else []
+        #O_hoppings = jit_get_O_pairing(self.W_hoppings_derivatives, self.W_GF_complete.T) if len(self.W_hoppings_derivatives) > 0 else []
 
-        #O = O_mu + O_fugacity + O_waves + O_pairing + O_Jastrow
-        O = O_mu + O_hoppings + O_pairing + O_Jastrow
+        O = O_mu + O_waves + O_pairing + O_Jastrow
+        #O = O_mu + O_hoppings + O_pairing + O_Jastrow
 
         return np.array(O)
 
     def _construct_U_matrix(self, orbitals_in_use):
         self.T = construct_HMF(self.config, self.K_up, self.K_down, \
-                               self.pairings_list_unwrapped, self.var_params_gap, self.hoppings_list_TBC_up, self.hoppings_list_TBC_down, \
-                               self.var_hoppings, self.reg_gap_term, \
+                               self.pairings_list_unwrapped, self.var_params_gap, self.waves_list_ph, self.var_waves, \
+                               self.reg_gap_term, \
                                particle_hole = self.particle_hole, ph_test = self.ph_test, trs_test = self.trs_test)
 
 
@@ -798,8 +797,7 @@ def jit_get_O_jastrow(Jastrow_A, occupancy):
     return derivatives
 
 def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap, \
-                  hoppings_list_TBC_up, hoppings_list_TBC_down,
-                  var_hoppings, reg_gap_term, particle_hole = False, ph_test = False, trs_test = False):
+                  waves_list, var_waves, reg_gap_term, particle_hole = False, ph_test = False, trs_test = False):
     
     Delta = pairings.get_total_pairing_upwrapped(config, pairings_list_unwrapped, var_params_gap) * (-1. if ph_test else 1)
     print(var_params_gap)
@@ -869,7 +867,11 @@ def construct_HMF(config, K_up, K_down, pairings_list_unwrapped, var_params_gap,
 
 
     '''
-    T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j
+
+    W = np.array([wave * par for wave, par in zip(waves_list, var_waves)]).sum(axis = 0)
+
+    T = scipy.linalg.block_diag(K_up, -K_down) + 0.0j + W
+
     ### TEST GAPS REPULSION ###
     '''
     energies, states = np.linalg.eigh(T)
