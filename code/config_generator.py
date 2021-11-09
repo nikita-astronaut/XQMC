@@ -4,18 +4,18 @@ import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
 
-U_in_t1 = np.array([4.0])
-dt_in_inv_t1 = 1. / 10
-V_in_t1 = np.array([0.0])
+dt_in_inv_t1 = 1. / 20
 main_hopping = 1.0
 
 class simulation_parameters:
-    def __init__(self):
+    def __init__(self, Nt, U, mu, rank):
         self.gpu = False
         
         self.Ls = 2
         # spatial size, the lattice will be of size Ls x Ls
-        self.Nt = np.array([1600])
+        self.Nt = np.array([Nt])
+
+        #dt_in_inv_t1 = 20 / Nt
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -23,21 +23,23 @@ class simulation_parameters:
         self.chiral_basis = True
         self.n_spins = 1
         self.n_copy = 0
+        self.BC = 'PBC'
 
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
-        self.U = U_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
-        self.V = V_in_t1 * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
+        self.U = np.array([U]) * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
+        self.V = np.array([0.]) * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
         #self.dt = 4. / self.Nt[0]  # FIXME TESTINGS
         self.nu_V = None
         self.nu_U = None
         self.BC_twist = False; self.twist = (1.0, 1.0)
-        self.mu = np.array([0.0])
+        self.mu = np.array([mu])
         self.offset = 0
         self.total_dof = self.Ls ** 2 * self.n_sublattices * self.n_orbitals
         self.far_indices = models._jit_get_far_indices(self.Ls, self.total_dof, self.n_sublattices, self.n_orbitals)
 
         self.start_type = 'presaved'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
+        self.obs_start_type = 'fresh' # FIXME
         self.n_sweeps = 500000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 2  # every n-th configuration will be stored during generation
         self.save_path = './configurations/'  # where the configurations will be stored | they will have the name save_path/conf_genN.npy, where N is the generated number
@@ -46,10 +48,10 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 10
 
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc_real/2/'
-        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs_dqmc_real/2/'
-        self.thermalization = 40000  # after how many sweeps start computing observables
-        
+        self.workdir = '/users/nastrakh/DQMC_TBG/logs/2x2_measXZCS2_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], mu, self.Nt[0], rank)
+        self.workdir_heavy = '/users/nastrakh/DQMC_TBG/logs/2x2_measXZCS2_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], mu, self.Nt[0], rank)
+        self.thermalization = 3000  # after how many sweeps start computing observables
+
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]
         self.n_copy = 1

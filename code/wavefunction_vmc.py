@@ -20,9 +20,8 @@ class wavefunction_singlet():
         self.particle_hole = particle_hole
         self.ph_test = ph_test
         self.trs_test = trs_test
-        orbitals_in_use = None  # FIXME
+        orbitals_in_use = None
         self.with_previous_state = with_previous_state
-        # previous_state = None; self.with_previous_state = False;  # FIXME
         self.config = config
         #assert np.allclose(config.pairings_list_unwrapped[0], models.apply_TBC(self.config, self.config.twist, deepcopy(config.pairings_list_unwrapped[0]), inverse = False)) #FIXME
 
@@ -83,7 +82,6 @@ class wavefunction_singlet():
 
         # assert self.var_mu[0] == 0.0
 
-        #print('ABCDEFG', np.linalg.norm(self.K_up- self.K_down.conj()))
         assert np.allclose(self.K_up, self.K_down.conj())
 
         #print(np.linalg.eigh(self.K_up)[0])
@@ -266,8 +264,6 @@ class wavefunction_singlet():
         plus_valley = np.arange(0, self.config.total_dof, 2)
         self.T[plus_valley, plus_valley] += 1e-11  # tiny symmetry breaking between valleys -- just so that the orbitals have definite quantum number
         E, U = np.linalg.eigh(self.T)
-        #print(E, 'energies')
-        #exit(-1)
         #print(np.trace(U[:U.shape[0] // 2, :U.shape[0] // 2]), np.trace(U[U.shape[0] // 2:, U.shape[0] // 2:].conj()))
         #assert np.isclose(np.trace(U[:U.shape[0] // 2, :U.shape[0] // 2]), np.trace(U[U.shape[0] // 2:, U.shape[0] // 2:].conj()))
         #assert np.allclose(U[:U.shape[0] // 2, :U.shape[0] // 2], U[U.shape[0] // 2:, U.shape[0] // 2:].conj())

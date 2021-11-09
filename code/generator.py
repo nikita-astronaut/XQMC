@@ -44,9 +44,9 @@ def import_config(filename: str):
     return module
 
 config_dqmc_file = import_config(sys.argv[1])
-config_dqmc_import = config_dqmc_file.simulation_parameters()
+config_dqmc_import = config_dqmc_file.simulation_parameters(int(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4]), rank)
 
-config = cv_module.simulation_parameters()
+config = cv_module.simulation_parameters(int(sys.argv[2]), float(sys.argv[3]), float(sys.argv[4]), rank)
 config.__dict__ = config_dqmc_import.__dict__.copy()
 
 # print_model_summary(config_vmc)
@@ -460,6 +460,8 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
             current_det_sign = current_det_sign.item()
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log_hex()
 
+            current_sign = np.exp(1.0j * np.imag(current_gauge_factor_log)) * current_det_sign #np.exp(current_gauge_factor_log) * current_det_sign
+
         if time_slice in phi_field.refresh_checkpoints and time_slice > 0:  # every s-th configuration we refresh the Green function
             #t = time()
             if switch:
@@ -493,6 +495,8 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
             #    print('Warning!!! Refresh did not preserve the det log noopt vs opt:', det_log_up_check, phi_field.log_det_up, time_slice)
 
             current_gauge_factor_log = phi_field.get_current_gauge_factor_log_hex()
+
+            current_sign = np.exp(1.0j * np.imag(current_gauge_factor_log)) * current_det_sign
             need_check = True
             #print('refresh: ', time() - t); t =time()
         # assert np.allclose(phi_field.get_G_no_optimisation(+1, time_slice)[0], phi_field.current_G_function_up)
@@ -501,47 +505,8 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
         #print('wrap up', time() - t)
         if switch:
             phi_field.copy_to_CPU()
-        '''
-        GFs_up = phi_field.get_nonequal_time_GFs(+1.0, phi_field.current_G_function_up)
-        GFs_up_naive = np.array(phi_field.get_G_tau_0_naive(+1.0))
-        print(GFs_up.shape, GFs_up_naive.shape)
-
-
-        for i in range(phi_field.config.Nt):
-            print(np.sum(np.abs(GFs_up[i] - GFs_up_naive[i])), flush=True)
-
-
-        GFs_up = phi_field.get_nonequal_time_GFs_inverted(+1.0, phi_field.current_G_function_up)
-        GFs_up_naive = np.array(phi_field.get_G_0_tau_naive(+1.0))
-        print(GFs_up.shape, GFs_up_naive.shape)
-
-
-        for i in range(phi_field.config.Nt):
-            print(np.sum(np.abs(GFs_up[i] - GFs_up_naive[i])), flush=True)
-
-        '''
         phi_field.wrap_up(time_slice)
 
-        # exit(-1)
-        '''
-        ### DEBUG ###
-        GFs_up = np.array(phi_field.get_nonequal_time_GFs_inverted(+1.0, phi_field.current_G_function_up))
-        for t in range(len(GFs_up)):
-            beta = phi_field.config.Nt * phi_field.config.dt
-            current_tau = t * phi_field.config.dt
-            energies, states = np.linalg.eigh(phi_field.K_matrix_plus)
-            states = states.T.conj()
-            assert np.allclose(phi_field.K_matrix_plus, phi_field.K_matrix_plus.conj().T)
-            assert np.allclose(np.einsum('i,ij,ik->jk', energies, states.conj(), states), phi_field.K_matrix_plus)
-            correct_string = -np.einsum('i,ij,ik->jk', np.exp((beta -current_tau) * energies) / (1. + np.exp(beta * energies)), states.conj(), states)
-
-            print(t, np.linalg.norm(GFs_up[t] - correct_string) / np.linalg.norm(correct_string))
-        '''
-        #energies, states = np.linalg.eigh(phi_field.K_matrix_plus)
-        #beta = phi_field.config.Nt * phi_field.config.dt
-        #correct_energy = np.sum(energies / (1. + np.exp(beta * energies)))
-
-        #print('correct energy at beta = {:.10f} = {:.10f}'.format(beta, correct_energy * 4. / 4 / phi_field.config.Ls ** 2))
 
         #### xi-bond field update ####
         for hex_idx in range(hex_index_range):
@@ -552,46 +517,36 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
             for local_conf in phi_field.local_conf_combinations:
                 gauge_ratio = phi_field.get_gauge_factor_move_hex(local_conf_old, local_conf[0])
 
-                #t = time()
                 phi_field.compute_deltas_hex(hex_idx, time_slice, local_conf_old, local_conf[0])
-                #print('deltas xi:', time() - t)
-
                 idxs = np.array(phi_field.hexagons[hex_idx], dtype=np.int64)
-
-                #t = time()
                 det_ratio = auxiliary_field.get_det_ratio_inter_hex(idxs, phi_field.Delta, phi_field.current_G_function_up) ** n_spins * \
                             auxiliary_field.get_det_ratio_inter_hex(idxs, phi_field.Delta, phi_field.current_G_function_down) ** n_spins
-                #print('det ratio xi:', time() - t)
                 local_det_factors.append(det_ratio)
-
                 local_gauge_factors.append(gauge_ratio)
 
             probas = np.array(local_det_factors) * np.array(local_gauge_factors)
-            assert np.allclose(probas.real, probas)
 
+            signs = probas / np.abs(probas)
             probas = np.abs(probas)
+            #assert np.allclose(probas.real, probas)
 
             idx = np.random.choice(np.arange(len(local_det_factors)), p = probas / np.sum(probas))
 
             new_conf = phi_field.local_conf_combinations[idx]
             assert probas[idx] > 0
+            current_sign *= signs[idx]
 
             current_det_log += np.log(np.abs(local_det_factors[idx]))
             current_gauge_factor_log += np.log(local_gauge_factors[idx])
 
             current_det_sign *= local_det_factors[idx] / np.abs(local_det_factors[idx])
-
             ratio = np.log(np.abs(local_det_factors[idx]))
             accepted = (new_conf[0] != local_conf_old)
 
             if accepted:
-                #t = time()
                 phi_field.compute_deltas_hex(hex_idx, time_slice, local_conf_old, new_conf[0]); 
-                #print('deltas xi', time() - t); t = time()
                 phi_field.update_G_seq_hex(hex_idx)
-                #print('update G xi', time() - t); t = time()
                 phi_field.update_hex_field(hex_idx, time_slice, new_conf[0])
-                #print('update xi bond', time() - t)
 
             if False:# need_check_xi:
                 G_up_check, det_log_up_check, phase_up_check = phi_field.get_G_no_optimisation(+1, time_slice)
@@ -613,9 +568,8 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
                 print(phase_up_check)
                 need_check = False
 
-            observables.update_history(ratio, accepted, 1) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
-        
-        observables.measure_light_observables(phi_field, 1, n_sweep, print_gf = (time_slice == phi_field.config.Nt - 1))
+            observables.update_history(ratio, accepted, current_sign) # np.real(np.exp(1.0j * np.imag(phi_field.get_current_gauge_factor_log() / 2)) / phase_up_check))
+        observables.measure_light_observables(phi_field, current_sign, n_sweep, print_gf = (time_slice == phi_field.config.Nt - 1))
 
 
     if n_sweep >= phi_field.config.thermalization:
@@ -655,13 +609,80 @@ def retrieve_last_n_sweep(local_workdir):
         pass
     return 0
 
+### DEBUG ###
+
+Kim = np.array([[0.   +0.j   , 0.   +0.j   , 0.331+0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.097j, 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.331+0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   -0.097j, 0.   +0.j   , 0.   +0.j   ],
+       [0.331+0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.331+0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.331+0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.097j, 0.   +0.j   ],
+       [0.   +0.j   , 0.331+0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.331+0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.331+0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   -0.097j],
+       [0.   +0.j   , 0.   +0.j   , 0.331+0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.331+0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.331+0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.331+0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.331+0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.331+0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.331+0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.331+0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.331+0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.331+0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.331+0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.331+0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.331+0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.331+0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.331+0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.331+0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   -0.097j, 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.331+0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.331+0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.331+0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.097j, 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.331+0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.331+0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.331+0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   -0.097j, 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.331+0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ],
+       [0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.097j,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.   +0.j   , 0.   +0.j   , 0.   +0.j   ,
+        0.   +0.j   , 0.331+0.j   , 0.   +0.j   , 0.   +0.j   ]])
+
 
 
 if __name__ == "__main__":
     U_list = deepcopy(config.U); V_list = deepcopy(config.V); mu_list = deepcopy(config.mu); Nt_list = deepcopy(config.Nt);
 
     for U, V, mu, Nt in zip(U_list, V_list, mu_list, Nt_list):
-        config.U = U; config.V = V; config.mu = mu; config.Nt = int(Nt);
+        config.U = U; config.V = V; config.mu = mu; config.Nt = Nt
         n_copy = config.n_copy
         #config.nu_V = np.sqrt(V * config.dt / 2)  #np.arccosh(np.exp(V / 2. * config.dt))  # this is almost sqrt(V t)
         #config.nu_U = np.arccosh(np.exp((U / 2. + V / 2.) * config.dt))
@@ -670,11 +691,20 @@ if __name__ == "__main__":
         config.nu_U = np.sqrt(config.dt / 2 * U)
         config.nu_V = 0.#np.sqrt(config.dt / 2 * V)
 
-        K_matrix = config.model(config, config.mu, config.BC)[0]
+        K_matrix = config.model(config, 0.0)[0]
+        K_matrix -= np.eye(K_matrix.shape[0]) * config.mu
+
         ### application of real TBCs ###
         real_twists = [[1., 1.], [-1., 1.], [1., -1.], [-1., -1.]]
         twist = real_twists[0] #[(rank + config.offset) % len(real_twists)]  # each rank knows its twist
         K_matrix = models.xy_to_chiral(K_matrix, 'K_matrix', config, config.chiral_basis)
+        #np.save('K_matrix.npy', (K_matrix))
+        #exit(-1)
+
+        K_matrix += 1.0j * Kim.imag  # FIXME FIXME FIXME
+        assert np.allclose(K_matrix, K_matrix.conj().T)
+
+        K_matrix = -K_matrix  # this is to agree with ED, this is just unitary transform in terms of particle-hole transformation
 
         energies = np.linalg.eigh(K_matrix)[0]
         K_matrix = models.apply_TBC(config, twist, deepcopy(K_matrix), inverse = False)
@@ -708,8 +738,8 @@ if __name__ == "__main__":
             # phi_field, observables = perform_sweep(phi_field, observables, n_sweep)
             #phi_field, observables = perform_sweep_longrange(phi_field, observables, n_sweep)
             phi_field, observables = perform_sweep_cluster(phi_field, observables, n_sweep, config.n_spins)
-            print('total sweep takes ', time() - t)
-            print('total SVD time ', phi_field.total_SVD_time); phi_field.total_SVD_time = 0.0
+            #print('total sweep takes ', time() - t)
+            #print('total SVD time ', phi_field.total_SVD_time); phi_field.total_SVD_time = 0.0
 
 
             phi_field.save_configuration()

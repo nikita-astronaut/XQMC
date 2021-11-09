@@ -50,7 +50,7 @@ class MC_parameters:
         self.epsilon = 5
         self.xi = 0.10
         self.hamiltonian = hamiltonians_vmc.hamiltonian_Koshino
-        self.U = 1.5
+        self.U = 1.0
 
         ### density VQMC parameters ###
         self.valley_imbalance = 0
@@ -62,7 +62,7 @@ class MC_parameters:
 
         ### other parameters ###
         self.visualisation = False;
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/wavestest_shortjastrow_neworder/'
+        self.workdir = '/users/nastrakh/DQMC_TBG/logs/9x9_regnew/'
 
         self.tests = False; self.test_gaps = False
         self.n_cpus = self.n_chains  # the number of processors to use | -1 -- take as many as available
@@ -85,12 +85,10 @@ class MC_parameters:
          ### variational parameters settings ###
         pairings.obtain_all_pairings(self)  # the pairings are constructed without twist
         self.idx_map = []
-        self.pairings_list = []# FIXMEpairings.Koshino_united[irrep_idx]#pairings.twoorb_hex_all[1]#irrep_idx] #idx_map[2]] # [irrep[0] for irrep in pairings.twoorb_hex_all[1:]] #[13]
-        # self.pairings_list = pairings.twoorb_hex_all[idx_map[irrep_idx]]
+        self.pairings_list = pairings.Koshino_united[irrep_idx]
         self.pairings_list_names = [p[-1] for p in self.pairings_list]
         self.pairings_list_unwrapped = [pairings.combine_product_terms(self, gap) for gap in self.pairings_list]
-        self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', \
-            self, self.chiral_basis) for g in self.pairings_list_unwrapped]
+        self.pairings_list_unwrapped = [models.xy_to_chiral(g, 'pairing', self, self.chiral_basis) for g in self.pairings_list_unwrapped]
 
 
         ### SDW/CDW parameters setting ###
@@ -98,7 +96,6 @@ class MC_parameters:
         self.waves_list = waves.hex_2orb
         self.waves_list_unwrapped = [w[0] for w in self.waves_list]
         self.waves_list_names = [w[-1] for w in self.waves_list]
-        #self.waves_list_unwrapped = [models.xy_to_chiral(g, 'wave', self, self.chiral_basis) for g in self.waves_list_unwrapped]
 
 
         self.enforce_valley_orbitals = False
@@ -110,9 +107,12 @@ class MC_parameters:
 
         ### jastrow parameters setting ###
         jastrow.obtain_all_jastrows(self)
-        self.jastrows_list = jastrow.jastrow_Koshino_simple[:10]
-
+        #self.jastrows_list = jastrow.jastrow_Koshino_Gutzwiller 
+        self.jastrows_list = jastrow.jastrow_Koshino_simple#[:20]
+        print(len(self.jastrows_list))
         self.jastrows_list_names = [j[-1] for j in self.jastrows_list]
+        print(self.jastrows_list_names)
+
 
         ### optimisation parameters ###
         self.MC_chain = 400000; self.MC_thermalisation = 100000; self.opt_raw = 1500;
@@ -124,7 +124,7 @@ class MC_parameters:
         # regularizer for the S_stoch matrix | learning rate | MC_chain increasement rate
         self.n_delayed_updates = 1
         self.generator_mode = True
-        self.condensation_energy_check_regime = False#True
+        self.condensation_energy_check_regime = False #True
 
         ### regularisation ###
         if not self.enforce_valley_orbitals:
@@ -136,8 +136,8 @@ class MC_parameters:
                                                     #self, self.chiral_basis)
         else:
             self.reg_gap_term = models.xy_to_chiral(pairings.combine_product_terms(self, pairings.twoorb_hex_all[9][0]), 'pairing', \
-                                                    self, self.chiral_basis) # FIXME
-        self.reg_gap_val = 0.000
+                                                    self, self.chiral_basis)
+        self.reg_gap_val = 0.0005# if not self.condensation_energy_check_regime else 0.
 
         ## initial values definition and layout ###
         self.layout = np.array([1, 0, len(self.waves_list_names), len(self.pairings_list_names), len(self.jastrows_list)])
@@ -151,6 +151,7 @@ class MC_parameters:
             np.random.uniform(1.3e-2, 1.3e-2, size = self.layout[3]),  # gaps
             np.random.uniform(0.0, 0.0, size = self.layout[4]),  # jastrows
         ])
+        #self.initial_parameters[-self.layout[4]:-self.layout[4] + 16] = np.array([7.3187606e-02 , 6.0324221e-01 , 1.3468416e-01 , 6.1753768e-01 , 2.0022604e-01 , 2.9362039e-01,  2.2077280e-01 , 2.6178142e-01 , 2.8158927e-02  ,7.2660561e-02,  1.5578811e-02,  6.2218900e-02,  8.2826054e-03  ,4.8288188e-02 , -4.7837225e-03 , 5.2365285e-02])
 
         '''
         self.parameter_fixing = np.concatenate([
