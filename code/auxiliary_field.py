@@ -5,7 +5,9 @@ import scipy
 import models
 from copy import deepcopy
 from numba import jit
+from numba.typed import List
 import os
+import torch
 
 
 try:
@@ -16,6 +18,7 @@ except ImportError:
 class AuxiliaryFieldIntraorbital:
     def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
         self.gpu_avail = config.gpu
+        self.exponentiated = np.ones(config.Nt, dtype=bool)
         self.la = np
         self.cpu = True
         self.total_SVD_time = 0.0
@@ -746,11 +749,6 @@ class AuxiliaryFieldInterorbital(AuxiliaryFieldIntraorbital):
         return
 
     def B_l(self, spin, l, inverse = False):
-        #print('inverse =', inverse)
-        #assert np.allclose(np.linalg.inv(self.K), self.K_inverse)
-        #print(self.V_up[l, ...], self.Vinv_up[l, ...])
-        #assert np.allclose(np.linalg.inv(self.V_up[l, ...]), self.Vinv_up[l, ...])
-
         if not inverse:
             if spin > 0:
                 return self.V_up[l, ...].dot(self.K)
@@ -1310,14 +1308,16 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
         return
 
     def B_l(self, spin, l, inverse = False):  # spin = valley
+        assert self.exponentiated[l]
+
         if not inverse:
             if spin > 0:
-                return self.V[l, ...].dot(self.K_plus)
-            return self.V[l, ...].dot(self.K_minus)
+                return self.V_plus_exp[l, ...].dot(self.K_plus)
+            return self.V_minus_exp[l, ...].dot(self.K_minus)
 
         if spin > 0:
-            return self.K_plus_inverse.dot(np.conj(self.V[l, ...]))
-        return self.K_minus_inverse.dot(np.conj(self.V[l, ...]))  # in case of imaginary HST, inversion = c.c.
+            return self.K_plus_inverse.dot(self.V_plus_exp_inv[l, ...])
+        return self.K_minus_inverse.dot(self.V_minus_exp_inv[l, ...])
 
 
 class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccurateImagNN):
@@ -1359,30 +1359,107 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         #self.connectivity = (K_oneband == K_oneband.real.max()).astype(np.float64)
         self.connectivity = (np.abs(K_oneband + 0.331) < 1e-5).astype(np.float64)
         assert np.allclose(self.connectivity, self.connectivity.T)
-        self.n_hexagons = config.Ls ** 2  # int(np.sum(self.connectivity) / 2.)
+        self.n_hexagons = config.Ls ** 2
 
         self.hexagons = []  # hexagon -- typle of 6 sites
         self.hexagons_by_site = []  # list of 3 hexagons that include this site into list
 
 
-        for i in range(self.connectivity.shape[0]):
-            adjacent_sites = np.where(self.connectivity[i, :] == 1.0)[0]
-            hexagons = []
+        self.sites = []
+        E = np.array([np.array([1. / 2., np.sqrt(3) / 2.]), np.array([1., 0])])
+        sl = (E[0] + E[1]) / 3.
+        for i in range(config.Ls ** 2):
+            x, y = i % config.Ls, i // config.Ls
+            self.sites.append(E[0] * x + E[1] * y)
+            self.sites.append(self.sites[-1] + sl)
 
-            for j in adjacent_sites:
-                hexagons.append(j // 2) # we only need the unit cell idx (hexagon = unit cell idx)
-            assert len(hexagons) == 3
-            self.hexagons_by_site.append(hexagons.copy())
+        @jit(nopython=True)
+        def get_bc_distance(site1, site2, Lx, Ly):
+            E = np.zeros((2, 2))
+            E[0] = np.array([1. / 2., np.sqrt(3) / 2.])
+            E[1] = np.array([1., 0])
 
-        for hexagon_idx in range(config.Ls ** 2):
+
+            copies = []
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    shift = dx * E[0] * Lx + dy * E[1] * Ly
+
+                    copies.append(site1 + shift)
+            return np.sqrt(np.min(np.array([np.sum((site2 - copy) ** 2) for copy in copies]))), \
+                   site2 - copies[np.argmin(np.array([np.sum((site2 - copy) ** 2) for copy in copies]))]
+
+        ### check that sites connectivity graph agrees with the one obtained within old procedure ###
+        for idx1, site1 in enumerate(self.sites):
+            for idx2, site2 in enumerate(self.sites):
+                #print(idx1, idx2)
+                if np.isclose(get_bc_distance(site1, site2, config.Ls, config.Ls)[0], 1. / np.sqrt(3)):
+                    assert self.connectivity[idx1, idx2] == 1.0
+                if self.connectivity[idx1, idx2] == 1.0:
+                    #print(get_bc_distance(site1, site2, config.Ls, config.Ls), site1, site2)
+                    assert np.isclose(get_bc_distance(site1, site2, config.Ls, config.Ls)[0], 1. / np.sqrt(3))
+        
+
+        hex_centers = []
+        self.hexagons = []
+        self.hexagons_by_site = [[] for _ in range(len(self.sites))]
+        hex_idx = 0
+        for site in self.sites[::2]:
+            hex_centers.append(site + np.array([1, -1]) * (E[0] + E[1]) / 3.)
             hexagon = []
-
-            for i, a in enumerate(self.hexagons_by_site):
-                if hexagon_idx in a:
-                    hexagon.append(i)
+            for idx, site in enumerate(self.sites):
+                if np.isclose(get_bc_distance(site, hex_centers[-1], config.Ls, config.Ls)[0], 1. / np.sqrt(3)):
+                    hexagon.append(idx)
+                    self.hexagons_by_site[idx].append(hex_idx)
             assert len(hexagon) == 6
-            self.hexagons.append(hexagon.copy())
-        self.Bdim = config.total_dof // 2 // 2
+            hex_idx += 1
+            self.hexagons.append(deepcopy(hexagon))
+
+        for m in self.hexagons_by_site:
+            assert len(m) == 3
+
+        for idx, hexagon in enumerate(self.hexagons):
+            hexagon_rearranged = [hexagon[0]]
+            for i in range(1, 6):
+
+                NNs = np.where(self.connectivity[:, hexagon_rearranged[i - 1]] == 1.0)[0]
+                for nn in NNs:
+                    A = get_bc_distance(self.sites[hexagon_rearranged[i - 1]], hex_centers[idx], config.Ls, config.Ls)[1]
+                    B = get_bc_distance(self.sites[nn], hex_centers[idx], config.Ls, config.Ls)[1]
+                    if nn in hexagon and nn not in hexagon_rearranged and np.cross(A, B) > 0:
+                        hexagon_rearranged.append(nn)
+                        break
+            self.hexagons[idx] = deepcopy(hexagon_rearranged)
+
+        self.meta_eye = []
+        for _ in range(config.Nt):
+            self.meta_eye.append(np.eye(len(self.K_plus)))
+        self.meta_eye = np.array(self.meta_eye)
+
+        # check that everything is alright
+        for idx, hexagon in enumerate(self.hexagons):
+            for i in range(len(hexagon)):
+                assert self.connectivity[hexagon[i], hexagon[(i + 1) % 6]] == 1.0
+
+        ### build neighboring hexagons ###
+        # each hexagon hex_0 contains 6 elements #
+        # for bond hex_0[i] to hex_0[(i + 1) % 6] we will pack to neighboring_hexagons[i] index of hexagon also containing this bond #
+
+        self.neighboring_hexagons = [[] for _ in range(config.Ls ** 2)]
+        for idx, hexagon_0 in enumerate(self.hexagons):
+            for i in range(6):
+                a, b = hexagon_0[i], hexagon_0[(i + 1) % 6]
+
+                a_hexs = self.hexagons_by_site[a]
+                b_hexs = self.hexagons_by_site[b]
+
+                for hex_to in a_hexs:
+                    if hex_to in b_hexs and hex_to != idx:
+                        self.neighboring_hexagons[idx].append(hex_to)
+                        break
+        print(self.hexagons)
+        print(self.neighboring_hexagons)
+        ###
 
 
         super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
@@ -1400,8 +1477,17 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
             -1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1],
             +1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1]
         }
+
+        self.local_c_dict = {}
+        self.nonzero_idxs = None
         print(self.hexagons_by_site)
         print(self.hexagons)
+
+        #self.connections = []
+        #for site in range(self.connectivity.shape[0]):
+        #    self.connections.append(np.where((self.connectivity + np.eye(self.connectivity.shape[0]))[site] > 0)[0])
+        #print(self.connections)
+        #exit(-1)
         return
 
     def get_gauge_factor_move_hex(self, local_conf_old, local_conf):
@@ -1447,47 +1533,128 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
                                               size = (self.config.Nt, self.n_hexagons))
 
 
-        NtVolVol_shape = (self.config.Nt, self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2)
-        self.V = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
+        NtVolVol_shape = (self.config.Nt, 2 * self.config.Ls ** 2, 2 * self.config.Ls ** 2)
+        self.V_plus = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
+        self.V_minus = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
+
+        self.V_plus_exp = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
+        self.V_minus_exp = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
+
+        self.V_plus_exp_inv = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
+        self.V_minus_exp_inv = np.zeros(shape = NtVolVol_shape, dtype=np.complex128); 
 
 
         for time_slice in range(self.config.Nt):
-            for sp_index in range(self.config.total_dof // 2 // 2):
-                hexagon = self.hexagons_by_site[sp_index]
-                hex_variables = np.array([self.hex[time_slice, b] for b in hexagon]) 
-                assert len(hex_variables) == 3
+            for hex_index in range(self.config.Ls ** 2):
+                block_plus, block_minus = _V_from_configuration_onesite_accurate_imag_hex(
+                        self.hex[time_slice, hex_index], self.config.nu_U, self.config.alpha
+                    )
+                
+                self.V_plus = _assign_6x6(self.V_plus, time_slice, self.hexagons[hex_index], block_plus)
+                self.V_minus = _assign_6x6(self.V_minus, time_slice, self.hexagons[hex_index], block_minus)
+                self.exponentiated[time_slice] = False
 
-                self.V[time_slice, sp_index, sp_index] = \
-                    _V_from_configuration_onesite_accurate_imag_hex(hex_variables, +1.0, +1.0, self.config.nu_U)
+        self.exponentiate_V()
         return
     
+    def exponentiate_V(self):
+        t = time()
+        for time_slice in range(self.config.Nt):
+            if self.exponentiated[time_slice]:
+                continue
+            self.V_plus_exp[time_slice] = scipy.linalg.expm(self.V_plus[time_slice])
+            self.V_minus_exp[time_slice] = scipy.linalg.expm(self.V_minus[time_slice])
+            self.V_plus_exp_inv[time_slice] = scipy.linalg.expm(-self.V_plus[time_slice])
+            self.V_minus_exp_inv[time_slice] = scipy.linalg.expm(-self.V_minus[time_slice])
+            self.exponentiated[time_slice] = True
+
+        return
+
     def save_configuration(self):
         addstring = '_dump' if self.n_times_saved % 2 == 1 else ''
         self.n_times_saved += 1
         return np.save(self.conf_path + addstring, self.hex)
 
-    def update_hex_field(self, hex_index, time_slice, new_conf):
+
+    def update_hex_field(self, hex_index, time_slice, old_conf, new_conf):
         '''
-            we update bond-variable, which affects 2 sites and 4 d.o.f., thus use `_V_from_configuration_onesite_accurate_imag`
+            we update hex-variable, which affects 6 sites
         '''
         self.hex[time_slice, hex_index] = new_conf
 
-        for sp_index in self.hexagons[hex_index]:
-            hexagons = self.hexagons_by_site[sp_index]
-            hex_variables = np.array([self.hex[time_slice, b] for b in hexagons])  # all xi variables entering the site 1, including the one that has been changed (this is suboptimal)
-            assert len(hex_variables) == 3
+        block_plus_old, block_minus_old = _V_from_configuration_onesite_accurate_imag_hex(
+                old_conf, self.config.nu_U, self.config.alpha
+            )
 
-            self.V[time_slice, sp_index, sp_index] = \
-                _V_from_configuration_onesite_accurate_imag_hex(hex_variables, +1.0, +1.0, self.config.nu_U)
+        block_plus, block_minus = _V_from_configuration_onesite_accurate_imag_hex(
+                new_conf, self.config.nu_U, self.config.alpha
+            )
+
+        self.V_plus = _assign_6x6(self.V_plus, time_slice, self.hexagons[hex_index], block_plus - block_plus_old)
+        self.V_minus = _assign_6x6(self.V_minus, time_slice, self.hexagons[hex_index], block_minus - block_minus_old)
+        self.exponentiated[time_slice] = False
+        return
+
+    def prepare_current_Z(self, time_slice):
+        #self.Z_plus = scipy.sparse.csr_matrix(self.V_plus[time_slice])
+        #self.Z_minus = scipy.sparse.csr_matrix(self.V_minus[time_slice])
+
         return
 
 
-    def compute_deltas_hex(self, sp_index, time_slice, local_conf, local_conf_proposed):
+
+    def compute_deltas_hex(self, sp_index, time_slice, local_conf, local_conf_combinations):
         '''
             deltas for bond-update of the xi-field (use the standard `_get_delta_interorbital_twosite_accurate_imag`)
         '''
-        self.Delta = _get_delta_interorbital_twosite_accurate_imag_hex(local_conf, local_conf_proposed, +1, self.config.nu_U)  # here as well the same Delta
-        return
+
+        #if local_conf == local_conf_proposed:
+        #    self.Delta_plus, self.Delta_minus, self.support = np.zeros((6, 6), dtype=np.complex128), np.zeros((6, 6), dtype=np.complex128), np.array(self.hexagons[sp_index])
+        #    return
+
+        #self.Delta_plus, self.Delta_minus, self.support = self._get_delta_interorbital_twosite_accurate_imag_hex(
+        #        self.Z_plus, self.Z_minus, local_conf, local_conf_proposed, sp_index, self.config.nu_U, self.config.alpha
+        #    )
+
+        #return 
+
+        deltas = []
+        V_plus_test = self.V_plus[time_slice] * 1.
+
+        Vs = np.zeros((4, V_plus_test.shape[0], V_plus_test.shape[1]), dtype=np.complex128)
+        Vs[0] = -V_plus_test
+
+
+        idx = 1
+        for local_conf_proposed in local_conf_combinations:
+            if local_conf_proposed[0] == local_conf:
+                continue
+            V_plus_testx = _assign_6x6_not(V_plus_test.copy() * 1., self.hexagons[sp_index], \
+                                          _V_from_configuration_onesite_accurate_imag_hex(local_conf_proposed[0], self.config.nu_U, self.config.alpha)[0] - \
+                                          _V_from_configuration_onesite_accurate_imag_hex(local_conf, self.config.nu_U, self.config.alpha)[0])
+            Vs[idx] = V_plus_testx.copy() * 1.0
+            idx += 1
+
+
+        exps = torch.matrix_exp(torch.from_numpy(Vs)).numpy()
+        inv_exps = np.linalg.inv(exps).conj()
+
+        idx = 1
+        for local_conf_proposed in local_conf_combinations:
+            if local_conf_proposed[0] == local_conf:
+                deltas.append((V_plus_test * 0. + 0.0j, V_plus_test * 0. + 0.0j, np.arange(V_plus_test.shape[0])))
+                continue
+
+            delta_plus = (exps[idx] @ exps[0] - np.eye(V_plus_test.shape[0]))
+            delta_minus = (inv_exps[idx] @ inv_exps[0] - np.eye(V_plus_test.shape[0]))
+            support_row = np.where(np.sum(np.abs(delta_plus), axis=0) > 1e-8)[0]
+
+            deltas.append((delta_plus[support_row][:, support_row].copy() * 1., delta_minus[support_row][:, support_row].copy() * 1., support_row))
+            idx += 1
+
+        return deltas
+
+        
 
 
     def get_current_hex(self, hex_index, time_slice):
@@ -1495,13 +1662,42 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
 
 
     def update_G_seq_hex(self, hex_index):
-        idxs = np.array(self.hexagons[hex_index], dtype=np.int64)
-        self.current_G_function_up = _update_G_seq_inter_hex(self.current_G_function_up, self.Delta, idxs, self.config.total_dof // 2)
-        self.current_G_function_down = _update_G_seq_inter_hex(self.current_G_function_down, self.Delta, idxs, self.config.total_dof // 2)
+        idxs = self.support#np.array(self.hexagons[hex_index], dtype=np.int64)
+        self.current_G_function_up = _update_G_seq_inter_hex(self.current_G_function_up, self.Delta_plus, idxs, self.config.total_dof // 2)
+        self.current_G_function_down = _update_G_seq_inter_hex(self.current_G_function_down, self.Delta_minus, idxs, self.config.total_dof // 2)
         return
 
+    def _get_delta_interorbital_twosite_accurate_imag_hex(self, full_plus, full_minus, local_conf, local_conf_proposed, hex_idx, nu_U, alpha):
+        Vp, expVp, Vm, expVm = self.local_configurations_dict(local_conf, local_conf_proposed, hex_idx, nu_U, alpha)
+
+        #t = time()
+        deltap, support = _get_valley_delta(Vp.todense(), expVp.todense(), full_plus.todense())
+        #print('time', time() - t)
+        deltam, _ = _get_valley_delta(Vm.todense(), expVm.todense(), full_minus.todense())
+
+        return deltap, deltam, support
+
+    def local_configurations_dict(self, conf_from, conf_to, hex_idx, nu_U, alpha):
+        if (conf_from, conf_to, hex_idx) in self.local_c_dict:
+            return self.local_c_dict[(conf_from, conf_to, hex_idx)]
+
+        local_V_inv_plus, local_V_inv_minus = _V_from_configuration_onesite_accurate_imag_hex(conf_from, nu_U, alpha)
+        local_V_proposed_plus, local_V_proposed_minus = _V_from_configuration_onesite_accurate_imag_hex(conf_to, nu_U, alpha)
+
+        hex_0 = self.hexagons[hex_idx]
+        rows, cols = np.meshgrid(hex_0, hex_0)
+        rows, cols = rows.flatten(), cols.flatten()
+
+        nonzero = np.abs((local_V_proposed_plus - local_V_inv_plus).flatten()) > 1e-10
 
 
+        self.local_c_dict[(conf_from, conf_to, hex_idx)] = (scipy.sparse.csr_matrix(((local_V_proposed_plus - local_V_inv_plus).flatten()[nonzero], (cols[nonzero], rows[nonzero])), shape=self.V_plus[0].shape), \
+                                                            scipy.sparse.csr_matrix(((scipy.linalg.expm(local_V_proposed_plus - local_V_inv_plus) - np.eye(6)).flatten(), (cols, rows)), shape=self.V_plus[0].shape), \
+                                                            scipy.sparse.csr_matrix(((local_V_proposed_minus - local_V_inv_minus).flatten()[nonzero], (cols[nonzero], rows[nonzero])), shape=self.V_minus[0].shape), \
+                                                            scipy.sparse.csr_matrix(((scipy.linalg.expm(local_V_proposed_minus - local_V_inv_minus) - np.eye(6)).flatten(), (cols, rows)), shape=self.V_minus[0].shape)\
+                                                            )
+
+        return self.local_c_dict[(conf_from, conf_to, hex_idx)]
 
 
 
@@ -1525,13 +1721,101 @@ def _get_delta_interorbital_twosite_accurate_imag(local_conf, local_conf_propose
     local_V_inv = _V_from_configuration_twosite_accurate_imag(local_conf, -1.0, spin, nu_V)
     local_V_proposed = _V_from_configuration_twosite_accurate_imag(local_conf_proposed, 1.0, spin, nu_V)
     return local_V_proposed * local_V_inv - np.eye(2)
+           
 
 
-@jit(nopython = True)
-def _get_delta_interorbital_twosite_accurate_imag_hex(local_conf, local_conf_proposed, spin, nu_U):
-    local_V_inv = _V_from_configuration_twosite_accurate_imag_hex(local_conf, -1.0, spin, nu_U)
-    local_V_proposed = _V_from_configuration_twosite_accurate_imag_hex(local_conf_proposed, 1.0, spin, nu_U)
-    return local_V_proposed * local_V_inv - np.eye(6)
+#@jit(nopython=True)
+def _get_valley_delta(Q, ApBexp_full, Z):
+    Delta_full = ApBexp_full #scipy.sparse.csr_matrix(Z.shape, dtype=np.complex128)
+    #comm = Z.dot(Q) - Z.dot(Q)
+    #commQ2 = comm + Q.dot(Q)
+    #Delta_full = ApBexp_full + comm / 2. + 1. / 6. * (Z.dot(commQ2) - commQ2.dot(Z))# (Z.dot(comm) - comm.dot(Z) + Z.dot(Q.dot(Q)) - Q.dot(Q).dot(Z))
+
+    
+    X = Q
+    Qp = Q
+    fact = 1.
+    for n in range(1, 5):
+        fact *= n
+        Delta_full += X / fact - Qp / fact
+        X = Z.dot(X) - X.dot(Z) + Q.dot(X)
+        Qp = Qp.dot(Q)
+
+
+    #Delta_full = ApBexp_full + comm / 2. + 1. / 6. * (Z.dot(comm) - comm.dot(Z) + Z.dot(Q.dot(Q)) - Q.dot(Q).dot(Z))
+    
+    support_cols = np.where(np.abs(Delta_full).sum(axis = 1) > 1e-10)[0]
+    #support_rows = np.where(np.abs(Delta_full.todense()).sum(axis = 0) > 1e-10)[1]
+
+    #assert np.allclose(support_rows, support_cols)
+
+    ret = Delta_full[support_cols][:, support_cols]
+    return ret, support_cols
+
+
+@jit(nopython=True, boundscheck=False)
+def _compute_support(indptr):
+    support = List()
+    i = 0
+    for r in range(len(indptr) - 1):
+        if indptr[r + 1] - indptr[r] > 0:
+            support.append(r)
+    return np.asarray(support)
+
+@jit(nopython=True, boundscheck=True)
+def _construct_delta(elements, indices, indptr):
+    support = _compute_support(indptr)
+    dim = len(support)
+    Delta = np.zeros((dim, dim), dtype=elements.dtype)
+    for i in range(dim):
+        r = support[i]
+        cs = np.searchsorted(support, indices[indptr[r] : indptr[r + 1]])
+        for offset, c in enumerate(cs):
+            Delta[i, c] = elements[indptr[r] + offset]
+    return Delta, support
+'''
+def _get_valley_delta(ApB_full, ApBexp_full, Z):
+    commutator = Z @ ApB_full - ApB_full @ Z + (Z @ ApB_full + ApB_full @ Z) @ (ApB_full / 6 - Z / 3)
+    Delta = commutator + ApBexp_full
+    return _construct_delta(Delta.data, Delta.indices, Delta.indptr)
+'''
+
+'''
+
+
+@jit(nopython=True)
+def _get_valley_delta(ApB, ApBexp, Z, hex_0, nonzero_idxs):
+    ZAmB = Z * 0.0; AmBZ = Z * 0.0;
+    for i in range(Z.shape[0]):
+        for kk, k in enumerate(hex_0):
+            for jj, j in enumerate(hex_0):
+                ZAmB[i, k] += Z[i, j] * ApB[jj, kk]
+    for k in range(Z.shape[1]):
+        for ii, i in enumerate(hex_0):
+            for jj, j in enumerate(hex_0):
+                AmBZ[i, k] += ApB[ii, jj] * Z[j, k]
+
+    Delta_full = _assign_6x6_not(0.5 * (ZAmB - AmBZ), hex_0, ApBexp - np.eye(6))
+    support_cols = np.where(np.abs(Delta_full).sum(axis = 1) != 0)[0]
+
+    return Delta_full[support_cols][:, support_cols], support_cols
+
+'''
+
+@jit(nopython=True)
+def _assign_6x6(array, t, indexes, small_array):
+    for ii, i in enumerate(indexes):
+        for jj, j in enumerate(indexes):
+            array[t, i, j] += small_array[ii, jj]
+    return array
+
+
+@jit(nopython=True)
+def _assign_6x6_not(array, indexes, small_array):
+    for ii, i in enumerate(indexes):
+        for jj, j in enumerate(indexes):
+            array[i, j] += small_array[ii, jj]
+    return array
 
 
 @jit(nopython=True)
@@ -1565,12 +1849,28 @@ def _V_from_configuration_onesite_accurate_imag(eta_site, xi_bond, sign, spin, n
                                          ) * sign)  # bond-variable is the same for both sites
 
 @jit(nopython=True)
-def _V_from_configuration_onesite_accurate_imag_hex(hexagons, sign, spin, nu_U):  # used for initialization!
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
-           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
-    return np.exp(1.0j * (nu_U * (eta[int(hexagons[0]) + 2] + \
-                                  eta[int(hexagons[1]) + 2] + \
-                                  eta[int(hexagons[2]) + 2])) * sign / 3.)
+def _V_from_configuration_onesite_accurate_imag_hex(configuration, nu_U, alpha):  # used for initialization!
+    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
+    V_hex_plus = np.zeros((6, 6), dtype=np.complex128)
+    V_hex_minus = np.zeros((6, 6), dtype=np.complex128)
+
+    ### work out onsite part ###
+    for idx in range(6):
+        V_hex_plus[idx, idx] += 1.0j / 3.
+        V_hex_minus[idx, idx] += 1.0j / 3.
+
+    ### work out bond part ###
+    for b_idx in range(6):
+        eta_hex_0 = eta[int(configuration) + 2]
+
+        V_hex_plus[b_idx, (b_idx + 1) % 6] += -alpha
+        V_hex_plus[(b_idx + 1) % 6, b_idx] -= -alpha
+
+        V_hex_minus[b_idx, (b_idx + 1) % 6] -= -alpha
+        V_hex_minus[(b_idx + 1) % 6, b_idx] += -alpha
+
+    return V_hex_plus * nu_U * eta[int(configuration) + 2], V_hex_minus * nu_U * eta[int(configuration) + 2]
+
 
 @jit(nopython=True)
 def _V_from_configuration_twosite_accurate_imag_hex(s, sign, spin, nu_U):  # !!! valid in this form ONLY for update (computation of Delta)
@@ -1625,7 +1925,7 @@ def get_det_ratio_inter_hex(idxs, Delta, G):
     G_slice = G[idxs, :]
     G_slice = G_slice[:, idxs]
 
-    return np.linalg.det(np.eye(6, dtype=np.complex128) + np.dot(Delta, np.eye(6, dtype=np.complex128) - G_slice))
+    return np.linalg.det(np.eye(len(idxs), dtype=np.complex128) + np.dot(Delta, np.eye(len(idxs), dtype=np.complex128) - G_slice))
 
 @jit(nopython=True)
 def get_det_ratio_inter_bond(sp_index1, sp_index2, Delta, G):
@@ -1647,32 +1947,6 @@ def get_det_ratio_inter_bond(sp_index1, sp_index2, Delta, G):
 def get_det_ratio_intra(sp_index, Delta, G):
     return 1. + Delta * (1. - G[sp_index, sp_index])
 
-'''
-@jit(nopython=True)
-def _update_G_seq_inter_hex(G, Delta, idxs, total_dof):
-    G_sliced_right = G[:, idxs]
-    G_sliced_left = G[idxs, :]
-
-    update_matrix = np.zeros((6, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
-    update_matrix[:, idxs] = np.eye(6, dtype=np.complex128) + Delta
-    update_matrix -= np.dot(Delta, np.ascontiguousarray(G_sliced_left))
-    det = np.linalg.det(update_matrix[:, idxs])
-
-    inverse_update_matrix = np.zeros((6, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
-
-    inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sp_index2] - \
-                                    update_matrix[1, :] * update_matrix[0, sp_index2]) / det  # my vectorized det :))
-    inverse_update_matrix[1, :] = (update_matrix[0, :] * update_matrix[1, sp_index1] - \
-                                   update_matrix[1, :] * update_matrix[0, sp_index1]) / det
-
-    inverse_update_matrix[0, sp_index2] = update_matrix[1, sp_index2] / det - 1
-    inverse_update_matrix[1, sp_index1] = -update_matrix[1, sp_index1] / det
-    inverse_update_matrix[0, sp_index2] = -update_matrix[0, sp_index2] / det
-    inverse_update_matrix[1, sp_index1] = update_matrix[0, sp_index1] / det - 1
-
-    G = G + np.dot(np.ascontiguousarray(G_sliced_right), inverse_update_matrix)
-    return G
-'''
 
 @jit(nopython=True)
 def _update_G_seq_inter(G, Delta, sp_index1, sp_index2, total_dof):
@@ -1693,66 +1967,28 @@ def _update_G_seq_inter(G, Delta, sp_index1, sp_index2, total_dof):
     Zinv = np.linalg.inv(np.eye(2, dtype=np.complex128) - V.dot(U)).dot(V)
     Zinv = np.ascontiguousarray(Zinv)
 
-    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
     return G + GU.dot(Zinv)
 
 
 @jit(nopython=True)
 def _update_G_seq_inter_hex(G, Delta, idxs, total_dof):
-    #identity = np.eye(G.shape[0], dtype=np.complex128)
-    #large_Delta = identity * 0.
-    #for i in range(6):
-    #    large_Delta[idxs[i], idxs[i]] = Delta[i, i]
-    #return G.dot(np.linalg.inv(identity + large_Delta.dot(identity - G)))
-
-    #idxs = np.sort(idxs)
-    U = np.zeros((total_dof // 2, 6), dtype=np.complex128)
-    for i in range(6):
-        U[idxs[i], i] = Delta[i, i]
+    U = np.zeros((total_dof // 2, len(idxs)), dtype=np.complex128)
+    for i in range(len(idxs)):
+        U[idxs[i]] = Delta[i]
     G_sliced_left = G[idxs, :] * 1.0
     V = G_sliced_left
 
-    for i in range(6):
+    for i in range(len(idxs)):
         V[i, idxs[i]] -= 1
     V = np.ascontiguousarray(V)
     U = np.ascontiguousarray(U)
     G = np.ascontiguousarray(G)
 
     GU = G.dot(U)
-    Zinv = np.linalg.inv(np.eye(6, dtype=np.complex128) - V.dot(U)).dot(V)
+    Zinv = np.linalg.inv(np.eye(len(idxs), dtype=np.complex128) - V.dot(U)).dot(V)
     Zinv = np.ascontiguousarray(Zinv)
 
-    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
     return G + GU.dot(Zinv)
-
-'''
-@jit(nopython=True)	
-def _update_G_seq_inter(G, Delta, sp_index, total_dof):
-    sx = sp_index * 2
-    sy = sp_index * 2 + 1
-    G_sliced_right = G[:, sx : sy + 1]
-    G_sliced_left = G[sx:sy + 1, :]
-
-    update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
-    update_matrix[:, sx:sy + 1] = np.eye(2, dtype=np.complex128) + Delta
-    update_matrix -= np.dot(Delta, np.ascontiguousarray(G_sliced_left))
-    det = np.linalg.det(update_matrix[:, sx:sy + 1])
-
-    inverse_update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
-
-    inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sy] - \
-                                    update_matrix[1, :] * update_matrix[0, sy]) / det  # my vectorized det :))
-    inverse_update_matrix[1, :] = (update_matrix[0, :] * update_matrix[1, sx] - \
-    	                           update_matrix[1, :] * update_matrix[0, sx]) / det
-
-    inverse_update_matrix[0, sx] = update_matrix[1, sy] / det - 1
-    inverse_update_matrix[1, sx] = -update_matrix[1, sx] / det
-    inverse_update_matrix[0, sy] = -update_matrix[0, sy] / det
-    inverse_update_matrix[1, sy] = update_matrix[0, sx] / det - 1
-
-    G = G + np.dot(np.ascontiguousarray(G_sliced_right), inverse_update_matrix)
-    return G
-'''
 
 
 @jit(nopython=True)
@@ -1784,7 +2020,6 @@ def _update_G_seq_inter_twosite(G, Delta, sp_index1, sp_index2, total_dof):
     Zinv = np.linalg.inv(np.eye(4, dtype=np.complex128) - V.dot(U)).dot(V)
     Zinv = np.ascontiguousarray(Zinv)
 
-    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
     return G + GU.dot(Zinv)
 
 
@@ -1804,25 +2039,26 @@ def _update_G_seq_intra(G, Delta, sp_index, total_dof):
 
     return G
 
+def _vector_matrix_exp(mat):
+    result = mat * 0
+    current_mat = mat * 1.
+    fact = 1
+    for n in range(1, 15):
+        fact = fact * n
+        result += current_mat / fact
 
-'''
-@jit(nopython=True)
-def _update_G_seq_intra(G, Delta, sp_index, total_dof):
-    U = np.zeros((total_dof // 2, 1), dtype=np.complex128)
-    U[sp_index, 0] = Delta
+        current_mat = np.einsum('ijk,ikl->ijl', current_mat, mat)
 
-    G_sliced_left = G[sp_index:sp_index+1, :]
-    V = G_sliced_left
+    return result
 
-    V[0, sp_index] -= 1
-    V = np.ascontiguousarray(V)
-    U = np.ascontiguousarray(U)
-    G = np.ascontiguousarray(G)
 
-    GU = G.dot(U)
-    Zinv = np.linalg.inv(np.eye(1, dtype=np.complex128) - V.dot(U)).dot(V)
-    Zinv = np.ascontiguousarray(Zinv)
 
-    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
-    return G + GU.dot(Zinv)
-'''
+import scipy.sparse.linalg
+
+def _fast_matrix_exp(A):
+    h = scipy.sparse.linalg.matfuncs._ExpmPadeHelper(A, structure=None, use_exact_onenorm=(A.shape[0] < 200))
+    eta_1 = max(h.d4_loose, h.d6_loose)
+    U, V = h.pade3()
+    return scipy.sparse.linalg.matfuncs._solve_P_Q(U, V, structure=None)
+
+

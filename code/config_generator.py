@@ -3,6 +3,7 @@ import numpy as np
 import auxiliary_field
 from opt_parameters import pairings, waves
 import pickle
+import sys
 
 dt_in_inv_t1 = 1. / 20
 main_hopping = 1.0
@@ -14,8 +15,6 @@ class simulation_parameters:
         self.Ls = 2
         # spatial size, the lattice will be of size Ls x Ls
         self.Nt = np.array([Nt])
-
-        #dt_in_inv_t1 = 20 / Nt
         self.BC_twist = False; self.twist = (1.0, 1.0)
         self.model = models.model_hex_2orb_Koshino
         self.n_orbitals = 2; self.n_sublattices = 2
@@ -26,10 +25,10 @@ class simulation_parameters:
         self.BC = 'PBC'
 
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
+        self.alpha = float(sys.argv[5])
         self.U = np.array([U]) * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.V = np.array([0.]) * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
-        #self.dt = 4. / self.Nt[0]  # FIXME TESTINGS
         self.nu_V = None
         self.nu_U = None
         self.BC_twist = False; self.twist = (1.0, 1.0)
@@ -46,11 +45,11 @@ class simulation_parameters:
         self.n_print_frequency = 100  # write to log every n_print_frequency spin flips
         self.n_smoothing = 60000 # the number of configurations used for smoothing during the generation log output
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
-        self.s_refresh = 10
+        self.s_refresh = 20
 
-        self.workdir = '/users/nastrakh/DQMC_TBG/logs/2x2_measXZCS2_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], mu, self.Nt[0], rank)
-        self.workdir_heavy = '/users/nastrakh/DQMC_TBG/logs/2x2_measXZCS2_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], mu, self.Nt[0], rank)
-        self.thermalization = 3000  # after how many sweeps start computing observables
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/2x2_measXZCS2_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
+        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs/2x2_measXZCS2_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
+        self.thermalization = 3000000  # after how many sweeps start computing observables
 
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]

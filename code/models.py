@@ -250,19 +250,10 @@ def _model_hex_2orb_Koshino(Ls, twist, mu, spin, BC):
                 else:
                     K[first, second] = -np.imag(t2)
 
-            #if orbit1 == orbit2 and fourth_nearest_neighbor(r1, r2, Ls, BC) and sublattice1 == 1 and sublattice2 == 0:
-            #    K[first, second] = t5
-            #if orbit1 == orbit2 and sixth_nearest_neighbor(r1, r2, Ls, BC) and sublattice1 == 1 and sublattice2 == 0:
-            #    K[first, second] = t4
-
-    #print(repr(K))
-    #exit(-1)
-    #exit(-1)
     K = K + K.conj().T
 
     inverse = False if spin > 0 else True
     return K, n_orbitals, n_sublattices 
-#_apply_TBC(Ls, n_orbitals, n_sublattices, K, twist, far_indices, inverse = inverse), n_orbitals, n_sublattices
 
 
 def model_hex_2orb_Koshino(config, mu, spin = +1.0, BC='PBC'):
