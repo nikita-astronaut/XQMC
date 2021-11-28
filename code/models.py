@@ -381,11 +381,10 @@ def get_reduced_adjacency_matrix(config, max_distance, with_t5=False):
             continue
         reduced_A += adj[0]
 
-
-    if with_t5:
-        for adj in A:
-            if np.isclose(adj[-1], 3.0):
-                reduced_A += adj[0]
+    #if with_t5:
+    #    for adj in A:
+    #        if np.isclose(adj[-1], 3.0):
+    #            reduced_A += adj[0]
     return np.array([np.where(reduced_A[i, :] > 0.5)[0] for i in range(reduced_A.shape[0])])
 
 
