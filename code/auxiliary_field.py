@@ -5,9 +5,7 @@ import scipy
 import models
 from copy import deepcopy
 from numba import jit
-from numba.typed import List
 import os
-import torch
 
 
 try:
@@ -18,7 +16,6 @@ except ImportError:
 class AuxiliaryFieldIntraorbital:
     def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
         self.gpu_avail = config.gpu
-        self.exponentiated = np.ones(config.Nt, dtype=bool)
         self.la = np
         self.cpu = True
         self.total_SVD_time = 0.0
@@ -123,6 +120,9 @@ class AuxiliaryFieldIntraorbital:
             b = u.conj().T.dot(np.dot(M, v))  # a square matrix still
 
             bu, bd, bv = svd_recursive(b,
+                          threshold=threshold)
+
+            U[:, start:] = np.dot(U[:, start:], bu)
                           threshold=threshold)
 
             U[:, start:] = np.dot(U[:, start:], bu)
@@ -1734,261 +1734,25 @@ def _get_valley_delta(Q, ApBexp_full, Z):
     
     X = Q
     Qp = Q
-    fact = 1.
-    for n in range(1, 5):
-        fact *= n
-        Delta_full += X / fact - Qp / fact
-        X = Z.dot(X) - X.dot(Z) + Q.dot(X)
-        Qp = Qp.dot(Q)
+    update_matrix[:, sx:sy + 1] = np.eye(2, dtype=np.complex128) + Delta
+    update_matrix -= np.dot(Delta, np.ascontiguousarray(G_sliced_left))
+    det = np.linalg.det(update_matrix[:, sx:sy + 1])
 
+    inverse_update_matrix = np.zeros((2, total_dof // 2), dtype=np.complex128)  # keep only two nontrivial rows here
 
-    #Delta_full = ApBexp_full + comm / 2. + 1. / 6. * (Z.dot(comm) - comm.dot(Z) + Z.dot(Q.dot(Q)) - Q.dot(Q).dot(Z))
-    
-    support_cols = np.where(np.abs(Delta_full).sum(axis = 1) > 1e-10)[0]
-    #support_rows = np.where(np.abs(Delta_full.todense()).sum(axis = 0) > 1e-10)[1]
+    inverse_update_matrix[0, :] = -(update_matrix[0, :] * update_matrix[1, sy] - \
+                                    update_matrix[1, :] * update_matrix[0, sy]) / det  # my vectorized det :))
+    inverse_update_matrix[1, :] = (update_matrix[0, :] * update_matrix[1, sx] - \
+    	                           update_matrix[1, :] * update_matrix[0, sx]) / det
 
-    #assert np.allclose(support_rows, support_cols)
+    inverse_update_matrix[0, sx] = update_matrix[1, sy] / det - 1
+    inverse_update_matrix[1, sx] = -update_matrix[1, sx] / det
+    inverse_update_matrix[0, sy] = -update_matrix[0, sy] / det
+    inverse_update_matrix[1, sy] = update_matrix[0, sx] / det - 1
 
-    ret = Delta_full[support_cols][:, support_cols]
-    return ret, support_cols
-
-
-@jit(nopython=True, boundscheck=False)
-def _compute_support(indptr):
-    support = List()
-    i = 0
-    for r in range(len(indptr) - 1):
-        if indptr[r + 1] - indptr[r] > 0:
-            support.append(r)
-    return np.asarray(support)
-
-@jit(nopython=True, boundscheck=True)
-def _construct_delta(elements, indices, indptr):
-    support = _compute_support(indptr)
-    dim = len(support)
-    Delta = np.zeros((dim, dim), dtype=elements.dtype)
-    for i in range(dim):
-        r = support[i]
-        cs = np.searchsorted(support, indices[indptr[r] : indptr[r + 1]])
-        for offset, c in enumerate(cs):
-            Delta[i, c] = elements[indptr[r] + offset]
-    return Delta, support
+    G = G + np.dot(np.ascontiguousarray(G_sliced_right), inverse_update_matrix)
+    return G
 '''
-def _get_valley_delta(ApB_full, ApBexp_full, Z):
-    commutator = Z @ ApB_full - ApB_full @ Z + (Z @ ApB_full + ApB_full @ Z) @ (ApB_full / 6 - Z / 3)
-    Delta = commutator + ApBexp_full
-    return _construct_delta(Delta.data, Delta.indices, Delta.indptr)
-'''
-
-'''
-
-
-@jit(nopython=True)
-def _get_valley_delta(ApB, ApBexp, Z, hex_0, nonzero_idxs):
-    ZAmB = Z * 0.0; AmBZ = Z * 0.0;
-    for i in range(Z.shape[0]):
-        for kk, k in enumerate(hex_0):
-            for jj, j in enumerate(hex_0):
-                ZAmB[i, k] += Z[i, j] * ApB[jj, kk]
-    for k in range(Z.shape[1]):
-        for ii, i in enumerate(hex_0):
-            for jj, j in enumerate(hex_0):
-                AmBZ[i, k] += ApB[ii, jj] * Z[j, k]
-
-    Delta_full = _assign_6x6_not(0.5 * (ZAmB - AmBZ), hex_0, ApBexp - np.eye(6))
-    support_cols = np.where(np.abs(Delta_full).sum(axis = 1) != 0)[0]
-
-    return Delta_full[support_cols][:, support_cols], support_cols
-
-'''
-
-@jit(nopython=True)
-def _assign_6x6(array, t, indexes, small_array):
-    for ii, i in enumerate(indexes):
-        for jj, j in enumerate(indexes):
-            array[t, i, j] += small_array[ii, jj]
-    return array
-
-
-@jit(nopython=True)
-def _assign_6x6_not(array, indexes, small_array):
-    for ii, i in enumerate(indexes):
-        for jj, j in enumerate(indexes):
-            array[i, j] += small_array[ii, jj]
-    return array
-
-
-@jit(nopython=True)
-def _V_from_configuration_accurate(s, sign, spin, nu_U, nu_V):
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
-           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
-
-    if spin > 0:
-        V = nu_V * eta[int(s[0]) + 2] * sign * np.array([1, -1]) + \
-            nu_U * sign * np.array([s[2], s[1]])
-    else:
-        V = nu_V * eta[int(s[0]) + 2] * sign * np.array([1, -1]) + \
-            nu_U * sign * np.array([-s[2], -s[1]])
-    return np.diag(np.exp(V))
-
-@jit(nopython=True)
-def _V_from_configuration_accurate_imag(s, sign, spin, nu_V):
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
-           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
-
-    return np.exp(1.0j * nu_V * eta[int(s[0]) + 2] * sign)
-
-@jit(nopython=True)
-def _V_from_configuration_onesite_accurate_imag(eta_site, xi_bond, sign, spin, nu_U, nu_V):  # used for initialization!
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
-           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
-    return np.exp(1.0j * (nu_U * eta[int(eta_site[0]) + 2] + \
-                                  nu_V * (eta[int(xi_bond[0]) + 2] + \
-                                          eta[int(xi_bond[1]) + 2] + \
-                                          eta[int(xi_bond[2]) + 2]) \
-                                         ) * sign)  # bond-variable is the same for both sites
-
-@jit(nopython=True)
-def _V_from_configuration_onesite_accurate_imag_hex(configuration, nu_U, alpha):  # used for initialization!
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
-    V_hex_plus = np.zeros((6, 6), dtype=np.complex128)
-    V_hex_minus = np.zeros((6, 6), dtype=np.complex128)
-
-    ### work out onsite part ###
-    for idx in range(6):
-        V_hex_plus[idx, idx] += 1.0j / 3.
-        V_hex_minus[idx, idx] += 1.0j / 3.
-
-    ### work out bond part ###
-    for b_idx in range(6):
-        eta_hex_0 = eta[int(configuration) + 2]
-
-        V_hex_plus[b_idx, (b_idx + 1) % 6] += -alpha
-        V_hex_plus[(b_idx + 1) % 6, b_idx] -= -alpha
-
-        V_hex_minus[b_idx, (b_idx + 1) % 6] -= -alpha
-        V_hex_minus[(b_idx + 1) % 6, b_idx] += -alpha
-
-    return V_hex_plus * nu_U * eta[int(configuration) + 2], V_hex_minus * nu_U * eta[int(configuration) + 2]
-
-
-@jit(nopython=True)
-def _V_from_configuration_twosite_accurate_imag_hex(s, sign, spin, nu_U):  # !!! valid in this form ONLY for update (computation of Delta)
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
-           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
-    return np.diag(np.exp(1.0j * nu_U * eta[int(s) + 2] * sign * np.ones(6) / 3.))  # bond-variable is the same for both sites
-
-
-
-
-@jit(nopython=True)
-def _V_from_configuration_twosite_accurate_imag(s, sign, spin, nu_V):  # !!! valid in this form ONLY for update (computation of Delta)
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, \
-           +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
-    return np.diag(np.exp(1.0j * nu_V * eta[int(s) + 2] * sign * np.ones(2)))  # bond-variable is the same for both sites
-
-
-
-
-
-
-@jit(nopython=True)
-def _V_from_configuration(s, sign, spin, nu_U, nu_V):
-    if spin > 0:
-        V = nu_V * sign * np.array([-s[0], s[0]]) + nu_U * sign * np.array([s[2], s[1]])
-    else:
-        V = nu_V * sign * np.array([-s[0], s[0]]) + nu_U * sign * np.array([-s[2], -s[1]])
-    return np.diag(np.exp(V))
-
-
-@jit(nopython = True)
-def get_delta_interorbital(local_configuration, local_conf_proposed, spin, \
-                           nu_U, nu_V):  # sign change proposal is made at (time_slice, sp_index, o_index)
-    local_V_inv = _V_from_configuration(local_configuration, -1.0, spin, nu_U, nu_V)  # already stored in self.V or self.Vinv
-    local_V_proposed = _V_from_configuration(local_conf_proposed, 1.0, spin, nu_U, nu_V)
-    return local_V_proposed.dot(local_V_inv) - np.eye(2)
-
-@jit(nopython=True)
-def get_delta_intraorbital(s, spin, nu_U):
-    return np.exp(-2 * spin * s * nu_U) - 1.
-
-@jit(nopython=True)
-def get_det_ratio_inter(sp_index1, sp_index2, Delta, G):
-    idxs = np.array([sp_index1, sp_index2], dtype=np.int64)
-    G_slice = G[idxs, :]
-    G_slice = G_slice[:, idxs]
-
-    return np.linalg.det(np.eye(2, dtype=np.complex128) + np.dot(Delta, np.eye(2, dtype=np.complex128) - G_slice))
-
-@jit(nopython=True)
-def get_det_ratio_inter_hex(idxs, Delta, G):
-    G_slice = G[idxs, :]
-    G_slice = G_slice[:, idxs]
-
-    return np.linalg.det(np.eye(len(idxs), dtype=np.complex128) + np.dot(Delta, np.eye(len(idxs), dtype=np.complex128) - G_slice))
-
-@jit(nopython=True)
-def get_det_ratio_inter_bond(sp_index1, sp_index2, Delta, G):
-    sx1 = sp_index1 * 2
-    sy1 = sp_index1 * 2 + 1
-    sx2 = sp_index2 * 2
-    sy2 = sp_index2 * 2 + 1
-
-    idxs = np.array([sx1, sy1, sx2, sy2], dtype=np.int64)
-
-    G_cut = np.zeros((4, 4), dtype=np.complex128)
-    for ii, i in enumerate(idxs):
-        for jj, j in enumerate(idxs):
-            G_cut[ii, jj] = G[i, j]
-
-    return np.linalg.det(np.eye(4, dtype=np.complex128) + Delta.dot(np.eye(4, dtype=np.complex128) - G_cut))
-
-@jit(nopython=True)
-def get_det_ratio_intra(sp_index, Delta, G):
-    return 1. + Delta * (1. - G[sp_index, sp_index])
-
-
-@jit(nopython=True)
-def _update_G_seq_inter(G, Delta, sp_index1, sp_index2, total_dof):
-    U = np.zeros((total_dof // 2, 2), dtype=np.complex128)
-    U[sp_index1, 0] = Delta[0, 0]
-    U[sp_index2, 1] = Delta[1, 1]
-
-    G_sliced_left = G[np.array([sp_index1, sp_index2], dtype=np.int64), :]
-    V = G_sliced_left
-
-    V[0, sp_index1] -= 1
-    V[1, sp_index2] -= 1
-    V = np.ascontiguousarray(V)
-    U = np.ascontiguousarray(U)
-    G = np.ascontiguousarray(G)
-
-    GU = G.dot(U)
-    Zinv = np.linalg.inv(np.eye(2, dtype=np.complex128) - V.dot(U)).dot(V)
-    Zinv = np.ascontiguousarray(Zinv)
-
-    return G + GU.dot(Zinv)
-
-
-@jit(nopython=True)
-def _update_G_seq_inter_hex(G, Delta, idxs, total_dof):
-    U = np.zeros((total_dof // 2, len(idxs)), dtype=np.complex128)
-    for i in range(len(idxs)):
-        U[idxs[i]] = Delta[i]
-    G_sliced_left = G[idxs, :] * 1.0
-    V = G_sliced_left
-
-    for i in range(len(idxs)):
-        V[i, idxs[i]] -= 1
-    V = np.ascontiguousarray(V)
-    U = np.ascontiguousarray(U)
-    G = np.ascontiguousarray(G)
-
-    GU = G.dot(U)
-    Zinv = np.linalg.inv(np.eye(len(idxs), dtype=np.complex128) - V.dot(U)).dot(V)
-    Zinv = np.ascontiguousarray(Zinv)
-
-    return G + GU.dot(Zinv)
 
 
 @jit(nopython=True)
@@ -2020,6 +1784,7 @@ def _update_G_seq_inter_twosite(G, Delta, sp_index1, sp_index2, total_dof):
     Zinv = np.linalg.inv(np.eye(4, dtype=np.complex128) - V.dot(U)).dot(V)
     Zinv = np.ascontiguousarray(Zinv)
 
+    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
     return G + GU.dot(Zinv)
 
 
@@ -2039,26 +1804,25 @@ def _update_G_seq_intra(G, Delta, sp_index, total_dof):
 
     return G
 
-def _vector_matrix_exp(mat):
-    result = mat * 0
-    current_mat = mat * 1.
-    fact = 1
-    for n in range(1, 15):
-        fact = fact * n
-        result += current_mat / fact
 
-        current_mat = np.einsum('ijk,ikl->ijl', current_mat, mat)
+'''
+@jit(nopython=True)
+def _update_G_seq_intra(G, Delta, sp_index, total_dof):
+    U = np.zeros((total_dof // 2, 1), dtype=np.complex128)
+    U[sp_index, 0] = Delta
 
-    return result
+    G_sliced_left = G[sp_index:sp_index+1, :]
+    V = G_sliced_left
 
+    V[0, sp_index] -= 1
+    V = np.ascontiguousarray(V)
+    U = np.ascontiguousarray(U)
+    G = np.ascontiguousarray(G)
 
+    GU = G.dot(U)
+    Zinv = np.linalg.inv(np.eye(1, dtype=np.complex128) - V.dot(U)).dot(V)
+    Zinv = np.ascontiguousarray(Zinv)
 
-import scipy.sparse.linalg
-
-def _fast_matrix_exp(A):
-    h = scipy.sparse.linalg.matfuncs._ExpmPadeHelper(A, structure=None, use_exact_onenorm=(A.shape[0] < 200))
-    eta_1 = max(h.d4_loose, h.d6_loose)
-    U, V = h.pade3()
-    return scipy.sparse.linalg.matfuncs._solve_P_Q(U, V, structure=None)
-
-
+    #print(np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G), (np.linalg.det(G + GU.dot(Zinv)) / np.linalg.det(G)) ** -1, 'det computed from update')
+    return G + GU.dot(Zinv)
+'''

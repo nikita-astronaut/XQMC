@@ -5,14 +5,14 @@ from opt_parameters import pairings, waves
 import pickle
 import sys
 
-dt_in_inv_t1 = 1. / 20
+dt_in_inv_t1 = 1. / 10
 main_hopping = 1.0
 
 class simulation_parameters:
     def __init__(self, Nt, U, mu, rank):
         self.gpu = False
         
-        self.Ls = 2
+        self.Ls = 6
         # spatial size, the lattice will be of size Ls x Ls
         self.Nt = np.array([Nt])
         self.BC_twist = False; self.twist = (1.0, 1.0)
@@ -20,7 +20,7 @@ class simulation_parameters:
         self.n_orbitals = 2; self.n_sublattices = 2
         self.field = auxiliary_field.AuxiliaryFieldInterorbitalAccurateCluster
         self.chiral_basis = True
-        self.n_spins = 1
+        self.n_spins = 2
         self.n_copy = 0
         self.BC = 'PBC'
 
@@ -38,7 +38,7 @@ class simulation_parameters:
         self.far_indices = models._jit_get_far_indices(self.Ls, self.total_dof, self.n_sublattices, self.n_orbitals)
 
         self.start_type = 'presaved'  # 'hot' -- initialize spins randomly | 'cold' -- initialize spins all unity | 'path' -- from saved file
-        self.obs_start_type = 'fresh' # FIXME
+        self.obs_start_type = 'presaved'
         self.n_sweeps = 500000  # the number of spin flips starting from the initial configuration (can be used both for thermalization and generation)
         self.n_save_frequency = 2  # every n-th configuration will be stored during generation
         self.save_path = './configurations/'  # where the configurations will be stored | they will have the name save_path/conf_genN.npy, where N is the generated number
@@ -47,9 +47,9 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 20
 
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/2x2_measXZCS2_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
-        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs/2x2_measXZCS2_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
-        self.thermalization = 3000000  # after how many sweeps start computing observables
+        self.workdir = '/scratch/e1000/nastrakh//6x6_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
+        self.workdir_heavy = '/scratch/e1000/nastrakh/6x6_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
+        self.thermalization = 2000  # after how many sweeps start computing observables
 
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]
@@ -67,7 +67,7 @@ class simulation_parameters:
         #waves.obtain_all_waves(self)
         self.waves_list = []#waves.hex_Koshino
         self.waves_list_names = [w[-1] for w in self.waves_list]
-        self.max_square_order_distance = 0.  # on-site only
+        self.max_square_order_distance = 1. / 3.  # on-site only
 
 
         self.n_adj_density = self.n_orbitals * (self.n_orbitals + 1) // 2 * 2
