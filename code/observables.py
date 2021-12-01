@@ -60,7 +60,7 @@ class Observables:
         # print(self.ijkl)
         # print(len(self.ijkl))
         # exit(-1)
-        #np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
+        np.save('ijkl_{:d}.npy'.format(self.config.Ls), self.ijkl)
         #exit(-1)
 
         # for order-order susceptibility
@@ -655,7 +655,7 @@ def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
                 C_ijkl_collinear[:, xi] += A - B
                 C_ijkl_anticollinear[:, xi] += -B
 
-    return C_ijkl_collinear / (L ** 2) / 4., C_ijkl_anticollinear / (L ** 2) / 4.,
+    return C_ijkl_collinear / L ** 2, C_ijkl_anticollinear / L ** 2
 
 
 
@@ -717,7 +717,8 @@ def get_idxs_list(reduced_A):
         for k in range(reduced_A.shape[0]):
             for j in reduced_A[i, ...]:
                 for l in reduced_A[k, ...]:
-                    ijkl.append(np.array([i, j, k, l]))
+                    if (l % 2) + (i % 2) == (k % 2) + (j % 2):
+                        ijkl.append(np.array([i, j, k, l]))
     return ijkl
 
 @jit(nopython=True)

@@ -5,7 +5,7 @@ from opt_parameters import pairings, waves
 import pickle
 import sys
 
-dt_in_inv_t1 = 1. / 10
+dt_in_inv_t1 = 1. / 20
 main_hopping = 1.0
 
 class simulation_parameters:
@@ -47,8 +47,8 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 20
 
-        self.workdir = '/scratch/e1000/nastrakh//6x6_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
-        self.workdir_heavy = '/scratch/e1000/nastrakh/6x6_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/2x2_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
+        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs/2x2_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
         self.thermalization = 2000  # after how many sweeps start computing observables
 
         self.tests = False; self.test_gaps = False;

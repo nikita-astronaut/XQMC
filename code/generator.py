@@ -723,7 +723,9 @@ if __name__ == "__main__":
         #np.save('K_matrix.npy', (K_matrix))
         #exit(-1)
 
-        #K_matrix += 1.0j * Kim.imag  # FIXME FIXME FIXME
+        #K_matrix = K_matrix.real +1.0j * Kim.imag  # FIXME FIXME FIXME
+        #assert config.mu == 0
+
         #assert np.allclose(K_matrix.imag, K_matrix * 0.)
         assert np.allclose(K_matrix, K_matrix.conj().T)
 
@@ -746,8 +748,8 @@ if __name__ == "__main__":
         K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix)
         K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix)
 
-        local_workdir = config.workdir #os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
-        local_workdir_heavy = config.workdir_heavy #os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
+        local_workdir = config.workdir #,#os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
+        local_workdir_heavy = config.workdir_heavy #,os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
         os.makedirs(local_workdir, exist_ok=True)
         os.makedirs(local_workdir_heavy, exist_ok=True)
         last_n_sweep_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'a')
