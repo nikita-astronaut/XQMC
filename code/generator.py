@@ -589,6 +589,7 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
 
     if n_sweep >= phi_field.config.thermalization:
         t = time()
+        phi_field.exponentiate_V()
         observables.measure_green_functions(phi_field, current_det_sign)
         print('measurement of green functions takes ', time() - t)
         process = psutil.Process(os.getpid())
@@ -745,8 +746,8 @@ if __name__ == "__main__":
         K_operator_half = scipy.linalg.expm(0.5 * config.dt * K_matrix)
         K_operator_half_inverse = scipy.linalg.expm(-0.5 * config.dt * K_matrix)
 
-        local_workdir = os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
-        local_workdir_heavy = os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
+        local_workdir = config.workdir #,#os.path.join(config.workdir, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
+        local_workdir_heavy = config.workdir_heavy #,os.path.join(config.workdir_heavy, 'U_{:.2f}_V_{:.2f}_mu_{:.2f}_Nt_{:d}_c_{:d}'.format(U, V, mu, int(Nt), rank + config.offset))
         os.makedirs(local_workdir, exist_ok=True)
         os.makedirs(local_workdir_heavy, exist_ok=True)
         last_n_sweep_log = open(os.path.join(local_workdir, 'last_n_sweep.dat'), 'a')
