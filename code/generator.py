@@ -723,7 +723,9 @@ if __name__ == "__main__":
         #np.save('K_matrix.npy', (K_matrix))
         #exit(-1)
 
-        #K_matrix += 1.0j * Kim.imag  # FIXME FIXME FIXME
+        #K_matrix = K_matrix.real +1.0j * Kim.imag  # FIXME FIXME FIXME
+        #assert config.mu == 0
+
         #assert np.allclose(K_matrix.imag, K_matrix * 0.)
         assert np.allclose(K_matrix, K_matrix.conj().T)
 
