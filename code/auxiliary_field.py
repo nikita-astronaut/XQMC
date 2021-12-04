@@ -7,7 +7,7 @@ from copy import deepcopy
 from numba import jit
 from numba.typed import List
 import os
-import torch
+#import torch
 
 
 try:
@@ -1636,7 +1636,7 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
             idx += 1
 
 
-        exps = torch.matrix_exp(torch.from_numpy(Vs)).numpy()
+        exps = np.array([scipy.linalg.expm(x) for x in Vs])#torch.matrix_exp(torch.from_numpy(Vs)).numpy()
         inv_exps = np.linalg.inv(exps).conj()
 
         idx = 1
