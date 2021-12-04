@@ -649,7 +649,11 @@ def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
                 k_shift = ko + ((kx + shift_x) % L) * 4 * L + ((ky + shift_y) % L) * 4
                 l_shift = lo + ((lx + shift_x) % L) * 4 * L + ((ly + shift_y) % L) * 4
 
-                A = np.sum(GF_tt[:, :, i_shift, j_shift] * GF_00[:, :, l_shift, k_shift], axis = 0)
+                #A = np.sum(GF_tt[:, :, i_shift, j_shift] * GF_00[:, :, l_shift, k_shift], axis = 0)
+                A = []
+                for dt in range(GF_tt.shape[1]):
+                    A.append(np.sum(GF_tt[:, :, i_shift, j_shift] * np.roll(GF_tt[:, :, l_shift, k_shift], shift=dt, axis=1)))
+                A = np.array(A) / GF_tt.shape[1]
                 B = np.sum(GF_forward[:, :, i_shift, k_shift] * GF_backward[:, :, l_shift, j_shift], axis = 0)
 
                 C_ijkl_collinear[:, xi] += A - B
