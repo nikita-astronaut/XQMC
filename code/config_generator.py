@@ -5,7 +5,7 @@ from opt_parameters import pairings, waves
 import pickle
 import sys
 
-dt_in_inv_t1 = 1. / 20
+dt_in_inv_t1 = 1. / 10
 main_hopping = 1.0
 
 class simulation_parameters:
@@ -26,6 +26,7 @@ class simulation_parameters:
 
         self.main_hopping = main_hopping  # (meV) main hopping is the same for all models, we need it to put down U and dt in the units of t1 (common)
         self.alpha = float(sys.argv[5])
+        self.tlong = float(sys.argv[6])
         self.U = np.array([U]) * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.V = np.array([0.]) * main_hopping  # the force of on-site Coulomb repulsion in the units of t1
         self.dt = dt_in_inv_t1 / main_hopping  # the imaginary time step size in the Suzuki-Trotter procedure, dt x Nt = \beta (inverse T),
@@ -47,9 +48,9 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 20
 
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/2x2new_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
-        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs/2x2new_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
-        self.thermalization = 300  # after how many sweeps start computing observables
+        self.workdir = '/scratch/e1000/nastrakh/6x6_{:.3f}_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, self.tlong, mu, self.Nt[0], rank)
+        self.workdir_heavy = '/scratch/e1000/nastrakh/6x6_{:.3f}_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, self.tlong, mu, self.Nt[0], rank)
+        self.thermalization = 2000  # after how many sweeps start computing observables
 
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]

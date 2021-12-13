@@ -1312,12 +1312,17 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
 
         if not inverse:
             if spin > 0:
-                return self.V_plus_exp[l, ...].dot(self.K_plus)
-            return self.V_minus_exp[l, ...].dot(self.K_minus)
+                #return self.K_plus_half @ self.V_plus_exp[l, ...] @ self.K_plus_half
+                return self.V_plus_exp[l, ...] @ self.K_plus
+            #return self.K_minus_half @ self.V_minus_exp[l, ...] @ self.K_minus_half
+            return self.V_minus_exp[l, ...] @ self.K_minus
+
 
         if spin > 0:
-            return self.K_plus_inverse.dot(self.V_plus_exp_inv[l, ...])
-        return self.K_minus_inverse.dot(self.V_minus_exp_inv[l, ...])
+            #return self.K_plus_half_inverse @ self.V_plus_exp_inv[l, ...] @ self.K_plus_half_inverse
+            return self.K_plus_inverse @ self.V_plus_exp_inv[l, ...]
+        #return self.K_minus_half_inverse @ self.V_minus_exp_inv[l, ...] @ self.K_minus_half_inverse
+        return self.K_minus_inverse @ self.V_minus_exp_inv[l, ...]
 
 
 class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccurateImagNN):
@@ -1638,6 +1643,12 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
 
         exps = torch.matrix_exp(torch.from_numpy(Vs)).numpy()
         inv_exps = np.linalg.inv(exps).conj()
+        #exps[0] = exps[0] @ self.K_plus_half_inverse
+        #inv_exps[0] = inv_exps[0] @ self.K_minus_half_inverse
+
+        #exps[1:] = np.einsum('ij,kjl->kil', self.K_plus_half, exps[1:])
+        #inv_exps[1:] = np.einsum('ij,kjl->kil', self.K_minus_half, inv_exps[1:])
+        
 
         idx = 1
         for local_conf_proposed in local_conf_combinations:
