@@ -12,7 +12,7 @@ class simulation_parameters:
     def __init__(self, Nt, U, mu, rank):
         self.gpu = False
         
-        self.Ls = 6
+        self.Ls = 2
         # spatial size, the lattice will be of size Ls x Ls
         self.Nt = np.array([Nt])
         self.BC_twist = False; self.twist = (1.0, 1.0)
