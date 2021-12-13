@@ -189,7 +189,7 @@ class Observables:
         self.gap_file.flush()
 
         ### buffer for efficient GF-measurements ###
-        self.cur_buffer_size = 0; self.max_buffer_size = 4
+        self.cur_buffer_size = 0; self.max_buffer_size = 5
         self.GF_stored = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
         self.GF_stored_backwards = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
         self.GF_stored_equaltime = np.zeros((self.max_buffer_size, self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
@@ -462,7 +462,9 @@ class Observables:
         G_prepared_backwards = np.asfortranarray(self.GF_stored_backwards[:self.cur_buffer_size, ...])
         t = time()
 
-        dX_ijkl_collinear, dX_ijkl_anticollinear = measure_gfs_correlatorX(G_prepared_00, G_prepared_tt, G_prepared, G_prepared_backwards, self.ijkl, self.config.Ls)
+        arrays_rolled = [np.roll(G_prepared_tt, axis=1, shift=dt) for dt in range(G_prepared_tt.shape[1])]
+
+        dX_ijkl_collinear, dX_ijkl_anticollinear = measure_gfs_correlatorX(arrays_rolled, G_prepared, G_prepared_backwards, self.ijkl, self.config.Ls)
         self.X_ijkl_collinear += dX_ijkl_collinear
         self.X_ijkl_anticollinear += dX_ijkl_anticollinear
 
@@ -628,12 +630,19 @@ def measure_gfs_correlator_sametime(GF, ijkl, L):
     return C_ijkl_collinear / (L ** 2) / 4., C_ijkl_anticollinear / (L ** 2) / 4.
 
 
+@jit(nopython=True)
+def roll_last_axis(A, shift):
+    A_rolled = np.empty(A.shape, dtype=np.complex64)
+
+    for i in range(A.shape[0]):
+        A_rolled[i] = np.roll(A[i], shift=shift)
+    return A_rolled
+
 
 @jit(nopython=True)
-def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
-    C_ijkl_collinear = np.zeros((GF_00.shape[1], len(ijkl)), dtype=np.complex64)
-    C_ijkl_anticollinear = np.zeros((GF_00.shape[1], len(ijkl)), dtype=np.complex64)
-
+def measure_gfs_correlatorX(GF_tt, GF_forward, GF_backward, ijkl, L):
+    C_ijkl_collinear = np.zeros((GF_forward.shape[1], len(ijkl)), dtype=np.complex64)
+    C_ijkl_anticollinear = np.zeros((GF_forward.shape[1], len(ijkl)), dtype=np.complex64)
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
@@ -651,13 +660,16 @@ def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
 
                 #A = np.sum(GF_tt[:, :, i_shift, j_shift] * GF_00[:, :, l_shift, k_shift], axis = 0)
                 A = []
-                for dt in range(GF_tt.shape[1]):
-                    A.append(np.sum(GF_tt[:, :, i_shift, j_shift] * np.roll(GF_tt[:, :, l_shift, k_shift], shift=dt, axis=1)))
-                A = np.array(A) / GF_tt.shape[1]
+                for dt in range(GF_forward.shape[1]):
+                    A.append(np.sum(GF_tt[0][:, :, i_shift, j_shift] * GF_tt[dt][:, :, i_shift, j_shift])) # np.roll(GF_tt[:, :, l_shift, k_shift], shift=dt, axis=1)))
+                A = np.array(A) / GF_forward.shape[1]
                 B = np.sum(GF_forward[:, :, i_shift, k_shift] * GF_backward[:, :, l_shift, j_shift], axis = 0)
 
-                C_ijkl_collinear[:, xi] += A - B
+                C_ijkl_collinear[:, xi] += -B #A - B
                 C_ijkl_anticollinear[:, xi] += -B
+
+    #for dt in range(GF_tt.shape[1]):
+
 
     return C_ijkl_collinear / L ** 2, C_ijkl_anticollinear / L ** 2
 

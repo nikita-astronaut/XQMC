@@ -12,7 +12,7 @@ class simulation_parameters:
     def __init__(self, Nt, U, mu, rank):
         self.gpu = False
         
-        self.Ls = 6
+        self.Ls = 2
         # spatial size, the lattice will be of size Ls x Ls
         self.Nt = np.array([Nt])
         self.BC_twist = False; self.twist = (1.0, 1.0)
@@ -47,9 +47,9 @@ class simulation_parameters:
         self.total_dof = self.Ls ** 2 * 2 * self.n_sublattices * self.n_orbitals
         self.s_refresh = 20
 
-        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/2x2_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
-        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs/2x2_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
-        self.thermalization = 2000  # after how many sweeps start computing observables
+        self.workdir = '/home/astronaut/Documents/DQMC_TBG/logs/2x2new_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
+        self.workdir_heavy = '/home/astronaut/Documents/DQMC_TBG/logs/2x2new_{:.3f}_{:.3f}_{:.3f}/logs_dqmc_real_{:d}_{:d}/'.format(self.U[0], self.alpha, mu, self.Nt[0], rank)
+        self.thermalization = 300  # after how many sweeps start computing observables
 
         self.tests = False; self.test_gaps = False;
         self.adj_list = models.get_adjacency_list(self)[0]
