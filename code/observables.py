@@ -43,9 +43,12 @@ class Observables:
         self.SC_ijkl_filename = os.path.join(self.local_workdir_heavy, 'SC_ijkl')
 
 
+
         self.G_sum_filename = os.path.join(self.local_workdir_heavy, 'G_sum')
         self.G_sum_equaltime_filename = os.path.join(self.local_workdir_heavy, 'G_sum_equaltime')
         self.G_sum_backwards_filename = os.path.join(self.local_workdir_heavy, 'G_sum_backwards')
+
+        self.G_sample_filename = os.path.join(self.local_workdir_heavy, 'G_sample')
 
         self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples')
 
@@ -131,6 +134,11 @@ class Observables:
 
                 print('Successfully loaded saved GFs files from default location')
                 loaded = True
+
+                if os.path.isfile(self.G_sample_filename + '.npy'):
+                    self.GF_sample = list(np.load(self.G_sample_filename + '.npy'))
+                else:
+                    self.GF_sample = []
             except Exception:
                 print('Failed to load from default location: will try to load from dump')
 
@@ -151,12 +159,18 @@ class Observables:
 
                     print('Successfully loaded saved GFs files from dump location')
                     loaded = True
+
+                    if os.path.isfile(self.G_sample_filename + '_dump.npy'):
+                        self.GF_sample = list(np.load(self.G_sample_filename + '_dump.npy'))
+                    else:
+                        self.GF_sample = []
                 except Exception:
                     print('Failed to load from dump location: will start from scratch')
 
         if not loaded:
             print('Initialized GFs buffer from scratch')
             self.GF_sum = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
+            self.GF_sample = []
             self.GF_sum_backwards = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
             self.GF_sum_equaltime = np.zeros((self.config.Nt, self.config.total_dof // 2, self.config.total_dof // 2), dtype=np.complex64)
             self.num_chi_samples = 0
@@ -180,6 +194,8 @@ class Observables:
         np.save(self.Z_ijkl_collinear_filename + addstring, self.Z_ijkl_collinear)
         np.save(self.Z_ijkl_anticollinear_filename + addstring, self.Z_ijkl_anticollinear)
         np.save(self.SC_ijkl_filename + addstring, self.SC_ijkl)
+
+        np.save(self.G_sample_filename + addstring, np.array(self.GF_sample))
 
         np.save(self.num_samples_filename + addstring, np.array([self.num_chi_samples]))
         self.n_saved_times += 1
@@ -335,6 +351,7 @@ class Observables:
         identity = np.eye(phi.Bdim, dtype=np.complex128)
 
 
+        self.GF_sample.append(np.kron(phi.current_G_function_up, np.array([[1, 0], [0, 0]])) + np.kron(phi.current_G_function_down, np.array([[0, 0], [0, 1]])))
         ### equaltime ###
         GFs_up_equaltime = []
         GFs_down_equaltime = []
@@ -644,8 +661,8 @@ def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
-        for shift_x in range(L):
-            for shift_y in range(L):
+        for shift_x in range(1):  # FIXME FIXME FIXME FIXME FIXME FIXME FIXME
+            for shift_y in range(1):
                 ix, iy, io = (i // 4) // L, (i // 4) % L, i % 4
                 jx, jy, jo = (j // 4) // L, (j // 4) % L, j % 4
                 kx, ky, ko = (k // 4) // L, (k // 4) % L, k % 4
@@ -662,7 +679,8 @@ def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
                 C_ijkl_collinear[:, xi] += A - B
                 C_ijkl_anticollinear[:, xi] += -B
 
-    return C_ijkl_collinear / L ** 2, C_ijkl_anticollinear / L ** 2
+    #return C_ijkl_collinear / L ** 2, C_ijkl_anticollinear / L ** 2 ### FIXME FIXME FIXMEEEEE
+    return C_ijkl_collinear, C_ijkl_anticollinear
 
 
 
