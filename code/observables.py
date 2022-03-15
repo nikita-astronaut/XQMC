@@ -52,6 +52,17 @@ class Observables:
 
         self.num_samples_filename = os.path.join(self.local_workdir, 'n_samples')
 
+
+        if self.config.Ls == 3:
+            self.DK1 = np.load('/s/ls4/users/astrakhantsev/DQMC_TBG/3x3_D_K_1.npy')
+            self.DK2 = np.load('/s/ls4/users/astrakhantsev/DQMC_TBG/3x3_D_K_2.npy')
+        elif self.config.Ls == 6:
+            self.DK1 = np.load('/s/ls4/users/astrakhantsev/DQMC_TBG/6x6_D_K_1.npy')
+            self.DK2 = np.load('/s/ls4/users/astrakhantsev/DQMC_TBG/6x6_D_K_2.npy')
+        else:
+            self.DK1 = None
+            self.DK2 = None
+
         self.refresh_light_logs()
         self.init_light_log_file()
         self.global_average_sign = 0.
@@ -98,7 +109,7 @@ class Observables:
         return
 
     def init_light_log_file(self):
-        self.log_file.write('n_sweep ' + '⟨ratio⟩ ' + '⟨acc⟩ ' + 'Re_⟨sign_gen⟩ Im_⟨sign_gen⟩ Re_⟨sign_obs_l⟩ Im_⟨sign_obs_l⟩ ⟨Re n⟩ ⟨Im n⟩ ⟨Re E_K⟩ ⟨Im E_K⟩ ⟨Re E_CU⟩ ⟨Im E_CU⟩ ⟨Re E_T⟩ ⟨Im E_T⟩ ⟨Re m_z^2⟩ ⟨Im m_z^2⟩\n')
+        self.log_file.write('n_sweep ' + '⟨ratio⟩ ' + '⟨acc⟩ ' + 'Re_⟨sign_gen⟩ Im_⟨sign_gen⟩ Re_⟨sign_obs_l⟩ Im_⟨sign_obs_l⟩ ratios n_bonds ⟨Re n⟩ ⟨Im n⟩ ⟨Re E_K⟩ ⟨Im E_K⟩ ⟨Re E_CU⟩ ⟨Im E_CU⟩ ⟨Re E_T⟩ ⟨Im E_T⟩ ⟨Re m_z^2⟩ ⟨Im m_z^2⟩\n')
         return
 
     def init_heavy_logs_files(self):
@@ -254,18 +265,20 @@ class Observables:
         print("# Starting simulations using {} starting configuration, T = {:3f} meV, mu = {:3f} meV, "
                 "lattice = {:d}^2 x {:d}".format(self.config.obs_start_type, 1.0 / self.config.dt / self.config.Nt, \
                         self.config.mu, self.config.Ls, self.config.Nt))
-        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨Re_sign⟩ ⟨Im_sign⟩ ⟨Re n⟩ ⟨Im n⟩ ⟨Re E_K⟩ ⟨Im E_K⟩ ⟨Re E_CU⟩ ⟨Im E_CU⟩ ⟨Re E_T⟩ ⟨Im E_T⟩ ⟨Re m_z^2⟩ ⟨Im m_z^2⟩')
+        print('# sweep ⟨r⟩ ⟨acc⟩ ⟨Re_sign⟩ ⟨Im_sign⟩ ratio n_bonds ⟨Re n⟩ ⟨Im n⟩ ⟨Re E_K⟩ ⟨Im E_K⟩ ⟨Re E_CU⟩ ⟨Im E_CU⟩ ⟨Re E_T⟩ ⟨Im E_T⟩ ⟨Re m_z^2⟩ ⟨Im m_z^2⟩')
         return
 
-    def print_std_logs(self, n_sweep):
+    def print_std_logs(self, n_sweep, ratio, n_bonds):
         if self.n_cumulants == 0 or self.global_average_sign == 0:
             return
-        print("{:d} {:.5f} {:.3f} {:.6f} {:.6f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f}".format(
+        print("{:d} {:.5f} {:.3f} {:.6f} {:.6f} {:.6f} {:.6f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f} {:.9f}".format(
             n_sweep, 
             np.mean(self.ratio_history),
             np.mean(self.acceptance_history),
             np.real(self.global_average_sign),
             np.imag(self.global_average_sign),
+            ratio,
+            n_bonds,
             np.real(self.light_cumulants['⟨density⟩'] / self.n_cumulants / self.global_average_sign),
             np.imag(self.light_cumulants['⟨density⟩'] / self.n_cumulants / self.global_average_sign),
             np.real(self.light_cumulants['⟨E_K⟩'] / self.n_cumulants / self.global_average_sign),
@@ -316,7 +329,7 @@ class Observables:
         return (np.std(np.array(array) * signs) / np.mean(signs) - \
                 np.std(signs) * np.mean(np.array(array) * signs) / np.mean(signs) ** 2) / np.sqrt(len(signs))
 
-    def write_light_observables(self, config, n_sweep):
+    def write_light_observables(self, config, n_sweep, ratios, n_bonds):
         signs = np.array(self.light_signs_history)
 
         self.global_average_sign = (self.global_average_sign * self.global_average_sign_measurements + \
@@ -329,7 +342,7 @@ class Observables:
             num_data.append((val / self.global_average_sign / self.n_cumulants).imag)
 
         data = [n_sweep, np.mean(self.ratio_history), np.mean(self.acceptance_history), self.global_average_sign.real, self.global_average_sign.imag,
-                np.mean(self.light_signs_history).real, np.mean(self.light_signs_history).imag] + num_data
+                np.mean(self.light_signs_history).real, np.mean(self.light_signs_history).imag, ratios, n_bonds] + num_data
         self.log_file.write(("{:d} " + "{:.6f} " * (len(data) - 1) + '\n').format(n_sweep, *data[1:]))
 
         if n_sweep % 100 == 0:
@@ -351,7 +364,6 @@ class Observables:
         identity = np.eye(phi.Bdim, dtype=np.complex128)
 
 
-        self.GF_sample.append(np.kron(phi.current_G_function_up, np.array([[1, 0], [0, 0]])) + np.kron(phi.current_G_function_down, np.array([[0, 0], [0, 1]])))
         ### equaltime ###
         GFs_up_equaltime = []
         GFs_down_equaltime = []
@@ -360,6 +372,14 @@ class Observables:
                 index = np.where(phi.refresh_checkpoints == time_slice)[0][0]
                 phi.append_new_decomposition(phi.refresh_checkpoints[index - 1], time_slice)
                 phi.refresh_G_functions()
+
+
+            gf = np.kron(phi.make_symmetric_displacement(phi.current_G_function_up, valley=+1), np.array([[1, 0], [0, 0]])) + \
+                 np.kron(phi.make_symmetric_displacement(phi.current_G_function_down, valley=-1), np.array([[0, 0], [0, 1]]))
+            if self.DK1 is not None:
+                self.GF_sample.append([np.trace(self.DK1) - np.trace(self.DK1 @ gf), \
+                                       np.trace(self.DK2) - np.trace(self.DK2 @ gf)])
+         
 
             GFs_up_equaltime.append(phi.make_symmetric_displacement(phi.current_G_function_up, valley=+1))
             GFs_down_equaltime.append(phi.make_symmetric_displacement(phi.current_G_function_down, valley=-1))
@@ -661,8 +681,8 @@ def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
 
     for xi in range(ijkl.shape[0]):
         i, j, k, l = ijkl[xi]
-        for shift_x in range(1):  # FIXME FIXME FIXME FIXME FIXME FIXME FIXME
-            for shift_y in range(1):
+        for shift_x in range(L):
+            for shift_y in range(L):
                 ix, iy, io = (i // 4) // L, (i // 4) % L, i % 4
                 jx, jy, jo = (j // 4) // L, (j // 4) % L, j % 4
                 kx, ky, ko = (k // 4) // L, (k // 4) % L, k % 4
@@ -679,8 +699,8 @@ def measure_gfs_correlatorX(GF_00, GF_tt, GF_forward, GF_backward, ijkl, L):
                 C_ijkl_collinear[:, xi] += A - B
                 C_ijkl_anticollinear[:, xi] += -B
 
-    #return C_ijkl_collinear / L ** 2, C_ijkl_anticollinear / L ** 2 ### FIXME FIXME FIXMEEEEE
-    return C_ijkl_collinear, C_ijkl_anticollinear
+    return C_ijkl_collinear / L ** 2, C_ijkl_anticollinear / L ** 2
+    #return C_ijkl_collinear, C_ijkl_anticollinear
 
 
 

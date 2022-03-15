@@ -6,8 +6,10 @@ import models
 from copy import deepcopy
 from numba import jit
 from numba.typed import List
+
 import os
-import torch
+from scipy.sparse.csgraph import connected_components
+#import torch
 
 
 try:
@@ -423,7 +425,6 @@ class AuxiliaryFieldIntraorbital:
         return self.K_minus_half.dot(M).dot(self.K_minus_half_inverse)
 
     def get_equal_time_GF(self):
-        # phase = np.exp(1.0j * np.imag(self.get_current_gauge_factor_log() / 2))
         self.G_up_sum += self.make_symmetric_displacement(self.current_G_function_up, valley= +1)# / phase
         self.G_down_sum += self.make_symmetric_displacement(self.current_G_function_down, valley = -1)# / phase
         self.n_gf_measures += 1
@@ -1129,7 +1130,8 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
             +1 : np.log(1. + np.sqrt(6) / 3) - 4.0j * self.config.nu_V * self.eta[+1]
         }
 
-        self.local_conf_combinations = [[-2], [-1], [1], [2]]
+        self.local_conf_combinations = [[-2], [-1], [1], [2]]  # FIXME FIXME FIXME
+        #self.local_conf_combinations = [[-1], [1]]
 
         self.G_up_sum = np.zeros((self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2), dtype=np.complex128)
         self.G_down_sum = np.zeros((self.config.total_dof // 2 // 2, self.config.total_dof // 2 // 2), dtype=np.complex128)
@@ -1327,6 +1329,13 @@ class AuxiliaryFieldInterorbitalAccurateImagNN(AuxiliaryFieldInterorbitalAccurat
 
 class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccurateImagNN):
     def __init__(self, config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse):
+        self.config = config
+        self.Bdim = config.total_dof // 2 // 2
+
+        self.G_up_sum = np.zeros((self.Bdim, self.Bdim), dtype=np.complex128)
+        self.G_down_sum = np.zeros((self.Bdim, self.Bdim), dtype=np.complex128)
+        self.n_gf_measures = 0
+
         self.conf_path = os.path.join(local_workdir, 'last_conf')
 
         self.K_plus = K[::2, :]
@@ -1370,6 +1379,8 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         self.hexagons_by_site = []  # list of 3 hexagons that include this site into list
 
 
+        self.ratios = []
+        self.n_bonds = []
         self.sites = []
         E = np.array([np.array([1. / 2., np.sqrt(3) / 2.]), np.array([1., 0])])
         sl = (E[0] + E[1]) / 3.
@@ -1467,21 +1478,114 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         ###
 
 
-        super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
+        if self.config.n_site_fields == 2:
+            self.eta = {
+                -1 : -np.sqrt(2),
+                +1 : +np.sqrt(2),
+            }
+        elif self.config.n_site_fields == 4:
+            self.eta = {
+                -2 : -np.sqrt(6 + 2 * np.sqrt(6)),
+                +2 : +np.sqrt(6 + 2 * np.sqrt(6)),
+                -1 : -np.sqrt(6 - 2 * np.sqrt(6)),
+                +1 : +np.sqrt(6 - 2 * np.sqrt(6)),
+            }
+        else:
+            exit(-1)
 
-        self.gauge_hexagon = {
-            -2 : (1. - np.sqrt(6) / 3 ) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[-2]),
-            +2 : (1. - np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[+2]),
-            -1 : (1. + np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1]),
-            +1 : (1. + np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1])
-        }
+        if self.config.n_site_fields == 4:
+            self.gauge_hexagon = {
+                -2 : (1. - np.sqrt(6) / 3 ) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[-2]),
+                +2 : (1. - np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[+2]),
+                -1 : (1. + np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1]),
+                +1 : (1. + np.sqrt(6) / 3.) * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1])
+            }
 
-        self.gauge_hexagon_log = {
-            -2 : np.log(1. - np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[-2],
-            +2 : np.log(1. - np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[+2],
-            -1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1],
-            +1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1]
-        }
+            self.gauge_hexagon_log = {
+                -2 : np.log(1. - np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[-2],
+                +2 : np.log(1. - np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[+2],
+                -1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1],
+                +1 : np.log(1. + np.sqrt(6) / 3) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1]
+            }
+            self.etajit = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0., +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
+            self.local_conf_combinations = [[-2], [-1], [1], [2]]
+        elif self.config.n_site_fields == 2:
+            self.gauge_hexagon = {
+                -1 : 0.5 * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1]),
+                +1 : 0.5 * np.exp(-2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1])
+            }
+
+            self.gauge_hexagon_log = {
+                -2 : 0,
+                -1 : np.log(0.5) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[-1],
+                +1 : np.log(0.5) - 2.0j * self.config.n_spins * self.config.nu_U * self.eta[+1],
+                +2 : 0
+            }
+
+            self.etajit = [0., -np.sqrt(2), 0., +np.sqrt(2), 0.]
+            self.local_conf_combinations = [[-1], [1]]
+        else:
+            exit(-1)
+        #super().__init__(config, K, K_inverse, K_matrix, local_workdir, K_half, K_half_inverse)
+
+
+        
+
+
+        self.gpu_avail = config.gpu
+        self.exponentiated = np.ones(config.Nt, dtype=bool)
+        self.la = np
+        self.cpu = True
+        self.total_SVD_time = 0.0
+
+        self.config = config
+        self.adj_list = config.adj_list
+        self.conf_path = os.path.join(local_workdir, 'last_conf')
+        self._get_initial_field_configuration()
+
+        self.K = K
+        self.K_inverse = K_inverse
+        self.K_matrix = K_matrix
+        self.K_half_inverse = K_half_inverse
+        self.K_half = K_half
+
+        self.partial_SVD_decompositions_up = []
+        self.partial_SVD_decompositions_down = []
+        self.current_lhs_SVD_up = []
+        self.current_lhs_SVD_down = []
+
+        self.current_G_function_up = []
+        self.current_G_function_down = []
+        self.copy_to_GPU()
+
+        self.refresh_all_decompositions()
+
+        self.refresh_G_functions()
+        self.current_time_slice = 0
+        self.log_det_up = 0
+        self.sign_det_up = 0
+        self.log_det_down = 0
+        self.sign_det_down = 0
+
+        self.n_times_saved = 0
+
+        self.refresh_checkpoints = [0]
+        t = self.config.Nt % self.config.s_refresh
+        if t == 0:
+            self.refresh_checkpoints = []
+        while t < self.config.Nt:
+            self.refresh_checkpoints.append(t)
+            t += self.config.s_refresh
+        self.refresh_checkpoints = np.array(self.refresh_checkpoints)
+
+
+
+
+
+
+
+
+
 
         self.local_c_dict = {}
         self.nonzero_idxs = None
@@ -1492,7 +1596,6 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         #for site in range(self.connectivity.shape[0]):
         #    self.connections.append(np.where((self.connectivity + np.eye(self.connectivity.shape[0]))[site] > 0)[0])
         #print(self.connections)
-        #exit(-1)
         return
 
     def get_gauge_factor_move_hex(self, local_conf_old, local_conf):
@@ -1512,7 +1615,7 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         if self.config.start_type == 'cold':
             exit(-1)
         elif self.config.start_type == 'hot':
-            self.hex = np.random.choice(np.array([-2, -1, 1, 2]), \
+            self.hex = np.random.choice(np.array([x[0] for x in self.local_conf_combinations]), \
                                               size = (self.config.Nt, self.n_hexagons))
 
         else:
@@ -1534,7 +1637,7 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
                         print('Failed during loading of configuration from dump location: initialize from scratch')
             if not loaded:
                 print('Random initial configuration')
-                self.hex = np.random.choice(np.array([-2, -1, 1, 2]), \
+                self.hex = np.random.choice(np.array([x[0] for x in self.local_conf_combinations]), \
                                               size = (self.config.Nt, self.n_hexagons))
 
 
@@ -1552,7 +1655,7 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         for time_slice in range(self.config.Nt):
             for hex_index in range(self.config.Ls ** 2):
                 block_plus, block_minus = _V_from_configuration_onesite_accurate_imag_hex(
-                        self.hex[time_slice, hex_index], self.config.nu_U, self.config.alpha
+                        self.hex[time_slice, hex_index], self.config.nu_U, self.config.alpha, self.etajit
                     )
                 
                 self.V_plus = _assign_6x6(self.V_plus, time_slice, self.hexagons[hex_index], block_plus)
@@ -1588,11 +1691,11 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         self.hex[time_slice, hex_index] = new_conf
 
         block_plus_old, block_minus_old = _V_from_configuration_onesite_accurate_imag_hex(
-                old_conf, self.config.nu_U, self.config.alpha
+                old_conf, self.config.nu_U, self.config.alpha, self.etajit
             )
 
         block_plus, block_minus = _V_from_configuration_onesite_accurate_imag_hex(
-                new_conf, self.config.nu_U, self.config.alpha
+                new_conf, self.config.nu_U, self.config.alpha, self.etajit
             )
 
         self.V_plus = _assign_6x6(self.V_plus, time_slice, self.hexagons[hex_index], block_plus - block_plus_old)
@@ -1623,47 +1726,134 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
 
         #return 
 
+
+        if not np.isclose(self.config.alpha, 0.):
+            deltas = []
+            V_plus_test = self.V_plus[time_slice] * 1.
+
+            Vs = np.zeros((len(local_conf_combinations), V_plus_test.shape[0], V_plus_test.shape[1]), dtype=np.complex128)
+            #Qs = np.zeros((4, V_plus_test.shape[0], V_plus_test.shape[1]), dtype=np.complex128)
+            Vs[0] = -V_plus_test
+
+
+            idx = 1
+            for local_conf_proposed in local_conf_combinations:
+                if local_conf_proposed[0] == local_conf:
+                    continue
+                V_plus_testx = _assign_6x6_not(V_plus_test.copy() * 1., self.hexagons[sp_index], \
+                                              _V_from_configuration_onesite_accurate_imag_hex(local_conf_proposed[0], self.config.nu_U, self.config.alpha, self.etajit)[0] - \
+                                              _V_from_configuration_onesite_accurate_imag_hex(local_conf, self.config.nu_U, self.config.alpha, self.etajit)[0])
+                Vs[idx] = V_plus_testx.copy() * 1.0
+                idx += 1
+
+
+
+            #t = time()            
+
+            '''
+            t = time()
+            Vbig = np.zeros((4 * Vs.shape[1], Vs.shape[2]* 4), dtype=np.complex128)
+            for i in range(4):
+                Vbig[i * Vs.shape[1]:(i + 1) * Vs.shape[1], i * Vs.shape[1]:(i + 1) * Vs.shape[1]] = Vs[i]
+            Vbig = scipy.linalg.expm(Vbig)
+            print(Vbig.shape)
+            exps = np.array([Vbig[i * Vs.shape[1]:(i + 1) * Vs.shape[1], \
+                                  i * Vs.shape[1]:(i + 1) * Vs.shape[1]]] for i in range(4))
+            print(exps.shape)
+            print(time() - t, 'new')
+
+            t = time()
+            '''
+
+
+
+            self.n_bonds.append(np.sum(np.abs(Vs[0] - np.diag(np.diag(Vs[0]))) > 1e-3) / Vs.shape[2] / 3.)
+            
+            n_clusters, arr = connected_components(np.abs(Vs[0]) > 1e-3)
+            excl = np.array(excluded_sites(n_clusters, arr, self.hexagons[sp_index]), dtype=np.int64)
+            active_sites = np.sort(np.setdiff1d(np.arange(Vs[0].shape[1]), excl, assume_unique=True))
+            Vs_selected = np.ascontiguousarray(Vs[:, active_sites, :][:, :, active_sites])
+
+            self.ratios.append(len(active_sites) ** 3 / Vs.shape[2] ** 3)
+            
+            exps = np.array([scipy.linalg.expm(x) for x in Vs_selected])
+                        
+
+
+            '''
+            if self.previous_V is None:
+                exps = np.array([scipy.linalg.expm(x) for x in Vs])
+            else:
+                exps = np.concatenate([self.previous_V[np.newaxis, ...], np.array([scipy.linalg.expm(x) for x in Vs[1:]])], axis=0)
+            '''
+            
+            
+            
+            #t1 = time() - t
+
+            #t = time()
+            #exps = np.array([_fast_matrix_exp(x) for x in Vs])
+            #print(time() - t, 'takes exponent fast')
+            #t2 = time() - t
+            #self.ratios.append(t1 / t2)
+            #print(np.mean(self.ratios))
+
+            #print(np.linalg.norm(exps - exps_cc))
+            # print('after exp', np.sum(np.abs(exps[1]) > 1e-3) / exps[1].shape[1] ** 2)
+
+            '''
+            print(time() - t, 'vectorized')
+            t = time()
+            exps = np.array([scipy.linalg.expm(x) for x in Vs])
+            print(time() - t, 'standard')
+            '''
+
+            
+            inv_exps = np.linalg.inv(exps).conj()
+            prod_plus = exps @ exps[0]
+            prod_minus = inv_exps @ inv_exps[0]
+
+
+            idx = 1
+            for local_conf_proposed in local_conf_combinations:
+                if local_conf_proposed[0] == local_conf:
+                    deltas.append((np.eye(2) * 0. + 0.0j, np.eye(2) * 0. + 0.0j, np.arange(2)))
+                    continue
+
+                
+                '''
+                delta_plus = (prod_plus[idx] - np.eye(V_plus_test.shape[0]))
+                delta_minus = (prod_minus[idx] - np.eye(V_plus_test.shape[0]))
+                support_row = np.where(np.sum(np.abs(delta_plus), axis=0) > 1e-8)[0]
+                deltas.append((delta_plus[support_row][:, support_row].copy() * 1., \
+                               delta_minus[support_row][:, support_row].copy() * 1., \
+                               support_row, inv_exps[idx].conj()))
+
+
+                '''
+                delta_plus = (prod_plus[idx] - np.eye(len(active_sites)))
+                delta_minus = (prod_minus[idx] - np.eye(len(active_sites)))
+                support_row = active_sites
+                
+
+                deltas.append((delta_plus, delta_minus, support_row, inv_exps[idx].conj()))
+                
+                idx += 1
+                
+
+            return deltas
+
+        support = np.array(self.hexagons[sp_index]).astype(np.int64)
         deltas = []
-        V_plus_test = self.V_plus[time_slice] * 1.
-
-        Vs = np.zeros((4, V_plus_test.shape[0], V_plus_test.shape[1]), dtype=np.complex128)
-        Vs[0] = -V_plus_test
-
-
-        idx = 1
         for local_conf_proposed in local_conf_combinations:
-            if local_conf_proposed[0] == local_conf:
-                continue
-            V_plus_testx = _assign_6x6_not(V_plus_test.copy() * 1., self.hexagons[sp_index], \
-                                          _V_from_configuration_onesite_accurate_imag_hex(local_conf_proposed[0], self.config.nu_U, self.config.alpha)[0] - \
-                                          _V_from_configuration_onesite_accurate_imag_hex(local_conf, self.config.nu_U, self.config.alpha)[0])
-            Vs[idx] = V_plus_testx.copy() * 1.0
-            idx += 1
+            dV = _V_from_configuration_onesite_accurate_imag_hex(local_conf_proposed[0], self.config.nu_U, self.config.alpha, self.etajit)[0] - \
+                 _V_from_configuration_onesite_accurate_imag_hex(local_conf, self.config.nu_U, self.config.alpha, self.etajit)[0]
+            delta = np.diag(np.exp(np.diag(dV))) - np.eye(6)
 
-
-        exps = torch.matrix_exp(torch.from_numpy(Vs)).numpy()
-        inv_exps = np.linalg.inv(exps).conj()
-        #exps[0] = exps[0] @ self.K_plus_half_inverse
-        #inv_exps[0] = inv_exps[0] @ self.K_minus_half_inverse
-
-        #exps[1:] = np.einsum('ij,kjl->kil', self.K_plus_half, exps[1:])
-        #inv_exps[1:] = np.einsum('ij,kjl->kil', self.K_minus_half, inv_exps[1:])
-        
-
-        idx = 1
-        for local_conf_proposed in local_conf_combinations:
-            if local_conf_proposed[0] == local_conf:
-                deltas.append((V_plus_test * 0. + 0.0j, V_plus_test * 0. + 0.0j, np.arange(V_plus_test.shape[0])))
-                continue
-
-            delta_plus = (exps[idx] @ exps[0] - np.eye(V_plus_test.shape[0]))
-            delta_minus = (inv_exps[idx] @ inv_exps[0] - np.eye(V_plus_test.shape[0]))
-            support_row = np.where(np.sum(np.abs(delta_plus), axis=0) > 1e-8)[0]
-
-            deltas.append((delta_plus[support_row][:, support_row].copy() * 1., delta_minus[support_row][:, support_row].copy() * 1., support_row))
-            idx += 1
-
+            deltas.append((delta.copy() * 1., delta.copy() * 1., support))
         return deltas
+
+        
 
         
 
@@ -1692,8 +1882,8 @@ class AuxiliaryFieldInterorbitalAccurateCluster(AuxiliaryFieldInterorbitalAccura
         if (conf_from, conf_to, hex_idx) in self.local_c_dict:
             return self.local_c_dict[(conf_from, conf_to, hex_idx)]
 
-        local_V_inv_plus, local_V_inv_minus = _V_from_configuration_onesite_accurate_imag_hex(conf_from, nu_U, alpha)
-        local_V_proposed_plus, local_V_proposed_minus = _V_from_configuration_onesite_accurate_imag_hex(conf_to, nu_U, alpha)
+        local_V_inv_plus, local_V_inv_minus = _V_from_configuration_onesite_accurate_imag_hex(conf_from, nu_U, alpha, self.etajit)
+        local_V_proposed_plus, local_V_proposed_minus = _V_from_configuration_onesite_accurate_imag_hex(conf_to, nu_U, alpha, self.etajit)
 
         hex_0 = self.hexagons[hex_idx]
         rows, cols = np.meshgrid(hex_0, hex_0)
@@ -1860,8 +2050,7 @@ def _V_from_configuration_onesite_accurate_imag(eta_site, xi_bond, sign, spin, n
                                          ) * sign)  # bond-variable is the same for both sites
 
 @jit(nopython=True)
-def _V_from_configuration_onesite_accurate_imag_hex(configuration, nu_U, alpha):  # used for initialization!
-    eta = [-np.sqrt(6 + 2 * np.sqrt(6)), -np.sqrt(6 - 2 * np.sqrt(6)), 0, +np.sqrt(6 - 2 * np.sqrt(6)), np.sqrt(6 + 2 * np.sqrt(6))]
+def _V_from_configuration_onesite_accurate_imag_hex(configuration, nu_U, alpha, eta):  # used for initialization!
     V_hex_plus = np.zeros((6, 6), dtype=np.complex128)
     V_hex_minus = np.zeros((6, 6), dtype=np.complex128)
 
@@ -1872,8 +2061,6 @@ def _V_from_configuration_onesite_accurate_imag_hex(configuration, nu_U, alpha):
 
     ### work out bond part ###
     for b_idx in range(6):
-        eta_hex_0 = eta[int(configuration) + 2]
-
         V_hex_plus[b_idx, (b_idx + 1) % 6] += -alpha
         V_hex_plus[(b_idx + 1) % 6, b_idx] -= -alpha
 
@@ -2073,3 +2260,23 @@ def _fast_matrix_exp(A):
     return scipy.sparse.linalg.matfuncs._solve_P_Q(U, V, structure=None)
 
 
+def exponent_non_excluded(V, active_sites):
+    return scipy.linalg.expm(V[:, active_sites][active_sites])
+
+
+@jit(nopython=True)
+def excluded_sites(n_clusters, arr, hexagon):
+    groups = [[-1] for _ in range(n_clusters)]
+    for site, cluster in enumerate(arr):
+        groups[cluster].append(site)
+
+    excluded_sites = [-1]
+    for group in groups:
+        has_overlap = False
+        for site in hexagon:
+            if site in group:
+                has_overlap = True
+                break
+        if not has_overlap:
+            excluded_sites += group[1:]
+    return excluded_sites[1:]

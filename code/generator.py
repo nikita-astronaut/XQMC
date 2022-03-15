@@ -6,6 +6,7 @@ import numpy as np
 import os
 import itertools
 
+import scipy
 import scipy.linalg
 from copy import deepcopy
 import scipy.sparse as scs
@@ -513,6 +514,9 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
 
 
         #### xi-bond field update ####
+        phi_field.previous_V = None
+        phi_field.ratios = []
+        phi_field.n_bonds = []
         for hex_idx in range(hex_index_range):
             local_det_factors = []
             local_gauge_factors = []
@@ -560,12 +564,12 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
                 phi_field.Delta_plus = deltas[idx][0]
                 phi_field.Delta_minus = deltas[idx][1]
                 phi_field.support = deltas[idx][2]
+                phi_field.previous_V = deltas[idx][3]
                 total_delta += time() - t
                 t = time()
                 phi_field.update_G_seq_hex(hex_idx)
                 total_G_upd += time() - t
                 phi_field.update_hex_field(hex_idx, time_slice, local_conf_old, new_conf[0])
-
 
             if False:# need_check_xi:
                 phi_field.exponentiate_V()
@@ -594,12 +598,12 @@ def perform_sweep_cluster(phi_field, observables, n_sweep, n_spins, switch = Tru
         print('measurement of green functions takes ', time() - t)
         process = psutil.Process(os.getpid())
         print('using memory', process.memory_info().rss)
-    #print('EXP TOTAL', total_exp)
-    #print('DELTA TOTAL', total_delta)
-    #print('UPD TOTAL', total_G_upd)
-    #print('RATIO TOTAL', total_ratio)
-    #print('TOTAL WRAP', total_wrap)
-    #print('TOTAL REFRESH', total_refresh)
+    print('EXP TOTAL', total_exp)
+    print('DELTA TOTAL', total_delta)
+    print('UPD TOTAL', total_G_upd)
+    print('RATIO TOTAL', total_ratio)
+    print('TOTAL WRAP', total_wrap)
+    print('TOTAL REFRESH', total_refresh)
     return phi_field, observables
 
 
@@ -723,8 +727,8 @@ if __name__ == "__main__":
         #np.save('K_matrix.npy', (K_matrix))
         #exit(-1)
 
-        K_matrix = K_matrix.real +1.0j * Kim.imag  # FIXME FIXME FIXME
-        print(repr(K_matrix))
+        #K_matrix = K_matrix.real +1.0j * Kim.imag  # FIXME FIXME FIXME
+        #print(repr(K_matrix))
     
         #assert config.mu == 0
 
@@ -778,9 +782,9 @@ if __name__ == "__main__":
 
 
             phi_field.save_configuration()
-            observables.print_std_logs(n_sweep)
+            observables.print_std_logs(n_sweep, np.mean(phi_field.ratios), np.mean(phi_field.n_bonds))
             if observables.n_cumulants > 0:
-                observables.write_light_observables(phi_field.config, n_sweep)
+                observables.write_light_observables(phi_field.config, n_sweep, np.mean(phi_field.ratios), np.mean(phi_field.n_bonds))
             last_n_sweep_log.write(str(n_sweep) + '\n'); last_n_sweep_log.flush()
             if n_sweep > config.thermalization and n_sweep % config.n_print_frequency == 0:
                 t = time()
